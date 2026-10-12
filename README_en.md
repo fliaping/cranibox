@@ -171,7 +171,7 @@ flowchart TB
 ### Secure Remote Start (Recommended)
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 ./scripts/remote-up.sh
 ```
@@ -221,7 +221,7 @@ install code-server or Control Center; add them later as described in [Deploymen
 curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 
 # International users (GitHub)
-curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
@@ -230,7 +230,7 @@ curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/insta
 irm https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.ps1 -OutFile install.ps1; .\install.ps1
 
 # International users (GitHub)
-irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 -OutFile install.ps1; .\install.ps1
+irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
 ### Docker CLI
@@ -263,7 +263,7 @@ drop `AGENT_WORKSPACE_BOOTSTRAP`, `AGENT_WORKSPACE_AGENT`, and `-p 8443:8443`.
 ### Docker Compose
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 # Edit docker-compose.yml as needed
 docker compose up -d
@@ -564,7 +564,7 @@ The `run` file must be executable. After container recreation, services are auto
 The base follows the latest official `linuxserver/webtop:ubuntu-{desktop}` tag. Release and local builds pull the base image for updates and inherit the official Selkies and PulseAudio startup scripts.
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 
 # Default build (XFCE + international mirrors)
@@ -633,4 +633,4 @@ docker start agent-workspace
 
 - [LinuxServer Webtop Docs](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
-- [GitHub](https://github.com/fliaping/agent-workspace)
+- [GitHub](https://github.com/fliaping/cranibox)

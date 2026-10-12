@@ -22,7 +22,7 @@ from typing import Callable
 
 
 APP_NAME = "agent-workspace-manager"
-DEFAULT_REPO_URL = "https://github.com/fliaping/agent-workspace.git"
+DEFAULT_REPO_URL = "https://github.com/fliaping/cranibox.git"
 DEFAULT_CHINA_REPO_URL = "https://gitcode.com/fliaping0/agent-workspace.git"
 _OUTPUT_CONTEXT = threading.local()
 

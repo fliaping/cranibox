@@ -2,12 +2,12 @@
 # Agent Workspace One-Click Deploy (Windows PowerShell)
 # Based on LinuxServer webtop (Selkies)
 # Requires: Windows 10/11 + Docker Desktop
-# Project: https://github.com/fliaping/agent-workspace
+# Project: https://github.com/fliaping/cranibox
 #
 # Usage:
 #   .\install.ps1
 #   # or remote:
-#   irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 | iex
 #
 
 $ErrorActionPreference = "Stop"

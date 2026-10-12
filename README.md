@@ -171,7 +171,7 @@ flowchart TB
 ### 安全远程启动（推荐）
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 ./scripts/remote-up.sh
 ```
@@ -216,7 +216,7 @@ TLS 和强认证的反向代理、VPN 或零信任网关后面。
 curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 
 # 国际用户（GitHub）
-curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
@@ -225,7 +225,7 @@ curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/insta
 irm https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.ps1 -OutFile install.ps1; .\install.ps1
 
 # 国际用户（GitHub）
-irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 -OutFile install.ps1; .\install.ps1
+irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
 ### Docker 命令启动
@@ -258,7 +258,7 @@ docker run -d --name agent-workspace \
 ### Docker Compose 启动
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 # 按需修改 docker-compose.yml
 docker compose up -d
@@ -532,7 +532,7 @@ agent-workspace-manager install code-server-extensions
 基底使用官方 `linuxserver/webtop:ubuntu-{desktop}` 最新标签。发布构建和本地构建使用 `--pull` 刷新基底，Selkies 与 PulseAudio 启动逻辑直接继承官方镜像。
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 
 # 默认构建（XFCE + 国际源）
@@ -592,4 +592,4 @@ docker start agent-workspace
 
 - [LinuxServer Webtop 文档](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
-- [GitHub](https://github.com/fliaping/agent-workspace)
+- [GitHub](https://github.com/fliaping/cranibox)

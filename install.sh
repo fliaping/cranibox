@@ -3,7 +3,7 @@
 # Agent Workspace 一键部署脚本
 # 基于 LinuxServer webtop (Selkies)
 # 支持多语言: 中文 / English
-# 使用方法: curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | sudo bash
+# 使用方法: curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | sudo bash
 #
 
 set -e
@@ -1424,7 +1424,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]] && [ "$EUID" -ne 0 ] && ! check_dind; then
     echo "$(get_text usage):"
     echo "  sudo ./install.sh"
     echo "  $(get_text or)"
-    echo '  curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | sudo bash'
+    echo '  curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | sudo bash'
     exit 1
 fi
 
