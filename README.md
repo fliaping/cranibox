@@ -1,6 +1,7 @@
 <div align="center">
-  <h1>Agent Workspace</h1>
-  <p>开箱即用的远程 AI Agent 开发与运行环境</p>
+  <h1>Cranibox</h1>
+  <p><b>随时、随地、任意设备 —— 自托管、可信任的 Agent 大脑</b></p>
+  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace，仓库与镜像名暂不变。</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -13,7 +14,14 @@
 
 ---
 
-基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）的容器化远程工作区。一个 `/config` 数据卷即可持久化桌面、code-server、Agent、MCP、Skills 和自定义服务，适合在服务器、NAS 或 WSL2 上长期运行 Codex、Claude Code、Hermes 等 AI Agent。
+Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务器、NAS 或 WSL2 上的容器，Codex、Claude Code、Hermes 在里面拥有真实的桌面、浏览器和终端，你用任何设备的浏览器就能随时接入。
+
+- **任意设备访问** — 桌面（Selkies）和 code-server 都在浏览器里打开，手机、平板、电脑均可；可一条命令接入 Tailscale，用带证书的私有 HTTPS 地址访问，无需开放公网端口
+- **数据只在你手里** — 一个 `/config` 数据卷保存 Agent、登录态、MCP、Skills 和配置，备份或迁移只需复制它
+- **可信任的边界** — 托管 Chromium 的 CDP 只监听容器回环 `127.0.0.1:9222`；桌面 Computer Use 带紧急停止；安装 `.deb` 前先展示风险并需确认
+- **Agent 认识自己的家** — 内置 `AGENTS.md` / `CLAUDE.md` 和 `workspacectl`，Agent 知道状态存在哪、如何查看服务、端口和日志
+
+技术上它基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）构建。一个 `/config` 数据卷即可持久化桌面、code-server、Agent、MCP、Skills 和自定义服务，适合在服务器、NAS 或 WSL2 上长期运行 Codex、Claude Code、Hermes 等 AI Agent。
 
 ## 界面截图
 
@@ -163,7 +171,7 @@ flowchart TB
 ### 安全远程启动（推荐）
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 ./scripts/remote-up.sh
 ```
@@ -208,7 +216,7 @@ TLS 和强认证的反向代理、VPN 或零信任网关后面。
 curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 
 # 国际用户（GitHub）
-curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
@@ -217,7 +225,7 @@ curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/insta
 irm https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.ps1 -OutFile install.ps1; .\install.ps1
 
 # 国际用户（GitHub）
-irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 -OutFile install.ps1; .\install.ps1
+irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
 ### Docker 命令启动
@@ -250,7 +258,7 @@ docker run -d --name agent-workspace \
 ### Docker Compose 启动
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 # 按需修改 docker-compose.yml
 docker compose up -d
@@ -524,7 +532,7 @@ agent-workspace-manager install code-server-extensions
 基底使用官方 `linuxserver/webtop:ubuntu-{desktop}` 最新标签。发布构建和本地构建使用 `--pull` 刷新基底，Selkies 与 PulseAudio 启动逻辑直接继承官方镜像。
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 
 # 默认构建（XFCE + 国际源）
@@ -584,4 +592,4 @@ docker start agent-workspace
 
 - [LinuxServer Webtop 文档](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
-- [GitHub](https://github.com/fliaping/agent-workspace)
+- [GitHub](https://github.com/fliaping/cranibox)

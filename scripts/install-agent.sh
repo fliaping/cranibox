@@ -45,7 +45,7 @@ fi
 if [ "$USE_CHINA_MIRROR" = "true" ]; then
     URL="https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/scripts/$WIZARD"
 else
-    URL="https://raw.githubusercontent.com/fliaping/agent-workspace/main/scripts/$WIZARD"
+    URL="https://raw.githubusercontent.com/fliaping/cranibox/main/scripts/$WIZARD"
 fi
 
 # ── Download latest wizard (3 retries) ───────────────────────

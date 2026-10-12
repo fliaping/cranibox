@@ -1,6 +1,7 @@
 <div align="center">
-  <h1>Agent Workspace</h1>
-  <p>A ready-to-use remote development and runtime environment for AI agents</p>
+  <h1>Cranibox</h1>
+  <p><b>Anytime, anywhere, every device — a self-hosted, trusted Agent Brain</b></p>
+  <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; repository and image names are unchanged for now.</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -13,7 +14,14 @@
 
 ---
 
-A containerized remote workspace based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
+Cranibox is a braincase for your AI agents that you host yourself: one container on your server, NAS, or WSL2 host where Codex, Claude Code, and Hermes get a real desktop, browser, and terminal, and you reach it from the browser on any device.
+
+- **Every device** — the Selkies desktop and code-server open in any browser, phone, tablet, or laptop; join Tailscale with one command for private HTTPS without opening public ports
+- **Your data stays yours** — a single `/config` volume holds agents, logins, MCP, Skills, and settings; back up or move it by copying one folder
+- **Trusted boundaries** — managed Chromium CDP listens only on container loopback `127.0.0.1:9222`; desktop Computer Use has an emergency stop; `.deb` installs show the risk and wait for your approval
+- **Agents know their home** — built-in `AGENTS.md` / `CLAUDE.md` and `workspacectl` tell agents where state lives and how to check services, ports, and logs
+
+Under the hood it is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
 
 ## Screenshots
 
@@ -163,7 +171,7 @@ flowchart TB
 ### Secure Remote Start (Recommended)
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 ./scripts/remote-up.sh
 ```
@@ -213,7 +221,7 @@ install code-server or Control Center; add them later as described in [Deploymen
 curl -fsSL https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.sh | bash
 
 # International users (GitHub)
-curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | bash
 ```
 
 **Windows (PowerShell)**
@@ -222,7 +230,7 @@ curl -fsSL https://raw.githubusercontent.com/fliaping/agent-workspace/main/insta
 irm https://raw.gitcode.com/fliaping0/agent-workspace/raw/main/install.ps1 -OutFile install.ps1; .\install.ps1
 
 # International users (GitHub)
-irm https://raw.githubusercontent.com/fliaping/agent-workspace/main/install.ps1 -OutFile install.ps1; .\install.ps1
+irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
 ### Docker CLI
@@ -255,7 +263,7 @@ drop `AGENT_WORKSPACE_BOOTSTRAP`, `AGENT_WORKSPACE_AGENT`, and `-p 8443:8443`.
 ### Docker Compose
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 # Edit docker-compose.yml as needed
 docker compose up -d
@@ -556,7 +564,7 @@ The `run` file must be executable. After container recreation, services are auto
 The base follows the latest official `linuxserver/webtop:ubuntu-{desktop}` tag. Release and local builds pull the base image for updates and inherit the official Selkies and PulseAudio startup scripts.
 
 ```bash
-git clone https://github.com/fliaping/agent-workspace.git
+git clone https://github.com/fliaping/cranibox.git
 cd agent-workspace
 
 # Default build (XFCE + international mirrors)
@@ -625,4 +633,4 @@ docker start agent-workspace
 
 - [LinuxServer Webtop Docs](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
-- [GitHub](https://github.com/fliaping/agent-workspace)
+- [GitHub](https://github.com/fliaping/cranibox)
