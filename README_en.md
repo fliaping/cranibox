@@ -1,6 +1,7 @@
 <div align="center">
-  <h1>Agent Workspace</h1>
-  <p>A ready-to-use remote development and runtime environment for AI agents</p>
+  <h1>Cranibox</h1>
+  <p><b>Anytime, anywhere, every device — a self-hosted, trusted Agent Brain</b></p>
+  <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; repository and image names are unchanged for now.</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -13,7 +14,14 @@
 
 ---
 
-A containerized remote workspace based on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
+Cranibox is a braincase for your AI agents that you host yourself: one container on your server, NAS, or WSL2 host where Codex, Claude Code, and Hermes get a real desktop, browser, and terminal, and you reach it from the browser on any device.
+
+- **Every device** — the Selkies desktop and code-server open in any browser, phone, tablet, or laptop; join Tailscale with one command for private HTTPS without opening public ports
+- **Your data stays yours** — a single `/config` volume holds agents, logins, MCP, Skills, and settings; back up or move it by copying one folder
+- **Trusted boundaries** — managed Chromium CDP listens only on container loopback `127.0.0.1:9222`; desktop Computer Use has an emergency stop; `.deb` installs show the risk and wait for your approval
+- **Agents know their home** — built-in `AGENTS.md` / `CLAUDE.md` and `workspacectl` tell agents where state lives and how to check services, ports, and logs
+
+Under the hood it is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
 
 ## Screenshots
 
