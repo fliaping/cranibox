@@ -51,7 +51,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: cargo build --locked -p agent-workspace-runtime
+      - run: cargo build --locked -p agent-workspace-runtime -p agent-workspacectl
       - run: python -m unittest discover -s tests -p test_rust_runtime.py -v
         env:
           CRANIBOX_NODE_BIN: target/release/cranibox-node-desktop${{ runner.os == 'Windows' && '.exe' || '' }}

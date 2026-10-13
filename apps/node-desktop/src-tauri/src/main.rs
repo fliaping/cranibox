@@ -193,6 +193,11 @@ async fn peers(state: State<'_, Arc<AppState>>) -> Result<Value, String> {
 #[tauri::command]
 fn mcp_config() -> Result<Value, String> {
     let executable: PathBuf = std::env::current_exe().map_err(|error| error.to_string())?;
+    // AppImage runs from a temporary mount; Agents need the persistent launcher.
+    #[cfg(target_os = "linux")]
+    let executable = std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .unwrap_or(executable);
     Ok(
         json!({"mcpServers":{"cranibox-devices":{"command":executable,"args":["mcp","--config",settings::default_path()]}}}),
     )
