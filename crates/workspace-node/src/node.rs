@@ -233,11 +233,19 @@ async fn read_output<R: tokio::io::AsyncRead + Unpin>(
         if count == 0 {
             return Ok(());
         }
-        let prior = budget
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |left| {
-                Some(left.saturating_sub(count))
-            })
-            .unwrap();
+        // Keep the shared output limit atomic without requiring Rust's newer try_update API.
+        let mut prior = budget.load(Ordering::Relaxed);
+        loop {
+            match budget.compare_exchange_weak(
+                prior,
+                prior.saturating_sub(count),
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(left) => prior = left,
+            }
+        }
         let send = count.min(prior);
         if send > 0 {
             let output = Wire::Output {
@@ -477,6 +485,39 @@ impl Drop for ProcessTree {
         unsafe {
             windows_sys::Win32::Foundation::CloseHandle(self.job);
         }
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_streams_share_one_output_limit() {
+        let budget = Arc::new(AtomicUsize::new(10_001));
+        let (tx, mut rx) = mpsc::channel(32);
+        let tasks = [Stream::Stdout, Stream::Stderr].map(|stream| {
+            tokio::spawn(read_output(
+                std::io::Cursor::new(vec![b'a'; 8192]),
+                "test".into(),
+                stream,
+                tx.clone(),
+                budget.clone(),
+                CancellationToken::new(),
+            ))
+        });
+        drop(tx);
+        for task in tasks {
+            task.await.unwrap().unwrap();
+        }
+        let mut total = 0;
+        while let Some(wire) = rx.recv().await {
+            if let Wire::Output { data, .. } = wire {
+                total += STANDARD.decode(data).unwrap().len();
+            }
+        }
+        assert_eq!(total, 10_001);
+        assert_eq!(budget.load(Ordering::Relaxed), 0);
     }
 }
 
