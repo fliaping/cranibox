@@ -112,7 +112,7 @@ export function TerminalPage({ visible = true }: { visible?: boolean }) {
     if (!launch || !visible || loading || mutation.current || target !== (launch.node ?? target) || online && catalogOwner.current !== target) return;
     consume(launch.serial);
     if (launch.session) return;
-    if (!online || !catalog?.installed) { setError(t('此节点的持久终端暂不可用，请检查节点或 herdr。', 'Persistent terminals are unavailable. Check this node and herdr.')); return; }
+    if (!online || !catalog?.installed) { setError(target ? t('节点终端暂不可用，请检查客户端连接。', 'Terminals are unavailable. Check the node connection.') : t('工作区终端暂不可用，请检查 herdr。', 'Workspace terminals are unavailable. Check herdr.')); return; }
     if (!launch.command) {
       const existing = catalog.sessions.find(item => item.id === selected && item.status === 'running') || catalog.sessions.find(item => item.status === 'running');
       if (existing) { openSession(existing); return; }
@@ -156,7 +156,7 @@ export function TerminalPage({ visible = true }: { visible?: boolean }) {
     <div className="terminal-list-heading"><h2>{t('会话', 'Sessions')} <span>{sessions.length}</span></h2><div className="actions"><Button local icon={RefreshCw} label={t('刷新会话', 'Refresh sessions')} disabled={loading || pending} onClick={() => void refresh(true)} /><Button local icon={Plus} label={t('新建会话', 'New session')} disabled={!online || !catalog?.installed || pending} onClick={createDialog} /></div></div>
     <label className="terminal-search"><Search size={16} aria-hidden="true" /><span className="sr-only">{t('搜索会话', 'Search sessions')}</span><input type="search" placeholder={t('搜索会话…', 'Search sessions…')} value={filter} onChange={event => setFilter(event.target.value)} /></label>
     {!online && <p className="terminal-list-note">{targetNode?.online ? t('此节点暂不支持持久终端，远程命令仍可用。', 'This node does not support persistent terminals. Remote commands remain available.') : t('节点离线，恢复后可接回会话。', 'Node offline. Reattach when it reconnects.')}</p>}
-    {online && catalog && !catalog.installed && <p className="terminal-list-note">{t('此节点未安装 herdr，请安装后刷新。', 'Install herdr on this machine, then refresh.')}</p>}
+    {online && catalog && !catalog.installed && <p className="terminal-list-note">{target ? t('节点终端暂不可用，请更新客户端后刷新。', 'Terminals are unavailable. Update the node client, then refresh.') : t('工作区未安装 herdr，请安装后刷新。', 'Install herdr in this workspace, then refresh.')}</p>}
     <div className="terminal-session-list" aria-label={t('会话列表', 'Session list')}>
       {filtered.map(item => <div key={item.id} className={'terminal-session-row' + (item.id === selected ? ' selected' : '')}>
         <button className="terminal-session-select" aria-label={t('打开 ', 'Open ') + item.name} aria-pressed={item.id === selected} disabled={pending || item.status !== 'running'} onClick={() => openSession(item)}><Terminal size={17} aria-hidden="true" /><span><strong title={item.name}>{item.name}</strong><small title={item.cwd}>{item.cwd}</small></span><span className={'terminal-session-dot ' + item.status} /><span className="sr-only">{item.status === 'running' ? t('运行中', 'Running') : t('已结束', 'Ended')}</span></button>

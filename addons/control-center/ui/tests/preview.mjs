@@ -44,7 +44,7 @@ async function stop(code = 0) {
     }
   }
   if (process.env.CRANIBOX_HERDR_BIN) {
-    for (const state of [path.join(directory, '.local/state/cranibox/terminal'), path.join(directory, '.cranibox-herdr-preview-node')]) {
+    for (const state of [path.join(directory, '.local/state/cranibox/terminal')]) {
       spawnSync(process.env.CRANIBOX_HERDR_BIN, ['server', 'stop'], { env: { ...process.env, HERDR_CONFIG_PATH: path.join(state, 'config.toml'), HERDR_SOCKET_PATH: path.join(state, 'h.sock') }, timeout: 8000 });
     }
   }
@@ -52,7 +52,7 @@ async function stop(code = 0) {
   process.exit(code);
 }
 function start(command, args) {
-  const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...process.env, HOME: directory } : process.env });
+  const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...process.env, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : process.env });
   processes.push(child);
   child.on('error', error => { console.error(error.message); void stop(1); });
   child.on('exit', code => { if (!stopping) void stop(code || 1); });

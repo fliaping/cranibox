@@ -7,7 +7,9 @@ use std::{
     sync::mpsc,
 };
 use tokio::sync::mpsc as async_mpsc;
+#[cfg(feature = "herdr")]
 pub mod herdr;
+pub mod persistent;
 
 pub enum Event {
     Output(Vec<u8>),
@@ -52,8 +54,8 @@ impl Session {
         }
         Self::command(cols, rows, command)
     }
-    /// The command must attach to an independently started engine. Drop only
-    /// terminates this client's PTY session / Windows Job, never that engine.
+    /// Own a command's PTY and process tree until this session is dropped.
+    /// For external engine attachments, only the attachment belongs to this PTY.
     pub fn command(cols: u16, rows: u16, command: CommandBuilder) -> Result<Self> {
         validate_size(cols, rows)?;
         let pair = native_pty_system().openpty(PtySize {
@@ -139,6 +141,7 @@ impl Session {
             .map_err(|_| anyhow::anyhow!("terminal input queue full or closed"))
     }
     /// Wait until the external client has enabled raw input after its handshake.
+    #[cfg(feature = "herdr")]
     pub async fn ready(&mut self) -> Result<()> {
         #[cfg(unix)]
         if let Some(fd) = self.master.as_raw_fd() {
@@ -184,7 +187,7 @@ impl Drop for Session {
 }
 
 // Interactive shells put foreground and background jobs in distinct process groups.
-// End all members of their PTY session, including a foreground command at disconnect.
+// End all members when the owning session ends, including foreground commands.
 #[cfg(unix)]
 fn kill_session(session: i32) {
     #[cfg(target_os = "linux")]

@@ -1,7 +1,7 @@
 # 浏览器终端与统一 Rust 服务端
 
 2026-10-13：Web 控制中心新增全局浮动终端，使用 React + xterm.js，通过 WebSocket
-接入 herdr 持久终端。可选择 Workspace 本机，或在线且支持持久终端的远程节点。
+接入持久终端。Workspace 本机使用 herdr；远程节点由客户端直接持有 PTY 和 Shell。可选择本机或在线且支持持久终端的远程节点。
 节点客户端是独立的 `cranibox-node` 应用，服务端是 `cranibox`。
 
 ## 嵌入方案选择
@@ -12,7 +12,7 @@
 | [ttyd](https://github.com/tsl0922/ttyd) | 成熟的独立 Web 终端服务，后端使用 C/libuv，提供自身认证和进程管理 | 独立部署可用；这里需要复用已有会话和远程节点路由，未引入额外常驻服务 |
 | [portable-pty](https://github.com/wez/wezterm/tree/main/pty) | WezTerm 项目的 Rust 跨平台 PTY 库，支持 Unix PTY 与 Windows ConPTY | 服务端和独立节点客户端共用 PTY 库；Windows 需要支持 ConPTY 的系统 |
 
-xterm.js 负责显示和输入，命令在独立 herdr 后台引擎的 PTY 中运行。管理调用公开 JSON CLI，接入使用 herdr terminal attach，不引用源码或内部协议。前端包已锁定版本；
+xterm.js 负责显示和输入，本机命令在独立 herdr 后台引擎的 PTY 中运行，管理调用公开 JSON CLI，接入使用 herdr terminal attach，不引用源码或内部协议。远程节点使用 portable-pty 创建 Shell，客户端内置会话管理器负责创建、列举、重命名、接管和结束会话。前端包已锁定版本；
 构建后的 JS/CSS 嵌入服务端程序，运行时不需要 Node.js 或 ttyd。
 
 ## 应用与部署
@@ -25,7 +25,7 @@ xterm.js 负责显示和输入，命令在独立 herdr 后台引擎的 PTY 中�
 | `cranibox runtime` | 节点注册、命令查询、MCP；不包含节点执行客户端 |
 | `cranibox-node` | Windows/macOS/Linux 独立客户端；远程命令与交互终端 |
 
-Cargo 保留兼容开发入口；正式部署包含两个 Cranibox Rust 二进制及独立升级的 herdr 二进制。
+Cargo 保留兼容开发入口；正式部署包含服务端和独立客户端两个 Cranibox Rust 二进制，服务端本机终端另外使用独立升级的 herdr。客户端构建产物只包含 `cranibox-node` 或 `cranibox-node.exe`。
 `workspacectl`、`workspace-services`、`systemctl`、`workspace-runtime` 和原 Web 程序路径
 通过别名调用统一服务端。现有用户服务 unit、自定义服务和节点凭据保留。
 
@@ -57,8 +57,7 @@ cranibox-node --server wss://workspace.example.com \
 ```
 
 旧客户端可继续执行非交互命令；它没有终端能力标识，Web 不会提供远程终端按钮。
-Linux/macOS 更新客户端并在执行机器安装 herdr 后即可使用，token 无需重新注册。
-herdr 0.9.3 暂不支持 Windows 直接终端接入；Windows 仍可执行远程命令。
+Linux/macOS/Windows 更新客户端后即可使用节点终端，token 无需重新注册，也无需安装 herdr。Windows 需要支持 ConPTY 的系统。
 
 ## 使用与生命周期
 
@@ -66,12 +65,15 @@ herdr 0.9.3 暂不支持 Windows 直接终端接入；Windows 仍可执行远程
 
 - 最小化、恢复、切换页面、调整窗口大小：保留原有接入，Shell 和任务继续运行。
 - 脱离、关闭窗口或标签、关闭网页、网络中断：只停止接入客户端，Shell 和任务继续运行。
-- 节点客户端或 Cranibox 重启：独立引擎继续运行，可接回同一个 Shell。
-- 结束会话：关闭 herdr 工作区、停止 Shell 和任务、移除记录；最后一个工作区结束后停止空闲引擎。
+- Cranibox 服务端重启或节点连接中断：远程客户端继续持有 Shell，恢复连接后可接回原会话；本机 herdr 引擎也继续运行。
+- 节点客户端退出或重启：客户端持有的终端会话结束，新客户端不恢复旧 Shell。
+- 结束会话：停止对应 Shell 和任务、移除记录；本机终端关闭 herdr 工作区，最后一个工作区结束后停止空闲引擎。
 - Shell 自行退出：记录显示已结束，可以移除。接入客户端退出码不代表 Shell 命令退出码。
 - 引擎退出或机器重启：不保证任意旧进程存活，不能将恢复布局等同于继续运行旧 Shell。
 
 默认目录为执行机器 HOME 下的 Workspace（存在时），否则 HOME。默认一个会话同时允许一个接入客户端；需要时勾选「接管已有连接」。安装、升级及状态目录见 [herdr 对接说明](herdr-integration.md)。
+
+网页连接意外中断后自动重试接入；主动脱离、结束会话和连接被接管时停止自动重试。远程客户端离线期间持续读取 PTY 输出，每个会话缓存最近 256 KiB，接回时重放；最旧输出超出容量后丢弃。输出队列阻塞只解除网页接入，不终止 Shell。
 
 复用现有 Web 会话、Host/Origin 校验和 CSRF。创建终端先获得绑定会话、30 秒有效、
 一次性的随机票据；WebSocket 握手还需同一会话与 Origin，票据不携带节点 token。
@@ -93,7 +95,6 @@ CRANIBOX_HERDR_BIN="$PWD/target/herdr/herdr" npm test --prefix addons/control-ce
 ```
 
 Linux 实测覆盖本机/远程 PTY、中文与 ANSI、尺寸调整、Ctrl+C、客户端退出、
-断开后的 Shell/后台任务存活、接回相同 Shell、重命名与结束，以及节点/服务端重启，以及票据/来源/会话校验、并发限额、旧服务迁移和回滚。
+断开后的 Shell/后台任务存活、接回相同 Shell、重命名与结束、服务端重启后远程 Shell 存活、客户端退出时结束会话，以及票据/来源/会话校验、并发限额、旧服务迁移和回滚。远程测试将 herdr 路径指向不存在的文件，验证客户端完全不依赖 herdr。
 浏览器回归覆盖 375、768、1024、1440 像素宽度、中英文与真实终端输入。
-CI 配置了 Linux、Windows、macOS 原生构建与节点命令测试；本机 Linux 测试
-不能代替 macOS 的持久终端实测；Windows 目前不提供 herdr 持久终端接入。
+CI 配置了 Linux、Windows、macOS 原生构建、节点命令测试及客户端 PTY 会话测试；本机 Linux 测试不能代替 Windows/macOS 原生验证。

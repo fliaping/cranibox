@@ -1,3 +1,4 @@
+use agent_workspace_pty::persistent::Engine as TerminalEngine;
 use agent_workspace_runtime::{config, protocol::*};
 use anyhow::{Context, Result};
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -45,21 +46,17 @@ pub async fn run(
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
         .unwrap_or(std::env::current_dir()?);
-    let state = std::fs::canonicalize(&token_file)?
-        .parent()
-        .context("token file needs a parent directory")?
-        .join(format!(".cranibox-herdr-{id}"));
-    let engine = agent_workspace_pty::herdr::Engine::new(home, state);
+    let engine = TerminalEngine::new(home);
     let mut delay = 1u64;
     loop {
         if stop.is_cancelled() {
-            return Ok(());
+            break;
         }
         let started = Instant::now();
         // Reload token on reconnect so rotation does not require restarting the client.
         let result = session(&endpoint, &token_file, &name, &stop, &engine).await;
         if stop.is_cancelled() {
-            return Ok(());
+            break;
         }
         if let Err(error) = result {
             eprintln!("Node {id}: {error:#}; reconnecting");
@@ -68,9 +65,11 @@ pub async fn run(
             delay = 1;
         }
         let jitter = u64::from(rand::random::<u16>()) % 1000;
-        tokio::select! { _ = stop.cancelled() => return Ok(()), _ = tokio::time::sleep(Duration::from_millis(delay * 1000 + jitter)) => {} }
+        tokio::select! { _ = stop.cancelled() => break, _ = tokio::time::sleep(Duration::from_millis(delay * 1000 + jitter)) => {} }
         delay = (delay * 2).min(30);
     }
+    engine.shutdown().await;
+    Ok(())
 }
 
 async fn session(
@@ -78,7 +77,7 @@ async fn session(
     token_file: &std::path::Path,
     name: &str,
     stop: &CancellationToken,
-    engine: &agent_workspace_pty::herdr::Engine,
+    engine: &TerminalEngine,
 ) -> Result<()> {
     let mut request = endpoint.into_client_request()?;
     request.headers_mut().insert(
@@ -100,7 +99,7 @@ async fn session(
                 os: std::env::consts::OS.into(),
                 arch: std::env::consts::ARCH.into(),
                 terminal: true,
-                terminal_sessions: !cfg!(windows),
+                terminal_sessions: true,
             })?
             .into(),
         ))
@@ -118,6 +117,7 @@ async fn session(
     eprintln!("Node {name} connected");
     let (tx, mut rx) = mpsc::channel::<Wire>(32);
     let mut tasks = JoinSet::new();
+    let mut terminal_tasks = JoinSet::new();
     let mut active = BTreeMap::<String, CancellationToken>::new();
     let mut terminals = BTreeMap::<String, tokio::sync::mpsc::Sender<Wire>>::new();
     let mut heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_SECS));
@@ -131,6 +131,7 @@ async fn session(
                     let id: String = result?;
                     active.remove(&id);
                 }
+                Some(_) = terminal_tasks.join_next(), if !terminal_tasks.is_empty() => {},
                 _ = heartbeat.tick() => {
                     anyhow::ensure!(last_seen.elapsed() <= Duration::from_secs(DEAD_SECS), "server heartbeat expired");
                     tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(serde_json::to_string(&Wire::Heartbeat {})?.into()))).await??;
@@ -175,7 +176,7 @@ async fn session(
                                 if terminals.len() >= 4 { tx.send(Wire::TerminalExit { id, code: 1 }).await?; continue; }
                                 let (controls, receiver) = mpsc::channel(32);
                                 terminals.insert(id.clone(), controls);
-                                tokio::spawn(terminal(id, (cols, rows), session, takeover, engine.clone(), receiver, tx.clone()));
+                                terminal_tasks.spawn(terminal(id, (cols, rows), session, takeover, engine.clone(), receiver, tx.clone()));
                             }
                             wire @ (Wire::TerminalInput { .. } | Wire::TerminalResize { .. } | Wire::TerminalClose { .. }) => {
                                 let id = match &wire { Wire::TerminalInput { id, .. } | Wire::TerminalResize { id, .. } | Wire::TerminalClose { id } => id.clone(), _ => unreachable!() };
@@ -198,6 +199,8 @@ async fn session(
         Ok(())
     }.await;
     terminals.clear();
+    terminal_tasks.abort_all();
+    while terminal_tasks.join_next().await.is_some() {}
     for cancel in active.values() {
         cancel.cancel();
     }
@@ -493,7 +496,7 @@ async fn terminal(
     size: (u16, u16),
     session: String,
     takeover: bool,
-    engine: agent_workspace_pty::herdr::Engine,
+    engine: TerminalEngine,
     mut controls: mpsc::Receiver<Wire>,
     tx: mpsc::Sender<Wire>,
 ) {
@@ -502,6 +505,18 @@ async fn terminal(
         let _ = tx.send(Wire::TerminalExit { id, code: 1 }).await;
         return;
     };
+    for data in std::mem::take(&mut pty.replay) {
+        let wire = Wire::TerminalOutput {
+            id: id.clone(),
+            data: STANDARD.encode(data),
+        };
+        if !matches!(
+            tokio::time::timeout(Duration::from_secs(5), tx.send(wire)).await,
+            Ok(Ok(()))
+        ) {
+            return;
+        }
+    }
     let mut exit_code = 1;
     loop {
         tokio::select! {
@@ -532,6 +547,184 @@ async fn terminal(
         }),
     )
     .await;
+}
+
+#[cfg(test)]
+mod terminal_tests {
+    use super::*;
+    use agent_workspace_pty::{
+        Event,
+        persistent::{Attachment, Manage},
+    };
+
+    async fn expect(attachment: &mut Attachment, text: &str) {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let mut output: Vec<u8> = std::mem::take(&mut attachment.replay)
+                .into_iter()
+                .flatten()
+                .collect();
+            loop {
+                if output
+                    .windows(text.len())
+                    .any(|window| window == text.as_bytes())
+                {
+                    return;
+                }
+                match attachment.output.recv().await {
+                    Some(Event::Output(data)) => output.extend(data),
+                    _ => panic!(
+                        "terminal closed before {text}: {}",
+                        String::from_utf8_lossy(&output)
+                    ),
+                }
+            }
+        })
+        .await
+        .expect("terminal output timed out");
+    }
+
+    fn marker(first: &str, second: &str) -> Vec<u8> {
+        #[cfg(windows)]
+        let command = format!("echo {first}^{second}\r");
+        #[cfg(not(windows))]
+        let command = format!("printf '%s%s\\n' {first} {second}\r");
+        command.into_bytes()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn node_owns_shell_across_detach_and_takeover() {
+        let directory = tempfile::tempdir().unwrap();
+        let engine = TerminalEngine::new(directory.path().into());
+        let created = engine
+            .manage(Manage::Create {
+                name: "Native shell".into(),
+                cwd: None,
+            })
+            .await
+            .unwrap();
+        let id = created["session"]["id"].as_str().unwrap().to_owned();
+        let mut first = engine.attach(&id, 80, 24, false).await.unwrap();
+        #[cfg(windows)]
+        first
+            .write(b"set CRANIBOX_TEST=retained\r".to_vec())
+            .unwrap();
+        #[cfg(not(windows))]
+        first
+            .write(b"export CRANIBOX_TEST=retained\r".to_vec())
+            .unwrap();
+        first.write(marker("FIRST", "_READY")).unwrap();
+        expect(&mut first, "FIRST_READY").await;
+        drop(first);
+        let mut second = engine.attach(&id, 101, 31, false).await.unwrap();
+        expect(&mut second, "FIRST_READY").await;
+        #[cfg(windows)]
+        second
+            .write(b"echo %CRANIBOX_TEST%^_AFTER_DETACH\r".to_vec())
+            .unwrap();
+        #[cfg(not(windows))]
+        second
+            .write(b"printf '%s%s\\n' \"$CRANIBOX_TEST\" _AFTER_DETACH\r".to_vec())
+            .unwrap();
+        expect(&mut second, "retained_AFTER_DETACH").await;
+        assert!(engine.attach(&id, 80, 24, false).await.is_err());
+        let mut replacement = engine.attach(&id, 80, 24, true).await.unwrap();
+        drop(second);
+        replacement.replay.clear();
+        replacement.write(marker("TAKEOVER", "_READY")).unwrap();
+        expect(&mut replacement, "TAKEOVER_READY").await;
+        engine
+            .manage(Manage::Rename {
+                id: id.clone(),
+                name: "Renamed shell".into(),
+            })
+            .await
+            .unwrap();
+        let catalog = engine.manage(Manage::List).await.unwrap();
+        assert_eq!(catalog["engine"], "node-pty");
+        assert_eq!(catalog["sessions"][0]["name"], "Renamed shell");
+        assert_eq!(catalog["sessions"][0]["status"], "running");
+        engine.manage(Manage::End { id }).await.unwrap();
+        assert_eq!(
+            engine.manage(Manage::List).await.unwrap()["sessions"],
+            serde_json::json!([])
+        );
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while let Some(event) = replacement.output.recv().await {
+                if matches!(event, Event::Exit(_)) {
+                    return;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        engine.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shell_exit_marks_session_ended() {
+        let directory = tempfile::tempdir().unwrap();
+        let engine = TerminalEngine::new(directory.path().into());
+        let created = engine
+            .manage(Manage::Create {
+                name: "Short lived".into(),
+                cwd: None,
+            })
+            .await
+            .unwrap();
+        let id = created["session"]["id"].as_str().unwrap().to_owned();
+        let mut attachment = engine.attach(&id, 80, 24, false).await.unwrap();
+        attachment.write(b"exit 7\r".to_vec()).unwrap();
+        let code = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                match attachment.output.recv().await {
+                    Some(Event::Exit(code)) => return code,
+                    Some(Event::Output(_)) => {}
+                    None => panic!("shell closed without an exit status"),
+                }
+            }
+        })
+        .await
+        .expect("shell exit timed out");
+        assert_eq!(code, 7);
+        assert_eq!(
+            engine.manage(Manage::List).await.unwrap()["sessions"][0]["status"],
+            "ended"
+        );
+        assert!(engine.attach(&id, 80, 24, false).await.is_err());
+        engine.manage(Manage::Remove { id }).await.unwrap();
+        engine.shutdown().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn disconnected_output_is_drained_and_replay_is_bounded() {
+        let directory = tempfile::tempdir().unwrap();
+        let engine = TerminalEngine::new(directory.path().into());
+        let created = engine
+            .manage(Manage::Create {
+                name: "Offline output".into(),
+                cwd: None,
+            })
+            .await
+            .unwrap();
+        let id = created["session"]["id"].as_str().unwrap();
+        let first = engine.attach(id, 80, 24, false).await.unwrap();
+        first.write(b"yes x | head -c 2097152; printf '%s%s\\n' REPLAY _DONE; printf finished > complete\r".to_vec()).unwrap();
+        drop(first);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !directory.path().join("complete").exists() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("offline output blocked the shell");
+        let mut reconnected = engine.attach(id, 80, 24, false).await.unwrap();
+        assert!(reconnected.replay.iter().map(Vec::len).sum::<usize>() <= 256 * 1024);
+        expect(&mut reconnected, "REPLAY_DONE").await;
+        reconnected.write(marker("AFTER", "_OFFLINE")).unwrap();
+        expect(&mut reconnected, "AFTER_OFFLINE").await;
+        engine.shutdown().await;
+    }
 }
 
 #[cfg(test)]

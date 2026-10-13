@@ -598,4 +598,4 @@ docker start agent-workspace
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
 - [GitHub](https://github.com/fliaping/cranibox)
 
-浏览器终端与统一 Rust 服务端：[浏览器持久终端: React + xterm.js + herdr](docs/web-terminal-and-unified-server.md).
+浏览器终端与统一 Rust 服务端：[React + xterm.js、服务端 herdr 与客户端原生 PTY](docs/web-terminal-and-unified-server.md).

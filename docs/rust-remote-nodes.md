@@ -126,6 +126,12 @@ Windows PowerShell：
   --id win-pc --name 'Windows PC' --token-file .\win-pc.token
 ```
 
+客户端只需一个二进制，不依赖 herdr。浏览器创建的远程终端由客户端直接持有
+PTY 和 Shell；关闭网页、网络断开或服务端重启均不会结束 Shell。客户端重连后
+可列出并接回原来的会话，网页连接意外中断时会自动重试。每个会话在内存中保留
+最近 256 KiB 输出；断线期间持续读取输出，避免任务被输出缓冲区堵住。
+主动结束会话或退出客户端会结束其 Shell；客户端重启后创建新的会话。
+
 同一 ID 只允许一个在线会话。断线指数退避重连，上限 30 秒，加随机抖动；重连时
 重新读取 token 文件。没有命令重放或离线队列。可把命令交给 Linux 用户 systemd、
 macOS LaunchAgent 或 Windows 任务计划程序，用普通账户运行。权限等于该账户权限。
@@ -138,7 +144,8 @@ workspace-runtime revoke win-pc
 ```
 
 无需重启网关。旧凭据连接最迟在下一次鉴权心跳（约 10 秒）关闭，其任务标记为
-`disconnected`；客户端收到断线后终止当前任务。
+`disconnected`；客户端收到断线后终止当前非交互命令任务。交互终端会话保留在
+客户端中；撤销凭据后无法通过 Workspace 重新接入，需要恢复有效凭据。
 
 ## Agent CLI 与 MCP
 

@@ -7,7 +7,7 @@ rust-version = "1.89"
 [dependencies]
 anyhow = "1"
 agent-workspace-runtime = { path = "../workspace-runtime", default-features = false }
-agent-workspace-pty = { path = "../workspace-pty" }
+agent-workspace-pty = { path = "../workspace-pty", default-features = false }
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"

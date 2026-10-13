@@ -78,6 +78,36 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   expect(errors).toEqual([]);
 });
 
+test('remote terminal reconnects automatically after transport loss and respects manual detach', async ({ page }) => {
+  await page.addInitScript(() => {
+    const sockets: WebSocket[] = [];
+    (window as unknown as { terminalTestSockets: WebSocket[] }).terminalTestSockets = sockets;
+    const NativeSocket = window.WebSocket;
+    window.WebSocket = class extends NativeSocket {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (String(url).includes('/api/terminal/ws')) sockets.push(this);
+      }
+    };
+  });
+  await page.goto('/#/terminal');
+  await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption('preview-node');
+  await createTerminal(page, 'Network recovery');
+  await sendTerminal(page, "export CRANIBOX_BROWSER=NATIVE; printf '%s%s\\n' BEFORE _DISCONNECT");
+  await expect(activePane(page).locator('.xterm-accessibility')).toContainText('BEFORE_DISCONNECT');
+  await page.evaluate(() => (window as unknown as { terminalTestSockets: WebSocket[] }).terminalTestSockets.at(-1)!.close());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { terminalTestSockets: WebSocket[] }).terminalTestSockets.length)).toBe(2);
+  await expect(activePane(page).locator('.status')).toContainText('Connected');
+  await sendTerminal(page, "printf '%s%s\\n' \"$CRANIBOX_BROWSER\" _AFTER_RECONNECT");
+  await expect(activePane(page).locator('.xterm-accessibility')).toContainText('NATIVE_AFTER_RECONNECT');
+  await activePane(page).getByRole('button', { name: 'Detach', exact: true }).click();
+  await expect(activePane(page).locator('.status')).toContainText('Detached');
+  // Allow the initial retry interval to pass: intentional detach must stay detached.
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => (window as unknown as { terminalTestSockets: WebSocket[] }).terminalTestSockets.length)).toBe(2);
+  await endTerminal(page, 'Network recovery');
+});
+
 test('floating terminal moves, resizes and keeps a running command connected while minimized', async ({ page }) => {
   const sockets: import('@playwright/test').WebSocket[] = [], operations: string[] = [];
   page.on('websocket', socket => sockets.push(socket));

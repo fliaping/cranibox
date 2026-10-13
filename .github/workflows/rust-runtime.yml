@@ -85,9 +85,6 @@ jobs:
           path: |
             target/release/cranibox-node
             target/release/cranibox-node.exe
-            target/herdr/herdr
-            target/herdr/herdr.exe
-            scripts/install-herdr.py
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:

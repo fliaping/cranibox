@@ -14,19 +14,29 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
   const host = useRef<HTMLDivElement>(null), pane = useRef<HTMLElement>(null), inputBox = useRef<HTMLTextAreaElement>(null);
   const terminal = useRef<Terminal | null>(null), fit = useRef<FitAddon | null>(null), socket = useRef<WebSocket | null>(null);
   const alive = useRef(false), generation = useRef(0), attaching = useRef(false), timeout = useRef<number | undefined>(undefined);
+  const wanted = useRef(true), retry = useRef<number | undefined>(undefined), backoff = useRef(0);
+  const reconnect = useRef<() => void>(() => {});
   const [status, setStatus] = useState('disconnected'), [error, setError] = useState('');
   const [draft, setDraft] = useState(entry.initialCommand || ''), [showInput, setShowInput] = useState(!!entry.initialCommand), [fontSize, setFontSize] = useState(14);
   const [fullscreen, setFullscreen] = useState(false);
   const composing = useRef(false);
   const connected = status === 'connected', busy = connected || status === 'connecting';
 
-  const detach = useCallback(() => {
-    generation.current++; attaching.current = false; window.clearTimeout(timeout.current);
+  const detach = useCallback((manual = true) => {
+    if (manual) wanted.current = false;
+    generation.current++; attaching.current = false; window.clearTimeout(timeout.current); window.clearTimeout(retry.current);
     socket.current?.close(); socket.current = null;
     if (alive.current) setStatus('disconnected');
   }, []);
+  const scheduleReconnect = useCallback(() => {
+    if (!alive.current || !wanted.current) return;
+    window.clearTimeout(retry.current);
+    setStatus('connecting');
+    retry.current = window.setTimeout(() => reconnect.current(), Math.min(1000 * 2 ** backoff.current++, 15000));
+  }, []);
   const attach = useCallback(async (takeover = false) => {
     if (attaching.current || socket.current || !online || !terminal.current) return;
+    wanted.current = true; window.clearTimeout(retry.current);
     attaching.current = true; setStatus('connecting'); setError('');
     const current = ++generation.current, term = terminal.current;
     try {
@@ -45,25 +55,26 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
       ws.onmessage = event => {
         if (!alive.current || current !== generation.current) return;
         if (event.data instanceof ArrayBuffer) {
-          window.clearTimeout(timeout.current); attaching.current = false; setStatus('connected');
+          window.clearTimeout(timeout.current); attaching.current = false; backoff.current = 0; setStatus('connected');
           term.write(new Uint8Array(event.data));
         } else {
           try {
             const value = JSON.parse(event.data);
-            if (value.type === 'error') { setError(value.message); ws.close(); }
-            if (value.type === 'attachment_closed') ws.close();
-          } catch { setError(t('终端响应异常，请重新接回。', 'Invalid terminal response. Reattach to continue.')); ws.close(); }
+            if (value.type === 'error') { wanted.current = false; setError(value.message); ws.close(); }
+            if (value.type === 'attachment_closed') { wanted.current = false; ws.close(); }
+          } catch { wanted.current = false; setError(t('终端响应异常，请重新接回。', 'Invalid terminal response. Reattach to continue.')); ws.close(); }
         }
       };
       ws.onerror = () => { if (alive.current && current === generation.current) setError(t('无法连接终端，请检查节点后重试。', 'Unable to connect. Check the node and retry.')); };
       ws.onclose = () => {
         if (socket.current === ws) socket.current = null;
-        if (alive.current && current === generation.current) { window.clearTimeout(timeout.current); attaching.current = false; setStatus('disconnected'); }
+        if (alive.current && current === generation.current) { window.clearTimeout(timeout.current); attaching.current = false; setStatus('disconnected'); scheduleReconnect(); }
       };
     } catch (problem) {
-      if (alive.current && current === generation.current) { attaching.current = false; setError(problem instanceof Error ? problem.message : String(problem)); setStatus('disconnected'); }
+      if (alive.current && current === generation.current) { attaching.current = false; setError(problem instanceof Error ? problem.message : String(problem)); setStatus('disconnected'); scheduleReconnect(); }
     }
-  }, [entry.node, entry.id, online]);
+  }, [entry.node, entry.id, online, scheduleReconnect]);
+  useEffect(() => { reconnect.current = () => { if (wanted.current) void attach(); }; }, [attach]);
   useEffect(() => {
     alive.current = true;
     const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', scrollback: 3000, screenReaderMode: true, minimumContrastRatio: 4.5, theme: { background: '#0f141c', foreground: '#f1f5f9', cursor: '#a3e635', selectionBackground: '#303d50' } });
@@ -78,7 +89,7 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
     document.addEventListener('fullscreenchange', fullscreenChanged);
     return () => { alive.current = false; detach(); observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('fullscreenchange', fullscreenChanged); input.dispose(); resized.dispose(); term.dispose(); terminal.current = null; fit.current = null; };
   }, [detach]);
-  useEffect(() => { if (online) void attach(); else detach(); }, [online, attach, detach]);
+  useEffect(() => { if (online && wanted.current) void attach(); else if (!online) detach(false); }, [online, attach, detach]);
   useEffect(() => {
     if (!visible) return;
     const frame = requestAnimationFrame(() => {

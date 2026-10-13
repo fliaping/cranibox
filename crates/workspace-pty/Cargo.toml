@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 
+[features]
+default = ["herdr"]
+herdr = []
+
 [dependencies]
 anyhow = "1"
 portable-pty = "0.9"

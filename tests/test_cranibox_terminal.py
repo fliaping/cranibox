@@ -91,7 +91,7 @@ class Socket:
 @unittest.skipUnless(os.name == 'posix' and CORE.exists() and NODE.exists() and sockets_allowed(), 'build cranibox and cranibox-node; PTY tests require sockets and Unix')
 class TerminalTests(unittest.TestCase):
     def setUp(self):
-        self.h = Harness(unified=True)
+        self.h = Harness(unified=True, node_env={'CRANIBOX_HERDR_BIN': '/missing-node-herdr'})
         self.addCleanup(self.h.close)
 
     def ticket(self, node=None, **kwargs):
@@ -113,7 +113,7 @@ class TerminalTests(unittest.TestCase):
         ws = Socket(self.h, self.ticket(node, **kwargs))
         self.addCleanup(ws.close)
         self.assertEqual(ws.status, 101)
-        # Opening the WebSocket precedes the herdr CLI's asynchronous attach.
+        # Opening the WebSocket precedes asynchronous PTY attachment.
         ws.expect('')
         time.sleep(.1)
         return ws
@@ -197,35 +197,49 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual(self.h.http('POST', '/api/terminal/ticket', {'cols':80,'rows':24}, headers={'Cookie':self.h.cookie,'Content-Type':'application/json'})[0], 401)
         self.assertEqual(self.h.post('/api/terminal/ticket', {'cols':0,'rows':24})[0], 400)
 
-    def test_node_and_server_restart_preserve_remote_session(self):
+    def test_server_disconnect_and_restart_preserve_remote_shell_without_herdr(self):
         session = self.create('test-node')
         ws = self.open('test-node', session_id=session)
-        ws.command("printf '%s%s\\n' REMOTE _OK")
-        ws.expect('REMOTE_OK')
-        self.h.stop(self.h.node)
-        until(lambda: not self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        while ws.recv()[0] != 8:
-            pass
-        self.h.node = self.h.start(NODE, '--id', 'test-node', '--server', f'ws://127.0.0.1:{self.h.gateway_port}', '--token-file', self.h.root / 'node.token')
-        until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        self.assertEqual(self.manage('test-node', operation='list')['sessions'][0]['id'], session)
-        ws = self.open('test-node', session_id=session)
-        ws.command("printf '%s%s\\n' NODE_RESTART _OK")
-        ws.expect('NODE_RESTART_OK')
-        self.h.stop(self.h.node, force=True)
-        until(lambda: not self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        self.h.node = self.h.start(NODE, '--id', 'test-node', '--server', f'ws://127.0.0.1:{self.h.gateway_port}', '--token-file', self.h.root / 'node.token')
-        until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        ws = self.open('test-node', session_id=session)
-        ws.command("printf '%s%s\\n' NODE_CRASH _OK")
-        ws.expect('NODE_CRASH_OK')
+        shell_file, completed = self.h.root / 'remote-shell', self.h.root / 'offline-completed'
+        ws.command(f"echo $$ > {shell_file}; sleep 1; printf '%s%s\\n' OFFLINE _OUTPUT; printf done > {completed}")
+        until(shell_file.exists)
+        shell_pid = int(shell_file.read_text())
+        node_pid = self.h.node.pid
+        self.assertEqual(self.manage('test-node', operation='list')['engine'], 'node-pty')
         self.h.stop(self.h.web, force=True)
+        until(completed.exists)
+        os.kill(shell_pid, 0)
+        self.assertIsNone(self.h.node.poll())
         self.h.start_web()
         self.h.login()
         until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        reattached = self.open('test-node', session_id=session)
+        catalog = self.manage('test-node', operation='list')
+        self.assertEqual(catalog['sessions'][0]['id'], session)
+        reattached = Socket(self.h, self.ticket('test-node', session_id=session))
+        self.addCleanup(reattached.close)
+        self.assertEqual(reattached.status, 101)
+        reattached.expect('OFFLINE_OUTPUT')
         reattached.command("printf '%s%s\\n' SERVER_RESTART _OK")
         reattached.expect('SERVER_RESTART_OK')
+        reattached.command(f'echo $$ > {self.h.root / "reattached-shell"}')
+        until(lambda: (self.h.root / 'reattached-shell').exists())
+        self.assertEqual(int((self.h.root / 'reattached-shell').read_text()), shell_pid)
+        self.assertEqual(self.h.node.pid, node_pid)
+
+    def test_client_restart_ends_owned_sessions(self):
+        session = self.create('test-node')
+        ws = self.open('test-node', session_id=session)
+        shell_file = self.h.root / 'client-owned-shell'
+        ws.command(f'echo $$ > {shell_file}')
+        until(shell_file.exists)
+        shell_pid = int(shell_file.read_text())
+        self.h.stop(self.h.node)
+        until(lambda: not self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
+        until(lambda: not Path(f'/proc/{shell_pid}/stat').exists() or Path(f'/proc/{shell_pid}/stat').read_text().split(') ')[1][0] == 'Z')
+        self.h.node = self.h.start(NODE, '--id', 'test-node', '--server', f'ws://127.0.0.1:{self.h.gateway_port}', '--token-file', self.h.root / 'node.token')
+        until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
+        self.assertEqual(self.manage('test-node', operation='list')['sessions'], [])
+        self.assertEqual(self.h.post('/api/terminal/sessions', {'node':'test-node', 'operation':'end', 'id':session})[0], 400)
 
     def test_takeover_keeps_session_and_transfers_attachment(self):
         for node in (None, 'test-node'):
