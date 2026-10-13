@@ -39,10 +39,12 @@ fn service_command(text: &str) -> Result<(PathBuf, Vec<String>)> {
         "Expected exactly one Gateway ExecStart"
     );
     let mut args = shell_words::split(commands[0])?;
+    // Service units use Unix paths regardless of the host running this parser.
     if args.first().is_some_and(|value| {
-        Path::new(value)
-            .file_name()
-            .is_some_and(|name| name.to_string_lossy().starts_with("node"))
+        value
+            .rsplit('/')
+            .next()
+            .is_some_and(|name| name.starts_with("node"))
     }) && args.len() > 1
     {
         args.remove(0);
@@ -50,14 +52,15 @@ fn service_command(text: &str) -> Result<(PathBuf, Vec<String>)> {
     ensure!(
         args.len() >= 2
             && args[1] == "gateway"
-            && Path::new(&args[0])
-                .file_name()
-                .is_some_and(|value| value == "openclaw" || value == "openclaw.mjs"),
+            && matches!(
+                args[0].rsplit('/').next(),
+                Some("openclaw" | "openclaw.mjs")
+            ),
         "Unsupported Gateway ExecStart; expected an absolute openclaw gateway command"
     );
     let path = PathBuf::from(&args[0]);
     ensure!(
-        path.is_absolute(),
+        args[0].starts_with('/'),
         "Gateway ExecStart must use an absolute OpenClaw path"
     );
     Ok((path, args[1..].to_vec()))
@@ -373,6 +376,8 @@ mod tests {
         for line in [
             "/bin/bash -c 'openclaw gateway'",
             "openclaw gateway",
+            "C:/bin/openclaw gateway",
+            r"/tmp/other\openclaw gateway",
             "/usr/bin/node /tmp/openclaw.mjs gateway\nExecStart=/tmp/openclaw gateway",
         ] {
             assert!(service_command(&format!("[Service]\nExecStart={line}\n")).is_err());
