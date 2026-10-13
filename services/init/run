@@ -54,7 +54,11 @@ else
     echo "[init] Using default mirrors"
 fi
 
-echo "[init] Initialization complete!"
+# Built-in Rust control plane is available on the first boot, without capability installation.
+echo "[init] Preparing Workspace core services..."
+if ! s6-setuidgid abc /usr/local/bin/bootstrap-workspace-core.sh; then
+    echo "[init] Failed to prepare Workspace core services" >&2
+    exit 1
+fi
 
-# Keep alive — s6 restarts services that exit
-exec sleep infinity
+echo "[init] Initialization complete!"

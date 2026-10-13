@@ -498,6 +498,63 @@ class Runtime:
         if not simulate:
             self.sync()
 
+    def purge(self, package: str, simulate: bool, *, autoremove=False, user_config_paths=()) -> None:
+        """Forget a managed package only after apt and filesystem cleanup succeed."""
+        self.require_ready()
+        state = self.load()
+        if not PACKAGE_RE.fullmatch(package) or package not in state['packages']:
+            raise RuntimeError('Specify a package managed by agent-workspace-deb list.')
+        # Config ownership cannot be inferred from Debian package names. Require
+        # explicit home-relative paths and reject traversal and symlink escapes.
+        configs = []
+        for value in user_config_paths:
+            relative = Path(value)
+            if relative.is_absolute() or '..' in relative.parts or len(relative.parts) < 2:
+                raise RuntimeError('User config paths must be specific home-relative directories.')
+            if relative.parts[0] not in ('.config', '.cache', '.local', '.vscode'):
+                raise RuntimeError('User config paths must be under .config, .cache, .local or .vscode.')
+            if relative.parts[0] == '.local' and len(relative.parts) < 3:
+                raise RuntimeError('Specify an application directory within .local.')
+            path = self.config / relative
+            if path.is_symlink() or path.resolve() != path:
+                raise RuntimeError(f'Refusing symlinked user config path: {path}')
+            protected = (self.state, self.cache, self.launchers, self.icons,
+                         self.config / '.config/agent-workspace',
+                         self.config / '.local/share/code-server',
+                         self.config / '.config/code-server')
+            if any(path == item or path in item.parents or item in path.parents for item in protected):
+                raise RuntimeError(f'Refusing shared runtime/config path: {path}')
+            configs.append(path)
+        # Match only archives named by this installer, including previous versions.
+        pattern = re.compile(re.escape(package) + r'-[0-9a-f]{64}\.deb$')
+        archives = [path for path in self.cache.glob('*.deb') if pattern.fullmatch(path.name)]
+        log = self.config / '.local/log/agent-workspace' / self.app_log_directory / f'{package}.log'
+        cleanup = [*archives, log, *configs]
+        print(json.dumps({'purge': package, 'autoremove': autoremove,
+                          'delete_paths': [str(path) for path in cleanup],
+                          'keep_user_config': not bool(configs)}, indent=2), flush=True)
+        args = ['--simulate' if simulate else '-y']
+        if autoremove:
+            args.append('--autoremove')
+        self.apt([*args, 'purge', package])
+        if simulate:
+            return
+        self.sync()
+        if self.installed(package)[0]:
+            raise RuntimeError('Package remains installed; keeping its manifest and cache.')
+        for path in cleanup:
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+        if configs and self.overrides.exists():
+            overrides = json.loads(self.overrides.read_text())
+            overrides.pop(package, None)
+            atomic_json(self.overrides, overrides)
+        state = self.load()
+        del state['packages'][package]
+        atomic_json(self.manifest, state)
+
     def primary_launcher(self, package: str) -> Path:
         record = self.load()['packages'].get(package, {})
         for name in record.get('launchers', []):
@@ -835,11 +892,17 @@ def main() -> int:
         commands.add_parser(name)
     for name in ('launch', 'launcher'):
         commands.add_parser(name).add_argument('package')
-    for name in ('install', 'remove'):
+    for name in ('install', 'remove', 'purge'):
         command = commands.add_parser(name)
         command.add_argument('package')
         command.add_argument('--yes', action='store_true')
         command.add_argument('--dry-run', action='store_true')
+        if name == 'purge':
+            command.add_argument('--autoremove', action='store_true', help='Also purge unused dependencies')
+            config_choice = command.add_mutually_exclusive_group()
+            config_choice.add_argument('--keep-user-config', action='store_true', help='Keep user configuration (default)')
+            config_choice.add_argument('--delete-user-config', action='store_true', help='Delete explicit --user-config-path directories')
+            command.add_argument('--user-config-path', action='append', default=[], help='Home-relative application directory; repeatable')
     for name in ('upgrade', 'repair'):
         command = commands.add_parser(name)
         command.add_argument('--yes', action='store_true')
@@ -853,6 +916,8 @@ def main() -> int:
     run.add_argument('--dry-run', action='store_true', help='Print effective launch arguments without starting the app')
     run.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.action == 'purge' and bool(args.user_config_path) != args.delete_user_config:
+        parser.error('--delete-user-config requires --user-config-path, and vice versa.')
     runtime = Runtime()
     if args.action == 'run':
         return runtime.run(args.command, args.cwd, args.package, args.desktop, args.dry_run)
@@ -865,7 +930,7 @@ def main() -> int:
         print(json.dumps({'rootfs': str(runtime.root), 'ready': (runtime.state / 'ready.json').exists(),
                           **runtime.load()}, ensure_ascii=False, indent=2))
         return 0
-    if args.action in ('install', 'remove', 'upgrade', 'repair', 'restore'):
+    if args.action in ('install', 'remove', 'purge', 'upgrade', 'repair', 'restore'):
         if not args.yes and not getattr(args, 'dry_run', False):
             parser.error('Inspect the operation first; pass --yes to apply it.')
     with runtime.lock(exclusive_apps=args.action in ('init', 'backup', 'restore')):
@@ -875,6 +940,9 @@ def main() -> int:
             runtime.install(Path(args.package).resolve(), args.dry_run)
         elif args.action == 'remove':
             runtime.remove(args.package, args.dry_run)
+        elif args.action == 'purge':
+            runtime.purge(args.package, args.dry_run, autoremove=args.autoremove,
+                          user_config_paths=args.user_config_path)
         elif args.action == 'sync':
             runtime.sync()
         elif args.action == 'backup':

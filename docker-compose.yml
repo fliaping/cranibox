@@ -41,7 +41,7 @@ services:
       # --- LinuxServer 标准变量 ---
       - PUID=1000
       - PGID=1000
-      - TZ=Asia/Shanghai
+      - TZ=${TZ:-America/Phoenix}
       - LC_ALL=zh_CN.UTF-8
       # Webtop 默认无认证。远程暴露时务必取消注释并设置强密码。
       #- CUSTOM_USER=agent

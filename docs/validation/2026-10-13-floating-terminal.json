@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-13",
+  "validation": {
+    "fullBrowserSuite": {
+      "passed": 23,
+      "durationSeconds": 53.9
+    },
+    "finalInteractionChecks": {
+      "passed": 4,
+      "durationSeconds": 18.6
+    },
+    "additionalPreviewChecks": [
+      "minimized reload restores sessions",
+      "mobile navigation temporarily hides terminal without detaching",
+      "legacy session URL opens floating terminal",
+      "desktop geometry survives mobile reload"
+    ],
+    "typescriptAndVite": "passed",
+    "releaseBuild": "passed",
+    "previewConsoleErrors": 0,
+    "screenshots": {
+      "desktop": [
+        1440,
+        900
+      ],
+      "minimized": [
+        1440,
+        900
+      ],
+      "desktopLight": [
+        1440,
+        900
+      ],
+      "mobile": [
+        390,
+        844
+      ]
+    }
+  },
+  "deployment": {
+    "httpHealth": "passed",
+    "gatewayHealth": "passed",
+    "binaryMatchesRelease": true,
+    "assetsMatchBuild": true,
+    "existingSessionsPreserved": 0,
+    "runningSessions": 0,
+    "rollbackDirectory": "/config/.local/state/cranibox/install-20261013T091429Z-9278c8e5",
+    "serviceActive": true,
+    "deployedBrowserSmoke": "passed"
+  },
+  "assetsSha256": {
+    "web.js": "dcdbb76116c9cb92118106a75316946ff3d23a86287599c7e67415c1bfa588ac",
+    "web.css": "83ba3f76ab518e3dc8611949231110f9826d13598e2f247db673a33a624464a3"
+  },
+  "scope": [
+    "global floating terminal",
+    "pointer and keyboard move and resize",
+    "maximize and layout presets",
+    "minimize and restore from top right toolbar",
+    "attachments persist through page navigation",
+    "in-place overview Agent and remote node entrypoints",
+    "mobile navigation and viewport",
+    "legacy terminal session links"
+  ]
+}

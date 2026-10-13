@@ -1,0 +1,32 @@
+[package]
+name = "agent-workspacectl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[[bin]]
+name = "workspacectl"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive"] }
+fs2 = "0.4"
+futures-util = "0.3"
+ipnet = "2"
+md-5 = "0.10"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+shell-words = "1"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util", "sync"] }
+toml = "0.8"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

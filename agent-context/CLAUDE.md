@@ -13,6 +13,12 @@ and `/run` can be replaced when the container is rebuilt.
   `workspacectl logs ...` for persistent user services.
 - Use `workspacectl s6 ...` for image-provided s6 services.
 - Use `workspacectl ports` and `workspacectl routes` for network inspection.
+- If the Rust gateway is installed, use `workspacectl nodes --json` to discover
+  remote nodes, and `workspacectl node exec --node <id> -- <program> <args>`
+  to run commands with the remote client's account permissions. Use
+  `workspacectl node job <job-id>` and `workspacectl node cancel <job-id>`
+  for asynchronous jobs. Commands are not replayed after disconnection.
+  The `workspace-runtime mcp` stdio server exposes the same operations.
 - Use `workspacectl install ...` for optional Agent Workspace capabilities.
 - Use `workspacectl network domain <domain>` for the managed Caddy domain;
   DNS, TLS, and gateway authentication remain deployment responsibilities.

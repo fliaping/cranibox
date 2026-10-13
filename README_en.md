@@ -1,7 +1,7 @@
 <div align="center">
   <h1>Cranibox</h1>
   <p><b>Anytime, anywhere, every device — a self-hosted, trusted Agent Brain</b></p>
-  <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; repository and image names are unchanged for now.</sub></p>
+  <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; the GitHub repository is now cranibox, while image names remain unchanged.</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -11,6 +11,9 @@
     <a href="https://hub.docker.com/r/xuping/agent-workspace/tags"><img src="https://img.shields.io/docker/v/xuping/agent-workspace/ubuntu-xfce?label=ubuntu-xfce" alt="Docker image version"></a>
   </p>
 </div>
+
+Rust HTTP/WebSocket gateway and Windows/macOS/Linux remote node clients are available
+as the first stage of the Rust migration. See [setup, CLI/MCP, and migration status](docs/rust-remote-nodes.md).
 
 ---
 
@@ -48,9 +51,13 @@ Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click
 
 ## Features
 
-- **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, or DeepSeek Harness on first boot; Codex and Claude Code also receive their official code-server extensions
+- **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, DeepSeek Harness, or OpenClaw on first boot; Codex and Claude Code also receive their official code-server extensions
 - **Unified bilingual Control Center** — Manage Agents, the managed browser, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
-- **Agent-friendly environment control** — `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities
+- **Browser Control Center** — Rust HTTP backend with a React UI, themes and mobile support; see [installation and access](docs/web-control-center.md)
+- **Built-in remote node gateway** — Windows/macOS/Linux clients connect over WebSocket; the gateway and Web UI are initialized and enabled on first container boot. See [remote nodes](docs/rust-remote-nodes.md)
+- **Native user service management** — Rust compatibility CLI and s6 supervision, with oneshot initialization; see [implementation and migration limits](docs/native-services-and-web.md)
+- **Lightweight standalone Web UI** — Manage the workspace without loading code-server, with a React interface, light/dark themes, and a responsive layout; see [setup and secure access](docs/web-control-center.md)
+- **Agent-friendly environment control** — Native Rust `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities; [build and migration scope](docs/workspacectl-rust.md)
 - **Selkies browser desktop** — Full Linux desktop in the browser over HTTPS (Selkies streams over WebSocket) with XFCE (default), LXQt, or KDE
 - **Managed Agent browser** — The default desktop Chromium uses a persistent managed profile so Agents can operate the same window, tabs, and signed-in session without repeated prompts
 - **Desktop Computer Use** — Agents can capture and operate the same Selkies desktop with pointer, keyboard, scroll, drag, window focus, and emergency stop tools
@@ -239,7 +246,7 @@ irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFil
 docker run -d --name agent-workspace \
   --restart unless-stopped --shm-size 2gb \
   -e PUID=1000 -e PGID=1000 \
-  -e TZ=Etc/UTC \
+  -e TZ=Asia/Taipei \
   -e CUSTOM_USER=agent \
   -e PASSWORD='replace-with-a-long-random-password' \
   -e SELKIES_ENABLE_RATE_CONTROL=true \
@@ -310,12 +317,12 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 |----------|---------|-------------|
 | `PUID` / `PGID` | `1000` | Container user/group ID |
 | `CUSTOM_USER` / `PASSWORD` | unset | Webtop HTTP Basic authentication; required for remote access |
-| `TZ` | `Etc/UTC` | Timezone |
+| `TZ` | `Asia/Taipei` | Timezone |
 | `LC_ALL` | - | Locale (e.g., `zh_CN.UTF-8`) |
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
 | `AGENT_WORKSPACE_BOOTSTRAP` | unset | `remote` (or `foundation` / `base`) installs code-server, Control Center, and desktop integration on first boot; `remote-up.sh` sets `remote` |
-| `AGENT_WORKSPACE_AGENT` | `none` (`codex` with `remote-up.sh`) | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, or `none`; only used when `AGENT_WORKSPACE_BOOTSTRAP` is set |
+| `AGENT_WORKSPACE_AGENT` | `none` (`codex` with `remote-up.sh`) | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, `openclaw`, or `none`; only used when `AGENT_WORKSPACE_BOOTSTRAP` is set |
 | `CODE_SERVER_BIND` / `CODE_SERVER_AUTH` / `CODE_SERVER_CERT` | `0.0.0.0:8443` / `password` / `true` | code-server listen address, authentication, and self-signed certificate; the password defaults to `PASSWORD` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (container port 22), value is abc user password; the compose files do not publish it, add e.g. `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
@@ -418,7 +425,7 @@ one or more explicit Agent names:
 
 ```bash
 agent-workspace-manager install agents codex
-agent-workspace-manager install agents claude-code hermes deepseek-harness
+agent-workspace-manager install agents claude-code hermes deepseek-harness openclaw
 ```
 
 | Agent | Type | Installer | Post-install setup |
@@ -446,6 +453,7 @@ workspacectl info
 workspacectl status --json
 workspacectl services
 workspacectl service restart openclaw
+workspacectl agent update openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports   # merges user and sudo views, including root-owned nginx on 3000/3001
@@ -634,3 +642,5 @@ docker start agent-workspace
 - [LinuxServer Webtop Docs](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
 - [GitHub](https://github.com/fliaping/cranibox)
+
+Browser terminal and unified Rust server: [Persistent browser terminals: React + xterm.js + herdr](docs/web-terminal-and-unified-server.md).

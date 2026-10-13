@@ -1,7 +1,7 @@
 <div align="center">
   <h1>Cranibox</h1>
   <p><b>随时、随地、任意设备 —— 自托管、可信任的 Agent 大脑</b></p>
-  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace，仓库与镜像名暂不变。</sub></p>
+  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace，GitHub 仓库已更名为 cranibox，镜像名暂不变。</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -48,9 +48,12 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 
 ## 核心特性
 
-- **Agent 开箱即用** — 首次启动可选 Codex、Claude Code、Hermes 或 DeepSeek Harness；Codex 和 Claude Code 会同时安装官方 code-server 扩展
+- **Agent 开箱即用** — 首次启动可选 Codex、Claude Code、Hermes、DeepSeek Harness 或 OpenClaw；Codex 和 Claude Code 会同时安装官方 code-server 扩展
 - **统一双语控制中心** — 一处管理 Agent、托管浏览器、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
-- **Agent 可直接操作环境** — `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力
+- **轻量独立 Web 管理页** — Rust HTTP 后端与 React 前端，浏览器访问，支持明暗主题和移动端，见 [安装与安全访问](docs/web-control-center.md)
+- **原生用户服务管理** — Rust 兼容入口与 s6 监督服务；初始化任务使用 oneshot，见 [实现与迁移边界](docs/native-services-and-web.md)
+- **Agent 可直接操作环境** — Rust `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力；[构建与迁移范围](docs/workspacectl-rust.md)
+- **Rust WebSocket 远程节点** — Windows/macOS/Linux 客户端主动接入，Agent 用 CLI/MCP 执行命令；网关随镜像默认启动，构建与迁移范围见 [Rust 核心与远程节点](docs/rust-remote-nodes.md)
 - **Selkies 浏览器桌面** — 通过 HTTPS 在浏览器中访问完整 Linux 桌面（Selkies 经 WebSocket 串流）；可选 XFCE（默认）、LXQt 或 KDE
 - **Agent 托管浏览器** — 桌面默认 Chromium 使用持久化托管用户目录，Agent 可直接操作同一窗口、标签页和登录会话，无需每次确认
 - **桌面 Computer Use** — Agent 可截图并操作 Selkies 正在显示的同一个桌面，支持鼠标、键盘、滚动、拖拽、窗口聚焦和紧急停止
@@ -234,7 +237,7 @@ irm https://raw.githubusercontent.com/fliaping/cranibox/main/install.ps1 -OutFil
 docker run -d --name agent-workspace \
   --restart unless-stopped --shm-size 2gb \
   -e PUID=1000 -e PGID=1000 \
-  -e TZ=Asia/Shanghai \
+  -e TZ=Asia/Taipei \
   -e LC_ALL=zh_CN.UTF-8 \
   -e CUSTOM_USER=agent \
   -e PASSWORD='replace-with-a-long-random-password' \
@@ -302,13 +305,13 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `PUID` / `PGID` | `1000` | 容器内用户/组 ID |
-| `TZ` | `Etc/UTC` | 时区 |
+| `TZ` | `Asia/Taipei` | 时区 |
 | `LC_ALL` | - | 语言环境（如 `zh_CN.UTF-8`） |
 | `CUSTOM_USER` / `PASSWORD` | 不设置 | Webtop HTTP Basic 认证；远程访问时必须设置 |
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
 | `AGENT_WORKSPACE_BOOTSTRAP` | 不设置 | 设为 `remote`（或 `foundation` / `base`）时，首次启动自动安装 code-server、Control Center 和桌面集成；`remote-up.sh` 会设置为 `remote` |
-| `AGENT_WORKSPACE_AGENT` | `none`（`remote-up.sh` 默认 `codex`） | 首次引导时安装 `codex`、`claude-code`、`hermes`、`deepseek-harness` 或 `none`；仅在设置 `AGENT_WORKSPACE_BOOTSTRAP` 时生效 |
+| `AGENT_WORKSPACE_AGENT` | `none`（`remote-up.sh` 默认 `codex`） | 首次引导时安装 `codex`、`claude-code`、`hermes`、`deepseek-harness`、`openclaw` 或 `none`；仅在设置 `AGENT_WORKSPACE_BOOTSTRAP` 时生效 |
 | `CODE_SERVER_BIND` / `CODE_SERVER_AUTH` / `CODE_SERVER_CERT` | `0.0.0.0:8443` / `password` / `true` | code-server 监听地址、认证方式和自签名证书；密码默认取 `PASSWORD` |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（容器端口 22），值为 abc 用户密码；compose 文件默认不映射该端口，需要时添加如 `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
@@ -402,7 +405,7 @@ agent-workspace-manager status
 
 ```bash
 agent-workspace-manager install agents codex
-agent-workspace-manager install agents claude-code hermes deepseek-harness
+agent-workspace-manager install agents claude-code hermes deepseek-harness openclaw
 ```
 
 | Agent | 类型 | 安装来源 | 安装后配置 |
@@ -428,6 +431,7 @@ workspacectl info
 workspacectl status --json
 workspacectl services
 workspacectl service restart openclaw
+workspacectl agent update openclaw
 workspacectl s6 status svc-selkies
 workspacectl logs openclaw
 workspacectl ports   # 合并普通用户与 sudo 视图，包含 root 运行的 nginx 3000/3001
@@ -593,3 +597,5 @@ docker start agent-workspace
 - [LinuxServer Webtop 文档](https://docs.linuxserver.io/images/docker-webtop/)
 - [Docker Hub](https://hub.docker.com/r/xuping/agent-workspace)
 - [GitHub](https://github.com/fliaping/cranibox)
+
+浏览器终端与统一 Rust 服务端：[浏览器持久终端: React + xterm.js + herdr](docs/web-terminal-and-unified-server.md).

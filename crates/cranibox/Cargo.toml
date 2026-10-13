@@ -1,0 +1,13 @@
+[package]
+name = "cranibox"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+agent-workspacectl = { path = "../workspacectl" }
+agent-workspace-services = { path = "../workspace-services" }
+agent-workspace-runtime = { path = "../workspace-runtime" }
+agent-workspace-web = { path = "../workspace-web" }

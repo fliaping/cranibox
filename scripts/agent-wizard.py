@@ -209,7 +209,7 @@ AGENTS = {
         "binary": "openclaw",
         "onboard": "openclaw onboard",
         "service_cmd": "gateway run",
-        "service_extra_env": "Environment=NODE_OPTIONS=--max-old-space-size=2048",
+        "service_extra_env": "Environment=NODE_OPTIONS=--max-old-space-size=2048\nEnvironment=OPENCLAW_SUPERVISOR_MODE=external",
     },
     "openfang": {
         "label": "Openfang",

@@ -1,0 +1,36 @@
+[package]
+name = "agent-workspace-runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[[bin]]
+name = "workspace-runtime"
+path = "src/main.rs"
+required-features = ["server"]
+
+[features]
+default = ["server"]
+server = ["dep:axum", "dep:clap", "dep:tower", "dep:reqwest", "dep:base64"]
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"], optional = true }
+base64 = { version = "0.22", optional = true }
+clap = { version = "4", features = ["derive", "env"], optional = true }
+fs2 = "0.4"
+rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+subtle = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util", "io-std"] }
+tower = { version = "0.5", features = ["util"], optional = true }
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

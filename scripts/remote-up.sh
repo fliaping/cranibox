@@ -19,20 +19,22 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "  2) Claude Code"
     echo "  3) Hermes Agent"
     echo "  4) DeepSeek Harness"
-    echo "  5) None"
+    echo "  5) OpenClaw"
+    echo "  6) None"
     read -r -p "Agent [1]: " choice
     case "${choice:-1}" in
       1) agent=codex ;;
       2) agent=claude-code ;;
       3) agent=hermes ;;
       4) agent=deepseek-harness ;;
-      5) agent=none ;;
+      5) agent=openclaw ;;
+      6) agent=none ;;
       *) echo "Invalid Agent choice" >&2; exit 1 ;;
     esac
   fi
   agent="${agent:-codex}"
   case "$agent" in
-    codex|claude-code|hermes|deepseek-harness|none) ;;
+    codex|claude-code|hermes|deepseek-harness|openclaw|none) ;;
     *) echo "Unsupported AGENT_WORKSPACE_AGENT: $agent" >&2; exit 1 ;;
   esac
 
@@ -45,7 +47,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     printf 'AGENT_WORKSPACE_AGENT=%s\n' "$agent"
     echo 'DESKTOP_PORT=3001'
     echo 'CODE_SERVER_PORT=8443'
-    echo 'TZ=Asia/Shanghai'
+    echo 'TZ=Asia/Taipei'
   } >"$ENV_FILE"
   echo "Created $ENV_FILE"
   echo "User: agent"
@@ -74,4 +76,5 @@ case "${selected_agent:-codex}" in
   claude-code) echo "Then open a terminal in /config/Workspace and run: claude" ;;
   hermes) echo "Then open a terminal in /config/Workspace and run: hermes setup --portal" ;;
   deepseek-harness) echo "Then open the authenticated code-server path: /proxy/3080/" ;;
+  openclaw) echo "Then open the authenticated code-server path: /proxy/18789/" ;;
 esac

@@ -1,0 +1,202 @@
+{
+  "checked_at": "2026-10-12T13:41:48.692807+00:00",
+  "scope": "Five project-provided or integrated services in the current container",
+  "targets": [
+    "agent-desktop-bridge",
+    "deepseek-harness",
+    "openclaw-gateway",
+    "proxy-caddy",
+    "tailscaled-workspace"
+  ],
+  "management": "Rust workspace-services CLI and s6 supervision; existing business applications retained",
+  "installed_manager": {
+    "path": "/config/bin/workspace-services",
+    "sha256": "7cb2efd96191c8ce71be2062fcaa8ce7bd37eff101a745cd12b184d4d002f87f",
+    "matches_built_release": true
+  },
+  "passed": true,
+  "services": {
+    "agent-desktop-bridge": {
+      "checks": {
+        "definition_unchanged": true,
+        "enabled_unchanged": true,
+        "s6_supervised": true,
+        "active": true,
+        "old_supervisor_gone": true
+      },
+      "process": {
+        "pid": 349609,
+        "identity": "150754441",
+        "comm": "python3"
+      },
+      "supervisor": {
+        "pid": 338045,
+        "identity": "150711124",
+        "comm": "s6-supervise"
+      },
+      "same_process_as_first_post_migration_verification": true,
+      "process_uptime_seconds_at_recording": 367.31,
+      "health_before": {
+        "http_status": 503
+      },
+      "health_after": {
+        "http_status": 503
+      },
+      "health_preserved": true
+    },
+    "deepseek-harness": {
+      "checks": {
+        "definition_unchanged": true,
+        "enabled_unchanged": true,
+        "s6_supervised": true,
+        "active": true,
+        "old_supervisor_gone": true
+      },
+      "process": {
+        "pid": 350182,
+        "identity": "150757091",
+        "comm": "MainThread"
+      },
+      "supervisor": {
+        "pid": 350178,
+        "identity": "150757089",
+        "comm": "s6-supervise"
+      },
+      "same_process_as_first_post_migration_verification": true,
+      "process_uptime_seconds_at_recording": 340.81,
+      "health_before": {
+        "http_status": 200
+      },
+      "health_after": {
+        "http_status": 200
+      },
+      "health_preserved": true
+    },
+    "openclaw-gateway": {
+      "checks": {
+        "definition_unchanged": true,
+        "enabled_unchanged": true,
+        "s6_supervised": true,
+        "active": true,
+        "old_supervisor_gone": true
+      },
+      "process": {
+        "pid": 350213,
+        "identity": "150757173",
+        "comm": "openclaw-gatewa"
+      },
+      "supervisor": {
+        "pid": 350211,
+        "identity": "150757170",
+        "comm": "s6-supervise"
+      },
+      "same_process_as_first_post_migration_verification": true,
+      "process_uptime_seconds_at_recording": 339.99,
+      "health_before": {
+        "http_status": 200
+      },
+      "health_after": {
+        "http_status": 200
+      },
+      "health_preserved": true
+    },
+    "proxy-caddy": {
+      "checks": {
+        "definition_unchanged": true,
+        "enabled_unchanged": true,
+        "s6_supervised": true,
+        "active": true,
+        "old_supervisor_gone": true
+      },
+      "process": {
+        "pid": 350432,
+        "identity": "150757718",
+        "comm": "caddy"
+      },
+      "supervisor": {
+        "pid": 350430,
+        "identity": "150757718",
+        "comm": "s6-supervise"
+      },
+      "same_process_as_first_post_migration_verification": true,
+      "process_uptime_seconds_at_recording": 334.54,
+      "health_before": {
+        "http_status": 200
+      },
+      "health_after": {
+        "http_status": 200
+      },
+      "health_preserved": true
+    },
+    "tailscaled-workspace": {
+      "checks": {
+        "definition_unchanged": true,
+        "enabled_unchanged": true,
+        "s6_supervised": true,
+        "active": true,
+        "old_supervisor_gone": true
+      },
+      "process": {
+        "pid": 350512,
+        "identity": "150757840",
+        "comm": "tailscaled"
+      },
+      "supervisor": {
+        "pid": 350509,
+        "identity": "150757839",
+        "comm": "s6-supervise"
+      },
+      "same_process_as_first_post_migration_verification": true,
+      "process_uptime_seconds_at_recording": 333.32,
+      "health_before": {
+        "command_success": true,
+        "backend_state": "NeedsLogin",
+        "online": false
+      },
+      "health_after": {
+        "command_success": true,
+        "backend_state": "NeedsLogin",
+        "online": false
+      },
+      "health_preserved": true
+    }
+  },
+  "excluded_services": [
+    "FTNN",
+    "agent-workspace-web",
+    "audio-download",
+    "code-server",
+    "hermes-dashboard",
+    "hermes-gateway",
+    "mihomo-test",
+    "nat-tunnel-server",
+    "ocx-proxy",
+    "orca-serve",
+    "proxy-sub-forward",
+    "shop-ops-experiment"
+  ],
+  "other_service_supervisors_unchanged": true,
+  "all_service_definitions_and_enabled_flags_unchanged": true,
+  "initial_attempt": {
+    "batch_stopped_after_first_failure": true,
+    "service": "agent-desktop-bridge",
+    "cause": "A bare setsid forked under s6 and left the listener detached from its supervised launcher",
+    "resolution": "Track the real process without a redundant setsid launcher, clean the identified orphan, restore the bridge, then migrate the remaining four services"
+  },
+  "manager_fixes": [
+    "Exec a bare setsid-wrapped service directly in the s6 process group",
+    "Stop a restored legacy supervisor even when a native supervision directory remains"
+  ],
+  "validation": {
+    "real_s6_integration_tests_passed": 14,
+    "rust_unit_tests_passed": 3,
+    "cargo_fmt_passed": true,
+    "cargo_clippy_with_warnings_denied_passed": true,
+    "release_build_passed": true
+  },
+  "pre_existing_health_issues": [
+    "agent-desktop-bridge /health returns HTTP 503",
+    "tailscaled-workspace reports NeedsLogin and offline"
+  ],
+  "private_backup_directory": "/config/.local/state/cranibox/project-service-migration-20261012T132957Z"
+}

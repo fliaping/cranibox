@@ -10,6 +10,16 @@
 #   docker compose build --pull --build-arg USE_CHINA_MIRROR=true       # 国内源
 
 ARG DESKTOP=xfce
+FROM python:3.12-slim AS herdr-builder
+COPY scripts/install-herdr.py /install-herdr.py
+RUN python /install-herdr.py --output-directory /herdr
+FROM rust:bookworm AS workspace-rust-builder
+WORKDIR /build
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+COPY addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css ./addons/control-center/
+RUN cargo build --release --locked -p cranibox && cargo build --release --locked -p cranibox-node
+
 # Follow official Webtop updates; builds must pull to refresh this moving tag.
 # Selkies and PulseAudio startup scripts are inherited from the official image.
 FROM linuxserver/webtop:ubuntu-${DESKTOP}
@@ -116,6 +126,16 @@ RUN pip3 install --no-cache-dir textual --break-system-packages \
 COPY scripts/ /usr/local/bin/
 COPY services/ /etc/services.d/
 COPY agent-context/ /usr/local/share/agent-workspace/context/
+COPY s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+COPY --from=workspace-rust-builder /build/target/release/cranibox /build/target/release/cranibox-node /usr/local/lib/agent-workspace/
+COPY --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
+# Startup tasks are native s6-rc oneshots; they leave no sleep process behind.
+RUN mkdir -p /usr/local/lib/agent-workspace \
+    && for task in init custom-services systemctl-services; do \
+        cp "/etc/services.d/$task/run" "/usr/local/lib/agent-workspace/$task"; \
+        chmod +x "/usr/local/lib/agent-workspace/$task"; \
+        rm -rf "/etc/services.d/$task"; \
+    done
 
 # LinuxServer custom-init
 RUN mkdir -p /custom-cont-init.d \
@@ -147,15 +167,9 @@ RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
 
 # systemctl wrapper: adds --user support on top of docker-systemctl-replacement
 # user-systemctl.sh delegates system calls to /usr/bin/systemctl.py and
-# handles user-level services (~/.config/systemd/user/) directly.
+# execs the persistent Rust user manager, with a bootstrap fallback.
 RUN cp /usr/local/bin/user-systemctl.sh /usr/local/bin/systemctl \
     && chmod +x /usr/local/bin/systemctl
-
-# 配置 s6 服务依赖（init 先执行，其他服务等待）
-RUN mkdir -p /etc/services.d/systemctl-services/dependencies \
-    && touch /etc/services.d/systemctl-services/dependencies/init \
-    && mkdir -p /etc/services.d/workspace-bootstrap/dependencies \
-    && touch /etc/services.d/workspace-bootstrap/dependencies/init
 
 # ==========================================
 # 权限配置

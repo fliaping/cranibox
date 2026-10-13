@@ -210,12 +210,18 @@ class WorkspaceManager:
         local_bin_dir = self.settings.config_root / ".local/bin"
         local_bin_dir.mkdir(parents=True, exist_ok=True)
 
+        run(["bash", str(root / "scripts/install-workspacectl.sh")],
+            env={**os.environ, "AGENT_WORKSPACE_CONFIG_ROOT": str(self.settings.config_root)})
+
+        if sys.platform.startswith("linux") and shutil.which("s6-svscan"):
+            run(["bash", str(root / "scripts/install-workspace-services.sh")],
+                env={**os.environ, "AGENT_WORKSPACE_CONFIG_ROOT": str(self.settings.config_root)})
+
         # Native Agent installers already put ~/.local/bin on PATH. Install
         # these commands there as compatibility links for older images whose
         # PATH predates /config/bin.
         for command in [
             "agent-workspace-manager",
-            "workspacectl",
             "agent-workspace-browser",
             "agent-workspace-deb-installer",
             "agent-workspace-deb",
@@ -453,6 +459,7 @@ class WorkspaceManager:
 
     def install_desktop_bridge(self) -> None:
         """Install the loopback Computer Use bridge and configure installed Agents."""
+        self.install_workspace_controls()
         root = self.source_root()
         assert root is not None
         installer = root / "addons" / "desktop-bridge" / "install.sh"
@@ -461,7 +468,7 @@ class WorkspaceManager:
         log("installing desktop Computer Use bridge")
         run(["bash", str(installer)], cwd=installer.parent)
 
-        resources = root / "scripts" / "workspacectl-resources.py"
+        resources = self.settings.config_root / "bin/workspacectl"
         available_agents = []
         for agent, binary in {
             "codex": "codex",
@@ -475,7 +482,6 @@ class WorkspaceManager:
             log(f"configuring desktop MCP for {', '.join(available_agents)}")
             result = run(
                 [
-                    sys.executable,
                     str(resources),
                     "mcp",
                     "add",
@@ -589,13 +595,13 @@ class WorkspaceManager:
 
         desktop_mcp = self.settings.config_root / "bin/agent-desktop-mcp"
         if desktop_mcp.exists():
+            self.install_workspace_controls()
             root = self.source_root()
             assert root is not None
-            resources = root / "scripts" / "workspacectl-resources.py"
+            resources = self.settings.config_root / "bin/workspacectl"
             log(f"configuring desktop Computer Use MCP for {info['label']}")
             result = run(
                 [
-                    sys.executable,
                     str(resources),
                     "mcp",
                     "add",
@@ -619,6 +625,13 @@ class WorkspaceManager:
         for agent in agents:
             self.install_agent_capability(agent)
 
+    def install_web_control_center(self) -> None:
+        root = self.source_root()
+        assert root is not None
+        self.install_workspace_controls()
+        run([str(self.settings.config_root / 'bin/workspacectl'), 'web', 'install'],
+            env={**os.environ, 'AGENT_WORKSPACE_CONFIG_ROOT': str(self.settings.config_root)})
+
     def install(self, target: str, extra_args: list[str]) -> None:
         if target in {"foundation", "base", "remote"}:
             self.install_workspace_controls()
@@ -626,8 +639,17 @@ class WorkspaceManager:
             self.install_code_server_extensions()
             self.install_desktop_bridge()
             self.install_custom_services()
+            self.install_web_control_center()
         elif target in {"code-server", "code", "ide"}:
             self.install_code_server()
+        elif target in {"web", "control-center"}:
+            self.install_web_control_center()
+        elif target in {"runtime", "nodes"}:
+            root = self.source_root()
+            assert root is not None
+            self.install_workspace_controls()
+            run(["bash", str(root / "scripts/install-workspace-runtime.sh"), *extra_args],
+                env={**os.environ, "AGENT_WORKSPACE_CONFIG_ROOT": str(self.settings.config_root)})
         elif target in {"proxyctl", "proxy", "caddy"}:
             self.install_proxyctl()
         elif target in {"mcpm", "mcp-manager"}:
@@ -654,6 +676,7 @@ class WorkspaceManager:
             self.install_desktop_bridge()
             self.install_custom_services()
             self.install_agent_capabilities(extra_args)
+            self.install_web_control_center()
         else:
             raise ManagerError(f"unknown install target: {target}")
 
@@ -685,6 +708,16 @@ class WorkspaceManager:
                 and (self.settings.config_root / "proxyctl/env").exists()
                 else "optional",
                 str(self.settings.config_root / "proxyctl"),
+            ),
+            (
+                "Web Control Center",
+                "ok" if (self.settings.config_root / "opt/agent-workspace-web/workspace-web").exists() else "optional",
+                "workspacectl web url",
+            ),
+            (
+                "Rust remote nodes",
+                "ok" if (self.settings.config_root / "bin/workspace-runtime").exists() else "optional",
+                "workspacectl runtime status / workspacectl nodes --json",
             ),
             (
                 "MCPM",
@@ -774,6 +807,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="foundation",
         choices=[
             "foundation",
+            "web",
+            "control-center",
+            "runtime",
+            "nodes",
             "base",
             "remote",
             "code-server",

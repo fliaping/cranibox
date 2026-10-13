@@ -4,6 +4,3 @@ set -euo pipefail
 echo "[custom-services] Starting persistent custom service registrar..."
 /usr/local/bin/register-config-services.sh
 echo "[custom-services] Registration complete"
-
-# Keep this service alive so s6 does not repeatedly re-run registration.
-exec sleep infinity

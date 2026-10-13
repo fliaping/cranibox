@@ -35,6 +35,8 @@ agent-workspace-deb-installer --dry-run /config/Downloads/application.deb
 agent-workspace-deb-installer --yes /config/Downloads/application.deb
 agent-workspace-deb remove --dry-run package-name
 agent-workspace-deb remove --yes package-name
+agent-workspace-deb purge --dry-run --autoremove package-name
+agent-workspace-deb purge --yes --autoremove --keep-user-config package-name
 agent-workspace-deb upgrade --yes
 agent-workspace-deb repair --yes
 agent-workspace-deb sync
@@ -59,6 +61,28 @@ snapshot or replace the whole environment. These operations also block new
 application launches until finished. The package list retains
 installation history, including removed and failed packages. `repair` operates
 on the shared environment; `sync` refreshes package status and menu entries.
+
+Use `purge` to remove package configuration inside the rootfs, exported launchers,
+all installer-managed cached versions of that package, its application log, and
+its managed installation-history record. `--autoremove` also purges dependencies
+apt considers unused; inspect `--dry-run` first because the environment is shared.
+Original downloads outside the managed cache, backups, and shared apt/installer
+audit logs are retained. `remove` keeps its existing behavior.
+
+User configuration is preserved by default (`--keep-user-config`). To delete
+application data, explicitly identify its directories relative to `/config`:
+
+```bash
+agent-workspace-deb purge --dry-run --delete-user-config --user-config-path .config/Code code
+agent-workspace-deb purge --yes --delete-user-config --user-config-path .config/Code code
+```
+
+Repeat `--user-config-path` for additional application directories. Close the
+application before deleting its data. Only the specified directories and the
+package's launch overrides are removed; directory ownership is not guessed.
+Paths shared with another installation should be kept. Broad paths, traversal,
+symlinks, and known shared runtime directories are rejected. These new options
+apply to `agent-workspace-deb` (PRoot); the Native command is unchanged.
 
 ## Persistent paths
 

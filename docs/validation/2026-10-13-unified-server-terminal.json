@@ -1,0 +1,91 @@
+{
+  "checked_at": "2026-10-13T03:32:52.442282+00:00",
+  "passed": true,
+  "server_binary": {
+    "path": "/config/bin/cranibox",
+    "bytes": 12343352,
+    "sha256": "eeaace207c77d0857a1a1d514ca85476aa5a767a2616e58d72d86f618c2430c1"
+  },
+  "node_binary": {
+    "path": "/config/bin/cranibox-node",
+    "bytes": 2917216,
+    "sha256": "da8f37acd02325f1e87eb102adc87bb47f3b6b1c17391d39df6efee38aafc742"
+  },
+  "same_process_web_and_gateway": true,
+  "healthy_ports": [
+    9080,
+    9090
+  ],
+  "web_process": "MainPID=1422964",
+  "old_gateway_stopped_and_disabled": true,
+  "node_credentials_preserved": true,
+  "all_existing_units_preserved": true,
+  "project_services_unchanged": {
+    "agent-desktop-bridge": {
+      "unit_sha256": "095937f4dc2b389321522225f32cd691302c7cf5bc0d8a7a66f287eed397695a",
+      "active": true,
+      "enabled": true,
+      "main_pid": "MainPID=349609"
+    },
+    "deepseek-harness": {
+      "unit_sha256": "ff598d038b687190564339e84f67e2428585661cb713fbdbb75807e18e5358d8",
+      "active": true,
+      "enabled": true,
+      "main_pid": "MainPID=350182"
+    },
+    "openclaw-gateway": {
+      "unit_sha256": "8fba6021523b3bc9ca14b1d8afad11aebd4cd50e5e24db7257f9bea435799993",
+      "active": true,
+      "enabled": true,
+      "main_pid": "MainPID=350213"
+    },
+    "proxy-caddy": {
+      "unit_sha256": "3a3dfc3ac9db7a995b839aed97ac52f36b2107d8149281fd9dd632735ed8740f",
+      "active": true,
+      "enabled": true,
+      "main_pid": "MainPID=350432"
+    },
+    "tailscaled-workspace": {
+      "unit_sha256": "f99246a92351e12e106d049c09e2fb26c8541e74ac39a8d12a9508662b2e5303",
+      "active": true,
+      "enabled": true,
+      "main_pid": "MainPID=350512"
+    }
+  },
+  "backup_directory": "/config/.local/state/cranibox/install-20261013T033251Z-b39ca164",
+  "validation": {
+    "rust_unit_tests_passed": 28,
+    "rust_ignored_measurement_passed": true,
+    "terminal_integration_tests_passed": 5,
+    "runtime_integration_tests_passed": 12,
+    "bootstrap_migration_tests_passed": 5,
+    "service_integration_tests_passed": 14,
+    "ctl_integration_tests_passed": 24,
+    "web_operations_tests_passed": 6,
+    "live_browser_local_terminal_passed": true,
+    "live_browser_mobile_overflow": false,
+    "task_browser_closed": true,
+    "clippy_warnings_denied_passed": true,
+    "windows_macos_pty_tested_locally": false,
+    "docker_image_built": false,
+    "ctl_runtime_status_maps_to_unified_server": true,
+    "no_live_test_pty_children": true,
+    "browser_tests_passed": 16
+  },
+  "listener_owner_pids": {
+    "9080": 1422964,
+    "9090": 1422964
+  },
+  "remote_nodes": {
+    "available": true,
+    "count": 0
+  },
+  "post_update_metrics": {
+    "rss_bytes": 12013568,
+    "scope": "cranibox server process including Web and node gateway; excludes child processes and managed services"
+  },
+  "screenshots": [
+    "2026-10-13-terminal-desktop.png",
+    "2026-10-13-terminal-mobile.png"
+  ]
+}

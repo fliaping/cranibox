@@ -1,0 +1,244 @@
+{
+  "measured_at": "2026-10-12T09:51:27.244637+00:00",
+  "kernel": "6.18.18.c1107-trim",
+  "architecture": "x86_64",
+  "commit": "bf63feeda57a96c71a44ebe6cfca64f376053255",
+  "source": "working tree including current changes; debug binaries unless environment overrides them",
+  "service_supervision": {
+    "scope": "6 identical /bin/sleep services in temporary HOME; supervision excludes business processes; 3 RSS samples per group",
+    "legacy": {
+      "supervision": {
+        "processes": [
+          {
+            "pid": 61131,
+            "comm": "bash",
+            "rss_kib": 2772,
+            "ticks": 0
+          },
+          {
+            "pid": 61154,
+            "comm": "bash",
+            "rss_kib": 2684,
+            "ticks": 0
+          },
+          {
+            "pid": 61179,
+            "comm": "bash",
+            "rss_kib": 2892,
+            "ticks": 0
+          },
+          {
+            "pid": 61209,
+            "comm": "bash",
+            "rss_kib": 2596,
+            "ticks": 0
+          },
+          {
+            "pid": 61232,
+            "comm": "bash",
+            "rss_kib": 2716,
+            "ticks": 0
+          },
+          {
+            "pid": 61257,
+            "comm": "bash",
+            "rss_kib": 2804,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 16464,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.905
+      },
+      "business": {
+        "processes": [
+          {
+            "pid": 61134,
+            "comm": "sleep",
+            "rss_kib": 8036,
+            "ticks": 0
+          },
+          {
+            "pid": 61157,
+            "comm": "sleep",
+            "rss_kib": 7812,
+            "ticks": 0
+          },
+          {
+            "pid": 61182,
+            "comm": "sleep",
+            "rss_kib": 7796,
+            "ticks": 0
+          },
+          {
+            "pid": 61212,
+            "comm": "sleep",
+            "rss_kib": 7572,
+            "ticks": 0
+          },
+          {
+            "pid": 61235,
+            "comm": "sleep",
+            "rss_kib": 7940,
+            "ticks": 0
+          },
+          {
+            "pid": 61260,
+            "comm": "sleep",
+            "rss_kib": 7804,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 46960,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.908
+      }
+    },
+    "native_s6": {
+      "supervision": {
+        "processes": [
+          {
+            "pid": 61386,
+            "comm": "s6-svscan",
+            "rss_kib": 112,
+            "ticks": 0
+          },
+          {
+            "pid": 61387,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 61406,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 61421,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 61463,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 61521,
+            "comm": "s6-supervise",
+            "rss_kib": 80,
+            "ticks": 0
+          },
+          {
+            "pid": 61541,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          }
+        ],
+        "process_count": 7,
+        "median_total_rss_kib": 612,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.904
+      },
+      "business": {
+        "processes": [
+          {
+            "pid": 61390,
+            "comm": "sleep",
+            "rss_kib": 7924,
+            "ticks": 0
+          },
+          {
+            "pid": 61408,
+            "comm": "sleep",
+            "rss_kib": 7572,
+            "ticks": 0
+          },
+          {
+            "pid": 61423,
+            "comm": "sleep",
+            "rss_kib": 7912,
+            "ticks": 0
+          },
+          {
+            "pid": 61465,
+            "comm": "sleep",
+            "rss_kib": 7856,
+            "ticks": 0
+          },
+          {
+            "pid": 61523,
+            "comm": "sleep",
+            "rss_kib": 8008,
+            "ticks": 0
+          },
+          {
+            "pid": 61543,
+            "comm": "sleep",
+            "rss_kib": 7856,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 47128,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.903
+      }
+    },
+    "supervision_rss_reduction_percent": 96.28
+  },
+  "in_process_payloads": {
+    "cache_hits": 88,
+    "event_bytes": 561208,
+    "poll_bytes": 11344872,
+    "reduction_percent": 95.05320112910925,
+    "scope": "in-process actual Rust API JSON payloads; HTTP headers excluded; synthetic 39-service snapshot, retained 128 KiB log, 4 tabs and 20 appended lines"
+  },
+  "web_end_to_end": {
+    "status": "measured",
+    "scope": "Actual isolated Rust Web + gateway + Linux node; 4 SSE consumers and 80 full polls during the same 4-second log operation; SSE bytes include initial sync; HTTP headers excluded; CPU includes both methods",
+    "web_process_rss_kib": 8388,
+    "gateway_process_rss_kib": 7128,
+    "node_process_rss_kib": 6388,
+    "full_poll_bytes": 10544840,
+    "sse_bytes": 610914,
+    "seconds": 4.35,
+    "web_cpu_percent": 1.61,
+    "metrics": {
+      "cache_hits": 90,
+      "collection_ms": 36,
+      "collections": 2,
+      "cpu_percent": 1.62088829558398,
+      "maximum_collection_ms": 36,
+      "rss_bytes": 8589312,
+      "scope": "workspace-web process; excludes child processes, gateway and managed services",
+      "stream_bytes": 607281,
+      "stream_messages": 173,
+      "uptime_seconds": 4
+    }
+  },
+  "binaries": {
+    "services": {
+      "path": "target/release/workspace-services",
+      "bytes": 785600,
+      "sha256": "ea9670245aaca0ae8cd8363dc33d6dae070be8e989dd43d05cea0c1da91970e2"
+    },
+    "web": {
+      "path": "target/release/workspace-web",
+      "bytes": 6630264,
+      "sha256": "65526e570271eea4406fb62fb83d07d3f857634df5b4e3f9bad129c8dc05a5c1"
+    },
+    "runtime": {
+      "path": "target/release/workspace-runtime",
+      "bytes": 5603144,
+      "sha256": "10275b2a40ebda206e89e561671bd1f38b348c6994781d58955a4d3a05bf18b0"
+    }
+  }
+}

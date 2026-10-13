@@ -1,0 +1,33 @@
+[package]
+name = "agent-workspace-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[[bin]]
+name = "workspace-web"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
+clap = { version = "4", features = ["derive", "env"] }
+rand = "0.9"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+subtle = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util"] }
+url = "2"
+agent-workspace-runtime = { path = "../workspace-runtime" }
+agent-workspace-pty = { path = "../workspace-pty" }
+base64 = "0.22"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

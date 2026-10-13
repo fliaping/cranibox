@@ -36,6 +36,19 @@ workspacectl proxy check
 tail -f /config/proxyctl/access.log
 ```
 
+For a loopback service that validates both HTTP `Host` and WebSocket `Origin`,
+persist both upstream values on its trusted gateway route:
+
+```bash
+workspacectl proxy add dashboard 127.0.0.1:9119 \
+  --upstream-host 127.0.0.1 \
+  --upstream-origin http://127.0.0.1
+```
+
+Services that enforce trusted proxy attribution, including OpenClaw, also need
+the route-level `--rewrite-client-ip` option so client-supplied forwarding
+headers are replaced instead of preserved.
+
 The persisted `/config/proxyctl` directory is an internal implementation detail.
 It contains Caddy and routing state, but no separate CLI is required.
 

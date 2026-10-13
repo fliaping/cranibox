@@ -76,7 +76,7 @@ fi
 
 case "$agent" in
   none) ;;
-  codex|claude-code|hermes|deepseek-harness)
+  codex|claude-code|hermes|deepseek-harness|openclaw)
     if [[ ! -f "$agent_marker" ]]; then
       until run_manager install agents "$agent"; do
         echo "[workspace-bootstrap] ${agent} install failed; retrying in 30 seconds"

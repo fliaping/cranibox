@@ -2,13 +2,13 @@
 # s6 service: start all registered systemctl services on container boot.
 #
 # All operations are idempotent — safe to re-run on s6 restart.
-# After work is done, sleep infinity to prevent s6 from re-triggering.
+# Runs once through native s6-rc; no idle supervisor is needed.
 
 echo "[systemctl-services] Starting..."
 
 if ! command -v systemctl > /dev/null 2>&1; then
     echo "[systemctl-services] systemctl not found, skipping"
-    exec sleep infinity
+    exit 0
 fi
 
 # Snapshot the container's boot-time environment for the user-systemctl wrapper.
@@ -27,6 +27,9 @@ mkdir -p "$USER_SYSTEMD_RUN_DIR"
 chown abc:abc "$USER_LOCAL_RUN_DIR" 2>/dev/null || true
 chown -R abc:abc "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
 chmod 700 "$USER_SYSTEMD_RUN_DIR" 2>/dev/null || true
+if [ -x "$HOME/bin/workspace-services" ]; then
+    s6-setuidgid abc "$HOME/bin/workspace-services" __snapshot-env || true
+fi
 
 # Wait for Docker daemon (DinD mode only)
 if [ "$START_DOCKER" = "true" ] && command -v docker > /dev/null 2>&1; then
@@ -60,6 +63,3 @@ systemctl default 2>&1 | grep -v -E \
     || true
 
 echo "[systemctl-services] Done"
-
-# Keep alive — s6 restarts services that exit
-exec sleep infinity

@@ -7,12 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
-const extensionFile = path.resolve(scriptRoot, '../extensions/control-center/extension.js');
+const extensionFile = path.resolve(scriptRoot, '../extensions/control-center/control-center.js');
+const extensionSource = fs.readFileSync(extensionFile, 'utf8');
+assert.match(extensionSource, /openclaw:'OpenClaw'/, 'Control Center must render OpenClaw');
+assert.ok(extensionSource.includes('function agentWebButton(a)'), 'Control Center must render Agent Web UI actions');
+assert.ok(extensionSource.includes('data-action="updateOpenClaw"'), 'OpenClaw card must expose Workspace-managed update');
 
 function loadRenderers(language) {
-  const marker = 'module.exports = { activate, deactivate };';
-  const replacement = 'module.exports = { controlCenterHtml, quickViewHtml, isSnapshotHealthy };';
-  const source = fs.readFileSync(extensionFile, 'utf8').replace(marker, replacement);
+  const source = fs.readFileSync(extensionFile, 'utf8');
   const module = { exports: {} };
   const vscode = {
     env: { language },
@@ -34,7 +36,7 @@ function loadRenderers(language) {
     setInterval,
     clearInterval
   }, { filename: extensionFile });
-  return module.exports;
+  return module.exports(vscode);
 }
 
 function inlineScripts(html) {

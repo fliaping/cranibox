@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-13",
+  "upstreamRevision": "b76aebefded791d3416d1df64337e2b76543b217",
+  "validation": {
+    "fullBrowserSuite": {
+      "passed": 21,
+      "durationSeconds": 54.6
+    },
+    "finalResponsiveChecks": {
+      "passed": 3,
+      "durationSeconds": 12.3
+    },
+    "typescriptAndVite": "passed",
+    "releaseBuild": "passed",
+    "screenshots": {
+      "desktop": [
+        1440,
+        900
+      ],
+      "desktopLight": [
+        1440,
+        900
+      ],
+      "mobile": [
+        390,
+        844
+      ],
+      "mobileSessions": [
+        390,
+        844
+      ]
+    },
+    "previewConsoleErrors": 0
+  },
+  "deployment": {
+    "httpHealth": "passed",
+    "gatewayHealth": "passed",
+    "binaryMatchesRelease": true,
+    "assetsMatchBuild": true,
+    "existingSessionsPreserved": 1,
+    "runningSessions": 0,
+    "rollbackDirectory": "/config/.local/state/cranibox/install-20261013T083022Z-86a4c6b5"
+  },
+  "assetsSha256": {
+    "web.js": "aedea5e00017698aa4ba0e4523f7cc53168b358ff33c57014f07a9c4ac8f0f1b",
+    "web.css": "a2209d0087192d643976a25db290c5722517dd77e9f24b602cff306ce10caf3b"
+  },
+  "scope": [
+    "session sidebar",
+    "four independent tabs",
+    "two panes",
+    "cross-node tabs",
+    "mobile composer and IME",
+    "keyboard menus",
+    "resize rendering"
+  ],
+  "limitations": [
+    "Linux browser integration tested; macOS not exercised",
+    "herdr 0.9.3 does not expose Unix-style persistent attachment on Windows",
+    "upstream native workspace tree, agent chat, file browser and approvals are not integrated"
+  ]
+}

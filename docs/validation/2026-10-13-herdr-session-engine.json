@@ -1,0 +1,75 @@
+{
+  "evaluation_date": "2026-10-13",
+  "scope": "Isolated Linux CLI detach/reattach proof; not browser or remote-node integration",
+  "production_modified": false,
+  "release_source": "https://github.com/herdrdev/herdr/releases/tag/v0.9.3",
+  "results": {
+    "version": "0.9.3",
+    "platform": "Linux",
+    "temporary_root": "/tmp/cranibox-herdr-eval-w926t4kc",
+    "client_disconnect_keeps_process": true,
+    "reattach_shows_live_output": true,
+    "ticks_before": 3,
+    "ticks_after": 5,
+    "session_list": {
+      "sessions": [
+        {
+          "default": true,
+          "name": "default",
+          "running": false,
+          "session_dir": "/tmp/cranibox-herdr-eval-w926t4kc/config/herdr",
+          "socket_path": "/tmp/cranibox-herdr-eval-w926t4kc/config/herdr/herdr.sock"
+        },
+        {
+          "default": false,
+          "name": "cranibox-evaluation",
+          "running": true,
+          "session_dir": "/tmp/cranibox-herdr-eval-w926t4kc/config/herdr/sessions/cranibox-evaluation",
+          "socket_path": "/tmp/cranibox-herdr-eval-w926t4kc/config/herdr/sessions/cranibox-evaluation/herdr.sock"
+        }
+      ]
+    },
+    "process_before": {
+      "id": "cli:pane:process_info",
+      "result": {
+        "process_info": {
+          "foreground_process_group_id": 1492698,
+          "foreground_processes": [
+            {
+              "cwd": "/config",
+              "name": "sleep",
+              "pid": 1492698
+            }
+          ],
+          "pane_id": "w1:p1",
+          "shell_pid": 1492641
+        },
+        "type": "pane_process_info"
+      }
+    },
+    "process_after": {
+      "id": "cli:pane:process_info",
+      "result": {
+        "process_info": {
+          "foreground_process_group_id": 1492802,
+          "foreground_processes": [
+            {
+              "argv": [
+                "sleep",
+                "1"
+              ],
+              "cmdline": "sleep 1",
+              "cwd": "/config",
+              "name": "sleep",
+              "pid": 1492802
+            }
+          ],
+          "pane_id": "w1:p1",
+          "shell_pid": 1492641
+        },
+        "type": "pane_process_info"
+      }
+    },
+    "test_server_stopped": true
+  }
+}

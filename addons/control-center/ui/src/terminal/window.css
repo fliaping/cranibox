@@ -1,0 +1,73 @@
+.topbar { position: sticky; top: 0; z-index: 32; }
+.terminal-nav-button { width: 100%; border: 0; background: transparent; text-align: left; font: inherit; }
+.terminal-window-toggle { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; height: 44px; padding: 8px 12px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; }
+.terminal-window-toggle:hover { color: var(--text); background: var(--surface-raised); }
+.terminal-window-toggle.has-terminals { background: var(--accent-soft); color: var(--text); border-color: var(--border); }
+.terminal-window-count { display: grid; place-items: center; min-width: 18px; height: 18px; border-radius: 4px; background: var(--surface-raised); font: 11px var(--mono); }
+.terminal-window-minimized-dot { position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--good); }
+.terminal-window { position: fixed; z-index: 60; display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow); overflow: hidden; container: terminal-window / inline-size; }
+.terminal-window[hidden] { display: none; }
+.terminal-window:focus { outline: none; }
+.terminal-window:focus-within { border-color: var(--muted); }
+.terminal-window.is-moving { user-select: none; }
+.terminal-window-head { display: flex; align-items: center; justify-content: space-between; height: 48px; min-height: 48px; padding: 2px 6px 2px 12px; gap: 8px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+.terminal-window-drag { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--muted); text-align: left; cursor: grab; touch-action: none; border-radius: 5px; }
+.terminal-window-drag:active { cursor: grabbing; }
+.terminal-window-drag strong { font-size: 13px; color: var(--text); font-weight: 550; white-space: nowrap; }
+.terminal-window-drag > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.terminal-window-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
+.terminal-window-actions > button { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); }
+.terminal-window-actions > button:hover { background: var(--surface); color: var(--text); }
+.terminal-window-actions > button:last-child:hover { color: var(--bad); background: var(--bad-bg); }
+.terminal-window-body { flex: 1; min-width: 0; min-height: 0; }
+.terminal-window .terminal-sidebar { width: 240px; }
+.terminal-window .terminal-statusbar { padding-right: 36px; }
+.terminal-window-resize { position: absolute; z-index: 2; border: 0; padding: 0; background: transparent; touch-action: none; color: var(--muted); }
+.terminal-window-resize.edge-n { top: 0; left: 20px; right: 20px; height: 6px; cursor: ns-resize; }
+.terminal-window-resize.edge-s { bottom: 0; left: 20px; right: 44px; height: 6px; cursor: ns-resize; }
+.terminal-window-resize.edge-e { top: 20px; bottom: 44px; right: 0; width: 6px; cursor: ew-resize; }
+.terminal-window-resize.edge-w { top: 20px; bottom: 20px; left: 0; width: 6px; cursor: ew-resize; }
+.terminal-window-resize.edge-ne, .terminal-window-resize.edge-nw, .terminal-window-resize.edge-sw { width: 20px; height: 20px; }
+.terminal-window-resize.edge-ne { top: 0; right: 0; cursor: nesw-resize; }
+.terminal-window-resize.edge-nw { top: 0; left: 0; cursor: nwse-resize; }
+.terminal-window-resize.edge-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.terminal-window-resize.edge-se { bottom: 0; right: 0; width: 32px; height: 30px; display: grid; place-items: center; cursor: nwse-resize; }
+.terminal-window-resize.edge-se:hover { color: var(--text); background: var(--surface-raised); }
+@container terminal-window (max-width: 900px) {
+  .terminal-sidebar { display: none; }
+  .terminal-drawer-toggle { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); }
+  .terminal-panel.beside { display: none; }
+  .terminal-panes.is-split > .terminal-panel.beside { border: 0; }
+  .terminal-tabs-bar { padding-inline: 4px; }
+  .terminal-pane-head { padding-inline: 12px; }
+  .terminal-composer { display: flex; margin-bottom: 8px; }
+  .terminal-input-toggle { display: none; }
+  .terminal-status-hint { display: none; }
+  .terminal-screen { padding: 10px 8px; }
+}
+@container terminal-window (max-width: 600px) {
+  .terminal-pane-title > span { display: none; }
+  .terminal-tab > button[role=tab] span { max-width: 96px; }
+  .terminal-pane-actions .status svg { display: none; }
+  .terminal-window-drag > span { display: none; }
+}
+@media (max-width: 900px) {
+  .terminal-window { border-radius: 10px 10px 0 0; border-bottom: 0; }
+  .terminal-window-maximize { display: none !important; }
+  .terminal-window-drag { cursor: default; touch-action: manipulation; }
+}
+@media (max-width: 600px) {
+  .terminal-window-toggle { width: 44px; padding: 8px; }
+  .terminal-window-toggle-label { display: none; }
+  .terminal-window-count { position: absolute; right: -2px; bottom: -2px; font-size: 9px; min-width: 14px; height: 14px; }
+  .terminal-window-head { padding-left: 10px; gap: 2px; }
+  .terminal-window-drag { gap: 8px; }
+  .topbar-actions .button { min-width: 36px; width: 36px; }
+}
+@media (max-height: 500px) and (max-width: 900px) {
+  .terminal-window-head { min-height: 44px; height: 44px; }
+  .terminal-tabs-bar { min-height: 44px; }
+  .terminal-tab > button[role=tab] { min-height: 44px; }
+  .terminal-composer { margin: 0 8px 4px; padding: 2px; }
+  .terminal-composer textarea { padding-block: 6px; }
+}

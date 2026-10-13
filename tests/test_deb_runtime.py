@@ -55,6 +55,59 @@ class RuntimeTests(unittest.TestCase):
             '[Desktop Action New]\nName=New\nExec="/opt/Test App/bin/test" --new\n')
         return '/usr/share/applications/test.desktop'
 
+    def purge_fixture(self):
+        self.ready()
+        module.atomic_json(self.runtime.manifest, {'schema': 1, 'packages': {'test-app': {}}})
+        self.runtime.cache.mkdir(parents=True)
+        archive = self.runtime.cache / ('test-app-' + 'a' * 64 + '.deb')
+        archive.write_text('old installer')
+        unrelated = self.runtime.cache / ('test-app-extra-' + 'b' * 64 + '.deb')
+        unrelated.write_text('keep')
+        config = self.config / '.config/test-app'
+        config.mkdir(parents=True)
+        (config / 'settings').write_text('keep by default')
+        return archive, unrelated, config
+
+    def test_purge_cleans_cache_and_history_but_preserves_config(self):
+        archive, unrelated, config = self.purge_fixture()
+        with patch.object(self.runtime, 'apt') as apt, patch.object(self.runtime, 'sync'), \
+                patch.object(self.runtime, 'installed', return_value=(False, '')):
+            self.runtime.purge('test-app', False, autoremove=True)
+        apt.assert_called_once_with(['-y', '--autoremove', 'purge', 'test-app'])
+        self.assertFalse(archive.exists())
+        self.assertTrue(unrelated.exists())
+        self.assertTrue(config.exists())
+        self.assertNotIn('test-app', self.runtime.load()['packages'])
+
+    def test_purge_dry_run_and_apt_failure_preserve_files_and_history(self):
+        archive, _, config = self.purge_fixture()
+        with patch.object(self.runtime, 'apt'), patch.object(self.runtime, 'sync') as sync:
+            self.runtime.purge('test-app', True, user_config_paths=['.config/test-app'])
+            sync.assert_not_called()
+        with patch.object(self.runtime, 'apt', side_effect=RuntimeError('apt failed')):
+            with self.assertRaisesRegex(RuntimeError, 'apt failed'):
+                self.runtime.purge('test-app', False)
+        self.assertTrue(archive.exists())
+        self.assertTrue(config.exists())
+        self.assertIn('test-app', self.runtime.load()['packages'])
+
+    def test_purge_explicit_config_deletion(self):
+        _, _, config = self.purge_fixture()
+        with patch.object(self.runtime, 'apt'), patch.object(self.runtime, 'sync'), \
+                patch.object(self.runtime, 'installed', return_value=(False, '')):
+            self.runtime.purge('test-app', False, user_config_paths=['.config/test-app'])
+        self.assertFalse(config.exists())
+
+    def test_purge_rejects_broad_traversing_and_symlinked_config_paths(self):
+        self.purge_fixture()
+        (self.config / '.config/link').symlink_to(self.config / '.config/test-app')
+        for path in ('.config', '.local/share', '/config', '.config/../other',
+                     '.config/link', '.config/code-server', '.local/share/agent-workspace'):
+            with self.subTest(path=path), patch.object(self.runtime, 'apt') as apt:
+                with self.assertRaises(RuntimeError):
+                    self.runtime.purge('test-app', False, user_config_paths=[path])
+                apt.assert_not_called()
+
     def test_install_never_binds_host_package_database_or_home(self):
         argv = self.runtime.invocation(['apt-get', 'install', 'test'], install=True)
         self.assertIn('-0', argv)

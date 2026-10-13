@@ -113,7 +113,8 @@ install_agent_extension() {
 install_extension "control-center"
 install_extension "selkies-desktop"
 install_marketplace_extension "MS-CEINTL.vscode-language-pack-zh-hans"
-python3 "${PACKAGE_ROOT}/scripts/workspacectl-locale.py" --register-language-pack
+bash "${PACKAGE_ROOT}/scripts/install-workspacectl.sh"
+"${PACKAGE_ROOT}/scripts/workspacectl" locale --register-language-pack
 
 # Agent-specific IDE extensions normally install together with their CLI. This
 # also repairs installations where the Agent existed before code-server.

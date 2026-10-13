@@ -18,6 +18,9 @@ class TailscaleServeTargetTests(unittest.TestCase):
         stub = bin_dir / "tailscale"
         stub.write_text('#!/bin/sh\necho "$@"\n')
         stub.chmod(0o755)
+        sudo = bin_dir / "sudo"
+        sudo.write_text('#!/bin/sh\n[ "$1" != "-n" ] || shift\nexec "$@"\n')
+        sudo.chmod(0o755)
         self.config = self.root / "config/.config/code-server/config.yaml"
         self.config.parent.mkdir(parents=True)
         self.env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",

@@ -1204,7 +1204,7 @@ main() {
         "--shm-size" "2gb"
         "-e" "PUID=1000"
         "-e" "PGID=1000"
-        "-e" "TZ=Asia/Shanghai"
+        "-e" "TZ=Asia/Taipei"
         "-e" "LC_ALL=zh_CN.UTF-8"
         "-e" "CUSTOM_USER=${DESKTOP_USER}"
         "-e" "PASSWORD=${DESKTOP_PASSWORD}"

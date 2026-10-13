@@ -63,7 +63,7 @@ agent-workspace-manager install tailscale
 agent-workspace-manager install code-server-extensions
 agent-workspace-manager install custom-services
 agent-workspace-manager install agents
-agent-workspace-manager install agents claude-code hermes deepseek-harness
+agent-workspace-manager install agents claude-code hermes deepseek-harness openclaw
 agent-workspace-manager status
 agent-workspace-manager doctor
 ```
@@ -81,6 +81,12 @@ existing Agent CLIs and installs the matching extensions then.
 Inside the workspace, `workspacectl` is the stable control surface Agents can
 use to inspect or operate container capabilities. `workspacectl status --json`
 is also the versioned backend used by Control Center.
+The command is now a Rust binary installed by
+`agent-workspace-manager install workspace-controls`. Installation builds it
+with Cargo, or accepts a prebuilt binary through `AGENT_WORKSPACE_CTL_BIN`;
+running the installed CLI requires neither Cargo nor Python. The manager and
+other services retain their existing implementations. See
+[Rust CTL](workspacectl-rust.md) for build and platform details.
 
 Global resources are available from the same command surface:
 

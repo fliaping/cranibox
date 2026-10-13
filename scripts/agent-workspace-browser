@@ -2,6 +2,11 @@
 set -euo pipefail
 
 config_root="${AGENT_WORKSPACE_CONFIG_ROOT:-/config}"
+timezone_file="$config_root/.config/agent-workspace/timezone"
+if [[ -r "$timezone_file" ]]; then
+  IFS= read -r TZ < "$timezone_file"
+  export TZ
+fi
 profile_root="${AGENT_WORKSPACE_BROWSER_PROFILE:-$config_root/.config/agent-browser}"
 legacy_profile="${AGENT_WORKSPACE_BROWSER_LEGACY_PROFILE:-$config_root/.config/chromium}"
 profile_name="${AGENT_WORKSPACE_BROWSER_PROFILE_NAME:-Agent Workspace (Managed)}"

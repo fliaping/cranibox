@@ -1,0 +1,242 @@
+{
+  "measured_at": "2026-10-13T03:32:51.818295+00:00",
+  "kernel": "6.18.18.c1107-trim",
+  "architecture": "x86_64",
+  "commit": "bf63feeda57a96c71a44ebe6cfca64f376053255",
+  "source": "working tree including current changes; debug binaries unless environment overrides them",
+  "service_supervision": {
+    "scope": "6 identical /bin/sleep services in temporary HOME; supervision excludes business processes; 3 RSS samples per group",
+    "legacy": {
+      "supervision": {
+        "processes": [
+          {
+            "pid": 1422919,
+            "comm": "bash",
+            "rss_kib": 2724,
+            "ticks": 0
+          },
+          {
+            "pid": 1422949,
+            "comm": "bash",
+            "rss_kib": 2504,
+            "ticks": 0
+          },
+          {
+            "pid": 1423015,
+            "comm": "bash",
+            "rss_kib": 2700,
+            "ticks": 0
+          },
+          {
+            "pid": 1423099,
+            "comm": "bash",
+            "rss_kib": 2764,
+            "ticks": 0
+          },
+          {
+            "pid": 1423199,
+            "comm": "bash",
+            "rss_kib": 2748,
+            "ticks": 0
+          },
+          {
+            "pid": 1423259,
+            "comm": "bash",
+            "rss_kib": 2792,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 16232,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.903
+      },
+      "business": {
+        "processes": [
+          {
+            "pid": 1422922,
+            "comm": "sleep",
+            "rss_kib": 7816,
+            "ticks": 0
+          },
+          {
+            "pid": 1422954,
+            "comm": "sleep",
+            "rss_kib": 7856,
+            "ticks": 0
+          },
+          {
+            "pid": 1423018,
+            "comm": "sleep",
+            "rss_kib": 7628,
+            "ticks": 0
+          },
+          {
+            "pid": 1423103,
+            "comm": "sleep",
+            "rss_kib": 7636,
+            "ticks": 0
+          },
+          {
+            "pid": 1423202,
+            "comm": "sleep",
+            "rss_kib": 7892,
+            "ticks": 0
+          },
+          {
+            "pid": 1423262,
+            "comm": "sleep",
+            "rss_kib": 7576,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 46404,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.904
+      }
+    },
+    "native_s6": {
+      "supervision": {
+        "processes": [
+          {
+            "pid": 1423455,
+            "comm": "s6-svscan",
+            "rss_kib": 108,
+            "ticks": 0
+          },
+          {
+            "pid": 1423456,
+            "comm": "s6-supervise",
+            "rss_kib": 88,
+            "ticks": 0
+          },
+          {
+            "pid": 1423488,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 1423529,
+            "comm": "s6-supervise",
+            "rss_kib": 84,
+            "ticks": 0
+          },
+          {
+            "pid": 1423583,
+            "comm": "s6-supervise",
+            "rss_kib": 80,
+            "ticks": 0
+          },
+          {
+            "pid": 1423680,
+            "comm": "s6-supervise",
+            "rss_kib": 88,
+            "ticks": 0
+          },
+          {
+            "pid": 1423719,
+            "comm": "s6-supervise",
+            "rss_kib": 80,
+            "ticks": 0
+          }
+        ],
+        "process_count": 7,
+        "median_total_rss_kib": 612,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.906
+      },
+      "business": {
+        "processes": [
+          {
+            "pid": 1423459,
+            "comm": "sleep",
+            "rss_kib": 7940,
+            "ticks": 0
+          },
+          {
+            "pid": 1423490,
+            "comm": "sleep",
+            "rss_kib": 7668,
+            "ticks": 0
+          },
+          {
+            "pid": 1423531,
+            "comm": "sleep",
+            "rss_kib": 8016,
+            "ticks": 0
+          },
+          {
+            "pid": 1423585,
+            "comm": "sleep",
+            "rss_kib": 8044,
+            "ticks": 0
+          },
+          {
+            "pid": 1423682,
+            "comm": "sleep",
+            "rss_kib": 8004,
+            "ticks": 0
+          },
+          {
+            "pid": 1423721,
+            "comm": "sleep",
+            "rss_kib": 7844,
+            "ticks": 0
+          }
+        ],
+        "process_count": 6,
+        "median_total_rss_kib": 47516,
+        "cpu_percent": 0.0,
+        "sampling_seconds": 0.904
+      }
+    },
+    "supervision_rss_reduction_percent": 96.23
+  },
+  "in_process_payloads": {
+    "cache_hits": 88,
+    "event_bytes": 561208,
+    "poll_bytes": 11344872,
+    "reduction_percent": 95.05320112910925,
+    "scope": "in-process actual Rust API JSON payloads; HTTP headers excluded; synthetic 39-service snapshot, retained 128 KiB log, 4 tabs and 20 appended lines"
+  },
+  "web_end_to_end": {
+    "status": "measured",
+    "scope": "Actual isolated Rust Web + gateway + Linux node; 4 SSE consumers and 80 full polls during the same 4-second log operation; SSE bytes include initial sync; HTTP headers excluded; CPU includes both methods",
+    "unified_server": true,
+    "server_process_count": 1,
+    "web_process_rss_kib": 12716,
+    "gateway_process_rss_kib": 12716,
+    "node_process_rss_kib": 5356,
+    "full_poll_bytes": 10549750,
+    "sse_bytes": 612142,
+    "seconds": 4.462,
+    "web_cpu_percent": 2.24,
+    "metrics": {
+      "cache_hits": 90,
+      "collection_ms": 35,
+      "collections": 2,
+      "cpu_percent": 2.2560555141949266,
+      "maximum_collection_ms": 35,
+      "rss_bytes": 13021184,
+      "scope": "cranibox server process including Web and node gateway; excludes child processes and managed services",
+      "stream_bytes": 608425,
+      "stream_messages": 177,
+      "unified_server": true,
+      "uptime_seconds": 4
+    }
+  },
+  "binaries": {
+    "server": {
+      "path": "/config/Workspace/agent-workspace/target/release/cranibox",
+      "bytes": 12343352,
+      "sha256": "eeaace207c77d0857a1a1d514ca85476aa5a767a2616e58d72d86f618c2430c1"
+    },
+    "node": {
+      "path": "target/release/cranibox-node",
+      "bytes": 2917216,
+      "sha256": "da8f37acd02325f1e87eb102adc87bb47f3b6b1c17391d39df6efee38aafc742"
+    }
+  }
+}

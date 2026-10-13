@@ -1,0 +1,28 @@
+[package]
+name = "cranibox-node"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[dependencies]
+anyhow = "1"
+agent-workspace-runtime = { path = "../workspace-runtime", default-features = false }
+agent-workspace-pty = { path = "../workspace-pty" }
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+futures-util = "0.3"
+rand = "0.9"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
+tokio-util = "0.7"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_Security"] }

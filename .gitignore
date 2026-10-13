@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 core
 core.*
+/target/
+/addons/control-center/ui/node_modules/
+
+/addons/control-center/ui/dist/
+/addons/control-center/ui/test-results/
+/addons/control-center/ui/playwright-report/

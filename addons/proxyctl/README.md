@@ -1,5 +1,21 @@
 # Custom-domain Routing Backend
 
+Upstreams may be local `host:port` targets or HTTP(S) origins:
+
+```bash
+workspacectl proxy add api-ping-proxy-sub-manage.h1.fliaping.com \
+  https://proxy-sub-manage.fliaping.ccwu.cc \
+  --upstream-origin https://proxy-sub-manage.fliaping.ccwu.cc
+```
+
+URL targets automatically set the upstream Host header and, for HTTPS, verified
+TLS with the upstream hostname as SNI. Paths, queries, methods and request bodies
+are forwarded unchanged. No extra authentication is added. Credentials, paths,
+queries and fragments are not accepted in the configured upstream origin.
+`--upstream-origin` is optional for applications that require the upstream Origin.
+Absolute links, cookie domains and redirects in upstream responses are not rewritten;
+applications that generate these should support their external URL configuration.
+
 Agent Workspace uses a small Caddy-based HTTP router for optional custom-domain
 access. Users and agents manage it through `workspacectl`; configuration and
 runtime files remain under `/config/proxyctl` for upgrade compatibility.
@@ -66,7 +82,13 @@ Manage named routes:
 
 ```bash
 workspacectl proxy add app 127.0.0.1:3000
-workspacectl proxy add dashboard 127.0.0.1:9119 --upstream-host 127.0.0.1
+workspacectl proxy add dashboard 127.0.0.1:9119 \
+  --upstream-host 127.0.0.1 \
+  --upstream-origin http://127.0.0.1
+workspacectl proxy add claw 127.0.0.1:18789 \
+  --upstream-host 127.0.0.1 \
+  --upstream-origin https://claw.dev.example.com \
+  --rewrite-client-ip
 workspacectl proxy remove app
 workspacectl network domain workspace.example.com
 workspacectl proxy rollback
@@ -78,6 +100,16 @@ the root domain, keeps a backup, and schedules the required code-server restart.
 Use `--upstream-host` for loopback services that validate the HTTP `Host`
 header. The setting is stored with the route and survives
 `workspacectl proxy init`.
+
+Use `--upstream-origin` together with it when a loopback service also validates
+the WebSocket `Origin` header. Only use this on trusted routes protected by the
+workspace gateway; it deliberately replaces the browser's public origin before
+the request reaches the upstream service.
+
+Use `--rewrite-client-ip` for security-sensitive services such as OpenClaw that
+require the trusted reverse proxy to overwrite `X-Forwarded-For` and
+`X-Real-IP`. Enable it per route only, and keep the service's trusted-proxy
+allowlist narrow.
 
 Logs:
 

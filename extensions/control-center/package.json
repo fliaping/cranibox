@@ -21,6 +21,7 @@
   },
   "files": [
     "extension.js",
+    "control-center.js",
     "README.md",
     "resources"
   ],

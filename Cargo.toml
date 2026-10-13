@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/workspace-runtime", "crates/workspacectl", "crates/workspace-services", "crates/workspace-web", "crates/cranibox", "crates/workspace-node", "crates/workspace-pty"]
+resolver = "2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

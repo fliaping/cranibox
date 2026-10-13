@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-12",
+  "container": {
+    "web": {
+      "healthz": 200,
+      "enabled": true
+    },
+    "runtime": {
+      "healthz": 200,
+      "enabled": true
+    }
+  },
+  "web_remote_nodes": {
+    "installed": true,
+    "available": true,
+    "count": 0
+  },
+  "credentials_mode": "0600",
+  "browser": {
+    "page": "/#/nodes",
+    "register_button_enabled": true,
+    "page_errors": 0
+  },
+  "validation": {
+    "isolated_first_boot_tests": 3,
+    "ctl_integration_tests": 24,
+    "rust_unit_tests": 29,
+    "rust_unit_tests_ignored": 1,
+    "release_build": "passed",
+    "clippy": "passed",
+    "format": "passed",
+    "web_integration_check": "passed",
+    "full_docker_image_build": "not_run"
+  },
+  "backups": [
+    "/config/.local/state/cranibox/builtin-gateway-20261012T141434Z",
+    "/config/.local/state/cranibox/web-nodes-update-20261012T141452Z"
+  ]
+}

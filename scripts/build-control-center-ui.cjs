@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+'use strict';
+// React is compiled into static assets. The installed Rust server needs no Node.
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const output = path.resolve(__dirname, '../addons/control-center');
+const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build', '--prefix', path.join(output, 'ui')], { stdio: 'inherit' });
+if (result.status !== 0) process.exit(result.status || 1);
+for (const asset of ['web.js', 'web.css']) {
+  const source = path.join(output, 'ui/dist', asset), destination = path.join(output, asset);
+  if (asset === 'web.js') {
+    const notice = fs.readFileSync(path.resolve(__dirname, '../docs/licenses/herdr-web-ui.txt'), 'utf8');
+    fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + fs.readFileSync(source, 'utf8'));
+  } else fs.copyFileSync(source, destination);
+}
+for (const language of ['en', 'zh-cn']) {
+  const zh = language === 'zh-cn';
+  const html = '<!doctype html>\n<html lang="' + language + '"><head>\n' +
+    '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+    // xterm's DOM renderer generates styles for cell geometry and ANSI colors.
+    // Its public API cannot apply a nonce; only styles allow inline content.
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
+    '<meta name="color-scheme" content="dark light"><title>Cranibox · Agent Workspace</title>\n' +
+    '<link rel="icon" href="data:,"><link rel="stylesheet" href="/web.css">\n' +
+    '<script nonce="__WORKSPACE_NONCE__">try{document.documentElement.dataset.theme=localStorage.getItem("workspace.theme")==="light"?"light":"dark"}catch{}</script>\n' +
+    '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +
+    '<noscript>' + (zh ? '请启用 JavaScript 后使用控制中心。' : 'Enable JavaScript to use the control center.') + '</noscript>\n' +
+    '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;</script>\n' +
+    '<script nonce="__WORKSPACE_NONCE__" src="/web.js" defer></script>\n</body></html>\n';
+  fs.writeFileSync(path.join(output, 'index.' + language + '.html'), html);
+}

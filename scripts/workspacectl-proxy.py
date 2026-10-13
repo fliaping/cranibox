@@ -10,6 +10,7 @@ import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from functools import lru_cache
@@ -211,6 +212,20 @@ def normalize_managed_host(value, root):
 
 def parse_target(raw):
     raw = raw.strip()
+    if "://" in raw:
+        try:
+            url = urllib.parse.urlsplit(raw)
+            port = url.port
+        except ValueError as exc:
+            raise ProxyctlError("invalid upstream URL") from exc
+        if url.scheme not in {"http", "https"} or not url.hostname:
+            raise ProxyctlError("upstream URL must use HTTP or HTTPS")
+        if url.username is not None or url.password is not None or url.query or url.fragment or url.path not in {"", "/"}:
+            raise ProxyctlError("upstream URL must be an origin without credentials, path, query or fragment")
+        authority = normalize_upstream_host(url.netloc)
+        if port is not None and not 1 <= port <= 65535:
+            raise ProxyctlError("invalid upstream port")
+        return f"{url.scheme}://{authority}"
     if raw.startswith("http://"):
         raw = raw[len("http://") :]
     elif raw.startswith("https://"):
@@ -274,6 +289,24 @@ def normalize_upstream_host(raw):
     return raw
 
 
+def normalize_upstream_origin(raw):
+    raw = raw.strip()
+    if not raw or any(ord(char) < 32 or char.isspace() for char in raw):
+        raise ProxyctlError("upstream Origin must be a non-empty URL with no whitespace")
+    try:
+        parsed = urllib.parse.urlsplit(raw)
+    except ValueError as exc:
+        raise ProxyctlError("invalid upstream Origin URL") from exc
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ProxyctlError("upstream Origin must use http:// or https://")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ProxyctlError("upstream Origin must not contain credentials, query, or fragment")
+    if parsed.path not in {"", "/"}:
+        raise ProxyctlError("upstream Origin must not contain a path")
+    normalize_upstream_host(parsed.netloc)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def validate_target_host(host):
     allowed = [item.strip() for item in env("PROXY_ALLOWED_TARGETS", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16").split(",") if item.strip()]
     try:
@@ -324,11 +357,19 @@ def build_config(routes):
         upstream_host = route.get("upstream_host")
         if upstream_host:
             upstream_host = normalize_upstream_host(upstream_host)
+        upstream_origin = route.get("upstream_origin")
+        if upstream_origin:
+            upstream_origin = normalize_upstream_origin(upstream_origin)
+        rewrite_client_ip = route.get("rewrite_client_ip", False)
+        if not isinstance(rewrite_client_ip, bool):
+            raise ProxyctlError("rewrite_client_ip must be a boolean")
         route_blocks.append(reverse_proxy_route(
             [route["host"]],
             route["target"],
             route_id=f"proxyctl:{route['host']}",
             upstream_host=upstream_host,
+            upstream_origin=upstream_origin,
+            rewrite_client_ip=rewrite_client_ip,
         ))
 
     route_blocks.append(reverse_proxy_route([code_host], code_target, route_id=f"proxyctl:{code_host}"))
@@ -391,11 +432,33 @@ def build_config(routes):
     }
 
 
-def reverse_proxy_route(hosts, target, route_id, upstream_host=None):
+def reverse_proxy_route(
+    hosts,
+    target,
+    route_id,
+    upstream_host=None,
+    upstream_origin=None,
+    rewrite_client_ip=False,
+):
     request_headers = {"X-Forwarded-Proto": ["http"]}
+    transport = None
+    if "://" in target:
+        url = urllib.parse.urlsplit(parse_target(target))
+        hostname = url.hostname
+        dial_host = f"[{hostname}]" if ":" in hostname else hostname
+        target = f"{dial_host}:{url.port or (443 if url.scheme == 'https' else 80)}"
+        request_headers["Host"] = [upstream_host or url.netloc]
+        request_headers["X-Forwarded-Proto"] = [url.scheme]
+        if url.scheme == "https":
+            transport = {"protocol": "http", "tls": {"server_name": hostname}}
     if upstream_host:
         request_headers["Host"] = [upstream_host]
-    return {
+    if upstream_origin:
+        request_headers["Origin"] = [upstream_origin]
+    if rewrite_client_ip:
+        request_headers["X-Forwarded-For"] = ["{http.request.remote.host}"]
+        request_headers["X-Real-IP"] = ["{http.request.remote.host}"]
+    result = {
         "@id": route_id,
         "match": [{"host": hosts}],
         "handle": [{
@@ -408,6 +471,9 @@ def reverse_proxy_route(hosts, target, route_id, upstream_host=None):
             },
         }],
     }
+    if transport:
+        result["handle"][0]["transport"] = transport
+    return result
 
 
 def header_regexp_reverse_proxy_route(header, name, pattern, target, route_id):
@@ -516,6 +582,10 @@ def cmd_add(args):
     route = {"host": host, "target": target}
     if args.upstream_host:
         route["upstream_host"] = normalize_upstream_host(args.upstream_host)
+    if args.upstream_origin:
+        route["upstream_origin"] = normalize_upstream_origin(args.upstream_origin)
+    if args.rewrite_client_ip:
+        route["rewrite_client_ip"] = True
     routes.append(route)
     if not args.dry_run:
         backup_routes(existing_routes)
@@ -560,7 +630,14 @@ def cmd_list(_args):
     if routes:
         print("routes:")
         for item in routes:
-            suffix = f" (Host: {item['upstream_host']})" if item.get("upstream_host") else ""
+            details = []
+            if item.get("upstream_host"):
+                details.append(f"Host: {item['upstream_host']}")
+            if item.get("upstream_origin"):
+                details.append(f"Origin: {item['upstream_origin']}")
+            if item.get("rewrite_client_ip"):
+                details.append("client IP headers: rebuilt")
+            suffix = f" ({', '.join(details)})" if details else ""
             print(f"  {item['host']} -> {item['target']}{suffix}")
     else:
         print("routes: none")
@@ -574,6 +651,10 @@ def cmd_check(_args):
         normalize_managed_host(route["host"], root_domain())
         if route.get("upstream_host"):
             normalize_upstream_host(route["upstream_host"])
+        if route.get("upstream_origin"):
+            normalize_upstream_origin(route["upstream_origin"])
+        if not isinstance(route.get("rewrite_client_ip", False), bool):
+            raise ProxyctlError("rewrite_client_ip must be a boolean")
     if env("PROXYCTL_SKIP_CONNECT_CHECK", "0") != "1":
         failures = []
         for route in routes:
@@ -606,6 +687,10 @@ def cmd_rollback(args):
         parse_target(route["target"])
         if route.get("upstream_host"):
             normalize_upstream_host(route["upstream_host"])
+        if route.get("upstream_origin"):
+            normalize_upstream_origin(route["upstream_origin"])
+        if not isinstance(route.get("rewrite_client_ip", False), bool):
+            raise ProxyctlError("rewrite_client_ip must be a boolean")
     apply_config(routes, dry_run=args.dry_run)
     if not args.dry_run:
         backup_routes(load_routes())
@@ -615,7 +700,11 @@ def cmd_rollback(args):
 
 
 def check_tcp(target):
-    host, port_text = target.rsplit(":", 1)
+    if "://" in target:
+        url = urllib.parse.urlsplit(parse_target(target))
+        host, port_text = url.hostname, url.port or (443 if url.scheme == "https" else 80)
+    else:
+        host, port_text = target.rsplit(":", 1)
     with socket.create_connection((host, int(port_text)), timeout=2):
         return
 
@@ -702,8 +791,14 @@ def build_parser():
 
     add = sub.add_parser("add", help="add or replace a named subdomain route")
     add.add_argument("host", help="subdomain label or full hostname")
-    add.add_argument("target", help="upstream host:port, for example 127.0.0.1:3000")
+    add.add_argument("target", help="upstream host:port or HTTP(S) origin, for example https://example.com")
     add.add_argument("--upstream-host", help="rewrite the upstream HTTP Host header")
+    add.add_argument("--upstream-origin", help="rewrite the upstream HTTP Origin header")
+    add.add_argument(
+        "--rewrite-client-ip",
+        action="store_true",
+        help="overwrite X-Forwarded-For and X-Real-IP with the direct client address",
+    )
     add.add_argument("--dry-run", action="store_true")
     add.set_defaults(func=cmd_add)
 

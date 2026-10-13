@@ -55,6 +55,13 @@ for service_dir in "${SERVICES_DIR}"/*; do
         continue
     fi
 
+    # Native oneshots register before legacy-services starts. Reserve image
+    # service names even while their /run/service links do not exist yet.
+    if [[ -d "/etc/services.d/$service_name" || -d "/etc/s6-overlay/s6-rc.d/$service_name" ]]; then
+        echo "[custom-services] skipping $service_name: reserved by the image"
+        continue
+    fi
+
     runtime_path="${RUNTIME_DIR}/${service_name}"
     if [[ -e "${runtime_path}" && ! -L "${runtime_path}" ]]; then
         echo "[custom-services] skipping ${service_name}: ${runtime_path} already exists and is not a symlink"

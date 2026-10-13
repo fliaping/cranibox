@@ -67,6 +67,10 @@ AGENT_DEFINITIONS = (
         "install_name": "hermes",
         "launch": "hermes setup --portal",
         "accent": "cyan",
+        "web_label": "Dashboard",
+        "web_path": "/proxy/9119/",
+        "web_target": "127.0.0.1:9119",
+        "web_service": "hermes-dashboard",
     },
     {
         "id": "deepseek-harness",
@@ -76,8 +80,25 @@ AGENT_DEFINITIONS = (
         "launch": "deepseek-harness web --no-open --port 3080",
         "accent": "green",
         "surface": "web",
+        "web_label": "Web UI",
         "web_path": "/proxy/3080/",
+        "web_target": "127.0.0.1:3080",
         "service": "deepseek-harness",
+        "web_service": "deepseek-harness",
+    },
+    {
+        "id": "openclaw",
+        "label": "OpenClaw",
+        "binary": "openclaw",
+        "install_name": "openclaw",
+        "launch": "openclaw onboard",
+        "accent": "rose",
+        "surface": "web",
+        "web_label": "Control UI",
+        "web_path": "/proxy/18789/",
+        "web_target": "127.0.0.1:18789",
+        "service": "openclaw-gateway",
+        "web_service": "openclaw-gateway",
     },
 )
 
@@ -1218,6 +1239,26 @@ def snapshot() -> dict[str, Any]:
 
     service_rows = collected["services"]
     agent_rows = collected["agents"]
+    route_rows = collected["network"].get("routes", [])
+    service_states = {
+        str(item.get("id", "")): item.get("status", "unknown")
+        for item in service_rows
+    }
+    public_urls = {
+        str(item.get("target", ""))
+        .removeprefix("http://")
+        .removeprefix("https://")
+        .rstrip("/"): str(item.get("public_url", ""))
+        for item in route_rows
+        if item.get("public_url")
+    }
+    for agent in agent_rows:
+        target = str(agent.get("web_target", "")).rstrip("/")
+        if target:
+            agent["web_url"] = public_urls.get(target, "")
+        service_id = str(agent.get("web_service", ""))
+        if service_id:
+            agent["web_state"] = service_states.get(service_id, "missing")
     diagnostics = collected["doctor"]
     skill_rows = collected["skills"]
     mcp_rows = collected["mcp"]
