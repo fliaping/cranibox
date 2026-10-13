@@ -488,6 +488,52 @@ impl Drop for ProcessTree {
     }
 }
 
+async fn terminal(
+    id: String,
+    size: (u16, u16),
+    session: String,
+    takeover: bool,
+    engine: agent_workspace_pty::herdr::Engine,
+    mut controls: mpsc::Receiver<Wire>,
+    tx: mpsc::Sender<Wire>,
+) {
+    let opened = engine.attach(&session, size.0, size.1, takeover).await;
+    let Ok(mut pty) = opened else {
+        let _ = tx.send(Wire::TerminalExit { id, code: 1 }).await;
+        return;
+    };
+    let mut exit_code = 1;
+    loop {
+        tokio::select! {
+            input = controls.recv() => match input {
+                Some(Wire::TerminalInput { data, .. }) => {
+                    let Ok(data) = STANDARD.decode(data) else { break; };
+                    if pty.write(data).is_err() { break; }
+                }
+                Some(Wire::TerminalResize { cols, rows, .. }) => if pty.resize(cols, rows).is_err() { break; },
+                _ => break,
+            },
+            output = pty.output.recv() => {
+                let wire = match output {
+                    Some(agent_workspace_pty::Event::Output(data)) => Wire::TerminalOutput { id: id.clone(), data: STANDARD.encode(data) },
+                    Some(agent_workspace_pty::Event::Exit(code)) => { exit_code = code; break; },
+                    None => break,
+                };
+                if !matches!(tokio::time::timeout(Duration::from_secs(5), tx.send(wire)).await, Ok(Ok(()))) { break; }
+            }
+        }
+    }
+    drop(pty);
+    let _ = tokio::time::timeout(
+        Duration::from_secs(5),
+        tx.send(Wire::TerminalExit {
+            id,
+            code: exit_code,
+        }),
+    )
+    .await;
+}
+
 #[cfg(test)]
 mod output_tests {
     use super::*;
@@ -600,50 +646,4 @@ mod tests {
         assert!(streams.contains(&b"out".to_vec()));
         assert!(streams.contains(&b"err".to_vec()));
     }
-}
-
-async fn terminal(
-    id: String,
-    size: (u16, u16),
-    session: String,
-    takeover: bool,
-    engine: agent_workspace_pty::herdr::Engine,
-    mut controls: mpsc::Receiver<Wire>,
-    tx: mpsc::Sender<Wire>,
-) {
-    let opened = engine.attach(&session, size.0, size.1, takeover).await;
-    let Ok(mut pty) = opened else {
-        let _ = tx.send(Wire::TerminalExit { id, code: 1 }).await;
-        return;
-    };
-    let mut exit_code = 1;
-    loop {
-        tokio::select! {
-            input = controls.recv() => match input {
-                Some(Wire::TerminalInput { data, .. }) => {
-                    let Ok(data) = STANDARD.decode(data) else { break; };
-                    if pty.write(data).is_err() { break; }
-                }
-                Some(Wire::TerminalResize { cols, rows, .. }) => if pty.resize(cols, rows).is_err() { break; },
-                _ => break,
-            },
-            output = pty.output.recv() => {
-                let wire = match output {
-                    Some(agent_workspace_pty::Event::Output(data)) => Wire::TerminalOutput { id: id.clone(), data: STANDARD.encode(data) },
-                    Some(agent_workspace_pty::Event::Exit(code)) => { exit_code = code; break; },
-                    None => break,
-                };
-                if !matches!(tokio::time::timeout(Duration::from_secs(5), tx.send(wire)).await, Ok(Ok(()))) { break; }
-            }
-        }
-    }
-    drop(pty);
-    let _ = tokio::time::timeout(
-        Duration::from_secs(5),
-        tx.send(Wire::TerminalExit {
-            id,
-            code: exit_code,
-        }),
-    )
-    .await;
 }
