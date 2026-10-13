@@ -146,6 +146,43 @@ class RuntimeTests(unittest.TestCase):
         self.wait_for(lambda: self.http(f"/api/v1/jobs/{job_id}")[1]["outcome"] != "running", timeout)
         return self.http(f"/api/v1/jobs/{job_id}")[1]
 
+    def test_device_mesh_groups_jobs_and_agent_mcp(self):
+        token = (self.path / "one.token").read_text().strip()
+        other_token = (self.path / "two.token").read_text().strip()
+        mesh = "/api/v1/mesh"
+        self.assertEqual(self.http(mesh + "/nodes", token=self.token)[0], 401)
+        self.assertEqual(self.http(mesh + "/nodes", token=token, headers={"Origin": self.url})[0], 403)
+        self.assertEqual([n["id"] for n in self.http(mesh + "/nodes", token=token)[1]["nodes"]], ["one"])
+        request = {"program": sys.executable, "args": ["-c", "print('DEVICE_MESH_OK')"], "timeout_secs": 10}
+        self.assertEqual(self.http(mesh + "/nodes/two/exec", request, token=token)[0], 403)
+        try:
+            for node in ("one", "two"):
+                self.cli("group", node, "--group", "personal", "--credentials", self.credentials)
+            self.assertEqual({n["id"] for n in self.http(mesh + "/nodes", token=token)[1]["nodes"]}, {"one", "two"})
+            status, job = self.http(mesh + "/nodes/two/exec", request, token=token)
+            self.assertEqual(status, 202, job)
+            job_path = mesh + "/jobs/" + job["id"]
+            self.wait_for(lambda: self.http(job_path, token=token)[1]["outcome"] != "running")
+            result = self.http(job_path, token=token)[1]
+            self.assertIn("DEVICE_MESH_OK", result["stdout"])
+            self.assertEqual(result["requester"], "one")
+            self.assertEqual(self.http(job_path, token=other_token)[0], 404)
+            self.assertEqual(self.http(job_path + "/cancel", {}, token=other_token)[0], 404)
+            node_cli = [str(NODE_BINARY), "--server", self.ws, "--id", "one", "--token-file", str(self.path / "one.token")]
+            listed = subprocess.run([*node_cli, "nodes"], capture_output=True, text=True, check=True, timeout=15)
+            self.assertEqual({n["id"] for n in json.loads(listed.stdout)["nodes"]}, {"one", "two"})
+            messages = [{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"workspace_nodes","arguments":{}}}]
+            mcp = subprocess.run([*node_cli, "mcp"], input="\n".join(map(json.dumps, messages)) + "\n", capture_output=True, text=True, check=True, timeout=15)
+            response = json.loads(mcp.stdout)
+            self.assertFalse(response["result"].get("isError"), response)
+            self.assertEqual({n["id"] for n in json.loads(response["result"]["content"][0]["text"])["nodes"]}, {"one", "two"})
+            self.cli("group", "two", "--group", "other", "--credentials", self.credentials)
+            self.assertEqual(self.http(mesh + "/nodes/two/exec", request, token=token)[0], 403)
+            self.assertEqual(self.http(job_path, token=token)[0], 404)
+        finally:
+            for node in ("one", "two"):
+                self.cli("group", node, "--credentials", self.credentials)
+
     def test_authentication_separates_controller_and_node(self):
         self.assertEqual(self.http("/api/v1/nodes", auth=False)[0], 401)
         self.assertEqual(self.http("/api/v1/nodes", token="x" * 64)[0], 401)

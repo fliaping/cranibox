@@ -2,15 +2,61 @@ name: Cranibox server and independent node client
 
 on:
   push:
-    paths: ['Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   pull_request:
-    paths: ['Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  desktop:
+    name: node desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bundles: deb,appimage
+          - os: windows-latest
+            bundles: nsis
+          - os: macos-latest
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: node-desktop
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config
+        if: runner.os == 'Linux'
+      - run: npm ci --prefix apps/node-desktop
+      - run: npm run build --prefix apps/node-desktop
+      - run: cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/node-desktop
+        if: runner.os == 'Linux'
+      - run: npm test
+        working-directory: apps/node-desktop
+        if: runner.os == 'Linux'
+      - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
+        working-directory: apps/node-desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cranibox-node-desktop-${{ matrix.os }}
+          path: |
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.dmg
+          if-no-files-found: error
   native:
     strategy:
       fail-fast: false

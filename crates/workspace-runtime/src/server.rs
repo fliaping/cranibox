@@ -1,7 +1,7 @@
 use crate::journal::Journal;
 use crate::{config, protocol::*};
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     body::{Body, to_bytes},
     extract::{
         DefaultBodyLimit, Path, Request, State, WebSocketUpgrade,
@@ -68,6 +68,7 @@ struct Node {
 }
 struct Job {
     node: String,
+    requester: Option<String>,
     generation: String,
     outcome: Outcome,
     exit_code: Option<i32>,
@@ -81,7 +82,7 @@ struct Job {
 }
 impl Job {
     fn view(&self, id: &str) -> Value {
-        json!({"id":id, "node":self.node, "outcome":self.outcome, "exit_code":self.exit_code,
+        json!({"id":id, "node":self.node, "requester":self.requester, "outcome":self.outcome, "exit_code":self.exit_code,
             "stdout":display_output(&self.stdout, self.outcome == Outcome::Running), "stderr":display_output(&self.stderr, self.outcome == Outcome::Running),
             "stdout_base64":STANDARD.encode(&self.stdout), "stderr_base64":STANDARD.encode(&self.stderr),
             "truncated":self.truncated, "error":self.error, "created_at":self.created_at,
@@ -159,22 +160,92 @@ async fn controller_auth(State(app): State<App>, req: Request, next: Next) -> Re
     }
     next.run(req).await
 }
-async fn nodes(State(app): State<App>) -> Result<Json<Value>, ApiError> {
+#[derive(Clone)]
+struct Peer {
+    id: String,
+    credentials: Arc<config::Credentials>,
+}
+impl Peer {
+    fn can_access(&self, target: &str) -> bool {
+        self.credentials.nodes.contains_key(target)
+            && (target == self.id
+                || self
+                    .credentials
+                    .mesh_groups
+                    .get(&self.id)
+                    .is_some_and(|group| self.credentials.mesh_groups.get(target) == Some(group)))
+    }
+    fn authorize_job(&self, value: &Value) -> Result<(), ApiError> {
+        if value["requester"].as_str() == Some(self.id.as_str())
+            && value["node"]
+                .as_str()
+                .is_some_and(|target| self.can_access(target))
+        {
+            Ok(())
+        } else {
+            Err(error(StatusCode::NOT_FOUND, "job unavailable or expired"))
+        }
+    }
+}
+async fn peer_auth(State(app): State<App>, mut req: Request, next: Next) -> Response {
+    if req.headers().contains_key("origin")
+        || req
+            .headers()
+            .get("sec-fetch-site")
+            .is_some_and(|value| value == "cross-site")
+    {
+        return error(
+            StatusCode::FORBIDDEN,
+            "native Agent API does not accept browser requests",
+        )
+        .into_response();
+    }
+    let Ok(credentials) = config::Credentials::read(&app.credentials) else {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "credentials unavailable").into_response();
+    };
+    let id = bearer(req.headers()).and_then(|token| {
+        credentials
+            .nodes
+            .iter()
+            .find(|(_, expected)| config::matches(token, expected))
+            .map(|(id, _)| id.clone())
+    });
+    let Some(id) = id else {
+        return error(StatusCode::UNAUTHORIZED, "node authentication required").into_response();
+    };
+    req.extensions_mut().insert(Peer {
+        id,
+        credentials: Arc::new(credentials),
+    });
+    next.run(req).await
+}
+async fn nodes(
+    State(app): State<App>,
+    peer: Option<Extension<Peer>>,
+) -> Result<Json<Value>, ApiError> {
     let creds = config::Credentials::read(&app.credentials)
         .map_err(|_| error(StatusCode::SERVICE_UNAVAILABLE, "credentials unavailable"))?;
     let registry = app.inner.lock().await;
-    let nodes: Vec<_> = creds.nodes.keys().map(|id| {
+    let nodes: Vec<_> = creds.nodes.keys().filter(|id| peer.as_ref().is_none_or(|peer| peer.can_access(id))).map(|id| {
         if let Some(n) = registry.nodes.get(id) {
-            json!({"id":id,"name":n.name,"os":n.os,"arch":n.arch,"terminal":n.terminal,"terminal_sessions":n.terminal_sessions,"online":n.tx.is_some(),"last_seen":n.last_seen})
-        } else { json!({"id":id,"online":false}) }
+            json!({"id":id,"name":n.name,"os":n.os,"arch":n.arch,"terminal":n.terminal,"terminal_sessions":n.terminal_sessions,"online":n.tx.is_some(),"last_seen":n.last_seen,"mesh_group":creds.mesh_groups.get(id)})
+        } else { json!({"id":id,"online":false,"mesh_group":creds.mesh_groups.get(id)}) }
     }).collect();
     Ok(Json(json!({"nodes":nodes, "protocol_version":VERSION})))
 }
 async fn execute(
     State(app): State<App>,
     Path(node): Path<String>,
+    peer: Option<Extension<Peer>>,
     Json(request): Json<ExecRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
+    if peer.as_ref().is_some_and(|peer| !peer.can_access(&node)) {
+        return Err(error(
+            StatusCode::FORBIDDEN,
+            "target is outside this device group",
+        ));
+    }
+    let requester = peer.map(|peer| peer.id.clone());
     request
         .validate()
         .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))?;
@@ -221,7 +292,7 @@ async fn execute(
     }
     let id = uuid::Uuid::new_v4().to_string();
     // Persist before dispatch: an interrupted command is never replayed.
-    let initial = json!({"id":id,"node":node,"program":request.program,"args":request.args,"cwd":request.cwd,"outcome":"running","created_at":now(),"stdout":"","stderr":""});
+    let initial = json!({"id":id,"node":node,"requester":requester,"program":request.program,"args":request.args,"cwd":request.cwd,"outcome":"running","created_at":now(),"stdout":"","stderr":""});
     app.history
         .lock()
         .await
@@ -249,6 +320,7 @@ async fn execute(
     }
     let job = Job {
         node,
+        requester,
         generation,
         outcome: Outcome::Running,
         exit_code: None,
@@ -264,7 +336,11 @@ async fn execute(
     registry.jobs.insert(id, job);
     Ok((StatusCode::ACCEPTED, Json(view)))
 }
-async fn job(State(app): State<App>, Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
+async fn job(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    peer: Option<Extension<Peer>>,
+) -> Result<Json<Value>, ApiError> {
     let mut registry = app.inner.lock().await;
     registry.prune_jobs();
     let value = registry.jobs.get(&id).map(|job| job.view(&id));
@@ -278,9 +354,25 @@ async fn job(State(app): State<App>, Path(id): Path<String>) -> Result<Json<Valu
     if let Some(view) = value {
         merge_record(&mut record, view);
     }
+    if let Some(peer) = peer {
+        peer.authorize_job(&record)?;
+    }
     Ok(Json(record))
 }
-async fn cancel(State(app): State<App>, Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
+async fn cancel(
+    State(app): State<App>,
+    Path(id): Path<String>,
+    peer: Option<Extension<Peer>>,
+) -> Result<Json<Value>, ApiError> {
+    if let Some(peer) = peer {
+        let record = app
+            .history
+            .lock()
+            .await
+            .get(&id)
+            .ok_or_else(|| error(StatusCode::NOT_FOUND, "job unavailable or expired"))?;
+        peer.authorize_job(&record)?;
+    }
     let mut registry = app.inner.lock().await;
     registry.prune_jobs();
     let Some(job) = registry.jobs.get(&id) else {
@@ -622,8 +714,15 @@ impl Gateway {
             .route("/jobs/{id}", get(job))
             .route("/jobs/{id}/cancel", post(cancel))
             .route_layer(middleware::from_fn_with_state(app.clone(), controller_auth));
+        let mesh = Router::new()
+            .route("/nodes", get(nodes))
+            .route("/nodes/{node}/exec", post(execute))
+            .route("/jobs/{id}", get(job))
+            .route("/jobs/{id}/cancel", post(cancel))
+            .route_layer(middleware::from_fn_with_state(app.clone(), peer_auth));
         let router = Router::new()
             .nest("/api/v1", api)
+            .nest("/api/v1/mesh", mesh)
             .route("/ws/nodes/{id}", get(upgrade))
             .route(
                 "/healthz",
@@ -917,6 +1016,7 @@ mod tests {
             &credentials,
             &serde_json::to_vec(&config::Credentials {
                 controller_token: config::token(),
+                mesh_groups: Default::default(),
                 nodes: BTreeMap::from([("one".into(), config::token())]),
             })
             .unwrap(),
@@ -963,9 +1063,14 @@ mod tests {
         let (tx, rx) = mpsc::channel(4);
         drop(rx);
         let app = fixture(dir.path(), tx);
-        let failure = execute(State(app.clone()), Path("one".into()), Json(request()))
-            .await
-            .unwrap_err();
+        let failure = execute(
+            State(app.clone()),
+            Path("one".into()),
+            None,
+            Json(request()),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(failure.0, StatusCode::SERVICE_UNAVAILABLE);
         let record = app.history.lock().await.list().remove(0);
         assert_eq!(record["outcome"], "failed");
@@ -980,16 +1085,23 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (tx, mut rx) = mpsc::channel(4);
         let app = fixture(dir.path(), tx);
-        let (_, Json(value)) = execute(State(app.clone()), Path("one".into()), Json(request()))
-            .await
-            .unwrap();
+        let (_, Json(value)) = execute(
+            State(app.clone()),
+            Path("one".into()),
+            None,
+            Json(request()),
+        )
+        .await
+        .unwrap();
         let id = value["id"].as_str().unwrap().to_owned();
         assert!(matches!(rx.recv().await, Some(Wire::Execute { .. })));
-        let Json(value) = job(State(app.clone()), Path(id.clone())).await.unwrap();
+        let Json(value) = job(State(app.clone()), Path(id.clone()), None)
+            .await
+            .unwrap();
         assert_eq!(value["program"], "echo");
         assert_eq!(value["args"], json!(["hello"]));
         app.inner.lock().await.jobs.clear();
-        let Json(value) = job(State(app.clone()), Path(id)).await.unwrap();
+        let Json(value) = job(State(app.clone()), Path(id), None).await.unwrap();
         assert_eq!(value["program"], "echo");
         assert_eq!(
             Journal::open(dir.path().join("history")).unwrap().list()[0]["outcome"],

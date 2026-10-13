@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -15,6 +15,9 @@ pub struct Credentials {
     pub controller_token: String,
     #[serde(default)]
     pub nodes: BTreeMap<String, String>,
+    /// Explicit trust groups; ungrouped devices cannot control other devices.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub mesh_groups: BTreeMap<String, String>,
 }
 impl Credentials {
     pub fn read(path: &Path) -> Result<Self> {
@@ -27,6 +30,7 @@ impl Credentials {
                     .bytes()
                     .all(|b| b.is_ascii_hexdigit())
                 && value.nodes.len() <= 128
+                && value.nodes.values().collect::<BTreeSet<_>>().len() == value.nodes.len()
                 && value.nodes.values().all(|v| v.len() == 64
                     && v.bytes().all(|b| b.is_ascii_hexdigit())
                     && v != &value.controller_token),
@@ -38,6 +42,14 @@ impl Credentials {
                 .keys()
                 .all(|id| crate::protocol::valid_node_id(id)),
             "invalid node ID in credentials"
+        );
+        anyhow::ensure!(
+            value
+                .mesh_groups
+                .iter()
+                .all(|(id, group)| value.nodes.contains_key(id)
+                    && crate::protocol::valid_node_id(group)),
+            "invalid device group"
         );
         Ok(value)
     }

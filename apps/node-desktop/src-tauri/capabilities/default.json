@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Local node configuration window",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -903,8 +903,8 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                 None => error(StatusCode::NOT_FOUND, "Operation unavailable"),
             }
         }
-        "/api/nodes/enroll" | "/api/nodes/revoke" | "/api/nodes/exec" | "/api/nodes/jobs"
-        | "/api/nodes/job" | "/api/nodes/cancel" => {
+        "/api/nodes/group" | "/api/nodes/enroll" | "/api/nodes/revoke" | "/api/nodes/exec"
+        | "/api/nodes/jobs" | "/api/nodes/job" | "/api/nodes/cancel" => {
             match crate::remote::manage(&state, path.rsplit('/').next().unwrap(), &body).await {
                 Ok(mut value) => {
                     if path.ends_with("/job") {

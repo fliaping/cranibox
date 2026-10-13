@@ -1,6 +1,9 @@
-use crate::{client, config, protocol, server};
+use crate::{
+    client::{self, ApiOptions},
+    config, protocol, server,
+};
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use std::{net::SocketAddr, path::PathBuf};
 
 #[derive(Parser)]
@@ -13,23 +16,16 @@ struct Cli {
     command: Command,
 }
 
-#[derive(Args, Clone)]
-pub struct ApiOptions {
-    #[arg(
-        long,
-        env = "AGENT_WORKSPACE_RUNTIME_URL",
-        default_value = "http://127.0.0.1:9090"
-    )]
-    pub(crate) url: String,
-    #[arg(long, env = "AGENT_WORKSPACE_RUNTIME_TOKEN_FILE")]
-    pub(crate) token_file: Option<PathBuf>,
-    #[arg(long, default_value_os_t = config::default_credentials())]
-    pub(crate) credentials: PathBuf,
-    #[arg(long)]
-    pub(crate) allow_insecure: bool,
-}
 #[derive(Subcommand)]
 enum Command {
+    /// Assign a device to a trust group, or clear it to isolate the device.
+    Group {
+        id: String,
+        #[arg(long, default_value = "")]
+        group: String,
+        #[arg(long, default_value_os_t = config::default_credentials())]
+        credentials: PathBuf,
+    },
     /// Generate separate controller and per-node credentials (never print tokens).
     Init {
         #[arg(long, default_value_os_t = config::default_credentials())]
@@ -97,11 +93,31 @@ enum Command {
 
 pub async fn run(args: Vec<String>) -> Result<()> {
     match Cli::parse_from(args).command {
+        Command::Group {
+            id,
+            group,
+            credentials,
+        } => {
+            anyhow::ensure!(
+                group.is_empty() || protocol::valid_node_id(&group),
+                "invalid group"
+            );
+            let _lock = config::lock_credentials(&credentials)?;
+            let mut value = config::Credentials::read(&credentials)?;
+            anyhow::ensure!(value.nodes.contains_key(&id), "unknown node");
+            if group.is_empty() {
+                value.mesh_groups.remove(&id);
+            } else {
+                value.mesh_groups.insert(id, group);
+            }
+            config::write_private(&credentials, &serde_json::to_vec_pretty(&value)?, true)?;
+        }
         Command::Init { credentials } => {
             let _lock = config::lock_credentials(&credentials)?;
             let value = config::Credentials {
                 controller_token: config::token(),
                 nodes: Default::default(),
+                mesh_groups: Default::default(),
             };
             config::write_private(&credentials, &serde_json::to_vec_pretty(&value)?, false)?;
             eprintln!("Created {}", credentials.display());
@@ -138,6 +154,7 @@ pub async fn run(args: Vec<String>) -> Result<()> {
             let _lock = config::lock_credentials(&credentials)?;
             let mut value = config::Credentials::read(&credentials)?;
             anyhow::ensure!(value.nodes.remove(&id).is_some(), "unknown node");
+            value.mesh_groups.remove(&id);
             config::write_private(&credentials, &serde_json::to_vec_pretty(&value)?, true)?;
             eprintln!("Revoked {id}");
         }

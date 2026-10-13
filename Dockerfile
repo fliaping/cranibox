@@ -17,6 +17,7 @@ FROM rust:bookworm AS workspace-rust-builder
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
+COPY apps/node-desktop/src-tauri/ ./apps/node-desktop/src-tauri/
 COPY addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css ./addons/control-center/
 RUN cargo build --release --locked -p cranibox && cargo build --release --locked -p cranibox-node
 

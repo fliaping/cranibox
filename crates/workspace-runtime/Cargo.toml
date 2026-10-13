@@ -11,7 +11,8 @@ required-features = ["server"]
 
 [features]
 default = ["server"]
-server = ["dep:axum", "dep:clap", "dep:tower", "dep:reqwest", "dep:base64"]
+client = ["dep:clap", "dep:reqwest"]
+server = ["client", "dep:axum", "dep:tower", "dep:base64"]
 
 [dependencies]
 anyhow = "1"

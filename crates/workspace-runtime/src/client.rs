@@ -1,4 +1,22 @@
-use crate::{ApiOptions, config, protocol::*};
+use crate::{config, protocol::*};
+use clap::Args;
+use std::path::PathBuf;
+#[derive(Args, Clone)]
+pub struct ApiOptions {
+    #[arg(
+        long,
+        env = "AGENT_WORKSPACE_RUNTIME_URL",
+        default_value = "http://127.0.0.1:9090"
+    )]
+    pub url: String,
+    #[arg(long, env = "AGENT_WORKSPACE_RUNTIME_TOKEN_FILE")]
+    pub token_file: Option<PathBuf>,
+    #[arg(long, default_value_os_t = config::default_credentials())]
+    pub credentials: PathBuf,
+    #[arg(long)]
+    pub allow_insecure: bool,
+}
+
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -7,6 +25,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 pub struct Api {
     options: ApiOptions,
     client: reqwest::Client,
+    mesh: bool,
 }
 impl Api {
     pub fn new(options: ApiOptions) -> Result<Self> {
@@ -20,7 +39,16 @@ impl Api {
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(15))
             .build()?;
-        Ok(Self { options, client })
+        Ok(Self {
+            options,
+            client,
+            mesh: false,
+        })
+    }
+    pub fn mesh(options: ApiOptions) -> Result<Self> {
+        let mut api = Self::new(options)?;
+        api.mesh = true;
+        Ok(api)
     }
     fn token(&self) -> Result<String> {
         match &self.options.token_file {
@@ -38,7 +66,15 @@ impl Api {
             .client
             .request(
                 method,
-                format!("{}{}", self.options.url.trim_end_matches('/'), path),
+                format!(
+                    "{}{}",
+                    self.options.url.trim_end_matches('/'),
+                    if self.mesh {
+                        path.replacen("/api/v1", "/api/v1/mesh", 1)
+                    } else {
+                        path.into()
+                    }
+                ),
             )
             .bearer_auth(self.token()?);
         if let Some(body) = body {

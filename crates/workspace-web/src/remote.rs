@@ -69,6 +69,32 @@ pub async fn snapshot(state: &State) -> Value {
 }
 pub async fn manage(state: &State, action: &str, body: &Value) -> Result<Value> {
     match action {
+        "group" => {
+            let id = body["id"].as_str().context("Node ID required")?.to_owned();
+            let group = body["group"]
+                .as_str()
+                .context("Device group required")?
+                .to_owned();
+            ensure!(
+                protocol::valid_node_id(&id)
+                    && (group.is_empty() || protocol::valid_node_id(&group)),
+                "Invalid device group"
+            );
+            let path = credentials(state);
+            tokio::task::spawn_blocking(move || {
+                let _lock = config::lock_credentials(&path)?;
+                let mut creds = config::Credentials::read(&path)?;
+                ensure!(creds.nodes.contains_key(&id), "Unknown node");
+                if group.is_empty() {
+                    creds.mesh_groups.remove(&id);
+                } else {
+                    creds.mesh_groups.insert(id, group);
+                }
+                config::write_private(&path, &serde_json::to_vec_pretty(&creds)?, true)?;
+                Ok(json!({"ok":true}))
+            })
+            .await?
+        }
         "enroll" | "revoke" => {
             let id = body["id"].as_str().context("Node ID required")?.to_owned();
             ensure!(
@@ -83,6 +109,7 @@ pub async fn manage(state: &State, action: &str, body: &Value) -> Result<Value> 
                 let mut creds = config::Credentials::read(&path)?;
                 if revoke {
                     ensure!(creds.nodes.remove(&id).is_some(), "Unknown node");
+                    creds.mesh_groups.remove(&id);
                     config::write_private(&path, &serde_json::to_vec_pretty(&creds)?, true)?;
                     Ok(json!({"ok":true}))
                 } else {

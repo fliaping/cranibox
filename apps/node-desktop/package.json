@@ -1,0 +1,6 @@
+{
+  "name": "cranibox-node-desktop-ui", "version": "0.1.0", "private": true, "type": "module",
+  "scripts": { "dev": "vite --port 5174", "build": "tsc --noEmit && vite build", "tauri": "tauri", "test": "playwright test" },
+  "dependencies": { "@tauri-apps/api": "^2", "lucide-react": "1.55.0", "react": "19.3.0", "react-dom": "19.3.0" },
+  "devDependencies": { "@tauri-apps/cli": "^2", "@playwright/test": "1.64.0", "@types/react": "^19", "@types/react-dom": "^19", "typescript": "^5.9", "vite": "8.3.4" }
+}

@@ -488,6 +488,11 @@ for (const width of [375, 1440]) {
 test('node credentials appear once and remote tasks reach durable history', async ({ page }) => {
   await page.goto('/#/nodes');
   await expect(page.locator('.list-row strong').filter({ hasText: 'Preview Linux node' })).toBeVisible();
+  const preview = page.locator('.list-row').filter({ hasText: 'Preview Linux node' });
+  await preview.getByRole('textbox', { name: 'Device group preview-node', exact: true }).fill('personal');
+  page.once('dialog', dialog => dialog.accept());
+  await preview.getByRole('button', { name: 'Save group', exact: true }).click();
+  await expect(preview).toContainText('Group: personal');
   await page.getByLabel('New node ID', { exact: true }).fill('browser-test-node');
   await page.getByRole('button', { name: 'Register node', exact: true }).click();
   const secret = page.getByLabel('Node credential', { exact: true });

@@ -1,3 +1,4 @@
+use crate::settings::Settings;
 use agent_workspace_pty::persistent::Engine as TerminalEngine;
 use agent_workspace_runtime::{config, protocol::*};
 use anyhow::{Context, Result};
@@ -20,6 +21,39 @@ use tokio_tungstenite::{
 };
 use tokio_util::sync::CancellationToken;
 
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ConnectionStatus {
+    pub state: String,
+    pub message: Option<String>,
+}
+#[derive(Clone)]
+pub struct Control {
+    pub stop: CancellationToken,
+    pub reconnect: Arc<tokio::sync::Notify>,
+    pub status: tokio::sync::watch::Sender<ConnectionStatus>,
+}
+impl Default for Control {
+    fn default() -> Self {
+        Self {
+            stop: CancellationToken::new(),
+            reconnect: Arc::new(tokio::sync::Notify::new()),
+            status: tokio::sync::watch::channel(ConnectionStatus {
+                state: "stopped".into(),
+                message: None,
+            })
+            .0,
+        }
+    }
+}
+impl Control {
+    fn report(&self, state: &str, message: Option<String>) {
+        self.status.send_replace(ConnectionStatus {
+            state: state.into(),
+            message,
+        });
+    }
+}
+
 pub async fn run(
     server: String,
     id: String,
@@ -27,6 +61,43 @@ pub async fn run(
     name: Option<String>,
     allow_insecure: bool,
 ) -> Result<()> {
+    let control = Control::default();
+    let stop_signal = control.stop.clone();
+    tokio::spawn(async move {
+        agent_workspace_runtime::shutdown_signal().await;
+        stop_signal.cancel();
+    });
+    run_managed(
+        Settings {
+            server,
+            id,
+            token_file,
+            name,
+            allow_insecure,
+        },
+        control,
+    )
+    .await
+}
+
+pub async fn run_managed(settings: Settings, control: Control) -> Result<()> {
+    settings.validate()?;
+    let Settings {
+        server,
+        id,
+        token_file,
+        name,
+        allow_insecure,
+    } = settings;
+    // Prevent a CLI and tray application from replacing each other's connection.
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .read(true)
+        .open(token_file.with_extension("node.lock"))?;
+    fs2::FileExt::try_lock_exclusive(&lock)
+        .context("a node service is already running with this credential")?;
     anyhow::ensure!(valid_node_id(&id), "invalid node ID");
     let url = config::check_url(&server, true, allow_insecure)?;
     anyhow::ensure!(
@@ -35,12 +106,7 @@ pub async fn run(
     );
     let name = name.unwrap_or_else(|| id.clone());
     anyhow::ensure!(name.len() <= 128, "node name too long");
-    let stop = CancellationToken::new();
-    let stop_signal = stop.clone();
-    tokio::spawn(async move {
-        agent_workspace_runtime::shutdown_signal().await;
-        stop_signal.cancel();
-    });
+    let stop = control.stop.clone();
     let endpoint = format!("{}/ws/nodes/{id}", server.trim_end_matches('/'));
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
@@ -53,22 +119,38 @@ pub async fn run(
             break;
         }
         let started = Instant::now();
+        control.report("connecting", None);
         // Reload token on reconnect so rotation does not require restarting the client.
-        let result = session(&endpoint, &token_file, &name, &stop, &engine).await;
+        let connection_stop = stop.child_token();
+        let connection = session(
+            &endpoint,
+            &token_file,
+            &name,
+            &connection_stop,
+            &engine,
+            &control,
+        );
+        tokio::pin!(connection);
+        let result = tokio::select! {
+            result = &mut connection => result,
+            _ = control.reconnect.notified() => { connection_stop.cancel(); connection.await }
+        };
         if stop.is_cancelled() {
             break;
         }
         if let Err(error) = result {
+            control.report("reconnecting", Some(format!("{error:#}")));
             eprintln!("Node {id}: {error:#}; reconnecting");
         }
         if started.elapsed() >= Duration::from_secs(DEAD_SECS) {
             delay = 1;
         }
         let jitter = u64::from(rand::random::<u16>()) % 1000;
-        tokio::select! { _ = stop.cancelled() => break, _ = tokio::time::sleep(Duration::from_millis(delay * 1000 + jitter)) => {} }
+        tokio::select! { _ = stop.cancelled() => break, _ = control.reconnect.notified() => {}, _ = tokio::time::sleep(Duration::from_millis(delay * 1000 + jitter)) => {} }
         delay = (delay * 2).min(30);
     }
     engine.shutdown().await;
+    control.report("stopped", None);
     Ok(())
 }
 
@@ -78,6 +160,7 @@ async fn session(
     name: &str,
     stop: &CancellationToken,
     engine: &TerminalEngine,
+    control: &Control,
 ) -> Result<()> {
     let mut request = endpoint.into_client_request()?;
     request.headers_mut().insert(
@@ -115,6 +198,7 @@ async fn session(
         "unsupported server protocol"
     );
     eprintln!("Node {name} connected");
+    control.report("connected", None);
     let (tx, mut rx) = mpsc::channel::<Wire>(32);
     let mut tasks = JoinSet::new();
     let mut terminal_tasks = JoinSet::new();

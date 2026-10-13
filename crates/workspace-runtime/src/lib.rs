@@ -1,15 +1,13 @@
 #[cfg(feature = "server")]
 pub mod cli;
-#[cfg(feature = "server")]
-mod client;
+#[cfg(feature = "client")]
+pub mod client;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod journal;
 pub mod protocol;
 #[cfg(feature = "server")]
 pub mod server;
-#[cfg(feature = "server")]
-use cli::ApiOptions;
 
 pub async fn shutdown_signal() {
     #[cfg(unix)]

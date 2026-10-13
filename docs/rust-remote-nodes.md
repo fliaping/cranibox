@@ -5,6 +5,8 @@
 只在独立客户端中。详见 [统一服务端与终端](web-terminal-and-unified-server.md)。
 节点不需要安装 Webtop、Node.js 或 Python；客户端主动连接 Workspace，无需开放入站端口。
 Workspace 中任意 Agent 可通过 CLI 或 MCP 使用节点。
+各终端系统可安装独立托盘客户端，让本机 Agent 使用节点凭据访问同组设备；见
+[客户端与设备组网](node-desktop-and-device-mesh.md)。无界面客户端继续单独发布。
 
 ## 当前迁移范围
 
@@ -13,6 +15,8 @@ Workspace 中任意 Agent 可通过 CLI 或 MCP 使用节点。
 | 节点注册、鉴权、连接、心跳、重连 | Rust，协议 v1 |
 | 远程命令、输出、退出状态、超时、取消 | Rust；直接传递程序和参数 |
 | Agent 节点 CLI、MCP | Rust |
+| 原生托盘客户端、登录自启动 | Rust + Tauri 2；React 设置界面，独立安装包 |
+| 同组设备的 Agent 互访 | Rust；节点独立凭据、显式设备组、Workspace 中继 |
 | HTTP/WebSocket 统一入口 | Rust；可选转发现有 Web 控制中心 |
 | Web 控制中心及 IDE 扩展 | Web 后端 Rust，浏览器前端 React/TypeScript；IDE 扩展仍为 JavaScript |
 | workspacectl 状态、配置与控制命令 | 已迁入 Rust，详见 [构建与迁移范围](workspacectl-rust.md) |
@@ -48,6 +52,7 @@ flowchart LR
 可以用下面的安装命令补齐或修复网关。
 
 构建要求 Rust 1.89 或更新版本；部署编译后的二进制不需要 Rust 工具链。
+可选托盘客户端要求 Rust 1.90 或更新版本以及对应平台的 Tauri 构建依赖。
 
 ```bash
 cargo build --release --locked -p cranibox

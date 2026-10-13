@@ -9,3 +9,8 @@ core.*
 /addons/control-center/ui/dist/
 /addons/control-center/ui/test-results/
 /addons/control-center/ui/playwright-report/
+/apps/node-desktop/node_modules/
+/apps/node-desktop/dist/
+/apps/node-desktop/test-results/
+/apps/node-desktop/playwright-report/
+/apps/node-desktop/src-tauri/gen/

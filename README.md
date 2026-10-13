@@ -54,6 +54,7 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 - **原生用户服务管理** — Rust 兼容入口与 s6 监督服务；初始化任务使用 oneshot，见 [实现与迁移边界](docs/native-services-and-web.md)
 - **Agent 可直接操作环境** — Rust `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力；[构建与迁移范围](docs/workspacectl-rust.md)
 - **Rust WebSocket 远程节点** — Windows/macOS/Linux 客户端主动接入，Agent 用 CLI/MCP 执行命令；网关随镜像默认启动，构建与迁移范围见 [Rust 核心与远程节点](docs/rust-remote-nodes.md)
+- **托盘客户端与设备组网** — Windows/macOS/Linux 独立 GUI 客户端，关闭窗口保持后台连接，支持登录自启动；同组设备的 Agent 使用各自节点身份互访，连接入口可选 Tailscale 私网或公网 WSS 中继，见 [客户端与设备组网](docs/node-desktop-and-device-mesh.md)
 - **Selkies 浏览器桌面** — 通过 HTTPS 在浏览器中访问完整 Linux 桌面（Selkies 经 WebSocket 串流）；可选 XFCE（默认）、LXQt 或 KDE
 - **Agent 托管浏览器** — 桌面默认 Chromium 使用持久化托管用户目录，Agent 可直接操作同一窗口、标签页和登录会话，无需每次确认
 - **桌面 Computer Use** — Agent 可截图并操作 Selkies 正在显示的同一个桌面，支持鼠标、键盘、滚动、拖拽、窗口聚焦和紧急停止

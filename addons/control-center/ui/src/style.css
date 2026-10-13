@@ -248,6 +248,10 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .modal-emergency { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 @media (max-width: 900px) { .mobile-menu-close { display: inline-flex; } .sidebar-brand .brand { padding-right: 8px; } }
 .node-form { display:grid; gap:16px; margin-top:20px; }
+.node-list .list-row { flex-wrap: wrap; }
+.node-list .row-end { width: 100%; min-width: 0; }
+.node-list .row-end .actions { align-items: flex-end; }
+.node-list .row-end .field { flex: 1 1 140px; min-width: 0; max-width: 240px; margin-top: 0; }
 .field select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
 .history-output { padding:16px; border-radius:8px; background:var(--bg); font:13px/1.6 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; max-height:520px; overflow:auto; }
 .sidebar nav { overflow:auto; min-height:0; }

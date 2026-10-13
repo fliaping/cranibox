@@ -56,6 +56,7 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
             if !path.exists() {
                 let creds = agent_workspace_runtime::config::Credentials {
                     controller_token: agent_workspace_runtime::config::token(),
+                    mesh_groups: Default::default(),
                     nodes: Default::default(),
                 };
                 agent_workspace_runtime::config::write_private(

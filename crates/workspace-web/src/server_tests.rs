@@ -78,6 +78,7 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
         &path,
         &serde_json::to_vec(&agent_workspace_runtime::config::Credentials {
             controller_token: token(),
+            mesh_groups: Default::default(),
             nodes: Default::default(),
         })
         .unwrap(),
@@ -89,6 +90,7 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
         "/api/history/get",
         "/api/nodes/enroll",
         "/api/nodes/revoke",
+        "/api/nodes/group",
         "/api/nodes/exec",
         "/api/events",
         "/api/metrics",
@@ -136,6 +138,37 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
     )
     .await;
     assert_ne!(enrolled["token"], rotated["token"]);
+    assert_eq!(
+        call(
+            &state,
+            &session,
+            "/api/nodes/group",
+            json!({"id":"laptop","group":"personal"}),
+            true
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        agent_workspace_runtime::config::Credentials::read(&path)
+            .unwrap()
+            .mesh_groups
+            .get("laptop")
+            .map(String::as_str),
+        Some("personal")
+    );
+    for input in [
+        json!({"id":"laptop","group":"invalid/group"}),
+        json!({"id":"missing","group":"personal"}),
+    ] {
+        assert_eq!(
+            call(&state, &session, "/api/nodes/group", input, true)
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
     let history =
         json_body(call(&state, &session, "/api/history/list", json!({}), true).await).await;
     assert!(
@@ -159,6 +192,12 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
         agent_workspace_runtime::config::Credentials::read(&path)
             .unwrap()
             .nodes
+            .is_empty()
+    );
+    assert!(
+        agent_workspace_runtime::config::Credentials::read(&path)
+            .unwrap()
+            .mesh_groups
             .is_empty()
     );
 }
