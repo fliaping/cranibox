@@ -48,6 +48,14 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo build --locked -p agent-workspace-runtime
+      - run: python -m unittest discover -s tests -p test_rust_runtime.py -v
+        env:
+          CRANIBOX_NODE_BIN: target/release/cranibox-node-desktop${{ runner.os == 'Windows' && '.exe' || '' }}
+          PYTHONUTF8: '1'
       - uses: actions/upload-artifact@v4
         with:
           name: cranibox-node-desktop-${{ matrix.os }}

@@ -205,7 +205,7 @@ async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 #[tauri::command]
-async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) {
+async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
     state.quitting.store(true, Ordering::Relaxed);
     let running = state.service.lock().await.running.take();
     if let Some(running) = running {
@@ -213,6 +213,7 @@ async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(10), running.task).await;
     }
     app.exit(0);
+    Ok(())
 }
 #[tauri::command]
 fn dismiss_quit(state: State<'_, Arc<AppState>>) {
