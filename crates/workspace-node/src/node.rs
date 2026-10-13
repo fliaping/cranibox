@@ -558,11 +558,11 @@ mod terminal_tests {
     };
 
     async fn expect(attachment: &mut Attachment, text: &str) {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let mut output: Vec<u8> = std::mem::take(&mut attachment.replay)
-                .into_iter()
-                .flatten()
-                .collect();
+        let mut output: Vec<u8> = std::mem::take(&mut attachment.replay)
+            .into_iter()
+            .flatten()
+            .collect();
+        let finished = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 if output
                     .windows(text.len())
@@ -579,8 +579,12 @@ mod terminal_tests {
                 }
             }
         })
-        .await
-        .expect("terminal output timed out");
+        .await;
+        assert!(
+            finished.is_ok(),
+            "terminal timed out before {text}: {}",
+            String::from_utf8_lossy(&output[output.len().saturating_sub(2048)..])
+        );
     }
 
     fn marker(first: &str, second: &str) -> Vec<u8> {
@@ -674,17 +678,18 @@ mod terminal_tests {
         let id = created["session"]["id"].as_str().unwrap().to_owned();
         let mut attachment = engine.attach(&id, 80, 24, false).await.unwrap();
         attachment.write(b"exit 7\r".to_vec()).unwrap();
+        let mut output = Vec::new();
         let code = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 match attachment.output.recv().await {
                     Some(Event::Exit(code)) => return code,
-                    Some(Event::Output(_)) => {}
+                    Some(Event::Output(data)) => output.extend(data),
                     None => panic!("shell closed without an exit status"),
                 }
             }
         })
         .await
-        .expect("shell exit timed out");
+        .unwrap_or_else(|_| panic!("shell exit timed out: {}", String::from_utf8_lossy(&output)));
         assert_eq!(code, 7);
         assert_eq!(
             engine.manage(Manage::List).await.unwrap()["sessions"][0]["status"],

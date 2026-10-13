@@ -16,7 +16,10 @@ pub enum Event {
     Exit(u32),
 }
 pub struct Session {
+    #[cfg(not(windows))]
     master: Box<dyn MasterPty + Send>,
+    #[cfg(windows)]
+    master: SharedMaster,
     killer: Box<dyn ChildKiller + Send + Sync>,
     pid: Option<u32>,
     #[cfg(windows)]
@@ -24,6 +27,8 @@ pub struct Session {
     input: Option<mpsc::SyncSender<Vec<u8>>>,
     pub output: async_mpsc::Receiver<Event>,
 }
+#[cfg(windows)]
+type SharedMaster = std::sync::Arc<std::sync::Mutex<Option<Box<dyn MasterPty + Send>>>>;
 pub fn validate_size(cols: u16, rows: u16) -> Result<()> {
     ensure!(
         (2..=500).contains(&cols) && (2..=300).contains(&rows),
@@ -93,7 +98,36 @@ impl Session {
         let pid = child.process_id();
         let (input, commands) = mpsc::sync_channel::<Vec<u8>>(32);
         let (sender, output) = async_mpsc::channel(32);
+        #[cfg(windows)]
+        let (cursor_ready, cursor_wait) = mpsc::channel();
+        #[cfg(windows)]
+        let master = std::sync::Arc::new(std::sync::Mutex::new(Some(pair.master)));
+        #[cfg(windows)]
+        let exited = {
+            let master = master.clone();
+            let (status, exited) = mpsc::sync_channel(1);
+            std::thread::spawn(move || {
+                let code = child.wait().map(|s| s.exit_code()).unwrap_or(1);
+                let _ = status.send(code);
+                // ConPTY keeps the output pipe open until explicitly closed.
+                // Close it from the waiter while the reader drains final output.
+                let closed = master.lock().unwrap().take();
+                drop(closed);
+            });
+            exited
+        };
         std::thread::spawn(move || {
+            // portable-pty enables PSEUDOCONSOLE_INHERIT_CURSOR. Complete its
+            // startup handshake even when no browser is attached, before keys.
+            #[cfg(windows)]
+            if cursor_wait.recv().is_err()
+                || writer
+                    .write_all(b"\x1b[1;1R")
+                    .and_then(|_| writer.flush())
+                    .is_err()
+            {
+                return;
+            }
             for data in commands {
                 if writer
                     .write_all(&data)
@@ -106,24 +140,47 @@ impl Session {
         });
         std::thread::spawn(move || {
             let mut buffer = [0u8; 8192];
+            #[cfg(windows)]
+            let mut cursor = CursorInheritance::default();
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) | Err(_) => break,
                     Ok(count) => {
-                        if sender
-                            .blocking_send(Event::Output(buffer[..count].to_vec()))
-                            .is_err()
-                        {
-                            break;
+                        #[cfg(windows)]
+                        let data = {
+                            let (data, ready) = cursor.output(&buffer[..count]);
+                            if ready {
+                                let _ = cursor_ready.send(());
+                            }
+                            data
+                        };
+                        #[cfg(not(windows))]
+                        let data = buffer[..count].to_vec();
+                        if !data.is_empty() {
+                            let delivered = sender.blocking_send(Event::Output(data));
+                            #[cfg(not(windows))]
+                            if delivered.is_err() {
+                                break;
+                            }
+                            // Continue draining during ClosePseudoConsole, even
+                            // after our receiver closes, to avoid teardown hangs.
+                            #[cfg(windows)]
+                            let _ = delivered;
                         }
                     }
                 }
             }
+            #[cfg(not(windows))]
             let code = child.wait().map(|s| s.exit_code()).unwrap_or(1);
+            #[cfg(windows)]
+            let code = exited.recv().unwrap_or(1);
             let _ = sender.blocking_send(Event::Exit(code));
         });
         Ok(Self {
+            #[cfg(not(windows))]
             master: pair.master,
+            #[cfg(windows)]
+            master,
             killer,
             pid,
             #[cfg(windows)]
@@ -161,14 +218,59 @@ impl Session {
     }
     pub fn resize(&self, cols: u16, rows: u16) -> Result<()> {
         validate_size(cols, rows)?;
-        self.master.resize(PtySize {
+        let size = PtySize {
             cols,
             rows,
             pixel_width: 0,
             pixel_height: 0,
-        })
+        };
+        #[cfg(not(windows))]
+        {
+            self.master.resize(size)
+        }
+        #[cfg(windows)]
+        {
+            self.master
+                .lock()
+                .unwrap()
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("terminal closed"))?
+                .resize(size)
+        }
     }
 }
+
+// Consume only ConPTY's initial query. Replaying it to a later browser would
+// otherwise forward a second cursor response into the already running shell.
+#[cfg(any(windows, test))]
+#[derive(Default)]
+struct CursorInheritance {
+    pending: Vec<u8>,
+    ready: bool,
+}
+#[cfg(any(windows, test))]
+impl CursorInheritance {
+    fn output(&mut self, data: &[u8]) -> (Vec<u8>, bool) {
+        const QUERY: &[u8] = b"\x1b[6n";
+        if self.ready {
+            return (data.to_vec(), false);
+        }
+        self.pending.extend_from_slice(data);
+        if let Some(position) = self.pending.windows(QUERY.len()).position(|s| s == QUERY) {
+            self.pending.drain(position..position + QUERY.len());
+            self.ready = true;
+            return (std::mem::take(&mut self.pending), true);
+        }
+        // Queries may span reads; retain only a possible query prefix.
+        let retained = (1..QUERY.len())
+            .rev()
+            .find(|&len| self.pending.ends_with(&QUERY[..len]))
+            .unwrap_or(0);
+        let suffix = self.pending.split_off(self.pending.len() - retained);
+        (std::mem::replace(&mut self.pending, suffix), false)
+    }
+}
+
 impl Drop for Session {
     fn drop(&mut self) {
         self.input.take();
@@ -257,5 +359,29 @@ impl Drop for Job {
         unsafe {
             windows_sys::Win32::Foundation::CloseHandle(self.0);
         }
+    }
+}
+
+#[cfg(test)]
+mod cursor_tests {
+    use super::CursorInheritance;
+
+    #[test]
+    fn startup_query_is_consumed_across_reads_and_later_queries_pass_through() {
+        let mut cursor = CursorInheritance::default();
+        assert_eq!(cursor.output(b"before\x1b["), (b"before".to_vec(), false));
+        assert_eq!(cursor.output(b"6"), (Vec::new(), false));
+        assert_eq!(cursor.output(b"nafter"), (b"after".to_vec(), true));
+        assert_eq!(cursor.output(b"\x1b[6n"), (b"\x1b[6n".to_vec(), false));
+    }
+
+    #[test]
+    fn unrelated_terminal_sequences_are_preserved() {
+        let mut cursor = CursorInheritance::default();
+        assert_eq!(cursor.output(b"\x1b["), (Vec::new(), false));
+        assert_eq!(
+            cursor.output(b"31mhello\x1b[0m\x1b[6n"),
+            (b"\x1b[31mhello\x1b[0m".to_vec(), true)
+        );
     }
 }
