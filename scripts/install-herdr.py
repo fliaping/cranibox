@@ -14,6 +14,7 @@ import urllib.request
 import zipfile
 
 VERSION = '0.9.3'
+REPOSITORY = 'herdrdev/herdr'
 CHECKSUMS = {
     'herdr-linux-aarch64': '4de7aa3e25678812e92960de64f7c2aaa1bca1f0f80a3c5e559837e231e1f5c0',
     'herdr-linux-x86_64': '18a8dc65f1c2fa485884344356dea1cfd911c6f06cf46fa78e193f4087f4dba7',
@@ -46,12 +47,12 @@ def main():
     if args.version == VERSION:
         expected = CHECKSUMS.get(name)
     else:
-        release = json.loads(download(f'https://api.github.com/repos/devswha/herdr/releases/tags/v{args.version}'))
+        release = json.loads(download(f'https://api.github.com/repos/{REPOSITORY}/releases/tags/v{args.version}'))
         digest = next((asset.get('digest', '') for asset in release['assets'] if asset['name'] == name), '')
         expected = digest.removeprefix('sha256:') if digest.startswith('sha256:') else None
     if not expected:
         parser.error('No verified official asset for this platform/version')
-    data = args.asset_file.read_bytes() if args.asset_file else download(f'https://github.com/devswha/herdr/releases/download/v{args.version}/{name}')
+    data = args.asset_file.read_bytes() if args.asset_file else download(f'https://github.com/{REPOSITORY}/releases/download/v{args.version}/{name}')
     if hashlib.sha256(data).hexdigest() != expected:
         raise ValueError('Release SHA-256 mismatch; installation aborted')
     if system == 'windows':
