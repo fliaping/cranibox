@@ -100,7 +100,8 @@ pub async fn connect(
                         framed.extend_from_slice(&(payload.len() as u32).to_be_bytes());
                         framed.extend_from_slice(&payload);
                         for chunk in framed.chunks(MAX_CHUNK) {
-                            tokio::time::timeout(Duration::from_secs(5), outgoing.send(Event::Data(chunk.to_vec()))).await??;
+                            tokio::time::timeout(Duration::from_secs(5), outgoing.send(Event::Data(chunk.to_vec()))).await
+                                .context("Desktop viewer receive queue stalled for 5 seconds")??;
                         }
                     }
                 }

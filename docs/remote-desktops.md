@@ -84,6 +84,8 @@ Web 和 Tauri 查看器连接后可展开“剪贴板”。左侧输入文字并
 
 Web 使用登录会话、Origin 和 CSRF 校验的 `POST /api/desktop/ticket`，请求为 `{node, local, relay}`；后两项默认 false，不能同时开启。签发前检查授权并建立后端连接，让目标错误在连接时直接显示。单次 ticket 有效期 30 秒，绑定登录会话，由同源 `/api/desktop/ws?ticket=...` 消费；不包含节点或 VNC 凭据。离开查看器或主动断开时，前端通过 `POST /api/desktop/cancel`（`{ticket}`）释放尚未消费的连接；其他登录会话不能取消，已消费 ticket 的取消也不会影响活动查看器。未消费 ticket 在到期或退出登录时同样释放连接和控制名额。Tauri 使用 `desktop_open/input/ack/close` 与 Channel，输出逐帧确认，避免无界积压；连接尚未建立就离开页面时，IPC 返回后立即关闭该连接。
 
+原生通道在 10 秒未收到逐帧 ACK、收到无效 ACK 或提供者关闭时显示原因；主动关闭不报错。Rust 传输输入队列已满与提供者断开分别返回错误，若提供者已有失败原因则保留原原因。输出队列仍为 32 个位置，其中一个预留最终错误，慢查看器不会使失败被丢弃或阻塞控制名额释放。Selkies 接收队列阻塞 5 秒同样报告原因；这些改动不自动重发输入，也不将断线后的连接状态视为桌面仍可用。
+
 服务管理通过同样需要登录和 CSRF 的 `POST /api/desktop/service` 或 Tauri `desktop_service` 调用，支持 `status`、`plan`、`install`、`start`、`stop`、`credentials` 及仅限回环地址的握手检查 `check`。`check` 可传 `protocol: "selkies"`，省略时检查 VNC。安装和启动是独立操作，查看安装计划不会执行命令。`start` 接受 `display`、`port`，Wayland 另传 `provider: "wayvnc"` 和可选 `output`；省略 `provider` 保持原有 x11vnc 请求兼容。`status` 返回所选提供者、兼容性说明和输出；只有显式 `credentials` 操作返回密码，wayvnc 同时返回用户名。
 
 ## 验证范围
@@ -104,4 +106,4 @@ Selkies 的 Rust 单元与服务集成覆盖分片/合并、输入白名单、12
 
 2026-10-18 另实际运行 a8a97f5 的 Linux CI .deb/AppImage，原生 Selkies 画面通过；.deb 发送中文、emoji、多行文字到真实 Wayland 剪贴板通过，**反向“获取远端文字”仍未更新，原因未定位**。复现于私有 D-Bus 的 KDE 同机查看场景，断开重连后仍未收到新文字；不能用 Web 双向测试或模拟 IPC 通过代替原生双向验收。完整复现、包摘要和后续优先级见[交接文档](implementation-handoff-2026-10-18.md#最新补验a8a97f5-linux-安装包)。
 
-后续直接 Selkies 协议诊断能读取新文字，AppImage 原生接收也曾成功一次，但空白和断线仍复现，尚未稳定通过。本次只修复原生通道关闭时丢失已有错误原因，新增节点/解码错误回归，客户端完整 48 项通过；不将该修复称为剪贴板故障已解决。真实原生复查、证据与下一步见[最新排查](implementation-handoff-2026-10-18.md#最新排查原生断线提示与反向剪贴板)。
+后续直接 Selkies 协议诊断能读取新文字，AppImage 与 debug 原生接收也曾显示新文字，但后续更新仍停滞。诊断代理轮次约 60 秒断线；绕过代理的 debug 对照约三分钟后仍显示已连接且面板可操作，第二段新文字仍未更新，不能判定为同一根因。84fdf88 的前端错误保留与完整 48 项界面回归、本次 Rust 错误/ACK/队列测试均不等于剪贴板故障已解决。真实原生复查、证据与下一步见[最新收尾](implementation-handoff-2026-10-18.md#最新收尾rust-桌面传输与交接)。

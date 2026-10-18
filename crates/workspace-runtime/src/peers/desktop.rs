@@ -8,7 +8,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::{OwnedSemaphorePermit, mpsc},
+    sync::{OwnedSemaphorePermit, mpsc, watch},
 };
 use tokio_tungstenite::{
     connect_async_with_config,
@@ -22,6 +22,7 @@ pub enum Event {
 }
 pub struct Stream {
     input: mpsc::Sender<Vec<u8>>,
+    failure: watch::Receiver<Option<String>>,
     pub output: mpsc::Receiver<Event>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -36,9 +37,19 @@ impl Stream {
             !bytes.is_empty() && bytes.len() <= MAX_CHUNK,
             "invalid desktop input size"
         );
-        self.input
-            .try_send(bytes)
-            .map_err(|_| anyhow::anyhow!("desktop input unavailable"))
+        self.input.try_send(bytes).map_err(|error| {
+            if let Some(message) = self.failure.borrow().as_ref() {
+                return anyhow::anyhow!("{}", message);
+            }
+            match error {
+                mpsc::error::TrySendError::Full(_) => {
+                    anyhow::anyhow!("desktop input queue is full")
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    anyhow::anyhow!("desktop provider disconnected")
+                }
+            }
+        })
     }
     pub(crate) fn spawn<F, T>(run: F) -> Self
     where
@@ -47,13 +58,21 @@ impl Stream {
     {
         let (input, incoming) = mpsc::channel(32);
         let (outgoing, output) = mpsc::channel(32);
+        // Keep one bounded slot for the terminal error. A slow viewer must not
+        // turn a provider failure into a seemingly clean disconnect, or delay
+        // releasing the controller lease while waiting for queue space.
+        let failure = outgoing.clone().try_reserve_owned().unwrap();
+        let (status, last_failure) = watch::channel(None);
         let task = tokio::spawn(async move {
             if let Err(error) = run(incoming, outgoing.clone()).await {
-                let _ = outgoing.try_send(Event::Error(error.to_string()));
+                let message = error.to_string();
+                status.send_replace(Some(message.clone()));
+                failure.send(Event::Error(message));
             }
         });
         Self {
             input,
+            failure: last_failure,
             output,
             task,
         }
@@ -150,5 +169,50 @@ impl Stream {
             let _ = tokio::time::timeout(Duration::from_secs(1), socket.close(None)).await;
             result
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn full_queue_retains_failure_without_holding_controller_lease() {
+        let lease = Arc::new(tokio::sync::Semaphore::new(1));
+        let permit = lease.clone().acquire_owned().await.unwrap();
+        let (finished, completion) = tokio::sync::oneshot::channel();
+        let mut stream = Stream::spawn(move |_, outgoing| async move {
+            let _permit = permit;
+            for _ in 0..31 {
+                outgoing.try_send(Event::Data(vec![1])).unwrap();
+            }
+            assert!(outgoing.try_send(Event::Data(vec![2])).is_err());
+            let _ = finished.send(());
+            anyhow::bail!("desktop sharing stopped or access revoked");
+        });
+        tokio::time::timeout(Duration::from_secs(1), completion)
+            .await
+            .unwrap()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while lease.available_permits() == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        (&mut stream.task).await.unwrap();
+        assert_eq!(
+            stream.send(vec![1]).unwrap_err().to_string(),
+            "desktop sharing stopped or access revoked"
+        );
+        for _ in 0..31 {
+            assert!(matches!(stream.output.recv().await, Some(Event::Data(_))));
+        }
+        assert!(
+            matches!(stream.output.recv().await, Some(Event::Error(message)) if message == "desktop sharing stopped or access revoked")
+        );
+        assert!(stream.output.recv().await.is_none());
     }
 }

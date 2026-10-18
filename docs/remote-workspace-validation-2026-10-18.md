@@ -887,3 +887,26 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 反向获取仍未解决。后续先给原生 ACK 等待、输入/输出结束及上游关闭增加有界、不含文字内容的诊断，核对两端时序；再对照正常图形登录 D-Bus 与另一台物理设备。未证明 WebKit、IPC、上游通知或测试会话是哪一项根因，不应据猜测调整超时或放宽背压。
 
 证据目录 /config/validation-artifacts/native-clipboard-debug-20261018：native-errors-focused.log、native-ui-full.log、native-build.log、upstream.json、protocol.jsonl、native-cleanup.json，以及 patched 下的独立 GUI 元数据、截图、清理记录。诊断转发器与 GUI、私有会话辅助进程均停止，两次原剪贴板逐字节恢复且备份删除。截图、真实文字与配置不提交 Git；源代码和文档独立提交。日常服务、身份和认证入口由 final-health.json 复核，不以测试进程存在代替健康检查。
+
+## Rust 桌面传输收尾与最终交接
+
+2026-10-18 在指定远端容器继续完成同一故障的有限排查和交接，未扩大功能范围。修改 Rust 原生转发循环：ACK 10 秒超时、无效 ACK、输入失败、提供者退出现在返回可见错误；显式关闭保持正常。运行时输出队列仍有界为 32 个位置，预留一个位置保存最终错误，另保存失败原因供后续输入返回，避免满队列吞掉错误且不等待消费者释放控制权；Selkies 输出阻塞 5 秒增加具体提示。没有放宽时限、取消背压或改写上游。
+
+新增四项原生 desktop Rust 测试：实际回环 TCP、Tauri Channel 回调、未 ACK 超时、正确 ACK 后继续、无效 ACK、显式退出与提供者退出。另增运行时满队列错误保留/控制名额释放测试。三平台 Tauri CI 显式运行原生四项测试；常规工作区测试不会隐式运行带 desktop 功能的二进制测试。
+
+真实 debug GUI 检查保留成功与失败，不作为安装包验收：
+
+| 对照 | 观察 | 结论边界 |
+| --- | --- | --- |
+| transport、transport2、transport3 | 真实 KDE 画面；部分轮次收到新的 Unicode 多行文字，后续获取未更新，约 60–61 秒断线 | 所有轮次经过 Python WebSocket 诊断代理；代理自身可能影响时序，不能直接归因于产品 |
+| direct | 原生直连本机 Selkies 8082，未经过代理；61 字节标记真实显示，另置的 68 字节新标记经 wl-paste 确认但未更新到界面；约三分钟后仍显示连接，面板收起可响应 | 原生反向剪贴板仍未通过；此轮无上游消息追踪，没有证明断在 Selkies、IPC 或查看器；未重现代理的固定断线 |
+
+四轮采用实际新 debug 程序、独立 XDG 和私有 D-Bus，不模拟 IPC，也不证明正常图形登录、托盘或其他设备。每轮 GUI、诊断代理、私有会话辅助进程均停止，原剪贴板逐字节恢复且备份删除。direct 中的代理进程未被使用，已一同停止。既有 a8a97f5 .deb 失败及此前 Web 双向通过记录不改写。
+
+84fdf88 的原生/安装包矩阵 39138324015 最终 completed / success、7/7 成功；Release 39138324009 和 GitCode 39138324019 亦成功，完整 headSha 已核对。这些结果只属于上一版，不覆盖本节 Rust 修改。当前修改的远端自动化结果、提交及 CI 状态见[交接入口](implementation-handoff-2026-10-18.md#最新收尾rust-桌面传输与交接)。
+
+最终回归在指定远端执行：全工作区 Rust 178 通过/4 按条件忽略，原生 desktop 二进制四项全部通过，桌面后端 remote_desktops 7 + desktop_relay 7 + desktop_service 8 共 22 项全部通过（52.674 秒）。合计 204 项不同自动化测试，不重复累计早期专项与历史测试；原生四项不在工作区 178 项内。fmt、工作区与原生 desktop 所有 target 严格 Clippy、工作区构建、实际运行的 desktop,custom-protocol debug 构建通过。本轮没有改前端或重跑完整 Web/Tauri UI，旧界面结果保持原提交绑定。
+
+final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 不变；测试安装包仍已卸载。transport-cleanup-final.json 复核所有本轮隔离 GUI 目录无存活进程及剪贴板备份。未升级日常服务、未安装系统 Tailscale，也未重启合成器。
+
+私有证据根目录仍为 /config/validation-artifacts/native-clipboard-debug-20261018；新增 final-rust-regression.log、final-desktop-backend.log、source-snapshot-final.json、transport* 与 direct 的截图、GUI 元数据、协议生命周期、清理和 direct/result.json。原始截图、剪贴板、配置、凭据及环境不进入 Git。接手优先修复原生反向文字更新，并在实际安装包、正常图形会话及另一物理设备验证；不要用新增自动化测试替代真实验收。

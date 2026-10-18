@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能提交 a8a97f5 为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。本次收尾另修复原生桌面错误原因在关闭通道时丢失，客户端完整界面回归更新为 48 项通过；实际原生反向剪贴板仍未验收通过，见下文最新排查。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
+最新功能提交 a8a97f5 为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。84fdf88 修复原生界面关闭时丢失错误，客户端完整界面回归为 48 项通过，对应 CI 最终 7/7 成功。本次收尾继续保留 Rust 传输失败原因，增加原生 ACK、关闭及队列回归，并纳入三平台 CI；实际原生反向剪贴板仍未验收通过，见下文最新收尾。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。a8a97f5 的 Linux .deb/AppImage 已实际运行，真实 Computer Use、Chromium/MCP 和原生 Selkies 查看器补验通过；原生剪贴板发送通过，但反向获取未更新，作为未解决问题交接。完整托盘/自启流程仍绑定旧版 6396b93，Windows/macOS 桌面与安装仍待实机验收。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -50,6 +50,30 @@
 
 ## 测试情况与可信范围
 
+### 最新收尾：Rust 桌面传输与交接
+
+原生传输现在区分 ACK 超时、无效 ACK、提供者关闭、输入队列已满与已断开，错误先返回界面再关闭附件。Rust 输出仍限定 32 个队列位置，预留一个用于最终错误；队列满时不会丢失撤权/提供者失败原因，也不会等待查看器读队列才释放控制权。后续输入失败优先返回已保存的提供者原因。Selkies 输出阻塞另有明确提示；没有放宽超时或取消背压。
+
+新增四项原生 Rust 测试，使用真实回环 TCP 和 Tauri Channel 回调验证 ACK、背压、主动关闭与提供者退出；不是 WebKit GUI 验收。另增一项运行时测试验证满队列仍保留最终错误并释放控制名额。三平台 Tauri CI 现在显式执行这四项可选 desktop 二进制测试，常规 cargo test --workspace 不包含它们。
+
+最后真实 GUI 对照分为两类，均使用隔离 XDG、私有 D-Bus、实际 KDE 和新 debug 程序：
+
+- 三轮经过诊断转发器的连接约 60–61 秒结束。前两轮曾收到新的 Unicode 多行文字，后续获取未更新；提示由通用错误细化为提供者已断开。转发器自身可能影响断线时序，没有证据将其判为产品根因。
+- 单独绕过转发器，原生直接访问 127.0.0.1:8082：第一段 61 字节文字实际显示，目标另置的 68 字节新文字经 wl-paste 核对后未更新到接收栏。约三分钟后界面仍显示已连接，展开/收起面板可响应；没有重现代理轮次的固定断线。此轮没有跟踪上游响应，因此仍不能定位丢失位置。
+
+**原生反向剪贴板继续为 P0 未通过项**。本次改善失败反馈，不宣称修好该故障；debug GUI 也不能替代新安装包与正常登录桌面的验收。所有测试 GUI、转发器及其私有会话辅助进程已退出，原剪贴板逐字节恢复并删除备份。日常服务未升级。
+
+| 本轮最终验证 | 结果 | 范围 |
+| --- | --- | --- |
+| Rust 全工作区 | 178 通过、4 按条件忽略 | 包含新增满队列错误/控制名额回归；资源测量、真实 EasyTier 与 GIO 忽略项不算通过 |
+| 原生 desktop 二进制 | 4/4 通过 | 真实 TCP 与 Channel 回调，覆盖 ACK 和结束路径；不包含在上面 178 项中 |
+| 桌面后端集成 | 22/22 通过，52.674 秒 | remote_desktops 7、desktop_relay 7、desktop_service 8；真实 Rust 服务和受控提供者，不是跨平台实机 |
+| 格式、严格 Clippy 与构建 | 通过 | fmt；全工作区及原生 desktop 所有 target 的 -D warnings；工作区构建；实际运行的 desktop,custom-protocol debug 构建 |
+| 真实原生反向剪贴板 | **未通过** | 见上述代理与无代理对照，不计入自动化通过数 |
+| 清理与日常健康 | 通过 | 无本轮测试进程/剪贴板备份；容器 running/healthy、非 privileged、无 Docker socket；3080/3031 匿名 401、认证 200；原 Web/客户端 PID、摘要及 NodeID 保持 |
+
+本轮共 204 项自动化测试通过（178 + 4 + 22），另 4 项 Rust 按条件忽略；不累计到此前轮次。本轮未改前端，48 项原生界面与 126 项 Web 界面沿用各自原提交证据，不写成本轮重跑。证据仍在 /config/validation-artifacts/native-clipboard-debug-20261018，新增 final-rust-regression.log、final-desktop-backend.log、transport-cleanup-final.json、transport、transport2、transport3、direct 子目录；direct/result.json 记录无代理对照，原始失败截图与协议元数据保留在私有远端，不提交 Git。源码核对见 source-snapshot-final.json，日常健康见 final-health.json。
+
 ### 最新排查：原生断线提示与反向剪贴板
 
 本次修复 apps/node-desktop/src/DesktopTransport.ts：原生事件先保存错误再通知查看器，关闭时保留已有错误；因此节点报告的错误和 JPEG 解码错误能显示具体原因。新增两项界面回归分别覆盖这两条路径，并检查附件只释放一次、无页面异常。它们使用模拟 Tauri IPC，不冒充真实原生验收。
@@ -66,7 +90,7 @@ AppImage 诊断使用只记录方向、消息类型、字节数及是否匹配�
 
 本轮所有运行仍在指定远端容器；证据根目录 /config/validation-artifacts/native-clipboard-debug-20261018，包含 native-errors-focused.log、native-ui-full.log、native-build.log、upstream.json、protocol.jsonl、截图及 patched 子目录。实际 AppImage 与 debug GUI、转发器和私有会话辅助进程均已停止，两次恢复剪贴板并逐字节核对，备份删除；日常服务、二进制和身份保持。此前 linux-installer-a8a97f5 的失败记录不改写。此次没有重跑完整 Rust/Web 测试，也未重新安装 Linux 包；新代码的 CI 单独按提交核对，不能沿用 a8a97f5 的绿色矩阵。
 
-代码及上述交接提交为 **84fdf88e01bf49487adf3ac297088c15cf0cef17**，已推送 origin/main。交接时核对矩阵 **39138324015 仍为 in_progress**：真实 Sway/wayvnc 作业成功，其余六项尚在构建/测试，不能写成 7/7 通过。对应 Release 39138324009、Sync to GitCode 39138324019 已 completed / success，逐一核对完整 headSha；Release 不代表完整产品镜像已发布。接手先运行 gh run view 39138324015 --repo fliaping/cranibox 确认最终结果及产物；本次不等待矩阵完成的状态明确保留，后续只更新文档的提交不重触发该矩阵。
+代码及上述交接提交为 **84fdf88e01bf49487adf3ac297088c15cf0cef17**，已推送 origin/main。当时矩阵 39138324015 尚在运行；2026-10-18 收尾复核已为 **completed / success，7/7 作业成功**。三平台原生与 Tauri 安装包、真实 Sway/wayvnc 均成功。对应 Release 39138324009、Sync to GitCode 39138324019 同为 completed / success，逐一核对完整 headSha；Release 不代表完整产品镜像已发布。这一结果只绑定 84fdf88，不覆盖本次 Rust 传输修改。
 
 ### 最新收尾：桌面文字剪贴板
 
@@ -365,7 +389,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 原生 Selkies 反向剪贴板 | 保留 a8a97f5 .deb 失败与后续偶发成功/断线；已修复错误原因丢失，继续观测原生 ACK/输入/输出结束和上游关闭。对比 Web、正常 D-Bus 桌面会话及另一物理设备；修复后以实际 Tauri 包稳定验证双向中文/emoji/多行、断开清空和错误状态，不能只补模拟 IPC 断言 |
+| P0 | 原生 Selkies 反向剪贴板 | 保留 a8a97f5 .deb 失败及 debug 的偶发成功/更新停滞；前端与 Rust 传输已保留错误。代理轮次约 60 秒断线，无代理对照仍连接但后续文字未更新，不能混为同一根因。对比 Web、正常 D-Bus 桌面会话及另一物理设备，核对真实上游响应与 IPC/ACK 时序；修复后以实际 Tauri 包稳定验证双向中文/emoji/多行、断开清空和错误状态，不能只补模拟 IPC 断言 |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
 | P0 | 跨平台安装与产品镜像发布验收 | a8a97f5 三平台包由 CI 构建，Linux 两包已运行并补验桌面/MCP，反向剪贴板缺口见上。托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
@@ -417,7 +441,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 最新剪贴板的构建/测试日志与真实 KDE 验收在 desktop-clipboard-20261018；此前 Browser Use 在 browser-use-20261018，真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
-- 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 直接协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 子目录是修复后 debug 程序，不能当作 CI 安装包。原生反向剪贴板仍为 P0。
+- 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 和 transport* 为各轮 debug 复查，direct 为绕过诊断转发器的对照，均不能当作 CI 安装包。原生反向剪贴板仍为 P0。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 包、真实 Computer Use/Chromium、原生 Selkies、剪贴板发送通过及获取未通过的证据在 /config/validation-artifacts/linux-installer-a8a97f5；此前管理面板 IPC 在 linux-installer-3c1a38d，较完整托盘/自启等流程在 linux-installer-6396b93；更早包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
@@ -440,6 +464,7 @@ export PYTHONPATH=tests
 cargo fmt --all --check
 cargo clippy --workspace --locked --all-targets -- -D warnings
 cargo test --workspace --locked
+cargo test --locked -p cranibox-node-desktop --features desktop --bin cranibox-node-desktop desktops::tests
 cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
 python3 -m unittest test_remote_desktops test_desktop_relay test_desktop_service test_computer_use test_cranibox_terminal -v
 ~~~
@@ -459,4 +484,4 @@ python3 -m unittest test_desktop_real_selkies -v
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新原生排查、Linux 包补验、对应代码提交的 CI 与本表 P0，从反向剪贴板与断线未解决开始；剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型应先阅读本文最新 Rust 传输收尾、原生排查、Linux 包补验、对应代码提交的 CI 与本表 P0，从反向剪贴板更新停滞开始；先区分诊断代理引入的断线与真实产品连接，再定位。剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
