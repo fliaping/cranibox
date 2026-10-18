@@ -385,7 +385,7 @@ Web 与 Tauri 共用项目页新增默认折叠、默认关闭的后台目录同
 - 当前 Compose 配置检查返回 0；故意损坏的 Compose 返回 1。
 - 当前 Dockerfile 的 Buildx --check 返回 0；故意损坏的 Dockerfile 返回 1。
 
-证据位于远端容器 /config/validation-artifacts/ci-gates-__f09ral/ci-gates-validation.json 与同目录私有日志。仅进行了构建检查及 scratch 上下文验证，没有完整构建产品镜像、创建新产品实例或改变部署。
+证据报告位于远端容器 /config/validation-artifacts/ci-gates-validation.json；工作目录与私有日志位于 /config/validation-artifacts/ci-gates-__f09ral。此专项仅进行了构建检查及 scratch 上下文验证，没有完整构建产品镜像、创建新产品实例或改变部署。
 
 ### 真实 EasyTier 测试的授权恢复
 
@@ -400,3 +400,79 @@ Web 与 Tauri 共用项目页新增默认折叠、默认关闭的后台目录同
 - 两项真实 EasyTier 测试均通过，0 失败；覆盖错误授权、显式恢复、远程命令、持久 PTY、节点重启、入口故障及备用入口接续。测试执行约 17 秒，不含编译。
 
 命令与 CI 相同：CRANIBOX_TEST_EASYTIER_DIR 指向上述目录，执行 cargo test --locked -p cranibox-node network::tests::real_ -- --ignored --nocapture --test-threads=1。证据在 /config/validation-artifacts/ci-easytier-d_4dykd5/result.json、clippy.log 与 real-easytier.log。它们是同一远端容器内的真实独立网络进程，不替代跨物理设备 NAT、真实 Tailnet 或休眠恢复验收。
+
+## 完整镜像构建与首次启动
+
+本节更新前文“全新镜像未验收”和“CI 仍待复核”的当时状态，保留前面的历史结果。本轮功能代码为 71f239755f9a95f528151ddbebf8ec758a866087；之后的交接提交仅更新文档。所有构建、服务和运行验证继续在 admin@192.168.217.6:22022 的远端 Linux 主机完成，本机只读取、编辑、归档与同步源码和操作 Git。
+
+### 最终 CI
+
+上述功能代码的矩阵运行 39096427553 已完成，结论 success，七个作业全部成功：
+
+| 作业 | Job ID | 结果 |
+| --- | --- | --- |
+| native (macOS) | 117583743413 | success |
+| native (Windows) | 117583743469 | success |
+| native (Linux) | 117583743505 | success |
+| node desktop (Windows) | 117583743464 | success |
+| node desktop (macOS) | 117583743492 | success |
+| node desktop (Linux) | 117583743496 | success |
+| Real Wayland desktop (Sway and wayvnc) | 117583743535 | success |
+
+Release 运行 39096427579 和 Sync to GitCode 运行 39096427547 也均 completed / success，三条运行的 headSha 均核对为 71f2397。Release 的 test-scripts 与 update-readme-links 成功，已采用严格 Dockerfile/Compose 检查；此次 main 分支运行没有构建和发布完整产品镜像。最终运行与步骤元数据保存为下述证据目录中的 ci-final.json。旧运行 39094741447、39095261447 仍是失败，不因新运行通过而更改。CI 的原生检查与安装包生成不替代目标 OS 的安装、GUI、权限、自启和休眠恢复实测；Sway 的真实 Wayland 结果也不等于 KDE 捕获已修复。
+
+### 完整 Dockerfile 构建
+
+源码来自功能提交的 git archive，大小 9,369,600 字节，SHA-256 为 d846d7d1870340f54752380850997e6a9854cb6b8061d5ee6ebe9df84a348814。没有复制现有 /config、环境文件或工作区未提交文件。使用独立的新 BuildKit 构建器 cranibox-validation-full-build-20261018，版本 v0.25.2、并发上限 2，内存 6 GiB、无额外 swap、CPU 配额 2 核并限定 CPU 10–11；未切换默认构建器。
+
+在归档解出的源码目录实际执行：
+
+~~~sh
+sudo -n docker buildx build \
+  --builder cranibox-validation-full-build-20261018 \
+  --pull --load --progress=plain \
+  --build-arg DESKTOP=kde \
+  --build-arg USE_CHINA_MIRROR=false \
+  --metadata-file ../build-metadata.json \
+  -t cranibox-full-validation:71f2397 .
+~~~
+
+完整构建于 2026-10-18 04:17:27–04:35:17 UTC 完成，退出码 0，约 1,069.72 秒（17 分 50 秒，包含首次 BuildKit 镜像下载）。Rust release 构建、固定 Herdr 下载、KDE 基础镜像、系统工具、安装脚本、服务与静态资源、最终镜像导出和载入均通过，没有用旧产品镜像叠加替代。基础镜像为 linuxserver/webtop:ubuntu-kde@sha256:ae4419f39bc0b84da2129100df2ee75cb8e2974e0372cfb6b122fdb8d22a0602。
+
+生成镜像 cranibox-full-validation:71f2397，镜像 ID sha256:571d20538e6bae77fbc70cc0209246b4f4c8ca770a6f6f5f96772b8b566a3a04，大小 6,656,198,462 字节，约 6.2 GiB。该镜像包含 KDE 与完整开发工具，不能将 Rust 改写解释成产品镜像很小；本项也未测空闲内存、CPU 或大规模节点资源。镜像仅载入远端主机，没有推送产品镜像仓库。
+
+### 空配置首次启动与真实重启
+
+使用新镜像创建专用容器 cranibox-full-firstboot-71f2397，唯一挂载为独立空目录 firstboot-config 到 /config；未挂旧配置、源码或宿主 Docker socket，未设 privileged。内存上限 4 GiB、CPU 2 核、共享内存 512 MiB、pids 上限 1024；3001/3002 只绑定宿主 127.0.0.1 的随机端口。测试用随机凭据仅保存在远端 0600 环境文件，不提交或展示。
+
+首次启动以及真实 docker restart 后均验证通过：
+
+- 容器健康检查通过，Rust workspace-services 查询 agent-workspace-web.service 为 enabled / active，不需要 workspacectl runtime install。
+- 内置 cranibox、workspacectl、cranibox-node 均为 0.1.0，Herdr 为 0.9.3，版本命令退出码 0；兼容控制入口指向合并 Rust 程序。
+- 容器内 9080 与 9090 健康接口均返回 HTTP 200、ok: true、protocol_version: 1；Web 根页面和 web.js / web.css 返回 200。
+- 真实 Cookie/CSRF 认证后的 POST /api/peers 列表请求成功，API 返回 NodeID 与持久身份一致；运行凭据文件权限为 0600。
+- 桌面 HTTPS 3001 的匿名请求返回 401，认证后返回 200。3002 根路径匿名请求为 404，仅记录该路径结果，不将其写作通用认证验收。
+- 写入项目目录的临时标记文件，在容器重启后内容保持不变；NodeID 和运行凭据摘要也保持不变。新实例 NodeID 为 node-d5a28862de8e44f08bfbaf620c60ba63，与主验证实例独立。
+
+初版临时辅助脚本错误地断言健康接口包含独立 Web 的 implementation: rust 字段，而合并程序实际返回网关协议版本。两端接口当时均已返回 200；核对生产路由后，只修正辅助脚本对实际协议的预期，未改生产代码。初次检查中止的报告、探测和原脚本分别保留为 firstboot-initial-helper-error.json、first-boot-probe-initial.json、firstboot-run-initial.py；继续验证前核对了专用容器的标签、镜像与挂载归属。最终 firstboot.json 为 passed: true，首次启动和重启探测均保留。该脚本修正不是产品缺陷修复，不把重复探测累计成额外测试数量。
+
+本项覆盖 HTTP/API、默认服务恢复、身份和文件持久化；没有验证新实例的实际桌面画面、输入或 VNC。首次启动通过不能代替公开产品镜像发布/拉取、其他桌面/架构/软件源构建、Windows/macOS 原生安装及其依赖安装向导。
+
+### 清理状态与证据
+
+检查结束后停止专用首次启动容器和专用 BuildKit 构建器，保留镜像、构建缓存、容器及 /config 数据以便复核。停止后的测试容器 State.Health 可能显示 unhealthy，这是停机后的状态；启动和重启期间的健康成功见 firstboot.json 与两个 probe。主容器 cranibox-validation 继续 running / healthy，镜像、NodeID、端口与权限边界保持不变；此前两个虚拟空间及管理容器继续停止。
+
+证据目录：宿主 /vol3/1000/cranibox-validation/data/validation-artifacts/full-image-71f2397，主验证容器内为 /config/validation-artifacts/full-image-71f2397。保留文件包括：
+
+| 文件 | 用途 |
+| --- | --- |
+| source.json、source/ | 归档提交与摘要、实际构建源码 |
+| build.json、build-metadata.json、full-build.log | 完整构建退出码、耗时、镜像元数据与私有日志 |
+| buildkitd.toml、create-builder.log | 专用构建器配置与创建记录 |
+| firstboot.json、first-boot-probe.json、after-restart-probe.json | 最终通过记录与两次服务探测 |
+| firstboot-run.py、firstboot-initial-helper-error.json、first-boot-probe-initial.json、firstboot-run-initial.py | 修正后的辅助脚本及最初检查预期错误的原始记录 |
+| firstboot-create.log、firstboot-container.log | 新实例创建及私有服务日志 |
+| main-before.json、main-after.json | 主实例前后身份与运行状态核对 |
+| ci-final.json | 功能提交三条 Actions 的最终元数据 |
+
+firstboot.env 与 firstboot-config 含私有凭据和运行状态，日志也可能包含敏感字段；保留在远端，不输出或纳入 Git。后续接手优先级与未验收需求以[交接记录](implementation-handoff-2026-10-18.md)为准。
