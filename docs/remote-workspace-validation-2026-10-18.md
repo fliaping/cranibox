@@ -1162,3 +1162,40 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 ### 提交与 CI 交接补记
 
 产品提交 84454e695d915157d245630c4ad3b8b77091c0b6 已推送 origin/main，功能、生成资源、回归与需求/验证文档均在此提交。GitHub 矩阵 39169225796、Release 39169225825、Sync to GitCode 39169225719 均核对完整 headSha，交接时为 in_progress，**尚未记为通过**。后续文档补记没有改变产品源码。下一位维护者继续核对运行结果，再下载该矩阵的新版安装包验收新检测流程；不要以 39162097500 的旧绿色矩阵替代。
+
+## 2026-10-19：默认公开空间镜像兼容性核对
+
+在指定远端容器中通过匿名 Docker Registry API 读取默认镜像 xuping/agent-workspace:ubuntu-xfce 的索引、Linux amd64 manifest 和配置；没有拉取镜像层、启动容器或使用宿主 Docker socket。公开索引摘要为 sha256:f2e58c4fffd5652e6b3736f6af432a81ededd3349f04c53195d87169f6eb06fa，amd64 manifest 为 sha256:4d60b036e39d8194457f8d2c12b340101e00163606b20aa3fe7ac4b304b4ad97。配置 blob 摘要 sha256:9340d7269f2133220b3a712d69ccd6b82d483b68789e6e8e8115eca584965f58 与实际字节匹配。
+
+来源标签仍为 c56508ce5008180e067a9c489f4527aa30b80b31，镜像配置创建于 2026-10-13T10:40:40.352550645Z，缺少 io.cranibox.space-protocol。对照当前 spaces/provision.rs 的保护条件，该公开版本会在数据卷创建前被拒绝，属于已确认的兼容性阻塞，不是运行成功。没有覆盖 arm64、阿里云镜像站、真实拉取或首次启动；没有修改、发布公开标签。
+
+私有证据 /config/validation-artifacts/public-image-review-20261019/metadata.json。交接 P0 改为“发布兼容镜像并完成真实拉取/首次启动/重启验收”；保留此前 71f2397 本地 KDE 镜像成功的版本边界，不将其冒充公开镜像结果，也不放宽协议检查。
+
+## 2026-10-19：84454e6 的 CI Linux 安装包发现流程实测
+
+下载矩阵 39169225796 的 cranibox-node-desktop-ubuntu-latest（artifact 12151304011），核对完整 headSha 84454e695d915157d245630c4ad3b8b77091c0b6；Linux 客户端作业已成功。两份文件在本机下载后与远端传输后核对大小及 SHA-256：
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,316,726 | b4cdd7157696f74fed8af6add38ccc7c5f9ec181cfe6877c58604718bf9147eb |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,484,920 | 26869e475df7538bc7211c8e598637089993a3982d63f758228adffe534a364a |
+
+.deb 通过实际 dpkg 安装，AppImage 使用 --appimage-extract-and-run。两包分别在指定远端 KDE 中以新 NodeID、隔离 XDG 与私有 D-Bus 启动真实 Tauri 窗口，未模拟 IPC。使用实际无共享初态，点击远程桌面、检测已有服务，找到真实 Selkies 127.0.0.1:8082；核对后协议为 Selkies、地址正确且输入聚焦，取消后 peers.json 摘要逐字节不变，托管配置和密码均不存在。
+
+再次核对并点击保存后，实际 peers.json 保存 Selkies 协议和地址，列表出现“当前共享配置”、停止共享按钮可用；点击停止后实际共享为空、标记及停止按钮消失，身份保持，未生成托管配置或密码。两包操作/状态断言与截图均完成，acceptance.json 汇总通过。没有打开查看器、发送桌面输入或改动剪贴板。
+
+两份初始脚本失败分别为 AT-SPI button 角色名称和列表内联标记文本匹配错误，保存在 deb-native/exercise-initial-role-failure.json 与 exercise-initial-badge-failure.json。根据真实控件树修正管理脚本，并先通过界面停止试验共享，再重跑完整流程；两包最终通过，未修改产品代码。失败不计作产品通过。
+
+退出两包 GUI 及属于对应 XDG 的辅助进程，卸载测试 .deb、清除本次 AppImage 解压目录；审计无试验进程残留。容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200；日常 Web PID 538744、客户端 PID 767446、程序摘要与 NodeID 均保持。源码及日常程序未升级。
+
+范围仅为已有服务发现与配置，不重验正常登录/托盘/自启、普通 FUSE、休眠、网关断线、另一物理设备、桌面查看器、双向剪贴板、撤权或 Windows/macOS 实机。旧版 2c95dd4 的剪贴板结果保留独立版本边界。私有证据目录 /config/validation-artifacts/linux-installer-84454e6 包含包元数据/摘要、安装/卸载记录、每包 GUI/操作/状态/截图、失败/修正记录、cleanup-audit.json、acceptance.json、before-health.json 和 final-health.json；不提交截图、配置、凭据或辅助脚本。
+
+### 本轮 GitHub CI 最终结果
+
+产品提交 84454e695d915157d245630c4ad3b8b77091c0b6 的矩阵 39169225796 已完成，7/7 作业全部 success：Linux/Windows/macOS 原生 Rust、三平台 Tauri 客户端，以及独立真实 Sway/wayvnc。Release 39169225825 与 Sync to GitCode 39169225719 也 success，均核对完整 headSha。此前补记的 in_progress 为当时状态，本节记录最终结果。
+
+原始日志确认 Linux CI Web 全量 128/128（3.1 分钟）、客户端界面全量 49/49（22.9 秒）、真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc、真实 EasyTier 2/2、GIO 启动器均通过。完整 CI 使用最终文案/间距后的产品提交，不再仅有此前远端专项的覆盖；与远端或历史结果重叠部分不累计。客户端 Playwright 仍模拟 IPC，不能替代上节真实 Linux 包，也不代表 Windows/macOS 实机验收。
+
+10 项未过期产物为 cranibox、cranibox-node、cranibox-node-desktop 各三平台，加 resource-baseline-linux。Windows 客户端为 NSIS .exe，macOS 为 .dmg；本轮只下载并在指定远端实际运行 Linux .deb/AppImage。Release 工作流只做脚本/Dockerfile/Compose 检查和脚本地址维护，ShellCheck 允许失败；它不发布镜像，默认公开镜像不兼容的问题仍未解决。
+
+远端 linux-installer-84454e6/ci-final.json 保存七项作业及步骤、两个其他工作流、完整来源与产物元数据；ci-native-linux.log、ci-desktop-linux.log、ci-wayland.log 保存原始日志。此后仅整理交接与验证文档，没有修改已经验收的产品代码。
