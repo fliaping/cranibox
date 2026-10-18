@@ -721,4 +721,18 @@ cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
 
 再由 GIO 实际执行上述新启动项，当前容器无 /dev/fuse，启动环境未设置 APPIMAGE 或 APPIMAGE_EXTRACT_AND_RUN；AppImage runtime 成功解包并启动 GUI PID 736005，业务程序只收到 --background，未收到运行时参数。窗口保持隐藏、同 PID 托盘存在；通过其 D-Bus 托盘打开实际窗口，NodeID 与新源码测试保持相同。此处运行的 AppImage 仍是 afaa137 包，因此组合验证证明新配置逻辑与已有运行时兼容，不能称为新安装包实测。没有真实系统注销/登录、普通 FUSE 模式或休眠验证。
 
-完成后清理测试启动项、退出测试 GUI 与预览浏览器、恢复剪贴板，日常客户端从原持久路径以原环境恢复，PID 737018、二进制 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、原 NodeID 不变。主 Web PID 538744 未替换；容器 running / healthy，privileged=false。证据包括 acceptance.json、mcp-acceptance.json、三份 MCP 原始输出、native-autostart.json、gio-appimage-acceptance.json、restored.json、source-digests.json 和私有截图；没有将私有环境、剪贴板或截图提交 Git。新提交 CI 与产物状态在交接文档单列。
+完成后清理测试启动项、退出测试 GUI 与预览浏览器、恢复剪贴板，日常客户端从原持久路径以原环境恢复，PID 737018、二进制 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、原 NodeID 不变。主 Web PID 538744 未替换；容器 running / healthy，privileged=false。证据包括 acceptance.json、mcp-acceptance.json、三份 MCP 原始输出、native-autostart.json、gio-appimage-acceptance.json、restored.json、source-digests.json 和私有截图；没有将私有环境、剪贴板或截图提交 Git。
+
+### 启动修复提交的最终 CI
+
+功能提交 6396b93ed53a2f6a820a67fb3af0f0f0d8188859 已推送 origin/main，逐一核对完整 headSha，最终结果如下：
+
+| 运行 | ID | 结果 | 范围 |
+| --- | --- | --- | --- |
+| Cranibox server and independent node client | 39110808540 | completed / success，7/7 | 三平台 Rust 检查、测试与发布构建；三平台 Tauri 安装包；真实 Sway/wayvnc；Linux 完整 Web/后端、真实 GIO/X11 VNC、EasyTier 重启/入口切换及资源报告 |
+| Release | 39110808411 | completed / success | main 工作流成功，本次没有发布产品镜像 |
+| Sync to GitCode | 39110808393 | completed / success | 本次功能提交同步 |
+
+本节证据目录 ci-final.json 保存三个运行的最终元数据、七项作业及步骤、十项 Artifacts 的 ID/大小/SHA-256。客户端产物为 cranibox-node-desktop-{ubuntu,windows,macos}-latest，分别包含 .deb/AppImage、NSIS 与 .dmg；另有三平台 cranibox、cranibox-node 及 resource-baseline-linux。当前版本号仍是 0.1.0，后续验收须按运行号与摘要选择新包。
+
+本次没有再安装或运行 6396b93 的 CI 包；上述新源码 IPC 与旧 AppImage 的组合验收不因此变成新包实测。Windows/macOS 原生图形、真实登录/休眠、Tailnet、跨物理设备与产品镜像发布/拉取等边界维持前述结论。随后只更新交接文档，不重复触发路径过滤的完整矩阵；再次改动代码时需按新提交重新核对。
