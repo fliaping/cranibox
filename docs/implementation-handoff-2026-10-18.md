@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能为下文的节点 Computer Use：独立授权、回环桥接适配、短期输入控制权、目标绑定 MCP，以及共用 Web/Tauri 管理界面。新提交和对应 CI 结果在本节专项验收后记录。此前功能提交 6396b93 修复 Linux AppImage 的 MCP 与登录启动项；Selkies 接入为 afaa137，Tailscale 安装引导为 b6ed81e。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
+最新功能为下文的节点 Computer Use：独立授权、回环桥接适配、短期输入控制权、目标绑定 MCP，以及共用 Web/Tauri 管理界面。功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送；本轮 411 项不同自动化测试通过，3c1a38d 的 CI 矩阵最终 7/7 成功，初次失败与重跑边界见下文。此前功能提交 6396b93 修复 Linux AppImage 的 MCP 与登录启动项；Selkies 接入为 afaa137，Tailscale 安装引导为 b6ed81e。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，最新 6396b93 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -56,19 +56,29 @@
 
 当前只接入现有 bridge 的回环 HTTP 服务，使用直连路由；不是 Windows/macOS 原生驱动，也没有实现 Browser Use 或旧网关转发。未知字段、远端恢复、任意目的 URL、持续按住输入均拒绝，输入失败不自动重发。详细操作、边界和源码见 [Computer Use](computer-use.md)。
 
-本轮执行仅在指定远端容器 cranibox-validation，使用隔离身份。真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC，没有操作日常桌面或更新日常服务。
+下表由本会话直接执行的构建与测试均在指定远端容器 cranibox-validation，使用隔离身份；后述 CI 在 GitHub 执行并单列。真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC，没有操作日常桌面或更新日常服务。
 
 | 验证 | 结果 | 可信范围 |
 | --- | --- | --- |
-| 全 Rust 工作区单元测试 | 174 通过、4 忽略 | 忽略项为资源测量、2 项真实 EasyTier 与 GIO 图形用例；本轮没有重跑这些实机专项 |
+| 全 Rust 工作区单元测试 | 174 通过、4 忽略 | 常规 cargo test 忽略资源测量、2 项真实 EasyTier 与 GIO 图形用例；后续 CI 的显式专项执行单列，不加入本表 411 项 |
 | 后端专项及相关回归 | 70 通过 | 包含 12 项 Computer Use：旧授权默认、租约/竞争/撤销、VNC 互斥、重启保留停止、桥接离线、输入不重放、PNG/MCP、慢状态期间停止；另含节点、桌面与现有 MCP 回归 |
-| Web 相关界面 | 20 通过 | Computer Use 2 项、直连设备 7 项、桌面 11 项；明暗、375px 与横屏无横向溢出，停止不被状态检查禁用；接口为模拟响应 |
+| Web 全部界面 | 122 通过 | 含 Computer Use 2 项、直连、桌面、网络、项目、协作与浮动终端；覆盖中英文、明暗和小屏。使用真实 Rust 预览服务，部分业务响应模拟；桌面画面来自 RFB/JPEG 夹具 |
 | Tauri 全部界面 | 45 通过 | 含新增 Computer Use IPC；属于浏览器模拟原生 IPC，不代替真实安装包验收 |
 | 构建与静态检查 | Rust 工作区 fmt/build/clippy、Web/Tauri TypeScript 与生产资源、原生 desktop Clippy 和 desktop,custom-protocol 构建通过 | 发布 Web 资源已更新，未部署至日常主服务 |
 
-初次较大后端回归 69 项中 1 项失败，原因是旧响应断言缺少新增的 computer:false。更新默认关闭断言后，12 项 Computer Use 和该回归共 13 项复测通过；随后加入新的 Web 并发用例，对相关 70 项完整复测，全部通过。新增的真实 Web 并发用例验证慢桥接状态不持有宿主锁阻碍紧急停止。原始初测、复测、Rust/UI 日志及隔离页面截图在 /config/validation-artifacts/computer-use-20261018；不与历史测试或重复运行相加。
+初次较大后端回归 69 项中 1 项失败，原因是旧响应断言缺少新增的 computer:false。更新默认关闭断言后，12 项 Computer Use 和该回归共 13 项复测通过；最终对包含新增 Web 并发用例的 70 项完整复测，全部通过。新增的真实 Web 并发用例验证慢桥接状态不持有宿主锁阻碍紧急停止。原始初测、复测、Rust/UI 日志及隔离页面截图在 /config/validation-artifacts/computer-use-20261018；不与历史测试或重复运行相加。
 
-本轮共 309 项不同自动化测试通过，另有 4 项 Rust 测试忽略。原生构建与静态检查不计作测试数。本轮提交及 CI 待提交后补充，6396b93 的绿色结果不覆盖本轮代码。
+本轮共 411 项不同自动化测试通过，另有 4 项 Rust 测试忽略（174 Rust + 70 后端 + 122 Web + 45 Tauri UI）。此前 20 项 Web 相关测试已被完整 122 项覆盖，不重复计数。原生构建与静态检查不计作测试数。验收摘要为该证据目录的 acceptance.json，source-snapshot.json 保留功能提交的 25 个文件摘要，source-snapshot-final.json 将修复提交的 26 个变更文件逐一核对为一致；entrypoint-checks.json、daily-preserved.json 保留早期检查，final-health.json、post-full-web-processes.json 记录完整 Web 复测后的最终健康与进程检查。容器 running / healthy，未增加 privileged 或 Docker socket；3080/3031 仍为匿名 401 / 认证 200，日常 Web PID 538744、客户端 PID 767446、二进制摘要和 NodeID 不变，没有残留测试节点。
+
+功能提交为 973f1c814bd814745b513d20e2e7f636be06c424，权限断言修复提交为 3c1a38d19c66d3b9050f3003705f47a5c7187ace，均已推送 origin/main。首次矩阵 39116645947 的 Linux Web 完整测试为 121/122：旧消息授权测试的严格对象断言遗漏 computer:false。修复只补齐默认关闭断言，没有放宽授权；该旧运行保留失败结论。
+
+修复后远端 Web 完整 122 项均通过，日志为 web-ui-full.log。**矩阵 39117202769 最终 completed / success，7/7 作业成功**，已核对完整 headSha 为 3c1a38d19c66d3b9050f3003705f47a5c7187ace：三平台原生检查、测试和发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc。Linux 同时执行完整 Web、后端、真实 X11 VNC、用户态 EasyTier 重启/入口切换、真实 GIO 启动器和资源测量专项；这些 CI 结果单列，不再累加到 411 项。
+
+该矩阵首次 Wayland 作业在两个无效凭据用例后的合法 ARD 认证响应处发生 5 秒套接字超时；六个其他作业成功。整轮结束后仅重跑失败作业，第二次 Wayland 成功，未修改产品代码、跳过错误凭据用例或放宽超时。初次失败保留在 ci-attempt-1.json、ci-wayland-attempt-1.log，最终状态及十项产物元数据在 ci-final.json，成功日志为 ci-wayland-final.log；重跑成功不代表已定位或修复超时原因。通过 gh run view 39117202769 --repo fliaping/cranibox 查看。对应 Release 39117202772、Sync to GitCode 39117202930 也均 completed / success；main 的 Release 不代表发布了产品镜像。
+
+本轮 Artifacts 共十项：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。桌面分别提供 Linux .deb/AppImage、Windows NSIS 和 macOS .dmg；应按运行 39117202769 与提交 3c1a38d 下载，不能只按 0.1.0 文件名判断版本。这批新安装包已构建，尚未人工安装验收；下文 6396b93 的 Linux 实测只覆盖对应旧包。
+
+资源报告 resource-baseline.json 也绑定 3c1a38d。在隔离 Linux CI 的四秒混合 HTTP 轮询与 SSE 场景中，合并服务端 RSS 约 17.4 MiB，独立节点约 10.3 MiB；网关与 Web 属于同一进程，不重复相加。六个相同测试服务的监督开销由 16628 KiB 降至 13136 KiB，降低约 21%，目前仍由 s6 配合 Rust 管理入口监督。以上不是日常空闲、完整 KDE/Agent/业务进程总内存或跨平台资源承诺。
 
 ### 此前补验：6396b93 Linux CI 安装包
 
@@ -102,7 +112,7 @@
 
 首次 GIO 测试真实失败：GIO 在展开 %% 字段码之前检查可执行文件存在，导致文件名含百分号时无法加载。修复为仅此类路径经 /usr/bin/env -- 传入，保留正确参数转义；最终真实用例通过，初次失败日志保留。代码与证据在远端 /config/validation-artifacts/linux-launcher-20261018，包含单元/真实启动器/Clippy/构建日志、复制配置、MCP 原始输出、自启项与恢复记录、私有截图。自启恢复禁用、剪贴板恢复、测试 GUI 和浏览器退出，日常原生程序恢复原字节和 NodeID；主 Web 未替换。
 
-**最新功能提交 6396b93 的完整 CI 已完成，矩阵运行 39110808540 为 7/7 成功**，已核对完整 headSha 为 6396b93ed53a2f6a820a67fb3af0f0f0d8188859：三平台 Rust 检查、测试与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业均成功。Linux 同时通过真实 GIO 启动器、完整 Web/后端回归、真实 X11 VNC、用户态 EasyTier 重启/入口切换与资源报告。Release 39110808411、Sync to GitCode 39110808393 也均 completed / success；此次 main Release 没有发布产品镜像。
+**该阶段功能提交 6396b93 的完整 CI 已完成，矩阵运行 39110808540 为 7/7 成功**，已核对完整 headSha 为 6396b93ed53a2f6a820a67fb3af0f0f0d8188859：三平台 Rust 检查、测试与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业均成功。Linux 同时通过真实 GIO 启动器、完整 Web/后端回归、真实 X11 VNC、用户态 EasyTier 重启/入口切换与资源报告。Release 39110808411、Sync to GitCode 39110808393 也均 completed / success；此次 main Release 没有发布产品镜像。
 
 该运行提供十项 Artifacts：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。客户端分别包含 Linux .deb/AppImage、Windows NSIS、macOS .dmg；下载时选择运行 39110808540，不能仅凭相同的 0.1.0 文件名区分版本。Linux 新包随后已补做实际验收，见上节；这里的原生 IPC 与旧 afaa137 AppImage 组合验证仍单列。完整 CI 元数据、作业步骤和产物摘要保存在本节证据目录的 ci-final.json。
 
@@ -127,13 +137,13 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 证据目录为远端 /config/validation-artifacts/selkies-desktop-20261018，命令及日志见[专项记录](remote-workspace-validation-2026-10-18.md#selkies-节点桌面收尾)。Selkies 需要已运行的无 token 握手服务；连接会接管主显示器并断开其原查看器，外部 Selkies 查看器也能反向接管。当前不支持音频、剪贴板、文件传输、视频编码或自动托管 Selkies，详见[接入限制](remote-desktops.md#已有-selkies-服务)。
 
-上述 186 项验证不能代替 Windows/macOS 实机、完整镜像重新构建或真实多物理设备互访；最新 Linux 安装包的独立人工验收见下节。
+上述 186 项验证不能代替 Windows/macOS 实机、完整镜像重新构建或真实多物理设备互访；afaa137 Linux 安装包的独立人工验收见下节，后续 6396b93 补验见前文。
 
 **本次功能提交 afaa137 的完整 CI 已完成，矩阵运行 39106262547 为 7/7 成功**。已核对完整 headSha 为 afaa137ce78c1847cb893e97d1527e3b06b23d6f：Linux、Windows、macOS 原生检查/测试与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业均成功。Linux 同时通过完整 Web、后端集成、真实 X11 VNC、用户态 EasyTier 重启/入口切换与资源报告检查。Release 39106262625 和 Sync to GitCode 39106262578 也均 completed / success。最终元数据与产物清单保存在上述远端证据目录的 ci-final.json；此次 main 分支 Release 没有发布产品镜像。
 
 该矩阵运行的 Artifacts 包含 cranibox-node-desktop-ubuntu-latest（.deb、AppImage）、cranibox-node-desktop-windows-latest（NSIS）和 cranibox-node-desktop-macos-latest（.dmg）。服务端与独立节点分别为 cranibox-平台-latest、cranibox-node-平台-latest，资源报告为 resource-baseline-linux。Linux 桌面包已在下述真实环境验收；Windows/macOS 仍需下载该运行对应的新包实际安装，不能以 CI 构建或旧包证据代替。
 
-### 最新 Linux CI 安装包与 Shell 重新附着
+### 此前：afaa137 Linux CI 安装包与 Shell 重新附着
 
 从上述运行 39106262547 下载 cranibox-node-desktop-ubuntu-latest，Artifact ID 12128354180，归档 SHA-256 为 2999969618d43206a225553e6bc4d218828780018181c0843d3dd4fa6df6ad2a，与 GitHub 元数据及远端接收文件一致。所有执行均在指定远端 Ubuntu 26.04 amd64 / KDE Wayland 容器，使用独立配置与身份。此为人工集成验收，不计入 186 项自动化测试。
 
@@ -240,20 +250,21 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 最新 6396b93 的完整 CI 已 7/7 通过，同提交 Linux .deb/AppImage 的原生、MCP 与启动修复补验通过；普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- 本轮 3c1a38d 的完整 CI 最终 7/7 通过，但对应新安装包尚未人工验收。此前 6396b93 的 Linux .deb/AppImage 原生、MCP 与启动修复补验通过；普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 6396b93 的 7 项 CI 与同提交 Linux .deb/AppImage 实测通过；继续 Windows/macOS、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
+| P0 | 跨平台安装与产品镜像发布验收 | 3c1a38d 的 7 项 CI 通过，新包先补验新增 Computer Use 与已有流程；已有人工作证据的 Linux .deb/AppImage 仍为 6396b93。继续 Windows/macOS、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
 | P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；补验已实现的 Computer Use 真实桌面/模型流程，并独立实现 Browser Use |
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
+| P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位本轮 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
 
 暂不需要为了节点身份等同引入选主；目前数据由所属节点持有，界面连接任一运行入口。若未来要复制协作协调状态，先定义故障与冲突模型，再决定是否需要一致性协议。
 
@@ -289,7 +300,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 ### 远端环境
 
 - SSH：admin@192.168.217.6，端口 22022，容器 cranibox-validation；不得改用当前本机做运行验证。
-- Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
+- Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 安装包证据在 /config/validation-artifacts/linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，原客户端恢复至 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。最新安装包已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项。
@@ -315,7 +326,7 @@ cargo clippy --locked -p agent-workspace-runtime -p cranibox-node --all-targets 
 python3 -m unittest test_computer_use test_node_peers test_remote_desktops test_desktop_relay test_desktop_service test_web_direct_peers test_agent_runs_mcp test_task_worker_mcp -v
 ~~~
 
-UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新专项用例为 Web 的 computer-use.spec.ts、direct-devices.spec.ts、desktops.spec.ts，以及客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
+完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。Web 最新完整 122 项及客户端完整 45 项已执行；新增专项位于 Web 的 computer-use.spec.ts 与客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
