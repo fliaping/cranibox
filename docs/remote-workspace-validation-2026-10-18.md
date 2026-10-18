@@ -735,4 +735,46 @@ cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
 
 本节证据目录 ci-final.json 保存三个运行的最终元数据、七项作业及步骤、十项 Artifacts 的 ID/大小/SHA-256。客户端产物为 cranibox-node-desktop-{ubuntu,windows,macos}-latest，分别包含 .deb/AppImage、NSIS 与 .dmg；另有三平台 cranibox、cranibox-node 及 resource-baseline-linux。当前版本号仍是 0.1.0，后续验收须按运行号与摘要选择新包。
 
-本次没有再安装或运行 6396b93 的 CI 包；上述新源码 IPC 与旧 AppImage 的组合验收不因此变成新包实测。Windows/macOS 原生图形、真实登录/休眠、Tailnet、跨物理设备与产品镜像发布/拉取等边界维持前述结论。随后只更新交接文档，不重复触发路径过滤的完整矩阵；再次改动代码时需按新提交重新核对。
+本节当时没有安装或运行 6396b93 的 CI 包；上述新源码 IPC 与旧 AppImage 的组合验收不因此变成新包实测。同提交 Linux 新包随后补验，见下一节。Windows/macOS 原生图形、真实登录/休眠、Tailnet、跨物理设备与产品镜像发布/拉取等边界维持前述结论。只更新交接文档不重复触发路径过滤的完整矩阵；再次改动代码时需按新提交重新核对。
+
+## 6396b93 Linux CI 安装包补验
+
+本节补齐新源码与旧 AppImage 组合验收之后的新包验证，绑定功能提交 6396b93ed53a2f6a820a67fb3af0f0f0d8188859、矩阵运行 39110808540。仍只在指定的 admin@192.168.217.6:22022 / cranibox-validation 运行产品、浏览器和网络测试，本机仅下载校验、编辑与 Git。没有改产品代码，也未重跑全部自动化矩阵。
+
+### 产物与隔离
+
+Linux 桌面 Artifact ID 为 12130851033，归档 95,609,544 字节，SHA-256 为 163aad45bf8c26a37c262e4066d1a09cd81ca8f88ff78a8376c099a66992a63b，与 GitHub 元数据及远端接收结果一致。
+
+| 文件 | 字节数 | SHA-256 | 执行 |
+| --- | --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,019,106 | 005fb28348388024fc0de04b190cccbd9741f1457bbf8329ea67c3b25e275a8e | dpkg 实际安装，版本命令与 GUI 均运行 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,230,968 | 106d8d78822fd8d67a8de8fb6d3930037b1fc0ca8616e1958da32ef6993fb788 | 使用运行时兼容参数实际启动，未设置兼容环境变量 |
+
+先确认没有已安装的同名系统包、日常客户端没有业务 Shell，保存原启动环境、原二进制摘要和剪贴板，再暂停日常客户端。测试 XDG config/data/state/cache 均独立，两个包共用 NodeID node-744e8b5c298a4fa29c5c375b3efabe11，不与日常身份共享配置。实际安装后的 .deb 程序 SHA-256 为 033cb487ff6c1d0ae714d194cd75a521cdc60554bced9d5ce2185c82d828c9ff；AppImage 内部程序为 1aafc8e363346bbccf597fc83bf166b0e11efbb83a2f1b16173a05549198751b。
+
+通过已认证的 Selkies 页面观察和操作真实 KDE/Tauri 窗口；托盘菜单对应实际 GUI PID 的 D-Bus 服务。没有模拟 IPC，也不将测试辅助脚本 PID 当作 GUI。首次 AppImage 辅助检查误以为运行时父进程就是 GUI，缺少 APPIMAGE 时断言失败；随后按隔离 XDG、APPIMAGE 和实际内部可执行文件唯一定位子进程，未重复启动第二个节点宿主。此为检查脚本修正，非产品修复。
+
+### 结果
+
+| 检查 | 结果 | 证据与边界 |
+| --- | --- | --- |
+| 两包原生界面与托盘 | 通过 | 窗口真实可见，GUI PID 与托盘一致；退出确认后相应进程结束，两包 NodeID 相同 |
+| 两包 MCP 配置复制 | 通过 | 默认两个入口，明确勾选后三个；command 指向持久安装路径，不指向临时解包目录；仅 AppImage 自动带兼容参数 |
+| 两包 XDG 自启开关 | 通过 | 实际生成/删除独立 config/autostart/Cranibox Node.desktop，权限 0600；HOME 旧目录无新增条目；AppImage Exec 带兼容参数和 --background |
+| 六个实际 MCP 命令 | 通过 | GUI 退出后执行所复制的 devices/messages/runs；两包均 initialize 与 tools/list 成功、退出 0，工具分别 5/3/2 个，无手动兼容环境变量 |
+| .deb 单实例 | 通过 | 第二次启动退出 0，原 GUI PID 和 NodeID 保持 |
+| .deb Shell 保留 | 通过，范围受限 | 关闭浮动终端、收起原生窗口、托盘重连和打开、重新附着后，Shell PID 761420 及 /proc 启动时间 10776469 不变；取消退出保持 Shell，确认退出后进程消失 |
+| AppImage 生成启动项 | 通过 | 无 /dev/fuse、无 APPIMAGE/兼容变量的初始环境，GIO 实际启动生成条目；运行时参数被消费，业务程序仅收到 --background |
+| AppImage 后台、唤回、单实例 | 通过 | GIO 启动后窗口隐藏、GUI PID 766603 的托盘存在；第二次启动退出 0，托盘打开原窗口，身份保持 |
+
+设备 MCP 仅用隔离的 ws://127.0.0.1:9 与测试凭据完成协议枚举，没有连接真实网关、执行远程命令或实际后台 Agent 工作；测试设置与凭据随后删除。本轮 .deb 终端的命令标记输入受到远程 Selkies 键盘/剪贴板转发干扰，未形成有效变量记录，保留对应截图；因此改以同一 Shell PID 与进程启动时间验证上述操作没有重建 Shell，不宣称本轮导出变量保留或真实网络故障恢复。此前 afaa137 的变量专项仍独立有效。
+
+GIO 启动的 AppImage 日志包含 EGL/Mesa 与缺少 GStreamer appsink 的环境警告，实际原生页面与托盘仍可操作；本轮没有复测该包的媒体或远程桌面查看器，不将这些功能记为通过。普通 FUSE 挂载、实际系统注销/登录、休眠、网关故障、Windows/macOS、真实 Tailnet、多台物理设备和公开产品镜像发布/拉取仍待验收。
+
+### 恢复与证据
+
+两个包的 GUI、AppImage 运行时、测试 Shell 和任务专属浏览器已退出；.deb 已卸载，9228 调试浏览器进程不再存在，自启恢复禁用，剪贴板恢复且备份删除。原客户端从 /config/validation-client/bin/cranibox-node-desktop 恢复，PID 767446，SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、原 NodeID node-82bf96c6f15d4f00923656f7877b8609 与配置保持，已实际查看恢复窗口并核对托盘。
+
+主 Web PID 538744 未变；容器 running / healthy，原镜像 sha256:a2077e4276f3e6a51e1fa5b3a92b6ef72a3336e303e955fa8034b0ae1724a81b 未替换，privileged=false、无 Docker socket。远端实际绑定地址 192.168.217.6 的 3080/3031 均为未认证 401、认证 200；首次健康检查误用宿主回环地址导致连接拒绝，改用已有绑定地址后通过，未修改端口或服务配置。
+
+私有证据目录 /config/validation-artifacts/linux-installer-6396b93（0700），包含 acceptance.json（completed_with_documented_limits）、artifact.json、install.log/uninstall.log、两包复制配置/自启/托盘/单实例记录、mcp-acceptance.json 与六组原始输出、deb-pty-persist.json、gio-appimage-acceptance.json、restored.json、final-health.json，以及 16 份带摘要的截图。记录/截图 0600，AppImage 0700；私有桌面、环境和剪贴板不提交 Git。此项独立人工验收不增加历史自动化测试数量，最新代码的完整 CI 仍绑定 6396b93。

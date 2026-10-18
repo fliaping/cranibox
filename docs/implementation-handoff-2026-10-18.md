@@ -4,7 +4,7 @@
 
 最新功能提交为 6396b93ed53a2f6a820a67fb3af0f0f0d8188859，修复 Linux AppImage 的 MCP 与登录启动项：自动使用无 FUSE 兼容参数、转义可执行文件路径、遵循 XDG_CONFIG_HOME，并迁移旧启动项。此前 Selkies 节点桌面接入提交为 afaa137ce78c1847cb893e97d1527e3b06b23d6f，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证；Tailscale 安装引导为 b6ed81ef3c0b7551e14ed43094f156a222e97442。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
 
-交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，此前 afaa137 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先验收新包及 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
+交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，最新 6396b93 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
 ## 用户已经确定的方向
 
@@ -31,8 +31,8 @@
 | EasyTier 与 Tailscale 同时使用 | EasyTier 固定版本安装、用户态网络、节点发现、端口转发、多个入网地址、短期邀请与丢响应恢复；系统 Tailscale 安装/启动方案审阅与确认、后台进度、官方登录、持续发现与授权连接 | Tailscale 是系统服务，不由节点长期托管；自动安装有平台前置条件，容器转宿主/已有服务指引；真实系统安装与 Tailnet 跨设备验收未完成 |
 | 同一设备多条路径 | 保存并排序显式路径，新连接按可用性选择，认证/身份错误不继续回退 | 已建立连接不无缝迁移；桌面直连与网关通道仍显式选择 |
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
-| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 最新 afaa137 的 Linux .deb 在远端 KDE 中通过窗口关闭、托盘打开/退出、自启配置开关、后台启动及单实例唤回；重连菜单仅在无网关配置时操作，实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
-| 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 最新 Linux .deb 关闭浮动终端和原生窗口后，重新附着仍为同一 Shell PID、保留导出变量；本次没有制造网关网络故障，客户端进程或系统退出后不能保留该 Shell |
+| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 最新 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
+| 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
 | 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；目标桌面单独授权、单控制者、停止与撤权取消 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测屏幕捕获失败，Selkies 可用，见下文 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过，公开产品镜像拉取与各 OS 系统依赖安装仍未验收 |
@@ -49,7 +49,20 @@
 
 ## 测试情况与可信范围
 
-### 最新收尾：Linux 启动可靠性
+### 最新补验：6396b93 Linux CI 安装包
+
+已下载运行 39110808540 的 Linux 桌面 Artifact 12130851033，归档摘要与 GitHub 元数据一致，实际安装 .deb 并运行同一产物的 AppImage，使用独立 profile 和相同 NodeID。通过真实 KDE 原生窗口与 PID 对应的托盘操作，没有模拟 Tauri IPC。
+
+- 两个安装包的默认两个 MCP 入口、明确启用后的三个入口与 XDG 自启开关通过；启动文件权限 0600，关闭后两处目录均无条目。
+- GUI 退出后按界面实际复制的命令运行，两种包的 devices/messages/runs 均完成 initialize 与 tools/list，分别返回 5/3/2 个工具，退出码均 0；只用隔离测试网关设置，不声称远程命令验收。
+- AppImage 的命令及生成启动项自带 --appimage-extract-and-run；无 /dev/fuse、无手动兼容环境变量时，GIO 实际启动后业务进程只收到 --background，窗口隐藏、托盘存在，单实例和托盘唤回通过，NodeID 不变。
+- .deb 真实创建的 Shell 在浮动窗口关闭、原生窗口收起、托盘重连与重新附着后，PID 761420 和进程启动时间不变；取消退出不结束 Shell，确认退出后 Shell 消失。远程桌面输入转发干扰了命令标记输入，因此本轮不宣称导出变量测试通过，也不替代真实网络故障测试。
+
+证据在 /config/validation-artifacts/linux-installer-6396b93，包括 acceptance.json、产物摘要、两个包的复制配置/自启记录、六组 MCP 原始输出、GIO/PTY/单实例记录、恢复与健康检查，以及 16 份私有截图。测试包、Shell、AppImage 和浏览器均已退出或卸载，剪贴板恢复，日常客户端恢复为 PID 767446、原二进制与原 NodeID；主 Web PID 538744 未变，容器 healthy，3080/3031 未认证 401、认证 200。
+
+这补齐了此前“新源码与旧 AppImage 组合验证”留下的新 Linux 包验收缺口；普通 FUSE、实际系统登录/休眠、网关断网、Windows/macOS 和真实 Tailnet 仍未覆盖。详情与摘要见[最新安装包补验](remote-workspace-validation-2026-10-18.md#6396b93-linux-ci-安装包补验)。
+
+### 此前收尾：Linux 启动可靠性
 
 针对此前真实 AppImage 验收发现的缺陷，抽出可独立测试的启动模块；仅 Linux 替换原自启动插件的路径写入逻辑，Windows/macOS 仍使用原插件。未新增前端交互。AppImage MCP 与自启自动加入 --appimage-extract-and-run；该参数由运行时移除，不传入业务 CLI。普通安装程序不加此参数，后台运行工具仍需用户明确选择。
 
@@ -70,7 +83,7 @@
 
 **最新功能提交 6396b93 的完整 CI 已完成，矩阵运行 39110808540 为 7/7 成功**，已核对完整 headSha 为 6396b93ed53a2f6a820a67fb3af0f0f0d8188859：三平台 Rust 检查、测试与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业均成功。Linux 同时通过真实 GIO 启动器、完整 Web/后端回归、真实 X11 VNC、用户态 EasyTier 重启/入口切换与资源报告。Release 39110808411、Sync to GitCode 39110808393 也均 completed / success；此次 main Release 没有发布产品镜像。
 
-该运行提供十项 Artifacts：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。客户端分别包含 Linux .deb/AppImage、Windows NSIS、macOS .dmg；下载时选择运行 39110808540，不能仅凭相同的 0.1.0 文件名区分版本。最新安装包尚未实际安装；上述原生 IPC 使用本次源码构建，真实 AppImage 运行使用此前 afaa137 包，两个验证范围保持区分。完整 CI 元数据、作业步骤和产物摘要保存在本节证据目录的 ci-final.json。
+该运行提供十项 Artifacts：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。客户端分别包含 Linux .deb/AppImage、Windows NSIS、macOS .dmg；下载时选择运行 39110808540，不能仅凭相同的 0.1.0 文件名区分版本。Linux 新包随后已补做实际验收，见上节；这里的原生 IPC 与旧 afaa137 AppImage 组合验证仍单列。完整 CI 元数据、作业步骤和产物摘要保存在本节证据目录的 ci-final.json。
 
 ### 此前收尾：Selkies 节点桌面接入
 
@@ -195,7 +208,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | 实际空间 | 真实 Docker 创建、停止、归档、恢复、身份/文件保留；页面终端及 Selkies/code-server HTTPS 和 WebSocket | 该专项使用远端主机上的旧镜像叠加；完整 Dockerfile 构建另见下一行 |
 | 完整产品镜像 | 71f2397 的完整 Dockerfile 构建成功；空配置首次启动、默认服务、认证 API、容器重启与数据保留通过 | Linux amd64 / KDE / 国际源；未发布产品镜像，未验证新实例的实际桌面画面与输入 |
 | 实际桌面 | 真实 X11/Xvfb+x11vnc、隔离 Sway+wayvnc，以及本轮 KDE/Selkies 节点中继的画面、完整输入、重连和撤权 | KDE 的 VNC 捕获仍失败；Windows/macOS 原生桌面未验收 |
-| 原生壳 | 6396b93 三平台安装包 CI 成功；afaa137 Linux .deb 实际安装及 PTY 重新附着；AppImage 兼容模式；最新源码复制配置及新启动项与已有 AppImage 的实际协议/启动验证 | 旧配置缺少兼容参数的问题已修复；6396b93 新包、普通 FUSE、实际系统登录/休眠及 Windows/macOS 仍待实测 |
+| 原生壳 | 6396b93 三平台安装包 CI 成功；同提交 Linux .deb/AppImage 实际运行、MCP 与 XDG 自启开关、.deb PTY 保留、AppImage GIO 后台启动和单实例通过 | 无 FUSE 兼容参数已在新包实测；普通 FUSE、实际系统登录/休眠、真实网关故障及 Windows/macOS 仍待实测 |
 
 ### 明确未通过或尚未验证
 
@@ -206,14 +219,14 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 最新 6396b93 的完整 CI 已 7/7 通过，afaa137 的 Linux .deb 原生交互与 PTY 重新附着通过。最新源码已修复 AppImage 生成配置缺少兼容启动参数的问题，真实 GIO 与已有 AppImage 启动通过；6396b93 新安装包、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- 最新 6396b93 的完整 CI 已 7/7 通过，同提交 Linux .deb/AppImage 的原生、MCP 与启动修复补验通过；普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 6396b93 的 7 项 CI 与启动修复专项通过；先验收运行 39110808540 的新安装包，再继续 Windows/macOS、普通 FUSE、实际登录/休眠。此前 Linux .deb 原生交互/PTY 及 AppImage 兼容模式绑定 afaa137；完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
+| P0 | 跨平台安装与产品镜像发布验收 | 6396b93 的 7 项 CI 与同提交 Linux .deb/AppImage 实测通过；继续 Windows/macOS、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
@@ -256,7 +269,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
-- Linux 安装包证据在 /config/validation-artifacts/linux-installer-afaa137，旧包证据在 /config/validation-artifacts/linux-installer-71f2397；最新启动修复在 /config/validation-artifacts/linux-launcher-20261018。测试 .deb 已卸载，原客户端恢复至 /config/validation-client/bin/cranibox-node-desktop，原身份和配置不变。旧包自启插件写入 HOME/.config；最新源码已遵循 XDG_CONFIG_HOME，测试关闭后两处均无启动项。
+- 最新 Linux 安装包证据在 /config/validation-artifacts/linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，原客户端恢复至 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。最新安装包已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
 - 完整镜像验证另留 cranibox-full-validation:71f2397 镜像、已停止的 cranibox-full-firstboot-71f2397 容器与 cranibox-validation-full-build-20261018 构建器缓存。证据在 /config/validation-artifacts/full-image-71f2397；首次启动环境文件含私有凭据，不要输出或提交。停止后的容器可能仍显示 unhealthy，应以 firstboot.json 中停止前健康检查及重启结果判断本次验收。
 - 其余候选设备：Windows/WSL2 192.168.217.226；macOS fliaping@192.168.217.85。macOS 当前拒绝现有 SSH 公钥，Windows 原生登录入口尚未提供；已请求可用账号、端口和密钥文件路径，尚未取得。不得把 WSL2 或 CI 代替原生交互验收，接手时先核对访问与图形登录环境。
