@@ -1,4 +1,5 @@
 //! Target-owned grants and explicitly configured direct routes. Never export secret values.
+use super::identity::{self, Identity, PublicIdentity};
 use crate::{
     client::{Api, ApiOptions},
     config,
@@ -6,6 +7,7 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
@@ -61,11 +63,94 @@ impl Desktop {
         Ok(())
     }
 }
+/// Target-issued capability grant. Only a digest of the bearer secret is stored.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Grant {
-    pub token: String,
+    /// Legacy plaintext secret, accepted only while reading and migrated immediately.
+    #[serde(default, skip_serializing)]
+    token: Option<String>,
+    /// Random per-grant salt (hex). Empty only for grants migrated from plaintext, whose
+    /// digest must stay equal to the credential hash already bound in existing ledgers.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub salt: String,
+    /// SHA-256(salt || secret), hex. Also the stable credential binding for ledgers.
+    #[serde(default)]
+    pub credential: String,
     pub permissions: Permissions,
+    /// Ed25519 signature by the issuing (target) node over this record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+}
+fn credential_digest(salt: &[u8], secret: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(salt);
+    hasher.update(secret.as_bytes());
+    identity::hex(&hasher.finalize())
+}
+impl Grant {
+    /// Issue a new grant for a freshly generated secret.
+    pub fn issue(secret: &str, permissions: Permissions) -> Self {
+        let mut salt = [0u8; 16];
+        rand::RngCore::fill_bytes(&mut rand::rng(), &mut salt);
+        Self {
+            token: None,
+            salt: identity::hex(&salt),
+            credential: credential_digest(&salt, secret),
+            permissions,
+            signature: None,
+        }
+    }
+    /// Constant-time check of a presented bearer secret against the stored digest.
+    pub fn verifies(&self, secret: &str) -> bool {
+        let Ok(salt) = decode_salt(&self.salt) else {
+            return false;
+        };
+        config::matches(&credential_digest(&salt, secret), &self.credential)
+    }
+    /// Whether two views describe the same issued credential (rotation changes it).
+    pub fn same_credential(&self, other: &Grant) -> bool {
+        config::matches(&self.credential, &other.credential)
+    }
+    fn migrate(&mut self) {
+        if let Some(token) = self.token.take() {
+            // Equal to the SHA-256 credential hash existing ledgers already store.
+            self.salt.clear();
+            self.credential = credential_digest(&[], &token);
+            self.signature = None;
+        }
+    }
+    fn signed_bytes(&self, owner: &str, node: &str) -> Vec<u8> {
+        let mut unsigned = self.clone();
+        unsigned.signature = None;
+        let mut message = b"cranibox-grant-v1\0".to_vec();
+        message.extend_from_slice(owner.as_bytes());
+        message.push(0);
+        message.extend_from_slice(node.as_bytes());
+        message.push(0);
+        message.extend_from_slice(&serde_json::to_vec(&unsigned).expect("serialize grant"));
+        message
+    }
+    fn signature_valid(&self, owner: &PublicIdentity, node: &str) -> bool {
+        use ed25519_dalek::Verifier;
+        let Some(signature) = &self.signature else {
+            return false;
+        };
+        let (Ok(key), Ok(bytes)) = (owner.verifying_key(), identity::unhex::<64>(signature)) else {
+            return false;
+        };
+        key.verify(
+            &self.signed_bytes(&owner.node_id, node),
+            &ed25519_dalek::Signature::from_bytes(&bytes),
+        )
+        .is_ok()
+    }
+}
+fn decode_salt(salt: &str) -> Result<Vec<u8>> {
+    if salt.is_empty() {
+        return Ok(vec![]);
+    }
+    Ok(identity::unhex::<16>(salt)?.to_vec())
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -184,7 +269,12 @@ pub struct Config {
     pub grants: BTreeMap<String, Grant>,
     #[serde(default)]
     pub routes: BTreeMap<String, Route>,
+    /// This node's public identity, used to verify the grant signatures below.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<PublicIdentity>,
 }
+/// Version 2: grants store digests and carry signatures by `identity`.
+pub const VERSION: u32 = 2;
 impl Config {
     pub fn new() -> Self {
         Self {
@@ -202,12 +292,32 @@ impl Config {
             copy_root: None,
             grants: BTreeMap::new(),
             routes: BTreeMap::new(),
+            identity: None,
         }
+    }
+    /// A new node derives its NodeID from a freshly generated key.
+    fn create(path: &Path) -> Result<Self> {
+        let identity = Identity::create_new(path)?;
+        let mut value = Self::new();
+        value.node_id = identity.node_id().to_owned();
+        Ok(value)
     }
     pub(super) fn validate(&self) -> Result<()> {
         ensure!(
-            self.version == 1 && valid_node_id(&self.node_id),
+            matches!(self.version, 1 | VERSION) && valid_node_id(&self.node_id),
             "invalid peer identity or version"
+        );
+        if let Some(identity) = &self.identity {
+            identity.verify()?;
+            ensure!(
+                identity.node_id == self.node_id,
+                "peer configuration identity mismatch"
+            );
+        }
+        // After migration every grant must stay signed; stripping a signature is tampering.
+        ensure!(
+            self.version == 1 || self.identity.is_some(),
+            "signed peer configuration requires its identity"
         );
         ensure!(
             self.grants.len() <= 128 && self.routes.len() <= 128,
@@ -220,11 +330,19 @@ impl Config {
                 "invalid grant node"
             );
             ensure!(
-                grant.token.len() == 64
-                    && grant.token.bytes().all(|b| b.is_ascii_hexdigit())
-                    && tokens.insert(&grant.token),
-                "invalid or duplicate peer token"
+                grant.token.is_none()
+                    && grant.credential.len() == 64
+                    && grant.credential.bytes().all(|b| b.is_ascii_hexdigit())
+                    && decode_salt(&grant.salt).is_ok()
+                    && tokens.insert(&grant.credential),
+                "invalid or duplicate peer credential"
             );
+            if let Some(identity) = self.identity.as_ref().filter(|_| self.version >= VERSION) {
+                ensure!(
+                    grant.signature_valid(identity, node),
+                    "peer grant signature is invalid; existing data was preserved"
+                );
+            }
             ensure!(
                 grant.permissions.exec
                     || grant.permissions.terminals
@@ -282,18 +400,54 @@ impl Config {
             file.metadata()?.len() <= 128 * 1024,
             "peer configuration too large"
         );
-        let value: Self = serde_json::from_reader(file).context("invalid peer configuration")?;
+        let mut value: Self =
+            serde_json::from_reader(file).context("invalid peer configuration")?;
+        // Plaintext secrets from version 1 are replaced in memory before any use.
+        for grant in value.grants.values_mut() {
+            grant.migrate();
+        }
         value.validate()?;
         Ok(value)
+    }
+    /// Sign unsigned grants with the node key and record the public identity. Grants
+    /// whose content changed were re-validated by the caller before signing.
+    fn seal(&mut self, path: &Path) -> Result<()> {
+        let identity = Identity::ensure(path, &self.node_id)?;
+        let public = identity.public().clone();
+        if self.identity.as_ref() != Some(&public) {
+            ensure!(
+                self.identity.is_none(),
+                "peer configuration identity changed; existing data was preserved"
+            );
+            self.identity = Some(public.clone());
+        }
+        for (node, grant) in self.grants.iter_mut() {
+            if !grant.signature_valid(&public, node) {
+                grant.signature = None;
+                grant.signature = Some(identity.sign(&grant.signed_bytes(&public.node_id, node)));
+            }
+        }
+        self.version = VERSION;
+        Ok(())
+    }
+    /// Load this node's private identity (creating one for a legacy NodeID).
+    pub fn identity(path: &Path) -> Result<Identity> {
+        let value = Self::read(path)?;
+        Identity::ensure(path, &value.node_id)
     }
     pub fn update(path: &Path, change: impl FnOnce(&mut Self) -> Result<()>) -> Result<Self> {
         let _lock = config::lock_credentials(path)?;
         let mut value = if path.exists() {
             Self::read(path)?
         } else {
-            Self::new()
+            Self::create(path)?
         };
         change(&mut value)?;
+        // Validate the change before signing it, then validate the signed result.
+        let mut unsigned = value.clone();
+        unsigned.version = 1;
+        unsigned.validate()?;
+        value.seal(path)?;
         value.validate()?;
         let bytes = serde_json::to_vec_pretty(&value)?;
         ensure!(bytes.len() <= 128 * 1024, "peer configuration too large");
@@ -302,7 +456,9 @@ impl Config {
     }
     pub fn public_view(&self) -> serde_json::Value {
         serde_json::json!({"node_id":self.node_id, "listener":self.listener, "desktop":self.desktop, "computer":self.computer, "computer_paused":self.computer_paused, "browser":self.browser, "browser_paused":self.browser_paused, "copy_root":self.copy_root,
-            "grants":self.grants.iter().map(|(id, grant)| serde_json::json!({"node":id,"permissions":grant.permissions})).collect::<Vec<_>>(),
+            "identity":self.identity.as_ref().map(|i| serde_json::json!({"fingerprint":i.fingerprint(),"key_derived_id":i.derived(),"public":i})),
+            "grants":self.grants.iter().map(|(id, grant)| serde_json::json!({"node":id,"permissions":grant.permissions,
+                "signed":grant.signature.is_some()})).collect::<Vec<_>>(),
             "routes":self.routes.iter().map(|(id, route)| serde_json::json!({"node":id,"url":route.url,"allow_private_http":route.allow_insecure,
                 "paths":route.endpoints().iter().map(Endpoint::public_view).collect::<Vec<_>>()
             })).collect::<Vec<_>>()})
@@ -369,15 +525,13 @@ mod tests {
         let token = config::token();
         value.grants.insert(
             "caller".into(),
-            Grant {
-                token: token.clone(),
-                permissions: Permissions::default(),
-            },
+            Grant::issue(&token, Permissions::default()),
         );
         assert!(value.validate().is_err());
         value.grants.get_mut("caller").unwrap().permissions.exec = true;
         assert!(value.validate().is_ok());
         assert!(!value.public_view().to_string().contains(&token));
+        assert!(!serde_json::to_string(&value).unwrap().contains(&token));
         value.listener = Some(Listener {
             address: "0.0.0.0:9000".parse().unwrap(),
             allow_insecure: false,
@@ -385,5 +539,84 @@ mod tests {
         assert!(value.validate().is_err());
         value.listener.as_mut().unwrap().allow_insecure = true;
         assert!(value.validate().is_ok());
+    }
+
+    fn legacy_file(root: &Path, token: &str) -> PathBuf {
+        let path = root.join("peers.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({"version":1,"node_id":"node-legacy",
+                "grants":{"caller":{"token":token,"permissions":{"messages":true}}},"routes":{}}))
+            .unwrap(),
+        )
+        .unwrap();
+        path
+    }
+    #[test]
+    fn new_nodes_derive_their_id_from_a_persistent_key() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        let value = Config::update(&path, |_| Ok(())).unwrap();
+        assert!(value.node_id.starts_with(identity::PREFIX));
+        let public = value.identity.clone().unwrap();
+        assert!(public.derived() && public.node_id == value.node_id);
+        assert_eq!(Config::identity(&path).unwrap().public(), &public);
+        assert_eq!(value.version, VERSION);
+    }
+    #[test]
+    fn plaintext_grants_migrate_to_digests_and_keep_ledger_bindings() {
+        let root = tempfile::tempdir().unwrap();
+        let token = config::token();
+        let path = legacy_file(root.path(), &token);
+        let read = Config::read(&path).unwrap();
+        let grant = &read.grants["caller"];
+        // Same value existing task/execution/copy ledgers stored for this credential.
+        assert_eq!(
+            grant.credential,
+            format!("{:x}", Sha256::digest(token.as_bytes()))
+        );
+        assert!(grant.verifies(&token) && !grant.verifies(&config::token()));
+        let saved = Config::update(&path, |_| Ok(())).unwrap();
+        assert_eq!(saved.node_id, "node-legacy", "legacy NodeIDs are kept");
+        assert_eq!(saved.version, VERSION);
+        assert!(saved.grants["caller"].signature.is_some());
+        let bytes = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !bytes.contains(&token),
+            "no plaintext secret remains on disk"
+        );
+        assert!(Config::read(&path).unwrap().grants["caller"].verifies(&token));
+        // New grants are salted.
+        let issued = Grant::issue(&token, Permissions::default());
+        assert_eq!(issued.salt.len(), 32);
+        assert_ne!(issued.credential, grant.credential);
+        assert!(issued.verifies(&token));
+    }
+    #[test]
+    fn signed_grants_reject_tampering_and_signature_stripping() {
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &config::token());
+        Config::update(&path, |_| Ok(())).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        value["grants"]["caller"]["permissions"]["exec"] = true.into();
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(
+            Config::read(&path).is_err(),
+            "escalated permissions must be rejected"
+        );
+        assert!(Config::update(&path, |_| Ok(())).is_err());
+        let mut value: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        value["grants"]["caller"]
+            .as_object_mut()
+            .unwrap()
+            .remove("signature");
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(
+            Config::read(&path).is_err(),
+            "unsigned grants are refused after migration"
+        );
+        std::fs::write(&path, &original).unwrap();
+        assert!(Config::read(&path).is_ok());
     }
 }

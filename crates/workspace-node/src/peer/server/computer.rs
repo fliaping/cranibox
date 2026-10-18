@@ -25,14 +25,12 @@ impl Lease {
             && configuration
                 .grants
                 .get(&self.caller.node)
-                .is_some_and(|g| {
-                    g.permissions.computer && config::matches(&g.token, &self.caller.grant.token)
-                })
+                .is_some_and(|g| g.permissions.computer && g.same_credential(&self.caller.grant))
     }
     fn owned(&self, caller: &Caller, id: Uuid) -> bool {
         self.id == id
             && self.caller.node == caller.node
-            && config::matches(&self.caller.grant.token, &caller.grant.token)
+            && self.caller.grant.same_credential(&caller.grant)
     }
 }
 pub(super) async fn prune(app: &App, configuration: Option<&Config>) {
@@ -63,7 +61,7 @@ fn access(app: &App, caller: &Caller) -> Result<(Config, Provider), Failure> {
     if !configuration
         .grants
         .get(&caller.node)
-        .is_some_and(|g| g.permissions.computer && config::matches(&g.token, &caller.grant.token))
+        .is_some_and(|g| g.permissions.computer && g.same_credential(&caller.grant))
     {
         return Err(failure(
             StatusCode::FORBIDDEN,

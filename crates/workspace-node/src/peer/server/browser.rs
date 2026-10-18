@@ -18,7 +18,7 @@ fn access(app: &App, caller: &Caller) -> Result<Config, Failure> {
     if !c
         .grants
         .get(&caller.node)
-        .is_some_and(|g| g.permissions.browser && config::matches(&g.token, &caller.grant.token))
+        .is_some_and(|g| g.permissions.browser && g.same_credential(&caller.grant))
     {
         return Err(failure(
             StatusCode::FORBIDDEN,

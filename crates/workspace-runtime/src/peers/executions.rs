@@ -4,7 +4,6 @@ use crate::config;
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
@@ -220,10 +219,11 @@ pub struct Requester {
     credential_hash: String,
 }
 impl Requester {
-    pub fn new(node: String, token: &str) -> Self {
+    /// `credential` is the target grant's stored digest, never the bearer secret.
+    pub fn new(node: String, credential: &str) -> Self {
         Self {
             node,
-            credential_hash: format!("{:x}", Sha256::digest(token.as_bytes())),
+            credential_hash: credential.to_owned(),
         }
     }
     fn matches(&self, other: &Self) -> bool {
@@ -266,7 +266,7 @@ impl Record {
                             } else {
                                 grant.permissions.exec
                             }) && requester
-                                .matches(&Requester::new(requester.node.clone(), &grant.token))
+                                .matches(&Requester::new(requester.node.clone(), &grant.credential))
                         })
             })
         };
@@ -679,13 +679,13 @@ mod tests {
         let owner = Store::new(&path, "owner".into());
         let a = owner
             .clone()
-            .for_requester(Requester::new("caller-a".into(), "a"));
+            .for_requester(Requester::new("caller-a".into(), &"a".repeat(64)));
         let b = owner
             .clone()
-            .for_requester(Requester::new("caller-b".into(), "b"));
+            .for_requester(Requester::new("caller-b".into(), &"b".repeat(64)));
         let rotated = owner
             .clone()
-            .for_requester(Requester::new("caller-a".into(), "new"));
+            .for_requester(Requester::new("caller-a".into(), &"c".repeat(64)));
         let local_id = Uuid::new_v4();
         owner
             .apply(Command::Start {
@@ -747,19 +747,21 @@ mod tests {
         let config = Config::update(&path, |configuration| {
             configuration.grants.insert(
                 "caller".into(),
-                super::super::config::Grant {
-                    token: "a".repeat(64),
-                    permissions: super::super::config::Permissions {
+                super::super::config::Grant::issue(
+                    &"a".repeat(64),
+                    super::super::config::Permissions {
                         exec: true,
                         ..Default::default()
                     },
-                },
+                ),
             );
             Ok(())
         })
         .unwrap();
-        let store = Store::new(&path, config.node_id.clone())
-            .for_requester(Requester::new("caller".into(), &"a".repeat(64)));
+        let store = Store::new(&path, config.node_id.clone()).for_requester(Requester::new(
+            "caller".into(),
+            &config.grants["caller"].credential,
+        ));
         let id = Uuid::new_v4();
         store
             .apply(Command::Start {
@@ -771,7 +773,8 @@ mod tests {
         assert!(record.permitted(&path, &config.node_id));
         assert!(!record.permitted(&path, "other-node"));
         Config::update(&path, |configuration| {
-            configuration.grants.get_mut("caller").unwrap().token = "b".repeat(64);
+            let grant = configuration.grants.get_mut("caller").unwrap();
+            *grant = super::super::config::Grant::issue(&"b".repeat(64), grant.permissions.clone());
             Ok(())
         })
         .unwrap();

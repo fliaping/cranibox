@@ -29,8 +29,7 @@ pub(super) async fn open(app: &App, caller: Option<Caller>, direct: bool) -> Res
                     && config.desktop.as_ref() == Some(&desktop)
                     && caller.as_ref().is_none_or(|caller| {
                         config.grants.get(&caller.node).is_some_and(|grant| {
-                            grant.permissions.desktop
-                                && config::matches(&grant.token, &caller.grant.token)
+                            grant.permissions.desktop && grant.same_credential(&caller.grant)
                         })
                     })
             })

@@ -22,7 +22,7 @@ pub(super) async fn list(
         })?;
         if current.node_id != app.node
             || !current.grants.get(&caller.node).is_some_and(|grant| {
-                grant.permissions.messages && config::matches(&grant.token, &caller.grant.token)
+                grant.permissions.messages && grant.same_credential(&caller.grant)
             })
         {
             return Err(failure(

@@ -11,7 +11,7 @@ async fn access(
     tokio::task::spawn_blocking(move || {
         let _lock = config::lock_credentials(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE, "message configuration unavailable"))?;
         let current = Config::read(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE, "message configuration unavailable"))?;
-        if current.node_id != app.node || !current.grants.get(&caller.node).is_some_and(|grant| grant.permissions.messages && config::matches(&grant.token, &caller.grant.token)) {
+        if current.node_id != app.node || !current.grants.get(&caller.node).is_some_and(|grant| grant.permissions.messages && grant.same_credential(&caller.grant)) {
             return Err(failure(StatusCode::FORBIDDEN, "device messages capability not granted"));
         }
         let store = Store::new(&app.path, app.node);

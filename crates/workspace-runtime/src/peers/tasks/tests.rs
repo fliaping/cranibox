@@ -4,17 +4,16 @@ fn setup() -> (tempfile::TempDir, Store, Config, Offer, String) {
     let root = tempfile::tempdir().unwrap();
     let mut configuration = Config::new();
     configuration.node_id = "target".into();
-    let token = config::token();
-    configuration.grants.insert(
-        "sender".into(),
-        Grant {
-            token: token.clone(),
-            permissions: Permissions {
-                messages: true,
-                ..Default::default()
-            },
+    let grant = Grant::issue(
+        &config::token(),
+        Permissions {
+            messages: true,
+            ..Default::default()
         },
     );
+    // Target-side code only ever sees the stored credential digest.
+    let token = grant.credential.clone();
+    configuration.grants.insert("sender".into(), grant);
     let store = Store::new(&root.path().join("peers.json"), "target".into());
     let created_at = now();
     let offer = Offer {
@@ -165,7 +164,8 @@ fn explicit_claim_progress_and_result_are_persistent_and_idempotent() {
         .unwrap();
     assert_eq!(receipt.state, State::Succeeded);
     assert_eq!(receipt.progress.as_deref(), Some("Tests passed"));
-    assert!(!String::from_utf8(saved).unwrap().contains(&token));
+    // The ledger binds the grant's credential digest; plaintext secrets never reach it.
+    assert!(String::from_utf8(saved).unwrap().contains(&token));
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -295,7 +295,8 @@ fn ownership_grants_revocation_and_expired_claims_are_checked() {
         .unwrap()
         .permissions
         .messages = true;
-    configuration.grants.get_mut("sender").unwrap().token = config::token();
+    let grant = configuration.grants.get_mut("sender").unwrap();
+    *grant = Grant::issue(&config::token(), grant.permissions.clone());
     assert!(
         store
             .apply(&configuration, claim(&offer, Uuid::new_v4()))

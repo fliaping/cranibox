@@ -21,7 +21,7 @@ pub(super) async fn list(
         })?;
         if current.node_id != app.node
             || !current.grants.get(&caller.node).is_some_and(|grant| {
-                grant.permissions.spaces && config::matches(&grant.token, &caller.grant.token)
+                grant.permissions.spaces && grant.same_credential(&caller.grant)
             })
         {
             return Err(failure(

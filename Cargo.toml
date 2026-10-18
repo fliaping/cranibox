@@ -6,3 +6,11 @@ resolver = "2"
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# Keep signature and Noise primitives fast in debug and test builds.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.ed25519-dalek]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

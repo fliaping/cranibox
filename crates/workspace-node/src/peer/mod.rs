@@ -545,22 +545,20 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 );
                 ensure!(value.grants.len() < 128, "peer limit reached");
                 secrets::write_private(&token_file, format!("{token}\n").as_bytes(), false)?;
-                value.grants.insert(
-                    node,
-                    Grant {
-                        token,
-                        permissions: Permissions {
-                            exec,
-                            terminals,
-                            projects,
-                            desktop,
-                            computer,
-                            browser,
-                            messages,
-                            spaces,
-                        },
+                let grant = Grant::issue(
+                    &token,
+                    Permissions {
+                        exec,
+                        terminals,
+                        projects,
+                        desktop,
+                        computer,
+                        browser,
+                        messages,
+                        spaces,
                     },
                 );
+                value.grants.insert(node, grant);
                 Ok(())
             })?;
             client::print(value.public_view());

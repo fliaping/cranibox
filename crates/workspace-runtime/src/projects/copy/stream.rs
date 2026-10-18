@@ -100,7 +100,7 @@ fn save<T: Serialize>(path: &Path, value: &T) -> Result<()> {
 }
 fn owner(caller: &str, token: &str, expected: &str, credential: &str) -> Result<()> {
     ensure!(
-        caller == expected && config::matches(credential, &digest(token.as_bytes())),
+        caller == expected && config::matches(credential, token),
         "transfer record unavailable"
     );
     Ok(())
@@ -362,7 +362,7 @@ fn export(
             &Export {
                 id,
                 caller: caller.into(),
-                credential: digest(token.as_bytes()),
+                credential: token.to_owned(),
                 manifest,
             },
         )?;
@@ -570,7 +570,7 @@ fn receive_command(
             receipt: Receipt {
                 id,
                 caller: caller.into(),
-                credential: digest(token.as_bytes()),
+                credential: token.to_owned(),
                 digest: expected,
                 project_id: manifest.project_id.clone(),
                 name: manifest.name.clone(),
