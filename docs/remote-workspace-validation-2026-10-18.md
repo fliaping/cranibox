@@ -354,3 +354,23 @@ Web 与 Tauri 共用项目页新增默认折叠、默认关闭的后台目录同
 主容器保持 running / healthy，镜像与当前开发容器相同，没有 privileged 或宿主 Docker socket；Web 3080 和 KDE/Selkies 3031 均为匿名 401、认证 200。两个验证空间和管理容器保持停止。KDE Wayland 的 VNC 捕获此前未通过，当前 Selkies 可用；Windows/macOS、真实 Tailnet、多台物理设备、全新 Docker 镜像和真实模型调用的未验收状态不变。
 
 远端 /config/validation-artifacts 下，project-sync-deployment.json 记录部署与备份，project-sync-deployed-browser.json 记录实际页面，project-sync-final-checks.json 记录入口和程序复核，project-sync-source-manifest.json 记录本地与远端源码摘要核对。实页截图使用 project-sync- 前缀。完整需求、功能状态、失败边界与下一阶段顺序见[交接记录](implementation-handoff-2026-10-18.md)。
+
+## 提交后的 CI 复核
+
+首次功能提交 3882dc2 对应 GitHub Actions 矩阵运行 39094741447。真实 Wayland 作业通过，使用隔离 Sway 和 wayvnc 验证认证、画面、输入及独立节点恢复；这不改变 KDE Wayland VNC 捕获尚未通过的结论。Linux 的 Rust 检查、单元测试、Web 资源复现和浏览器步骤通过，记录时后端集成步骤仍在执行，不能将整条作业提前记为通过。
+
+其余平台暴露三个问题，修复提交 6aa57d4 已推送 main：
+
+- 三个平台的 Tauri 前端生产构建均无法解析共享 VNC 组件导入的 @novnc/novnc。客户端自身已有该依赖，问题在 Vite 从共享源码位置解析；客户端 dedupe 列表补入 noVNC，不要求安装整个 Web UI 的依赖。
+- Windows 的 workspace 严格 Clippy 在两处 DirBuilder 报 unused_mut，因其可变方法只存在于 Unix 条件分支。改用可变引用绑定，保留 Unix 0700 和 Windows 原有语义。
+- macOS 的两项项目复制测试报 copy root changed。临时路径存在 /var 与 /private/var 别名，测试现使用 root() 解析后的根路径；生产代码的规范路径与根目录变化保护保持有效。
+
+修复验证仍只在 admin@192.168.217.6:22022 的 cranibox-validation 容器执行：
+
+- 干净客户端目录为 /config/validation-build/clean-node-ui-20261018，仅复制客户端构建所需源码、共享源码和许可证，没有 Web UI node_modules。先用原 Vite 配置复现同一错误，再用修复后的配置完成 npm ci 和 npm run build --prefix apps/node-desktop；TypeScript 与生产资源生成成功。
+- cargo fmt --all --check、cargo clippy --workspace --locked --all-targets -- -D warnings 通过。
+- cargo test --locked -p agent-workspace-runtime projects::copy 的 9 项单元测试通过，覆盖复制回执、撤权、路径及链接保护、分块恢复等；修复前后重复运行只计同一组测试。
+
+远端 /config/validation-artifacts/clean-node-ui-before.log、clean-node-ui-after.log 和 clean-node-ui-build.json 保留干净构建复现及修复证据，JSON 确认无 Web 依赖目录且生成生产 index。ci-fixes-source-manifest.json 记录三个修复源码的本地与远端摘要核对。
+
+修复后的三平台矩阵运行为 **39095261447**。整理时三个系统的客户端前端构建、Windows 全工作区严格 Clippy、macOS Rust 单元测试及真实 Sway/wayvnc 作业已通过，已越过原失败步骤；整个矩阵仍在执行，需后续按该运行核对 Rust、Linux 浏览器、服务集成及三平台安装包的最终状态。Sync to GitCode、Release 两条工作流已通过；后者没有完成完整 Dockerfile 镜像构建，不能将其绿色状态写作新镜像验收。此次修改解决构建解析、静态检查和测试数据，没有更换已经部署的二进制；此前部署验证和未验收项继续有效。
