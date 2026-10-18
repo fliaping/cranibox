@@ -951,7 +951,7 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 | apps/node-desktop/tests/client.spec.ts | 0808af12c2bf3c2af40dda3a252fedf8c052feab3612e30128fb6a2561e46a18 |
 | addons/control-center/web.js | 3cc56ca5175c30c4b742384297441ed3fb2537ec69e5c4bdcb720810a50246c9 |
 
-最终客户端全部界面 48/48 通过（91.146 秒），Web 桌面 12/12 通过（99.289 秒），合计 60 项不同测试。客户端使用模拟 IPC；Web 使用重新生成并嵌入 cranibox 的静态资源、真实 Rust 服务与受控 RFB/JPEG 提供者。两端 TypeScript/Vite、Web 静态生成、cranibox 与 desktop,custom-protocol debug 构建均通过。首次 Web 配置未找到构建产物，以及旧嵌入资源的通过结果均不作最终验证；重跑、专项和历史测试不重复累计。未重跑 fa1d401 的 204 项后端测试或此前完整 Web 126 项。
+最终远端客户端全部界面 48/48 通过（91.146 秒），Web 桌面 12/12 通过（99.289 秒），合计 60 项不同测试。客户端使用模拟 IPC；Web 使用重新生成并嵌入 cranibox 的静态资源、真实 Rust 服务与受控 RFB/JPEG 提供者。两端 TypeScript/Vite、Web 静态生成、cranibox 与 desktop,custom-protocol debug 构建均通过。首次 Web 配置未找到构建产物，以及旧嵌入资源的通过结果均不作最终验证；重跑、专项和历史测试不重复累计。该远端专项未重跑 fa1d401 的 204 项后端测试或完整 Web 126 项；随后的 CI 另执行完整矩阵，结果见下段。
 
 实际新 debug GUI 使用原 KDE 桌面、隔离 XDG、私有 D-Bus、AT-SPI 操作和真实 Tauri IPC，直接连接 Selkies 8082。第一次响应使等待结束；另置 47 字节新标记后，接收栏仍为旧 48 字节，10 秒超时提示可见，获取按钮恢复，桌面仍显示连接。**等待失败反馈实际通过，原生反向文字更新仍未通过**。首次读取 AT-SPI 失效节点以及仅检查 accessible name 漏掉段落文字属于验证工具问题，后续按实际 Text 接口核对；未据其修改产品或宣称根因。
 
@@ -960,3 +960,7 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 本次证据根目录 /config/validation-artifacts/clipboard-feedback-20261019：native-ui、web-desktops、native-build、web-assets、web-build 的 json/log 记录最终结果；first-pass、pre-asset-refresh 是先前代码或旧资源基线；native-kde 的 gui.json、feedback-last.json、received-last.json、cleanup.json 记录实际等待反馈、未更新及逐字节恢复原剪贴板。截图、环境、真实文字与凭据不提交 Git。需求表、未完成项、优先级、复现入口及跨平台验收条件集中在交接文档，下一位模型先处理 P0。
 
 全部测试及 GUI 停止后重新检查日常健康：容器 running/healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401/认证 200；Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 保持，测试包仍未安装，未发现预览或 MCP 测试进程。final-health.json 保存该结果，acceptance.json 的总体状态为 completed_with_documented_failure_and_limits。此前在测试仍运行时执行的残留扫描被预期的预览进程阻断，不是日常服务故障；最终健康检查在清理完成后通过。
+
+代码提交 2312b640d5a754d29e2d0269b1d3c2a6a0f74753 的矩阵 39151770009 最终 completed / success、7/7 成功，GitHub 更新时间 2026-10-18 18:18:49 UTC。三平台服务端/独立节点构建、三平台 Tauri 打包和原生 ACK 回归、Linux 完整 Web 126/126 与客户端界面 48/48 均通过；真实 Sway/wayvnc 为 1 项、4.291 秒，独立真实 Chromium/MCP 为 1 项、4.181 秒，真实 X11 VNC 为 1 项、3.558 秒，真实 EasyTier 步骤亦成功。不同环境的重跑不与前述 60 项累计。Release 39151770010、GitCode 39151769875 同为 completed / success，三份记录逐一核对完整 headSha；10 份未过期 Artifacts 已核对名称，包括三平台安装包。CI 成功不覆盖原生 KDE 剪贴板失败、Windows/macOS 实机、Tailnet 或产品镜像的验收缺口。
+
+最终 CI 元数据、作业步骤、产物清单及日志摘要在本节证据根目录的 ci-final.json；ci-native-ubuntu.log、ci-desktop-ubuntu.log、ci-wayland.log 保留对应完整日志。交接入口补充了 Web 静态资源生成与 Rust 嵌入构建命令，避免后续只运行 npm build 而验证到旧资源。此次只补充交接和 CI 证据，没有再次部署或启动产品进程。

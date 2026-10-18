@@ -2,7 +2,7 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口，区分现有实现、已验证范围和未完成需求。先看需求表与“下一阶段优先级”，再按源码入口和复现说明接手；后续各次验证记录保留提交版本，不用旧绿色结果覆盖新代码。
 
-本次收尾补齐 Web/Tauri 共用剪贴板的读取中状态、10 秒未响应提示和重试；相同内容、空文字、迟到响应、无效内容及关闭面板均有相应处理。它改善失败反馈，**不代表原生 KDE 同屏反向剪贴板已修复**。此前 fa1d401 保留 Rust 传输错误并加入原生 ACK/关闭/队列回归，其 CI 最终 7/7 成功；该结果只绑定 fa1d401。各版本的测试、真实桌面对照和限制见下文及[专项记录](remote-workspace-validation-2026-10-18.md)。操作说明见[跨设备桌面](remote-desktops.md#文字剪贴板)。
+本次收尾补齐 Web/Tauri 共用剪贴板的读取中状态、10 秒未响应提示和重试；相同内容、空文字、迟到响应、无效内容及关闭面板均有相应处理。它改善失败反馈，**不代表原生 KDE 同屏反向剪贴板已修复**。本次代码 2312b64 的 CI 矩阵最终 7/7 成功，三平台安装包已上传；此前 fa1d401 的 Rust ACK/关闭/队列回归也在本次矩阵中通过。各版本的测试、真实桌面对照和限制见下文及[专项记录](remote-workspace-validation-2026-10-18.md)。操作说明见[跨设备桌面](remote-desktops.md#文字剪贴板)。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。a8a97f5 的 Linux .deb/AppImage 已实际运行，真实 Computer Use、Chromium/MCP 和原生 Selkies 查看器补验通过；原生剪贴板发送通过，但反向获取未更新，作为未解决问题交接。完整托盘/自启流程仍绑定旧版 6396b93，Windows/macOS 桌面与安装仍待实机验收。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -62,9 +62,11 @@
 | 真实 KDE 原生界面 | 等待失败反馈通过，文字更新仍未通过 | 实际 Tauri IPC、AT-SPI 操作、直连日常 Selkies：新标记为 47 字节，接收栏仍为上次 48 字节；10 秒提示已显示、获取按钮恢复、桌面仍显示连接 |
 | 清理与日常健康 | 通过 | 原剪贴板逐字节恢复、测试 GUI 与辅助进程停止；容器 running/healthy、非 privileged、无 Docker socket；3080/3031 匿名 401/认证 200；日常 Web/客户端 PID、摘要和 NodeID 保持 |
 
-本轮共 60 项不同界面测试通过（48 + 12）。真实 KDE 检查说明用户现在能看见失败并重试，**不说明剪贴板根因已修复**，也不替代安装包或正常图形登录验收。本轮未修改 Rust 后端，没有重跑下节 fa1d401 的 204 项测试，也未重跑此前完整 Web 126 项；不同版本与范围不相加。新的验证和清理证据根目录为 /config/validation-artifacts/clipboard-feedback-20261019，包含各项日志、源码摘要及 native-kde。文档后的旧结果保留其原提交绑定。
+本轮远端专项共 60 项不同界面测试通过（48 + 12）。真实 KDE 检查说明用户现在能看见失败并重试，**不说明剪贴板根因已修复**，也不替代安装包或正常图形登录验收。本轮未修改 Rust 后端，远端专项没有重跑下节 fa1d401 的 204 项测试或完整 Web 126 项；随后 CI 执行的范围另列下段，不与专项或历史结果相加。新的验证和清理证据根目录为 /config/validation-artifacts/clipboard-feedback-20261019，包含各项日志、源码摘要及 native-kde。文档后的旧结果保留其原提交绑定。
 
-本次代码已提交为 **2312b640d5a754d29e2d0269b1d3c2a6a0f74753** 并推送 origin/main。对应矩阵 **39151770009**、Release **39151770010**、GitCode **39151769875** 已触发并核对完整 headSha；推送后初次查询分别为 queued、in_progress、in_progress，尚无最终结论。接手时用 gh run view 39151770009 --json headSha,status,conclusion,jobs 复核，不沿用 fa1d401 的绿色 CI；后续仅更新本文的提交不会重新运行路径过滤矩阵。
+本次代码已提交为 **2312b640d5a754d29e2d0269b1d3c2a6a0f74753** 并推送 origin/main。对应矩阵 **39151770009 最终 completed / success，7/7 作业成功**，GitHub 记录的更新时间为 **2026-10-18 18:18:49 UTC**；Release **39151770010**、GitCode **39151769875** 同为 completed / success，逐一核对完整 headSha。三平台服务端、独立节点和 Tauri 安装包均通过；三个 Tauri 作业的原生传输与 ACK 测试步骤均成功。Linux CI 完整 Web **126/126**、客户端界面 **48/48** 通过，真实 Sway/wayvnc 用例 **1 项通过、4.291 秒**；独立真实 Chromium/MCP、X11 VNC 和 EasyTier 验证步骤也均通过。它们不替代原生 KDE 同屏失败、Windows/macOS 实机或 Tailnet 验收。
+
+矩阵生成 **10 份 Artifacts**：三平台各一份 cranibox、cranibox-node、cranibox-node-desktop，加 resource-baseline-linux。最终元数据、完整作业步骤、产物清单及三份 Linux/Wayland 日志存入上述私有证据目录的 ci-final.json、ci-native-ubuntu.log、ci-desktop-ubuntu.log、ci-wayland.log。Release 工作流成功不等于完整产品 Docker 镜像已发布。接手时可用 gh run view 39151770009 --json headSha,status,conclusion,jobs 复核；后续仅更新交接文档的提交不重新运行路径过滤矩阵。
 
 另尝试为上游排查启动隔离 Selkies：虽能返回剪贴板和 JPEG，但实际查看器为黑屏，无法确认它捕获原 KDE 桌面，因此该对照无结论，不能据此宣称停滞消失或定位根因。测试服务和 GUI 已停止，原剪贴板恢复；诊断数据位于 native-clipboard-debug-20261019 的 isolated-server、selfview-isolated。后续优先使用真实正常桌面与另一物理设备对照，避免继续用无效画面替代验收。
 
@@ -515,8 +517,17 @@ python3 -m unittest test_desktop_real_selkies -v
 
 此前 Browser Use 专项仍可用 python3 -m unittest test_browser_use -v；真实 Chromium 另设 CRANIBOX_TEST_REAL_BROWSER=1 和 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，运行 test_browser_real_chromium。它不访问日常浏览器 profile 或 9222。
 
-完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最近完整 Web 为 126 项，本次客户端为 48 项；两轮分别见各自验证表，不混为本次全量重跑。剪贴板与错误原因专项位于 Web 的 desktops.spec.ts 与客户端 client.spec.ts。此前 Browser Use 保留 browser-use.spec.ts，Computer Use 保留 computer-use.spec.ts；真实 KDE 测试的显式启用、剪贴板恢复和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
+完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。本次 CI 完整 Web 为 126 项、客户端为 48 项；远端另跑客户端 48 项及 Web 桌面专项 12 项，重叠部分不重复累计。剪贴板与错误原因专项位于 Web 的 desktops.spec.ts 与客户端 client.spec.ts。此前 Browser Use 保留 browser-use.spec.ts，Computer Use 保留 computer-use.spec.ts；真实 KDE 测试的显式启用、剪贴板恢复和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
-先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
+先在远端仓库根目录生成两端资源，再构建嵌入静态资源的 Rust Web 与原生程序：
+
+~~~sh
+node scripts/build-control-center-ui.cjs
+npm run build --prefix apps/node-desktop
+cargo build --locked -p cranibox
+cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
+~~~
+
+Web 的 npm run build --prefix addons/control-center/ui 只生成 ui/dist；上面的脚本还会把附有许可证声明的 web.js，以及 web.css 和两份 HTML 写入 addons/control-center，Rust 服务嵌入的是这些文件。修改 Web 或共用 React 组件后必须运行该脚本并重新构建 cranibox，否则可能验证到旧页面。本轮最终 Web 12 项已使用重新生成的资源。直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
 后续模型应先阅读本文最新等待反馈、fa1d401 传输收尾、原生排查、Linux 包补验、对应代码提交的 CI 与本表 P0，从反向剪贴板更新停滞开始；先区分诊断代理引入的断线与真实产品连接，再定位。剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
