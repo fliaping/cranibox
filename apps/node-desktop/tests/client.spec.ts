@@ -1283,6 +1283,7 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
       output(bytes.subarray(0, 3)); output(bytes.subarray(3));
     }
     function text(value: string) { frame(0, new TextEncoder().encode(value)); }
+    (window as any).replyClipboard = (value?: string) => text(value ?? 'clipboard,' + clipboard);
     function picture() {
       const image = Uint8Array.from(atob(images[typed ? 1 : 0]), char => char.charCodeAt(0));
       const bytes = new Uint8Array(6 + image.length); bytes.set([3, 0, 0, typed ? 2 : 1, 0, 0]); bytes.set(image, 6); frame(1, bytes);
@@ -1317,7 +1318,7 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
           if (value.startsWith('SETTINGS,')) { text(JSON.stringify({ type: 'stream_resolution', width: 160, height: 100 })); picture(); }
           if (value === 'kd,97' && !typed) { typed = true; picture(); }
           if (value.startsWith('cw,')) { clipboard = value.slice(3); text('clipboard,' + clipboard); }
-          if (value === 'cr') text('clipboard,' + clipboard);
+          if (value === 'cr' && !(window as any).holdClipboardFetch) text('clipboard,' + clipboard);
         }
         return;
       }
@@ -1349,6 +1350,43 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
   await section.getByRole('button', { name: '允许输入', exact: true }).click();
   await expect(panel.getByRole('button', { name: '发送文字', exact: true })).toBeDisabled();
   await panel.getByRole('button', { name: '获取远端文字', exact: true }).click();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  await expect(panel.getByRole('status')).toHaveText('已收到远端文字。确认内容后可复制到本机。');
+  await page.clock.install({ time: new Date('2026-10-19T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-19T12:00:01Z'));
+  await page.evaluate(() => { (window as any).holdClipboardFetch = true; });
+  const fetch = panel.getByRole('button', { name: '获取远端文字', exact: true });
+  await fetch.click();
+  const pending = panel.getByRole('button', { name: '正在获取…', exact: true });
+  await expect(pending).toBeDisabled(); await expect(pending).toHaveAttribute('aria-busy', 'true');
+  await page.clock.fastForward(9999); await expect(pending).toBeDisabled();
+  await page.clock.fastForward(1);
+  await expect(panel.getByRole('alert')).toContainText('10 秒内未收到远端文字');
+  await expect(fetch).toBeEnabled();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
+  // A late response with identical text must clear the timeout too.
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(panel.getByRole('alert')).toHaveCount(0); await expect(fetch).toBeEnabled();
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(fetch).toBeEnabled();
+  await page.clock.fastForward(10_001); await expect(panel.getByRole('alert')).toHaveCount(0);
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await page.evaluate(() => (window as any).replyClipboard('clipboard,%%%%'));
+  await expect(fetch).toBeEnabled(); await expect(panel.getByRole('alert')).toContainText('已忽略');
+  await page.clock.fastForward(10_001); await expect(panel.getByRole('alert')).not.toContainText('10 秒');
+  await fetch.click();
+  await page.clock.fastForward(10_000); await expect(panel.getByRole('alert')).toContainText('10 秒内未收到远端文字');
+  await page.evaluate(() => (window as any).replyClipboard('clipboard,'));
+  await expect(fetch).toBeEnabled(); await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue('');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await section.getByRole('button', { name: '剪贴板', exact: true }).click();
+  await page.clock.fastForward(10_001);
+  await section.getByRole('button', { name: '剪贴板', exact: true }).click();
+  await expect(fetch).toBeEnabled(); await expect(panel.getByRole('alert')).toHaveCount(0);
+  await page.evaluate(() => (window as any).replyClipboard());
   await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
   await page.evaluate(() => {
     navigator.clipboard.writeText = () => new Promise((_resolve, reject) => { (window as any).rejectClipboardCopy = reject; });

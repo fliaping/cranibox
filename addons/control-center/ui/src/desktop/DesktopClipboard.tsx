@@ -7,13 +7,34 @@ export interface ClipboardViewer {
   clipboardPasteFrom(text: string): void;
   requestClipboard?(): void;
 }
-export function DesktopClipboard({ viewer, received, receiveError, viewOnly, language }: { viewer: ClipboardViewer | null; received: string | null; receiveError: string; viewOnly: boolean; language: string }) {
+export function DesktopClipboard({ viewer, received, receiveError, receiveVersion, viewOnly, language }: { viewer: ClipboardViewer | null; received: string | null; receiveError: string; receiveVersion: number; viewOnly: boolean; language: string }) {
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
   const id = useId(), output = useRef<HTMLTextAreaElement>(null);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const mounted = useRef(true), fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null), fetchTimedOut = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (fetchTimer.current !== null) clearTimeout(fetchTimer.current); }; }, []);
   const [draft, setDraft] = useState(''), [notice, setNotice] = useState(''), [error, setError] = useState('');
+  const [fetchPending, setFetchPending] = useState(false);
+  useEffect(() => {
+    if (fetchTimer.current === null && !fetchTimedOut.current) return;
+    if (fetchTimer.current !== null) clearTimeout(fetchTimer.current);
+    fetchTimer.current = null; fetchTimedOut.current = false; setFetchPending(false);
+    setNotice(receiveError ? '' : t('已收到远端文字。确认内容后可复制到本机。', 'Remote text received. Review it before copying to this device.'));
+    setError('');
+  }, [received, receiveError, receiveVersion, viewer]);
   const bytes = new TextEncoder().encode(draft).length, oversized = bytes > MAX_CLIPBOARD_BYTES;
+  function fetchRemote() {
+    if (!viewer?.requestClipboard || fetchTimer.current !== null) return;
+    fetchTimedOut.current = false; setFetchPending(true); setError(''); setNotice(t('正在获取远端文字…', 'Fetching remote text…'));
+    fetchTimer.current = setTimeout(() => {
+      fetchTimer.current = null; fetchTimedOut.current = true; setFetchPending(false); setNotice('');
+      setError(t('10 秒内未收到远端文字。剪贴板可能为空或已禁用；请重新获取，或重新连接桌面。', 'No remote text arrived within 10 seconds. The clipboard may be empty or disabled. Try fetching again, or reconnect the desktop.'));
+    }, 10_000);
+    try { viewer.requestClipboard(); }
+    catch (error) {
+      clearTimeout(fetchTimer.current); fetchTimer.current = null; setFetchPending(false); setNotice('');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
   function send(event: FormEvent) {
     event.preventDefault(); if (!viewer || viewOnly || viewer.viewOnly || !draft) return;
     try {
@@ -56,11 +77,11 @@ export function DesktopClipboard({ viewer, received, receiveError, viewOnly, lan
         <p className="direct-note">{t('确认内容后再复制到本机。图片和文件不会导入。', 'Review the text before copying to this device. Images and files are not imported.')}</p>
         <div className="direct-actions">
           <button disabled={received === null} onClick={() => void copy()}><Copy size={16} aria-hidden="true" />{t('复制到本机', 'Copy to this device')}</button>
-          {viewer?.requestClipboard && <button onClick={() => { viewer.requestClipboard?.(); setError(''); setNotice(t('已请求远端文字。若未更新，请检查远端剪贴板是否为空或被禁用。', 'Remote text requested. If it does not update, the remote clipboard may be empty or disabled.')); }}><RefreshCw size={16} aria-hidden="true" />{t('获取远端文字', 'Fetch remote text')}</button>}
+          {viewer?.requestClipboard && <button disabled={fetchPending} aria-busy={fetchPending} onClick={fetchRemote}><RefreshCw size={16} aria-hidden="true" />{fetchPending ? t('正在获取…', 'Fetching…') : t('获取远端文字', 'Fetch remote text')}</button>}
         </div>
       </div>
     </div>
-    {(receiveError || error) && <p className="direct-error" role="alert">{receiveError ? t('远端剪贴板不是有效的 64 KiB 以内纯文本，已忽略；桌面连接不受影响。', 'Remote clipboard content is invalid, unsupported or exceeds 64 KiB. It was ignored; the desktop connection is unaffected.') : error}</p>}
+    {(error || receiveError) && <p className="direct-error" role="alert">{error || t('远端剪贴板不是有效的 64 KiB 以内纯文本，已忽略；桌面连接不受影响。', 'Remote clipboard content is invalid, unsupported or exceeds 64 KiB. It was ignored; the desktop connection is unaffected.')}</p>}
     {notice && <p className="direct-notice" role="status">{notice}</p>}
   </div>;
 }

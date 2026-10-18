@@ -26,7 +26,7 @@ Cranibox is a braincase for your AI agents that you host yourself: one container
 
 Under the hood it is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
 
-See the [implementation, test evidence and handoff record (2026-10-18, Chinese)](docs/implementation-handoff-2026-10-18.md) for current capabilities and unfinished work.
+See the [implementation, test evidence and handoff record (updated 2026-10-19, Chinese)](docs/implementation-handoff-2026-10-18.md) for current capabilities and unfinished work.
 
 ## Screenshots
 

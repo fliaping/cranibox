@@ -21273,146 +21273,167 @@ var Yf = 16777216, Xf = class extends EventTarget {
 };
 //#endregion
 //#region src/desktop/DesktopClipboard.tsx
-function Zf({ viewer: e, received: t, receiveError: n, viewOnly: r, language: i }) {
-	let a = (e, t) => i.startsWith("zh") ? e : t, o = (0, x.useId)(), s = (0, x.useRef)(null), c = (0, x.useRef)(!0);
-	(0, x.useEffect)(() => (c.current = !0, () => {
-		c.current = !1;
+function Zf({ viewer: e, received: t, receiveError: n, receiveVersion: r, viewOnly: i, language: a }) {
+	let o = (e, t) => a.startsWith("zh") ? e : t, s = (0, x.useId)(), c = (0, x.useRef)(null), l = (0, x.useRef)(!0), u = (0, x.useRef)(null), d = (0, x.useRef)(!1);
+	(0, x.useEffect)(() => (l.current = !0, () => {
+		l.current = !1, u.current !== null && clearTimeout(u.current);
 	}), []);
-	let [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), h = new TextEncoder().encode(l).length, g = h > Wf;
-	function _(t) {
-		if (t.preventDefault(), e && !r && !e.viewOnly && l) try {
-			Kf(l), e.clipboardPasteFrom(l), m(""), f(a("文字已发送。请在远端应用中粘贴；服务端需启用剪贴板。", "Text sent. Paste in the remote application; the server must allow clipboard access."));
-		} catch (e) {
-			f(""), m(e instanceof Error ? e.message : String(e));
+	let [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(!1);
+	(0, x.useEffect)(() => {
+		(u.current !== null || d.current) && (u.current !== null && clearTimeout(u.current), u.current = null, d.current = !1, y(!1), h(n ? "" : o("已收到远端文字。确认内容后可复制到本机。", "Remote text received. Review it before copying to this device.")), _(""));
+	}, [
+		t,
+		n,
+		r,
+		e
+	]);
+	let b = new TextEncoder().encode(f).length, S = b > Wf;
+	function C() {
+		if (e?.requestClipboard && u.current === null) {
+			d.current = !1, y(!0), _(""), h(o("正在获取远端文字…", "Fetching remote text…")), u.current = setTimeout(() => {
+				u.current = null, d.current = !0, y(!1), h(""), _(o("10 秒内未收到远端文字。剪贴板可能为空或已禁用；请重新获取，或重新连接桌面。", "No remote text arrived within 10 seconds. The clipboard may be empty or disabled. Try fetching again, or reconnect the desktop."));
+			}, 1e4);
+			try {
+				e.requestClipboard();
+			} catch (e) {
+				clearTimeout(u.current), u.current = null, y(!1), h(""), _(e instanceof Error ? e.message : String(e));
+			}
 		}
 	}
-	async function v() {
+	function w(t) {
+		if (t.preventDefault(), e && !i && !e.viewOnly && f) try {
+			Kf(f), e.clipboardPasteFrom(f), _(""), h(o("文字已发送。请在远端应用中粘贴；服务端需启用剪贴板。", "Text sent. Paste in the remote application; the server must allow clipboard access."));
+		} catch (e) {
+			h(""), _(e instanceof Error ? e.message : String(e));
+		}
+	}
+	async function T() {
 		if (t !== null) {
-			m(""), f("");
+			_(""), h("");
 			try {
 				if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(t);
 				else throw Error("Clipboard API unavailable");
-				if (!c.current) return;
-				f(a("已复制到本机剪贴板。", "Copied to this device’s clipboard."));
+				if (!l.current) return;
+				h(o("已复制到本机剪贴板。", "Copied to this device’s clipboard."));
 			} catch {
-				if (!c.current || !s.current) return;
-				s.current.focus(), s.current.select();
+				if (!l.current || !c.current) return;
+				c.current.focus(), c.current.select();
 				let e = !1;
 				try {
 					e = document.execCommand("copy");
 				} catch {}
-				e ? f(a("已复制到本机剪贴板。", "Copied to this device’s clipboard.")) : m(a("浏览器不允许自动复制。文字已选中，请使用系统复制操作。", "Copy was blocked. The text is selected; use your system’s copy action."));
+				e ? h(o("已复制到本机剪贴板。", "Copied to this device’s clipboard.")) : _(o("浏览器不允许自动复制。文字已选中，请使用系统复制操作。", "Copy was blocked. The text is selected; use your system’s copy action."));
 			}
 		}
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "desktop-clipboard",
 		role: "region",
-		"aria-label": a("桌面文字剪贴板", "Desktop text clipboard"),
+		"aria-label": o("桌面文字剪贴板", "Desktop text clipboard"),
 		children: [
 			/* @__PURE__ */ (0, B.jsx)("p", {
 				className: "direct-note",
-				children: a("仅传递纯文本，每次最多 64 KiB。不自动读写本机剪贴板，断开连接后清除暂存文字。", "Plain text, up to 64 KiB per transfer. This viewer never reads or automatically overwrites your clipboard. Buffered text is cleared on disconnect.")
+				children: o("仅传递纯文本，每次最多 64 KiB。不自动读写本机剪贴板，断开连接后清除暂存文字。", "Plain text, up to 64 KiB per transfer. This viewer never reads or automatically overwrites your clipboard. Buffered text is cleared on disconnect.")
 			}),
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "desktop-clipboard-columns",
 				children: [/* @__PURE__ */ (0, B.jsxs)("form", {
-					onSubmit: _,
+					onSubmit: w,
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("label", {
-							htmlFor: o + "-send",
-							children: a("发送到远端", "Send to remote")
+							htmlFor: s + "-send",
+							children: o("发送到远端", "Send to remote")
 						}),
 						/* @__PURE__ */ (0, B.jsx)("textarea", {
-							id: o + "-send",
+							id: s + "-send",
 							rows: 4,
 							autoFocus: !0,
 							autoComplete: "off",
 							autoCapitalize: "off",
 							spellCheck: !1,
 							maxLength: Wf + 1,
-							value: l,
+							value: f,
 							onChange: (e) => {
-								u(e.target.value), f(""), m("");
+								p(e.target.value), h(""), _("");
 							},
-							"aria-describedby": o + "-size",
-							"aria-invalid": g
+							"aria-describedby": s + "-size",
+							"aria-invalid": S
 						}),
 						/* @__PURE__ */ (0, B.jsx)("p", {
-							id: o + "-size",
-							className: g ? "direct-error" : "direct-note",
-							children: g ? a("文字超过 64 KiB，请缩短后发送。", "Text exceeds 64 KiB. Shorten it before sending.") : h.toLocaleString() + " / " + Wf.toLocaleString() + " " + a("字节", "bytes")
+							id: s + "-size",
+							className: S ? "direct-error" : "direct-note",
+							children: S ? o("文字超过 64 KiB，请缩短后发送。", "Text exceeds 64 KiB. Shorten it before sending.") : b.toLocaleString() + " / " + Wf.toLocaleString() + " " + o("字节", "bytes")
 						}),
-						r && /* @__PURE__ */ (0, B.jsx)("p", {
+						i && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: a("当前为仅查看模式。启用输入后才能发送文字。", "View only is enabled. Enable input to send text.")
+							children: o("当前为仅查看模式。启用输入后才能发送文字。", "View only is enabled. Enable input to send text.")
 						}),
 						!e?.requestClipboard && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: a("旧版 VNC 可能只支持西欧字符。中文等文字需要服务端支持扩展剪贴板。", "Older VNC servers may only support Latin-1. Other characters require extended clipboard support on the server.")
+							children: o("旧版 VNC 可能只支持西欧字符。中文等文字需要服务端支持扩展剪贴板。", "Older VNC servers may only support Latin-1. Other characters require extended clipboard support on the server.")
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "submit",
 							className: "direct-primary",
-							disabled: !e || r || !l || g,
+							disabled: !e || i || !f || S,
 							children: [/* @__PURE__ */ (0, B.jsx)(te, {
 								size: 16,
 								"aria-hidden": "true"
-							}), a("发送文字", "Send text")]
+							}), o("发送文字", "Send text")]
 						})
 					]
 				}), /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "desktop-clipboard-received",
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("label", {
-							htmlFor: o + "-receive",
-							children: a("远端剪贴板", "Remote clipboard")
+							htmlFor: s + "-receive",
+							children: o("远端剪贴板", "Remote clipboard")
 						}),
 						/* @__PURE__ */ (0, B.jsx)("textarea", {
-							ref: s,
-							id: o + "-receive",
+							ref: c,
+							id: s + "-receive",
 							rows: 4,
 							readOnly: !0,
 							value: t ?? "",
-							placeholder: a("在远端复制文字后会显示在这里", "Text copied on the remote desktop appears here"),
+							placeholder: o("在远端复制文字后会显示在这里", "Text copied on the remote desktop appears here"),
 							autoComplete: "off",
 							spellCheck: !1
 						}),
 						/* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: a("确认内容后再复制到本机。图片和文件不会导入。", "Review the text before copying to this device. Images and files are not imported.")
+							children: o("确认内容后再复制到本机。图片和文件不会导入。", "Review the text before copying to this device. Images and files are not imported.")
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-actions",
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: t === null,
-								onClick: () => void v(),
+								onClick: () => void T(),
 								children: [/* @__PURE__ */ (0, B.jsx)(ke, {
 									size: 16,
 									"aria-hidden": "true"
-								}), a("复制到本机", "Copy to this device")]
+								}), o("复制到本机", "Copy to this device")]
 							}), e?.requestClipboard && /* @__PURE__ */ (0, B.jsxs)("button", {
-								onClick: () => {
-									e.requestClipboard?.(), m(""), f(a("已请求远端文字。若未更新，请检查远端剪贴板是否为空或被禁用。", "Remote text requested. If it does not update, the remote clipboard may be empty or disabled."));
-								},
+								disabled: v,
+								"aria-busy": v,
+								onClick: C,
 								children: [/* @__PURE__ */ (0, B.jsx)(rn, {
 									size: 16,
 									"aria-hidden": "true"
-								}), a("获取远端文字", "Fetch remote text")]
+								}), v ? o("正在获取…", "Fetching…") : o("获取远端文字", "Fetch remote text")]
 							})]
 						})
 					]
 				})]
 			}),
-			(n || p) && /* @__PURE__ */ (0, B.jsx)("p", {
+			(g || n) && /* @__PURE__ */ (0, B.jsx)("p", {
 				className: "direct-error",
 				role: "alert",
-				children: n ? a("远端剪贴板不是有效的 64 KiB 以内纯文本，已忽略；桌面连接不受影响。", "Remote clipboard content is invalid, unsupported or exceeds 64 KiB. It was ignored; the desktop connection is unaffected.") : p
+				children: g || o("远端剪贴板不是有效的 64 KiB 以内纯文本，已忽略；桌面连接不受影响。", "Remote clipboard content is invalid, unsupported or exceeds 64 KiB. It was ignored; the desktop connection is unaffected.")
 			}),
-			d && /* @__PURE__ */ (0, B.jsx)("p", {
+			m && /* @__PURE__ */ (0, B.jsx)("p", {
 				className: "direct-notice",
 				role: "status",
-				children: d
+				children: m
 			})
 		]
 	});
@@ -21420,11 +21441,11 @@ function Zf({ viewer: e, received: t, receiveError: n, viewOnly: r, language: i 
 //#endregion
 //#region src/desktop/VncViewer.tsx
 function Qf({ target: e, connect: t, language: n = "en" }) {
-	let r = (e, t) => n.startsWith("zh") ? e : t, i = (0, x.useRef)(null), a = (0, x.useRef)(null), o = (0, x.useRef)(null), [s, c] = (0, x.useState)(0), [l, u] = (0, x.useState)("connecting"), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)([]), [h, g] = (0, x.useState)({}), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(null), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(!0), [A, j] = (0, x.useState)(""), M = (0, x.useRef)(!1);
+	let r = (e, t) => n.startsWith("zh") ? e : t, i = (0, x.useRef)(null), a = (0, x.useRef)(null), o = (0, x.useRef)(null), [s, c] = (0, x.useState)(0), [l, u] = (0, x.useState)("connecting"), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)([]), [h, g] = (0, x.useState)({}), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(null), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(0), [A, j] = (0, x.useState)(!0), [M, N] = (0, x.useState)(""), ee = (0, x.useRef)(!1);
 	(0, x.useEffect)(() => {
-		if (!O) return;
+		if (!A) return;
 		let n = !1, a = null, s, c = new AbortController();
-		u("connecting"), f(""), m([]), g({}), b(!1), j(""), M.current = !1, C(!1), T(null), D("");
+		u("connecting"), f(""), m([]), g({}), b(!1), N(""), ee.current = !1, C(!1), T(null), D("");
 		async function l() {
 			try {
 				if (s = await t(e, c.signal), n || !i.current) {
@@ -21445,15 +21466,18 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 				}), a.addEventListener("securityfailure", () => {
 					n || f(r("VNC 身份验证失败，请检查凭据和服务端认证方式。", "VNC authentication failed. Check credentials and the server’s authentication method."));
 				}), a.addEventListener("clipboard", (e) => {
-					if (!n) try {
-						let t = e.detail.text;
-						if (typeof t != "string") throw Error("Invalid clipboard text");
-						Kf(t), T(t), D("");
-					} catch {
-						T(null), D("invalid");
+					if (!n) {
+						try {
+							let t = e.detail.text;
+							if (typeof t != "string") throw Error("Invalid clipboard text");
+							Kf(t), T(t), D("");
+						} catch {
+							T(null), D("invalid");
+						}
+						k((e) => e + 1);
 					}
 				}), a.addEventListener("clipboarderror", () => {
-					n || (T(null), D("invalid"));
+					n || (T(null), D("invalid"), k((e) => e + 1));
 				});
 			} catch (e) {
 				n || (f(e instanceof Error ? e.message : String(e)), u("closed"));
@@ -21469,19 +21493,19 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 		t,
 		s,
 		n,
-		O
+		A
 	]);
-	function N(e) {
+	function P(e) {
 		e.preventDefault(), o.current?.sendCredentials(h), g({}), m([]);
 	}
-	function ee(e) {
+	function F(e) {
 		for (let t of e) {
 			let e = t.codePointAt(0);
 			o.current?.sendKey(e > 255 ? 16777216 | e : e);
 		}
-		j("");
+		N("");
 	}
-	async function P() {
+	async function te() {
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
 			else if (a.current?.requestFullscreen) await a.current.requestFullscreen();
@@ -21534,7 +21558,7 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							disabled: l !== "connected",
 							"aria-label": r("全屏桌面", "Fullscreen desktop"),
-							onClick: () => void P(),
+							onClick: () => void te(),
 							children: /* @__PURE__ */ (0, B.jsx)(Ct, {
 								size: 16,
 								"aria-hidden": "true"
@@ -21542,7 +21566,7 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 						}),
 						l === "closed" ? /* @__PURE__ */ (0, B.jsxs)("button", {
 							onClick: () => {
-								k(!0), c((e) => e + 1);
+								j(!0), c((e) => e + 1);
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)(rn, {
 								size: 16,
@@ -21550,7 +21574,7 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 							}), r("重新连接", "Reconnect")]
 						}) : /* @__PURE__ */ (0, B.jsxs)("button", {
 							onClick: () => {
-								k(!1), o.current?.disconnect(), u("closed"), m([]), g({}), C(!1), T(null), D("");
+								j(!1), o.current?.disconnect(), u("closed"), m([]), g({}), C(!1), T(null), D("");
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)(In, {
 								size: 16,
@@ -21567,15 +21591,15 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 					autoCapitalize: "off",
 					spellCheck: !1,
 					"aria-label": r("远程键盘输入", "Remote keyboard input"),
-					value: A,
+					value: M,
 					onCompositionStart: () => {
-						M.current = !0;
+						ee.current = !0;
 					},
 					onCompositionEnd: (e) => {
-						M.current = !1, ee(e.currentTarget.value);
+						ee.current = !1, F(e.currentTarget.value);
 					},
 					onChange: (e) => {
-						j(e.target.value), M.current || ee(e.target.value);
+						N(e.target.value), ee.current || F(e.target.value);
 					}
 				})] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "direct-actions",
@@ -21602,12 +21626,13 @@ function Qf({ target: e, connect: t, language: n = "en" }) {
 				viewer: o.current,
 				received: w,
 				receiveError: E,
+				receiveVersion: O,
 				viewOnly: _,
 				language: n
 			}),
 			!!p.length && /* @__PURE__ */ (0, B.jsxs)("form", {
 				className: "vnc-auth",
-				onSubmit: N,
+				onSubmit: P,
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("h3", { children: r("VNC 身份验证", "VNC authentication") }),
 					/* @__PURE__ */ (0, B.jsx)("p", {

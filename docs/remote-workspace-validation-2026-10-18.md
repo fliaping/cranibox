@@ -903,7 +903,7 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 
 四轮采用实际新 debug 程序、独立 XDG 和私有 D-Bus，不模拟 IPC，也不证明正常图形登录、托盘或其他设备。每轮 GUI、诊断代理、私有会话辅助进程均停止，原剪贴板逐字节恢复且备份删除。direct 中的代理进程未被使用，已一同停止。既有 a8a97f5 .deb 失败及此前 Web 双向通过记录不改写。
 
-84fdf88 的原生/安装包矩阵 39138324015 最终 completed / success、7/7 成功；Release 39138324009 和 GitCode 39138324019 亦成功，完整 headSha 已核对。这些结果只属于上一版，不覆盖本节 Rust 修改。当前修改的远端自动化结果、提交及 CI 状态见[交接入口](implementation-handoff-2026-10-18.md#最新收尾rust-桌面传输与交接)。
+84fdf88 的原生/安装包矩阵 39138324015 最终 completed / success、7/7 成功；Release 39138324009 和 GitCode 39138324019 亦成功，完整 headSha 已核对。这些结果只属于上一版，不覆盖本节 Rust 修改。当前修改的远端自动化结果、提交及 CI 状态见[交接入口](implementation-handoff-2026-10-18.md#fa1d401rust-桌面传输与交接)。
 
 最终回归在指定远端执行：全工作区 Rust 178 通过/4 按条件忽略，原生 desktop 二进制四项全部通过，桌面后端 remote_desktops 7 + desktop_relay 7 + desktop_service 8 共 22 项全部通过（52.674 秒）。合计 204 项不同自动化测试，不重复累计早期专项与历史测试；原生四项不在工作区 178 项内。fmt、工作区与原生 desktop 所有 target 严格 Clippy、工作区构建、实际运行的 desktop,custom-protocol debug 构建通过。本轮没有改前端或重跑完整 Web/Tauri UI，旧界面结果保持原提交绑定。
 
@@ -937,3 +937,26 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 独立显示同时改变了本机显示后端和共享画面的持续变化程度，不能仅据此归因为递归画面、Wayland、WebKit、IPC 或 Selkies。原 .deb 与 KDE 同屏失败不改写，下一步应在正常桌面和另一物理设备对照画面负载、上游响应及 IPC/ACK 时序。辅助工具不支持的 AT-SPI EditableText 调用、接口签名错误和首次误切“仅查看”是测试操作失败，不作为产品断言失败；后续通过实际聚焦和粘贴完成发送。
 
 新私有证据根目录 /config/validation-artifacts/native-clipboard-debug-20261019：result.json 汇总两种显示、逐字节核对及结论边界；accessibility 与 offscreen 保存各轮元数据、截图、接收结果、发送/复制和清理；final-health.json 保存日常健康。两轮原剪贴板均逐字节恢复且备份删除，原生 GUI、Xvfb 和私有会话辅助进程均停止，隔离 XDG 无存活进程。结束后重新连接上游取得 MODE websockets；容器 running/healthy、3080/3031 匿名 401/认证 200、日常 Web/客户端 PID、摘要和 NodeID 保持。该轮没有增加或重跑自动化测试，收尾总数仍为 204 通过、4 忽略；截图、文字、配置和环境不提交 Git。
+
+## 2026-10-19 收尾：剪贴板等待反馈与交接
+
+仍只在指定远端 cranibox-validation 构建、运行测试及原生 GUI；本机用于静态编辑和 Git。本次改动 Web/Tauri 共用剪贴板面板：请求时显示忙碌并禁止重复点击，10 秒未响应时显示重试/重连提示，保留旧文字和连接；使用事件序号处理相同文字，收到空文字或无效内容会结束等待，迟到响应清除超时，关闭面板清理计时器。原生模拟 IPC 的现有 Selkies 用例新增上述边界及旧错误不遮住新超时的验证，没有新增依赖或改动 Rust 传输。
+
+最终源码基于 ad9db15637e19ddc964943a34d15dd2d61eaaf88，关键文件摘要如下；最终提交与 CI 另见[交接入口](implementation-handoff-2026-10-18.md)。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| DesktopClipboard.tsx | ba8ffdf5efa1deeb23e194b8e9d6f335f5013ee3ed38891a2cd07fd1beff382a |
+| VncViewer.tsx | 4b4f2f2fe18d3cbaa7d69027424c1ad7bd856dec81f51e10018c1ccc8df8b638 |
+| apps/node-desktop/tests/client.spec.ts | 0808af12c2bf3c2af40dda3a252fedf8c052feab3612e30128fb6a2561e46a18 |
+| addons/control-center/web.js | 3cc56ca5175c30c4b742384297441ed3fb2537ec69e5c4bdcb720810a50246c9 |
+
+最终客户端全部界面 48/48 通过（91.146 秒），Web 桌面 12/12 通过（99.289 秒），合计 60 项不同测试。客户端使用模拟 IPC；Web 使用重新生成并嵌入 cranibox 的静态资源、真实 Rust 服务与受控 RFB/JPEG 提供者。两端 TypeScript/Vite、Web 静态生成、cranibox 与 desktop,custom-protocol debug 构建均通过。首次 Web 配置未找到构建产物，以及旧嵌入资源的通过结果均不作最终验证；重跑、专项和历史测试不重复累计。未重跑 fa1d401 的 204 项后端测试或此前完整 Web 126 项。
+
+实际新 debug GUI 使用原 KDE 桌面、隔离 XDG、私有 D-Bus、AT-SPI 操作和真实 Tauri IPC，直接连接 Selkies 8082。第一次响应使等待结束；另置 47 字节新标记后，接收栏仍为旧 48 字节，10 秒超时提示可见，获取按钮恢复，桌面仍显示连接。**等待失败反馈实际通过，原生反向文字更新仍未通过**。首次读取 AT-SPI 失效节点以及仅检查 accessible name 漏掉段落文字属于验证工具问题，后续按实际 Text 接口核对；未据其修改产品或宣称根因。
+
+另一轮为上游诊断复制 Selkies 到独立目录，只在该副本增加栈采样并绑定随机回环端口。剪贴板可更新，JPEG 也到达，但实际查看器画面为黑屏，无法确认捕获的是原 KDE 桌面，故对照无结论。副本及测试 GUI 已停止，原上游未改写；不要将此记录写成原故障已排除。证据在 native-clipboard-debug-20261019 的 isolated-server 与 selfview-isolated。
+
+本次证据根目录 /config/validation-artifacts/clipboard-feedback-20261019：native-ui、web-desktops、native-build、web-assets、web-build 的 json/log 记录最终结果；first-pass、pre-asset-refresh 是先前代码或旧资源基线；native-kde 的 gui.json、feedback-last.json、received-last.json、cleanup.json 记录实际等待反馈、未更新及逐字节恢复原剪贴板。截图、环境、真实文字与凭据不提交 Git。需求表、未完成项、优先级、复现入口及跨平台验收条件集中在交接文档，下一位模型先处理 P0。
+
+全部测试及 GUI 停止后重新检查日常健康：容器 running/healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401/认证 200；Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 保持，测试包仍未安装，未发现预览或 MCP 测试进程。final-health.json 保存该结果，acceptance.json 的总体状态为 completed_with_documented_failure_and_limits。此前在测试仍运行时执行的残留扫描被预期的预览进程阻断，不是日常服务故障；最终健康检查在清理完成后通过。
