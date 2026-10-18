@@ -11,12 +11,16 @@ async fn access(
     tokio::task::spawn_blocking(move || {
         let _lock = config::lock_credentials(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE, "message configuration unavailable"))?;
         let current = Config::read(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE, "message configuration unavailable"))?;
-        if current.node_id != app.node || !current.grants.get(&caller.node).is_some_and(|grant| grant.permissions.messages && grant.same_credential(&caller.grant)) {
+        let Some(grant) = current.grants.get(&caller.node).filter(|grant| current.node_id == app.node && grant.permissions.messages && grant.same_credential(&caller.grant)) else {
             return Err(failure(StatusCode::FORBIDDEN, "device messages capability not granted"));
+        };
+        let policy = grant.inbound;
+        if message.is_some() && policy == agent_workspace_runtime::peers::config::Inbound::Refuse {
+            return Err(failure(StatusCode::FORBIDDEN, "the recipient refuses messages from this device"));
         }
         let store = Store::new(&app.path, app.node);
         let result = match message {
-            Some(message) => store.receive(&caller.node, message),
+            Some(message) => store.receive(&caller.node, message, policy),
             None => store.received(&caller.node, id.expect("receipt route supplies ID")),
         };
         result.map(Json).map_err(|_| failure(StatusCode::BAD_REQUEST, "Message or receipt unavailable. Check its identity, content, lifetime and mailbox capacity."))
