@@ -107,7 +107,7 @@ class HttpPath:
                     try:
                         connection.request(self.command, self.path, body, {
                             key: value for key, value in self.headers.items()
-                            if key.lower() in ('authorization', 'x-cranibox-target', 'content-type')
+                            if key.lower() in ('authorization', 'x-cranibox-target', 'content-type', 'x-cranibox-session')
                         })
                         response = connection.getresponse()
                         status, body = response.status, response.read()

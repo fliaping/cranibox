@@ -404,6 +404,13 @@ class WebDirectPeersTests(unittest.TestCase):
 
         class Proxy(http.server.BaseHTTPRequestHandler):
             def forward(self):
+                if self.path.endswith('/api/v1/mesh/keys'):
+                    # This fault injector reads plaintext operations, so it poses as an
+                    # older target without end-to-end keys (bearer fallback).
+                    self.send_response(404)
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                    return
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 operation = json.loads(body).get('operation') if body else None
                 if (self.path.endswith('/copy-status') or operation == 'status') and state['block_status']:

@@ -142,7 +142,11 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
         .and_then(|h| h.to_str().ok())
         .map(str::to_owned)
     {
-        let path = request.uri().path().to_owned();
+        // Proofs cover the full request path; nesting strips the /api/v1/mesh prefix.
+        let path = request
+            .extensions()
+            .get::<axum::extract::OriginalUri>()
+            .map_or_else(|| request.uri().path().to_owned(), |u| u.path().to_owned());
         let Some(caller) = e2e::stream_caller(&app, &proof, &path) else {
             return failure(StatusCode::UNAUTHORIZED, "peer credential rejected").into_response();
         };
