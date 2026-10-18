@@ -357,7 +357,7 @@ Web 与 Tauri 共用项目页新增默认折叠、默认关闭的后台目录同
 
 ## 提交后的 CI 复核
 
-首次功能提交 3882dc2 对应 GitHub Actions 矩阵运行 39094741447。真实 Wayland 作业通过，使用隔离 Sway 和 wayvnc 验证认证、画面、输入及独立节点恢复；这不改变 KDE Wayland VNC 捕获尚未通过的结论。Linux 的 Rust 检查、单元测试、Web 资源复现和浏览器步骤通过，记录时后端集成步骤仍在执行，不能将整条作业提前记为通过。
+首次功能提交 3882dc2 对应 GitHub Actions 矩阵运行 39094741447，最终失败。真实 Wayland 作业通过，使用隔离 Sway 和 wayvnc 验证认证、画面、输入及独立节点恢复；这不改变 KDE Wayland VNC 捕获尚未通过的结论。Linux 的 Rust 检查、单元测试、Web 资源复现、浏览器与此前的后端步骤通过，但最终在真实 EasyTier 两节点测试失败，详见下文。
 
 其余平台暴露三个问题，修复提交 6aa57d4 已推送 main：
 
@@ -373,4 +373,30 @@ Web 与 Tauri 共用项目页新增默认折叠、默认关闭的后台目录同
 
 远端 /config/validation-artifacts/clean-node-ui-before.log、clean-node-ui-after.log 和 clean-node-ui-build.json 保留干净构建复现及修复证据，JSON 确认无 Web 依赖目录且生成生产 index。ci-fixes-source-manifest.json 记录三个修复源码的本地与远端摘要核对。
 
-修复后的三平台矩阵运行为 **39095261447**。整理时三个系统的客户端前端构建、Windows 全工作区严格 Clippy、macOS Rust 单元测试及真实 Sway/wayvnc 作业已通过，已越过原失败步骤；整个矩阵仍在执行，需后续按该运行核对 Rust、Linux 浏览器、服务集成及三平台安装包的最终状态。Sync to GitCode、Release 两条工作流已通过；后者没有完成完整 Dockerfile 镜像构建，不能将其绿色状态写作新镜像验收。此次修改解决构建解析、静态检查和测试数据，没有更换已经部署的二进制；此前部署验证和未验收项继续有效。
+修复后的三平台矩阵 **39095261447 已结束**：Windows/macOS 的 native 作业、三个系统的 node desktop 安装包作业、真实 Sway/wayvnc 作业均通过；Linux native 作业 117580266069 在同一个旧 EasyTier 两节点测试失败，错误仍为 additional path must use the same target access token，其此前步骤均通过。该提交未包含下面的测试修复，整条运行的结论仍是失败。Sync to GitCode、Release 两条工作流已通过；后者没有完成完整 Dockerfile 镜像构建，不能将其绿色状态写作新镜像验收。此前部署验证和未验收项继续有效。
+
+### Release 检查与构建上下文
+
+旧 Release 工作流用 || echo 吞掉 Dockerfile 和 Compose 检查错误。本次显式准备 Buildx，并保留两项检查的真实退出码与日志；ShellCheck 的现有告警策略未改。新增根目录 .dockerignore，排除 Git 元数据、非示例环境文件、Rust/前端编译产物、安装依赖、测试报告和默认 webtop-data 持久数据，保留已提交的 Web 资源、noVNC 许可证及环境示例。
+
+所有 Docker 验证在同一远端 Linux 主机完成，六项均通过：
+
+- 实际 BuildKit scratch 构建将有效上下文导出到隔离目录；11 个必需源码/静态资源均保留，11 个合成敏感或生成文件均被排除，无缺失或泄漏。合成文件不使用真实凭据。
+- 当前 Compose 配置检查返回 0；故意损坏的 Compose 返回 1。
+- 当前 Dockerfile 的 Buildx --check 返回 0；故意损坏的 Dockerfile 返回 1。
+
+证据位于远端容器 /config/validation-artifacts/ci-gates-__f09ral/ci-gates-validation.json 与同目录私有日志。仅进行了构建检查及 scratch 上下文验证，没有完整构建产品镜像、创建新产品实例或改变部署。
+
+### 真实 EasyTier 测试的授权恢复
+
+首次矩阵的 Linux 作业 117578716627 在真实 EasyTier 测试处出现 1 项通过、1 项失败。两节点测试先保存错误令牌，验证探测被拒绝，随后错误地通过 easy_tier_connect 直接换成有效令牌。多路径功能已要求新增路径使用同一个目标签发令牌，不能隐式替换现有授权，因而被正常拒绝。三节点入口故障切换测试已通过。
+
+本次仅更新两节点测试的恢复步骤：断言替换令牌被拒绝、原错误连接仍不能探测，然后通过公开 Forget 接口删除错误连接，再使用有效令牌重新连接。没有放宽生产授权检查，也没有删去错误凭据的反向测试。
+
+远端容器下载官方 EasyTier v2.6.4 Linux x86_64 归档，验证 SHA-256 为 61b659eaedba658fa66fe47d17e1426cdd77e5d02fa15fed447bb4357c09dfd6，仅解出两个二进制至 /config/validation-tools/easytier-2.6.4。隔离测试使用独立临时配置与 NodeID，未变更主节点网络：
+
+- 全工作区 cargo fmt --all --check 通过。
+- cranibox-node 的所有 target 严格 Clippy（-D warnings）通过。
+- 两项真实 EasyTier 测试均通过，0 失败；覆盖错误授权、显式恢复、远程命令、持久 PTY、节点重启、入口故障及备用入口接续。测试执行约 17 秒，不含编译。
+
+命令与 CI 相同：CRANIBOX_TEST_EASYTIER_DIR 指向上述目录，执行 cargo test --locked -p cranibox-node network::tests::real_ -- --ignored --nocapture --test-threads=1。证据在 /config/validation-artifacts/ci-easytier-d_4dykd5/result.json、clippy.log 与 real-easytier.log。它们是同一远端容器内的真实独立网络进程，不替代跨物理设备 NAT、真实 Tailnet 或休眠恢复验收。

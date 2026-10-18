@@ -119,6 +119,25 @@ async fn real_two_node_network_authorization_and_restart() {
             .await
             .is_err()
     );
+    // Adding a provider path cannot silently rotate an existing device grant.
+    let error = a
+        .manage_network(
+            serde_json::from_value(
+                json!({"operation":"easy_tier_connect","node":b.id,"token":b_grant["token"]}),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("same target access token"));
+    assert!(
+        a.manage_peers(PeerCommand::Probe { node: b.id.clone() })
+            .await
+            .is_err()
+    );
+    a.manage_peers(PeerCommand::Forget { node: b.id.clone() })
+        .await
+        .unwrap();
     request(
         &a,
         json!({"operation":"easy_tier_connect","node":b.id,"token":b_grant["token"]}),

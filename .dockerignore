@@ -1,0 +1,20 @@
+# Repository metadata and local credentials. Keep documented example files.
+**/.git
+**/.env
+**/.env.*
+!**/.env*.example
+
+# Build outputs and installed dependencies. Committed Web assets stay included.
+**/target
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/test-results
+**/playwright-report
+addons/control-center/ui/dist
+apps/node-desktop/dist
+apps/node-desktop/src-tauri/gen
+
+# The default Compose bind mount contains user files, not image source.
+webtop-data
