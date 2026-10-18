@@ -535,3 +535,11 @@ apt-get install -y --no-install-recommends \
 | preview-ready.json、preview.log、check.py、browser.py、preview.mjs | 真实桌面传输与临时验证工具，供复核而非生产实现 |
 
 范围仍限定为该远端 KDE 容器上的 Linux .deb。未执行 AppImage、实际 OS 注销/登录或休眠/恢复、Windows/macOS 原生安装、托盘重连及真实网络恢复；未在 release 包中重测 PTY/Shell 保留和每个业务流程。Selkies 画面不能证明 KDE VNC 捕获成功，前文 KDE Wayland VNC 失败结论不变。下一阶段仍按[交接优先级](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)推进。
+
+## 交接前 KDE 捕获条件复核
+
+收尾时对同一远端 cranibox-validation 做只读检查，没有安装依赖、启动新的 VNC、修改合成器设置或重启原桌面。通过现有 Plasma 会话的 D-Bus 环境调用 qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation，返回 Compositing Type: QPainter；容器内 /dev/dri 不存在。
+
+分别连接内层 KDE wayland-0 和 Selkies 外层 wayland-1 运行 wayland-info，两次退出码均为 0。两层都未公布 wlr screencopy 或 ext image-copy-capture 协议；内层没有虚拟键盘/指针，外层只有 zwp_virtual_keyboard_manager_v1、没有虚拟指针。因此不能通过把 wayvnc 的 WAYLAND_DISPLAY 改成外层 socket 来完成当前桌面共享。该结论仅针对本环境，不能推断所有 KDE 主机均不可用，也没有将协议探测算作新的 VNC 画面/输入验收。
+
+证据保存在 /config/validation-artifacts/kde-capture-followup-20261018，目录权限 0700：inspection.json、kwin-support-information.txt、wayland-0-protocols.txt、wayland-1-protocols.txt 均为 0600。同时重新读取功能提交 71f2397 的 ci-final.json，确认矩阵七个作业及 Release、GitCode 同步的保存记录均为 success；Linux 安装包 acceptance.json 仍为 passed: true。上述是既有证据复核，不是重跑 CI 或安装包验收。最后重新请求 3080 Web 和 3031 桌面入口，均为匿名 401、认证 200，结果为同目录 0600 的 entrypoint-checks.json。主验证容器此时 running / healthy，仍使用原镜像，没有 privileged 或宿主 Docker socket。

@@ -112,6 +112,7 @@
 ### 明确未通过或尚未验证
 
 - **KDE Wayland VNC 未通过**：w0vncserver 密码和 portal 授权成功，但 KDE 屏幕捕获报 failed to start streaming / 不支持的合成类型，在 ServerInit 前断开；隔离 KWin 回退 QPainter，没有可用 OpenGL 画面。临时进程与密码已清理。当前继续用 Selkies，不得标记 VNC 已完成。
+  - 收尾时再次只读检查：当前 KWin 明确报告 Compositing Type: QPainter，容器没有 /dev/dri；内层 wayland-0 与 Selkies 外层 wayland-1 都未公布 wlr screencopy 或 ext image-copy-capture 协议。外层仅有虚拟键盘、没有虚拟指针，不能直接改用 wayvnc 共享当前桌面。该检查没有修改或重启合成器，也没有重跑 VNC；原始协议清单及 KWin 信息保存在 /config/validation-artifacts/kde-capture-followup-20261018。下一步应在具备可用捕获后端的图形环境验证，或单独设计 Selkies 节点接入，不要把放宽后端检测当成修复。
 - Windows 原生与 macOS 的安装包、托盘、登录自启、权限提示、VNC、进程树、断网/休眠恢复、容器安装向导尚未实机验收。WSL2 不能替代 Windows 原生。
 - 真实 Tailscale ACL、两台物理设备互访及日常网络切换未验收；本轮没有连接真实 Tailnet。
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
