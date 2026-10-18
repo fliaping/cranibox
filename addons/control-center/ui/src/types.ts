@@ -19,13 +19,14 @@ export interface Snapshot {
   network?: { installed?: boolean; mode?: string; root_domain?: string; routes?: { name: string; host?: string; target: string; public_url?: string }[] };
   tailscale?: { installed?: boolean; state?: string; serve_enabled?: boolean; url?: string; ips?: string[]; dns_name?: string };
   remote_nodes?: { installed: boolean; available: boolean; error?: string; nodes: RemoteNode[] };
+  local_node?: { id: string; online: boolean; terminal_sessions: boolean };
   metrics?: Metrics;
   ports?: { command: string; pid?: number; address: string; user?: string }[];
   capabilities?: Check[];
   doctor?: { healthy?: boolean; checks?: Check[] };
 }
 export interface Prompt { id: string; kind: 'input' | 'pick' | 'confirm'; title?: string; prompt?: string; value?: string; placeHolder?: string; canPickMany?: boolean; items?: { label: string; description?: string; picked?: boolean }[]; choices?: string[] }
-export interface RemoteNode { mesh_group?: string | null; terminal?: boolean; terminal_sessions?: boolean; id: string; name?: string; os?: string; arch?: string; online: boolean; last_seen?: number }
+export interface RemoteNode { desktop_relay?: boolean; mesh_group?: string | null; terminal?: boolean; terminal_sessions?: boolean; id: string; aliases?: string[]; name?: string; os?: string; arch?: string; online: boolean; last_seen?: number }
 export interface Metrics { rss_bytes?: number; cpu_percent?: number; uptime_seconds: number; collections: number; collection_ms: number; maximum_collection_ms: number; cache_hits: number; stream_messages: number; stream_bytes: number; scope: string; unified_server?: boolean }
 export interface Operation { id: string; title?: string; node?: string; program?: string; args?: string[]; outcome: string; created_at: number; finished_at?: number; output?: string; stdout?: string; stderr?: string; exit_code?: number; error?: string; truncated?: boolean }
 export interface PollState { cursor: number; snapshot?: Snapshot | null; snapshotAt?: number; busy: boolean; refreshing?: boolean; output?: string; prompt?: Prompt | null; forceWelcome?: boolean; error?: string; outputDelta?: string; outputReset?: boolean; events?: { type: string; message?: string; url?: string }[] }

@@ -34,6 +34,7 @@ pub struct Config {
     pub public_url: String,
     pub workspace_url: String,
     pub desktop_url: String,
+    pub applications_url: String,
     pub runtime_url: String,
 }
 impl Default for Config {
@@ -43,6 +44,7 @@ impl Default for Config {
             public_url: String::new(),
             workspace_url: "http://localhost:8443".into(),
             desktop_url: "https://localhost:3001".into(),
+            applications_url: "https://localhost:3002".into(),
             runtime_url: "http://127.0.0.1:9090".into(),
         }
     }
@@ -74,6 +76,7 @@ impl Config {
             (&self.public_url, true),
             (&self.workspace_url, false),
             (&self.desktop_url, false),
+            (&self.applications_url, true),
         ] {
             if public && text.is_empty() {
                 continue;
@@ -92,6 +95,15 @@ impl Config {
             );
             if public {
                 ensure!(url.path() == "/", "publicUrl must use a dedicated origin");
+            }
+        }
+        let application = url::Url::parse(&self.applications_url)?;
+        for text in [&self.public_url, &self.workspace_url, &self.desktop_url] {
+            if !text.is_empty() {
+                ensure!(
+                    url::Url::parse(text)?.origin() != application.origin(),
+                    "applicationsUrl must use a separate origin from the console, editor and host desktop"
+                );
             }
         }
         Ok(())
@@ -270,17 +282,24 @@ pub struct State {
     pub config: Config,
     pub remote_client: reqwest::Client,
     pub gateway: Option<agent_workspace_runtime::server::Gateway>,
+    pub local: Option<Arc<cranibox_node::local::LocalNode>>,
     sessions: Arc<Mutex<HashMap<String, SessionRef>>>,
     snapshot: Arc<Mutex<Snapshot>>,
+    remote_refresh: Arc<Mutex<()>>,
     hosts: HashSet<String>,
     origins: HashSet<String>,
     pub(crate) closing: watch::Sender<bool>,
     pub(crate) terminals: crate::terminal::Hub,
+    pub(crate) desktops: crate::desktop::Hub,
+    pub(crate) applications: cranibox_node::spaces::applications::Hub,
     history: Arc<Mutex<Journal>>,
     metrics: Arc<Mutex<crate::metrics::Metrics>>,
     changed: watch::Sender<u64>,
 }
 impl State {
+    pub(crate) fn console_origin(&self, origin: &str) -> bool {
+        self.origins.contains(origin)
+    }
     pub fn new(root: PathBuf, command: PathBuf, config: Config) -> Result<Self> {
         let history = Journal::open(root.join(".local/state/cranibox/web-history"))?;
         let mut origins = HashSet::from([
@@ -313,7 +332,10 @@ impl State {
         let (closing, _) = watch::channel(false);
         Ok(Self {
             gateway: None,
+            local: None,
             terminals: crate::terminal::Hub::new(root.clone()),
+            desktops: crate::desktop::Hub::default(),
+            applications: Default::default(),
             remote_client: reqwest::Client::builder()
                 .no_proxy()
                 .redirect(reqwest::redirect::Policy::none())
@@ -327,6 +349,7 @@ impl State {
             config,
             sessions: Arc::default(),
             snapshot: Arc::default(),
+            remote_refresh: Arc::default(),
             hosts,
             origins,
             closing,
@@ -342,8 +365,33 @@ impl State {
         s.lock().await.seen = Instant::now();
         Some(s)
     }
+    pub(crate) async fn has_session(&self, id: &str) -> bool {
+        self.sessions.lock().await.contains_key(id)
+    }
     async fn new_session(&self) -> Result<SessionRef> {
         let mut sessions = self.sessions.lock().await;
+        if sessions.len() >= 64 {
+            // Closed browsers must not exhaust the bounded session table. A live
+            // request, event stream or WebSocket retains its SessionRef; pending
+            // operations and prompts must also survive a browser disconnect.
+            let mut oldest = None;
+            for (id, session) in sessions.iter() {
+                if Arc::strong_count(session) != 1 {
+                    continue;
+                }
+                let session = session.lock().await;
+                if !session.busy
+                    && session.prompt.is_none()
+                    && session.streams.load(std::sync::atomic::Ordering::Relaxed) == 0
+                    && oldest.as_ref().is_none_or(|(_, seen)| session.seen < *seen)
+                {
+                    oldest = Some((id.clone(), session.seen));
+                }
+            }
+            if let Some((id, _)) = oldest {
+                sessions.remove(&id);
+            }
+        }
         ensure!(sessions.len() < 64, "Too many sessions");
         let s = Session::new();
         let id = s.id.clone();
@@ -365,13 +413,22 @@ impl State {
             eprintln!("operation history flush failed");
         }
         self.cleanup().await;
+        let owners = self.sessions.lock().await.keys().cloned().collect();
+        self.applications.retain(&owners).await;
     }
     pub async fn cleanup(&self) {
         let mut sessions = self.sessions.lock().await;
         let mut expired = Vec::new();
         for (id, s) in sessions.iter() {
+            if Arc::strong_count(s) != 1 {
+                continue;
+            }
             let s = s.lock().await;
-            if !s.busy && s.seen.elapsed() > Duration::from_secs(12 * 3600) {
+            if !s.busy
+                && s.prompt.is_none()
+                && s.streams.load(std::sync::atomic::Ordering::Relaxed) == 0
+                && s.seen.elapsed() > Duration::from_secs(12 * 3600)
+            {
                 expired.push(id.clone());
             }
         }
@@ -380,10 +437,14 @@ impl State {
         }
     }
     pub async fn shutdown(&self) {
+        self.closing.send_replace(true);
+        self.applications.shutdown();
         if let Some(gateway) = &self.gateway {
             gateway.shutdown().await;
         }
-        self.closing.send_replace(true);
+        if let Some(local) = &self.local {
+            let _ = local.shutdown().await;
+        }
         for s in self.sessions.lock().await.values() {
             let mut s = s.lock().await;
             s.cancel.send_replace(true);
@@ -395,6 +456,31 @@ impl State {
     }
     pub async fn snapshot(&self) -> Option<Value> {
         self.snapshot.lock().await.value.clone()
+    }
+    pub(crate) fn track_nodes(&self) -> Option<tokio::task::JoinHandle<()>> {
+        let mut changes = self.gateway.as_ref()?.subscribe_nodes();
+        let state = self.clone();
+        let mut closing = self.closing.subscribe();
+        Some(tokio::spawn(async move {
+            while !*closing.borrow() {
+                tokio::select! {
+                    result = changes.changed() => { if result.is_err() { break; } }
+                    _ = closing.changed() => { break; }
+                }
+                // Serialize with full collections so a slower status command cannot
+                // overwrite a device connection update with an older snapshot.
+                let _update = state.remote_refresh.lock().await;
+                let remote = crate::remote::snapshot(&state).await;
+                let mut cache = state.snapshot.lock().await;
+                if let Some(value) = &mut cache.value
+                    && value["remote_nodes"] != remote
+                {
+                    value["remote_nodes"] = remote;
+                    cache.at = millis().max(cache.at.saturating_add(1));
+                    state.changed.send_modify(|revision| *revision += 1);
+                }
+            }
+        }))
     }
     async fn refresh(&self, force: bool) {
         let mut cache = self.snapshot.lock().await;
@@ -410,7 +496,9 @@ impl State {
         let state = self.clone();
         tokio::spawn(async move {
             let started = Instant::now();
-            let (result, remote) = tokio::join!(state.collect(), crate::remote::snapshot(&state));
+            let result = state.collect().await;
+            let _update = state.remote_refresh.lock().await;
+            let remote = crate::remote::snapshot(&state).await;
             let mut metrics = state.metrics.lock().await;
             metrics.collections += 1;
             metrics.collection_ms = started.elapsed().as_millis() as u64;
@@ -422,9 +510,13 @@ impl State {
             match result {
                 Ok(mut value) => {
                     value["remote_nodes"] = remote;
+                    if let Some(local) = &state.local {
+                        value["local_node"] =
+                            json!({"id":local.id,"online":true,"terminal_sessions":true});
+                    }
                     value["metrics"] = sample;
                     cache.value = Some(value);
-                    cache.at = millis();
+                    cache.at = millis().max(cache.at.saturating_add(1));
                     cache.error.clear();
                 }
                 Err(error) => cache.error = format!("{error:#}"),
@@ -714,6 +806,9 @@ fn header(headers: &HeaderMap, key: &str) -> String {
         .into()
 }
 async fn guard(ExtractState(state): ExtractState<State>, request: Request, next: Next) -> Response {
+    if cranibox_node::spaces::applications::prefix(request.uri().path()).is_some() {
+        return crate::applications::handle(state, request).await;
+    }
     let headers = request.headers();
     let host = header(headers, "host");
     let origin = header(headers, "origin");
@@ -747,6 +842,10 @@ async fn guard(ExtractState(state): ExtractState<State>, request: Request, next:
 pub fn router(state: State) -> Router {
     Router::new()
         .route(
+            "/api/desktop/ws",
+            axum::routing::get(crate::desktop::upgrade),
+        )
+        .route(
             "/api/terminal/ws",
             axum::routing::get(crate::terminal::upgrade),
         )
@@ -758,6 +857,77 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     let path = request.uri().path().to_owned();
     let method = request.method().clone();
     let headers = request.headers().clone();
+    // Enrollment authenticates only with a short-lived invitation. Keep all other network
+    // operations behind the normal browser session, CSRF and origin checks.
+    if path == "/api/network/bootstrap" {
+        if method != "POST" {
+            return error(StatusCode::METHOD_NOT_ALLOWED, "POST required");
+        }
+        if request.uri().query().is_some() {
+            return error(
+                StatusCode::BAD_REQUEST,
+                "Do not put invitation credentials in the URL",
+            );
+        }
+        if header(&headers, "content-type") != "application/json" {
+            return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
+        }
+        let authorization = header(&headers, "authorization");
+        let Some(token) = authorization.strip_prefix("Bearer ").filter(|token| {
+            token.len() == 68
+                && token.starts_with("cbi_")
+                && token[4..].bytes().all(|c| c.is_ascii_hexdigit())
+        }) else {
+            return error(
+                StatusCode::UNAUTHORIZED,
+                "Invitation is invalid, expired or already used",
+            );
+        };
+        let bytes =
+            match tokio::time::timeout(Duration::from_secs(5), to_bytes(request.into_body(), 128))
+                .await
+            {
+                Ok(Ok(bytes)) => bytes,
+                Ok(Err(_)) => return error(StatusCode::PAYLOAD_TOO_LARGE, "Request too large"),
+                Err(_) => return error(StatusCode::REQUEST_TIMEOUT, "Request timed out"),
+            };
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Redemption {
+            recovery: Option<String>,
+        }
+        let redemption = match serde_json::from_slice::<Redemption>(&bytes) {
+            Ok(value)
+                if value.recovery.as_ref().is_none_or(|recovery| {
+                    recovery.len() == 64 && recovery.bytes().all(|c| c.is_ascii_hexdigit())
+                }) =>
+            {
+                value
+            }
+            _ => {
+                return error(
+                    StatusCode::BAD_REQUEST,
+                    "Use an empty object or a 64 character recovery secret",
+                );
+            }
+        };
+        return match &state.local {
+            Some(local) => match local
+                .redeem_network_invitation(token.into(), redemption.recovery)
+                .await
+            {
+                Ok(value) => Json(value).into_response(),
+                Err(_) => error(
+                    StatusCode::UNAUTHORIZED,
+                    "Invitation is invalid, expired or already used",
+                ),
+            },
+            None => error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Local device service unavailable",
+            ),
+        };
+    }
     if method == "GET" {
         match path.as_str() {
             "/healthz" => return Json(json!({"ok":true,"implementation":"rust"})).into_response(),
@@ -845,9 +1015,15 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     if header(&headers, "content-type") != "application/json" {
         return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
     }
+    let body_limit = match path.as_str() {
+        // Agent input allows 16 KiB after decoding. JSON escaping can expand it sixfold.
+        "/api/peers" => 128 * 1024,
+        "/api/network" => 32768,
+        _ => 16384,
+    };
     let bytes = match tokio::time::timeout(
         Duration::from_secs(10),
-        to_bytes(request.into_body(), 16384),
+        to_bytes(request.into_body(), body_limit),
     )
     .await
     {
@@ -863,7 +1039,87 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
         return error(StatusCode::BAD_REQUEST, "Object required");
     }
     match path.as_str() {
+        "/api/network" => {
+            let result = match serde_json::from_value(body) {
+                Ok(command) => match &state.local {
+                    Some(local) => local.manage_network(command).await,
+                    None => Err(anyhow::anyhow!("Local device service unavailable")),
+                },
+                Err(error) => Err(error.into()),
+            };
+            match result {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/desktop/service" => {
+            let result = match serde_json::from_value(body) {
+                Ok(command) => match &state.local {
+                    Some(local) => local.manage_desktop_service(command).await,
+                    None => Err(anyhow::anyhow!("Local device service unavailable")),
+                },
+                Err(error) => Err(error.into()),
+            };
+            match result {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/spaces/application" => {
+            let owner = session.lock().await.id.clone();
+            match crate::applications::issue(&state, owner, body).await {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/spaces" => {
+            let store = cranibox_node::spaces::Store::new(
+                state.root.join(".config/cranibox-node/peers.json"),
+            );
+            let result = match serde_json::from_value(body) {
+                Ok(command) => store.manage(command, true).await,
+                Err(error) => Err(error.into()),
+            };
+            match result {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/peers" => {
+            let store = agent_workspace_runtime::peers::Store::new(
+                state.root.join(".config/cranibox-node/peers.json"),
+            );
+            let result = match serde_json::from_value(body) {
+                Ok(command) => match &state.local {
+                    Some(local) => local.manage_peers(command).await,
+                    None => store.manage(command).await,
+                },
+                Err(error) => Err(error.into()),
+            };
+            match result {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/projects" => match crate::projects::manage(&state, body).await {
+            Ok(value) => Json(value).into_response(),
+            Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+        },
         "/api/events" => events(state, session).await,
+        "/api/desktop/ticket" => {
+            let session_id = session.lock().await.id.clone();
+            match state.desktops.issue(&state, session_id, body).await {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, e),
+            }
+        }
+        "/api/desktop/cancel" => {
+            let session_id = session.lock().await.id.clone();
+            match state.desktops.cancel(&session_id, body).await {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, e),
+            }
+        }
         "/api/terminal/ticket" => {
             let id = session.lock().await.id.clone();
             match state.terminals.issue(id, body).await {
@@ -903,8 +1159,14 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                 None => error(StatusCode::NOT_FOUND, "Operation unavailable"),
             }
         }
-        "/api/nodes/group" | "/api/nodes/enroll" | "/api/nodes/revoke" | "/api/nodes/exec"
-        | "/api/nodes/jobs" | "/api/nodes/job" | "/api/nodes/cancel" => {
+        "/api/nodes/group"
+        | "/api/nodes/enroll"
+        | "/api/nodes/revoke"
+        | "/api/nodes/identity"
+        | "/api/nodes/exec"
+        | "/api/nodes/jobs"
+        | "/api/nodes/job"
+        | "/api/nodes/cancel" => {
             match crate::remote::manage(&state, path.rsplit('/').next().unwrap(), &body).await {
                 Ok(mut value) => {
                     if path.ends_with("/job") {

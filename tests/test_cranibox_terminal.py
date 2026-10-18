@@ -14,17 +14,18 @@ from workspace_web_harness import CORE, NODE, Harness, sockets_allowed, until
 
 
 class Socket:
-    def __init__(self, harness, ticket, cookie=None, origin=None):
+    def __init__(self, harness, ticket, cookie=None, origin=None, path='/api/terminal/ws', extra_headers=None):
         self.socket = socket.create_connection(('127.0.0.1', harness.web_port), timeout=5)
         self.socket.settimeout(5)
         self.reader = self.socket.makefile('rb')
         key = base64.b64encode(os.urandom(16)).decode()
-        headers = [f'GET /api/terminal/ws?ticket={ticket} HTTP/1.1',
+        headers = [f'GET {path}?ticket={ticket} HTTP/1.1',
                    f'Host: 127.0.0.1:{harness.web_port}', 'Upgrade: websocket',
                    'Connection: Upgrade', 'Sec-WebSocket-Version: 13', f'Sec-WebSocket-Key: {key}',
                    'Cookie: ' + (harness.cookie if cookie is None else cookie)]
         if origin != 'omit':
             headers.append('Origin: ' + (origin or f'http://127.0.0.1:{harness.web_port}'))
+        headers.extend(f'{name}: {value}' for name, value in (extra_headers or {}).items())
         self.socket.sendall(('\r\n'.join(headers) + '\r\n\r\n').encode())
         self.status = int(self.reader.readline().split()[1])
         response = {}

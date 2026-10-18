@@ -1,13 +1,18 @@
-import { Activity,ArrowUpRight,Bot,Boxes,Globe,LayoutDashboard,Menu,Monitor,Moon,Network,RefreshCw,Server,ShieldCheck,Sun,Terminal,Workflow,X } from 'lucide-react';
+import { Activity,ArrowUpRight,Bot,Boxes,FolderGit2,Globe,LayoutDashboard,ListTodo,Menu,MessageSquare,Monitor,Moon,Network,RefreshCw,Server,ShieldCheck,Sun,Terminal,Workflow,X } from 'lucide-react';
 import { useEffect,useRef,useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter,Navigate,NavLink,Route,Routes,useLocation,useNavigate } from 'react-router-dom';
 import { Button,Empty,Icon } from './components';
 import { Overlays } from './overlays';
 import { Agents,Browser,Desktop,Diagnostics,NetworkPage,Onboarding,Overview,Resources,Services } from './pages';
+import { Messages } from './pages/Messages';
+import { Tasks } from './pages/Tasks';
+import { Projects } from './pages/Projects';
+import { Spaces } from './pages/Spaces';
 import { History } from './pages/History';
 import { TerminalWindow,TerminalWindowToggle } from './terminal/TerminalWindow';
 import { TerminalWindowProvider,useTerminalWindow } from './terminal/TerminalWindowContext';
+import { WebTerminalEnvironment } from './terminal/WebTerminalEnvironment';
 import { Nodes } from './pages/Nodes';
 import { Performance } from './pages/Performance';
 import './style.css';
@@ -17,6 +22,10 @@ import { openUrl,t,useWorkspace,WorkspaceProvider } from './workspace';
 
 const nav = [
   { id: 'overview', label: t('总览', 'Overview'), icon: LayoutDashboard },
+  { id: 'projects', label: t('项目与会话', 'Projects & sessions'), icon: FolderGit2 },
+  { id: 'tasks', label: t('协作任务', 'Collaboration tasks'), icon: ListTodo },
+  { id: 'messages', label: t('设备消息', 'Device messages'), icon: MessageSquare },
+  { id: 'spaces', label: t('虚拟空间', 'Virtual spaces'), icon: Boxes },
   { id: 'terminal', label: t('终端', 'Terminal'), icon: Terminal },
   { id: 'nodes', label: t('远程节点', 'Remote nodes'), icon: Server },
   { id: 'history', label: t('操作历史', 'Operation history'), icon: Activity },
@@ -69,10 +78,10 @@ function App() {
     <div className="sync-bar"><div className="sync-state"><span className={'connection-dot ' + (error ? 'warning' : '')} /><span>{error ? t('状态更新失败', 'Status update failed') : state.refreshing ? t('正在更新状态', 'Updating status') : snapshot ? t('状态已同步', 'Status synchronized') : t('正在连接工作区', 'Connecting to workspace')}</span></div><div className="sync-controls"><span>{t('更新于 ', 'Updated at ')}<time>{updated}</time></span>{state.busy && <><button className="text-link" onClick={() => workspace.setOutputOpen(true)}><Icon icon={Activity} />{t('正在执行操作', 'Operation running')}</button><button className="text-link danger-text" onClick={workspace.cancel}>{t('取消', 'Cancel')}</button></>}</div></div>
     {error && <div className="banner error-banner" role="alert"><div><strong>{t('无法获取最新状态', 'Unable to get the latest status')}</strong><p>{error}{snapshot && ' ' + t('下方保留上次成功更新的数据。', 'The last successful snapshot is shown below.')}</p></div><Button local onClick={workspace.refresh}>{t('重试', 'Retry')}</Button></div>}
     {notice && <div className="banner" role="status"><span>{notice.message}</span><div className="actions">{notice.url && <Button local icon={ArrowUpRight} onClick={() => openUrl(notice.url!)}>{t('打开', 'Open')}</Button>}<Button local icon={X} label={t('关闭通知', 'Dismiss notice')} onClick={workspace.dismissNotice} /></div></div>}
-    <main id="main-content" ref={main} tabIndex={-1}><div className="page-content">{snapshot ? <Routes><Route path="/terminal" element={<Overview />} /><Route path="/nodes" element={<Nodes />} /><Route path="/history" element={<History />} /><Route path="/performance" element={<Performance />} /><Route path="/overview" element={<><Onboarding /><Overview /></>} /><Route path="/agents" element={<Agents />} /><Route path="/browser" element={<Browser />} /><Route path="/resources" element={<Resources />} /><Route path="/services" element={<Services />} /><Route path="/desktop" element={<Desktop />} /><Route path="/network" element={<NetworkPage />} /><Route path="/diagnostics" element={<Diagnostics />} /><Route path="*" element={<Navigate to="/overview" replace />} /></Routes> : error ? <Empty title={t('暂时无法连接工作区', 'Workspace is currently unavailable')} detail={t('检查网络连接后重试。', 'Check your connection and try again.')} action={<Button action="refresh" tone="primary">{t('重新连接', 'Reconnect')}</Button>} /> : <div className="loading-state" role="status"><div className="loading-header" /><div className="loading-hero" /><div className="loading-cards"><span /><span /><span /><span /></div><p>{t('正在读取工作区状态…', 'Reading workspace status…')}</p></div>}<footer className="page-footer"><span>Cranibox</span><span>{t('持久化工作区 · 浏览器管理', 'Persistent workspace · Browser control')}</span></footer></div></main></div><TerminalWindow suspended={menu} /><Overlays /></div>;
+    <main id="main-content" ref={main} tabIndex={-1}><div className="page-content">{snapshot ? <Routes><Route path="/spaces" element={<Spaces />} /><Route path="/projects" element={<Projects />} /><Route path="/messages" element={<Messages />} /><Route path="/tasks" element={<Tasks />} /><Route path="/terminal" element={<Overview />} /><Route path="/nodes" element={<Nodes />} /><Route path="/history" element={<History />} /><Route path="/performance" element={<Performance />} /><Route path="/overview" element={<><Onboarding /><Overview /></>} /><Route path="/agents" element={<Agents />} /><Route path="/browser" element={<Browser />} /><Route path="/resources" element={<Resources />} /><Route path="/services" element={<Services />} /><Route path="/desktop" element={<Desktop />} /><Route path="/network" element={<NetworkPage />} /><Route path="/diagnostics" element={<Diagnostics />} /><Route path="*" element={<Navigate to="/overview" replace />} /></Routes> : error ? <Empty title={t('暂时无法连接工作区', 'Workspace is currently unavailable')} detail={t('检查网络连接后重试。', 'Check your connection and try again.')} action={<Button action="refresh" tone="primary">{t('重新连接', 'Reconnect')}</Button>} /> : <div className="loading-state" role="status"><div className="loading-header" /><div className="loading-hero" /><div className="loading-cards"><span /><span /><span /><span /></div><p>{t('正在读取工作区状态…', 'Reading workspace status…')}</p></div>}<footer className="page-footer"><span>Cranibox</span><span>{t('持久化工作区 · 浏览器管理', 'Persistent workspace · Browser control')}</span></footer></div></main></div><TerminalWindow suspended={menu} /><Overlays /></div>;
 }
 function LinkBrand() { return <a className="brand" href="#/overview"><span className="brand-mark"><Boxes size={25} strokeWidth={1.7} aria-hidden="true" /></span><span><strong>Cranibox</strong><small>AGENT WORKSPACE</small></span></a>; }
 // Keep bookmarks from the previous control center working.
 const legacy = location.hash.slice(1);
 if (nav.some(item => item.id === legacy)) history.replaceState(null, '', '#/' + legacy);
-createRoot(document.getElementById('root')!).render(<HashRouter><TerminalWindowProvider><WorkspaceProvider><App /></WorkspaceProvider></TerminalWindowProvider></HashRouter>);
+createRoot(document.getElementById('root')!).render(<HashRouter><TerminalWindowProvider><WorkspaceProvider><WebTerminalEnvironment><App /></WebTerminalEnvironment></WorkspaceProvider></TerminalWindowProvider></HashRouter>);

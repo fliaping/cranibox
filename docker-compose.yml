@@ -82,7 +82,12 @@ services:
 
     ports:
       - "3001:3001"   # HTTPS
+      - "3002:3002"   # Isolated HTTPS origin for virtual-space applications
       #- "2222:22"     # SSH
+      # 在设备网络中启用 EasyTier 入站监听时，按所选端口取消注释。
+      # 仅主动连接其他 EasyTier 成员时无需发布；见 docs/device-networks.md。
+      #- "11010:11010/tcp"
+      #- "11010:11010/udp"
 
     # GPU 设备直通（按需启用）
     # Intel/AMD GPU: 取消注释 devices

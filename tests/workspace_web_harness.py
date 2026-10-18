@@ -100,9 +100,10 @@ class EventStream:
 
 
 class Harness:
-    def __init__(self, unified=False, node_env=None):
+    def __init__(self, unified=False, node_env=None, web_env=None):
         self.unified = unified
         self.node_env = node_env or {}
+        self.web_env = web_env or {}
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-operations-')
         self.root = Path(self.temp.name)
         self.streams = []
@@ -161,7 +162,12 @@ else:
     def start(self, binary, *args):
         log = (self.root / f'process-{len(self.logs)}.log').open('wb')
         self.logs.append(log)
+        if Path(binary) == NODE and '--config' not in args:
+            # The simulated remote device has its own identity and catalog.
+            args = ('--config', self.root / 'test-node/settings.json', *args)
         environment = {**os.environ, 'HOME': str(self.root), **self.node_env} if Path(binary) == NODE else None
+        if Path(binary) in (WEB, CORE) and self.web_env:
+            environment = {**os.environ, **self.web_env}
         process = subprocess.Popen([str(binary), *map(str, args)], stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=environment)
         self.processes.append(process)
         return process

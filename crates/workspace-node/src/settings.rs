@@ -61,6 +61,7 @@ impl Settings {
         })
     }
 }
+
 pub fn default_path() -> PathBuf {
     #[cfg(target_os = "windows")]
     let base = std::env::var_os("APPDATA").map(PathBuf::from);

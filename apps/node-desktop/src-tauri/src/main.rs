@@ -1,4 +1,6 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+mod desktops;
+mod terminals;
 
 use cranibox_node::{
     node::{self, Control},
@@ -26,20 +28,22 @@ struct Running {
 }
 #[derive(Default)]
 struct Service {
+    local: Option<Arc<cranibox_node::local::LocalNode>>,
     settings: Option<Settings>,
     running: Option<Running>,
     error: Option<String>,
 }
 struct AppState {
     service: tokio::sync::Mutex<Service>,
+    applications: tokio::sync::Mutex<Option<cranibox_node::spaces::applications::Gateway>>,
     quit_requested: AtomicBool,
     quitting: AtomicBool,
 }
-fn start(settings: Settings) -> Running {
+fn start(settings: Settings, local: Arc<cranibox_node::local::LocalNode>) -> Running {
     let control = Control::default();
     let task_control = control.clone();
     let task = tauri::async_runtime::spawn(async move {
-        if let Err(error) = node::run_managed(settings, task_control.clone()).await {
+        if let Err(error) = node::connect_managed(settings, task_control.clone(), local).await {
             task_control.status.send_replace(node::ConnectionStatus {
                 state: "failed".into(),
                 message: Some(format!("{error:#}")),
@@ -53,12 +57,16 @@ fn resume(service: &mut Service) -> Result<(), String> {
         .settings
         .clone()
         .ok_or("Configure this device first")?;
+    let local = service
+        .local
+        .clone()
+        .ok_or("Local device service unavailable")?;
     if service
         .running
         .as_ref()
         .is_none_or(|running| running.task.inner().is_finished())
     {
-        service.running = Some(start(settings));
+        service.running = Some(start(settings, local));
     } else if let Some(running) = &service.running {
         running.control.reconnect.notify_one();
     }
@@ -73,6 +81,15 @@ fn show(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    if enabled {
+        app.autolaunch().enable()
+    } else {
+        app.autolaunch().disable()
+    }
+    .map_err(|error| error.to_string())
+}
+#[tauri::command]
 async fn snapshot(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<Value, String> {
     let service = state.service.lock().await;
     let status = service
@@ -84,7 +101,7 @@ async fn snapshot(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Res
         .is_enabled()
         .map_err(|error| error.to_string())?;
     Ok(
-        json!({"settings":service.settings,"status":status,"error":service.error,"autostart":autostart,"quit_requested":state.quit_requested.load(Ordering::Relaxed)}),
+        json!({"settings":service.settings,"status":status,"local":service.local.as_ref().map(|local| json!({"id":local.id,"online":true})),"error":service.error,"autostart":autostart,"quit_requested":state.quit_requested.load(Ordering::Relaxed)}),
     )
 }
 #[derive(Deserialize)]
@@ -191,16 +208,203 @@ async fn peers(state: State<'_, Arc<AppState>>) -> Result<Value, String> {
         .map_err(|error| error.to_string())
 }
 #[tauri::command]
-fn mcp_config() -> Result<Value, String> {
+async fn open_network_link(url: String) -> Result<(), String> {
+    let parsed = url::Url::parse(&url).map_err(|_| "Invalid network link")?;
+    if url.len() > 2048
+        || parsed.scheme() != "https"
+        || parsed.port().is_some()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.fragment().is_some()
+        || !(parsed.host_str() == Some("login.tailscale.com")
+            || (parsed.host_str() == Some("tailscale.com")
+                && parsed.path() == "/download"
+                && parsed.query().is_none()))
+    {
+        return Err("Only official Tailscale download and sign-in links can be opened.".into());
+    }
+    open_browser(parsed.as_str()).await
+}
+async fn open_browser(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let mut command = tokio::process::Command::new("explorer.exe");
+    #[cfg(target_os = "macos")]
+    let mut command = tokio::process::Command::new("open");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let mut command = tokio::process::Command::new("xdg-open");
+    command
+        .arg(url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    let status = tokio::time::timeout(std::time::Duration::from_secs(10), command.status())
+        .await
+        .map_err(|_| "Opening the browser timed out.")?
+        .map_err(|e| format!("Open system browser: {e}"))?;
+    if !status.success() {
+        return Err("The system browser could not open this link.".into());
+    }
+    Ok(())
+}
+#[tauri::command]
+async fn network(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    let local = state
+        .service
+        .lock()
+        .await
+        .local
+        .clone()
+        .ok_or("Local device service unavailable")?;
+    local
+        .manage_network(command)
+        .await
+        .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn desktop_service(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    let local = state
+        .service
+        .lock()
+        .await
+        .local
+        .clone()
+        .ok_or("Local device service unavailable")?;
+    local
+        .manage_desktop_service(command)
+        .await
+        .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn spaces(command: Value) -> Result<Value, String> {
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    cranibox_node::spaces::Store::new(cranibox_node::peer::config::path_for(
+        &settings::default_path(),
+    ))
+    .manage(command, true)
+    .await
+    .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn space_application(
+    state: State<'_, Arc<AppState>>,
+    id: String,
+    application: cranibox_node::spaces::applications::Application,
+) -> Result<(), String> {
+    let id = id.parse().map_err(|_| "Invalid space ID")?;
+    let store = cranibox_node::spaces::Store::new(cranibox_node::peer::config::path_for(
+        &settings::default_path(),
+    ));
+    let mut gateway = state.applications.lock().await;
+    if gateway.is_none() {
+        *gateway = Some(
+            cranibox_node::spaces::applications::Gateway::start()
+                .await
+                .map_err(|e| e.to_string())?,
+        );
+    }
+    let url = gateway
+        .as_ref()
+        .unwrap()
+        .open(&store, id, application)
+        .await
+        .map_err(|e| format!("{e:#}"))?;
+    drop(gateway);
+    open_browser(&url).await
+}
+#[tauri::command]
+async fn direct_peers(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let path = cranibox_node::peer::config::path_for(&settings::default_path());
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    let local = state.service.lock().await.local.clone();
+    match local {
+        Some(local) => local.manage_peers(command).await,
+        None => {
+            agent_workspace_runtime::peers::Store::new(path)
+                .manage(command)
+                .await
+        }
+    }
+    .map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn projects(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let settings = state
+        .service
+        .lock()
+        .await
+        .settings
+        .clone()
+        .ok_or("Configure this device first")?;
+    settings
+        .api()
+        .map_err(|e| e.to_string())?
+        .post("/api/v1/projects", command)
+        .await
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn local_projects(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let local = state
+        .service
+        .lock()
+        .await
+        .local
+        .clone()
+        .ok_or("Local device service unavailable")?;
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    local.projects(command).await.map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn local_sessions(state: State<'_, Arc<AppState>>, command: Value) -> Result<Value, String> {
+    let local = state
+        .service
+        .lock()
+        .await
+        .local
+        .clone()
+        .ok_or("Local device service unavailable")?;
+    let command = serde_json::from_value(command).map_err(|e| e.to_string())?;
+    local.sessions(command).await.map_err(|e| format!("{e:#}"))
+}
+#[tauri::command]
+async fn terminal_sessions(
+    state: State<'_, Arc<AppState>>,
+    node: String,
+    command: Value,
+) -> Result<Value, String> {
+    if !agent_workspace_runtime::protocol::valid_node_id(&node) {
+        return Err("Invalid node ID".into());
+    }
+    let settings = state
+        .service
+        .lock()
+        .await
+        .settings
+        .clone()
+        .ok_or("Configure this device first")?;
+    settings
+        .api()
+        .map_err(|e| e.to_string())?
+        .post(&format!("/api/v1/nodes/{node}/terminal/sessions"), command)
+        .await
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn mcp_config(include_runs: Option<bool>) -> Result<Value, String> {
     let executable: PathBuf = std::env::current_exe().map_err(|error| error.to_string())?;
     // AppImage runs from a temporary mount; Agents need the persistent launcher.
     #[cfg(target_os = "linux")]
     let executable = std::env::var_os("APPIMAGE")
         .map(PathBuf::from)
         .unwrap_or(executable);
-    Ok(
-        json!({"mcpServers":{"cranibox-devices":{"command":executable,"args":["mcp","--config",settings::default_path()]}}}),
-    )
+    let mut configuration = json!({"mcpServers":{"cranibox-devices":{"command":executable,"args":["mcp","--config",settings::default_path()]},"cranibox-messages":{"command":executable,"args":["--config",settings::default_path(),"peer","messages","mcp"]}}});
+    if include_runs.unwrap_or(false) {
+        configuration["mcpServers"]["cranibox-runs"] = json!({"command":executable,"args":["--config",settings::default_path(),"peer","runs","mcp"]});
+    }
+    Ok(configuration)
 }
 #[tauri::command]
 async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -216,6 +420,9 @@ async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<
     if let Some(running) = running {
         running.control.stop.cancel();
         let _ = tokio::time::timeout(std::time::Duration::from_secs(10), running.task).await;
+    }
+    if let Some(local) = state.service.lock().await.local.take() {
+        let _ = local.shutdown().await;
     }
     app.exit(0);
     Ok(())
@@ -237,6 +444,7 @@ fn main() -> anyhow::Result<()> {
     let background = args == ["--background"];
     let state = Arc::new(AppState {
         service: Default::default(),
+        applications: Default::default(),
         quit_requested: AtomicBool::new(false),
         quitting: AtomicBool::new(false),
     });
@@ -249,11 +457,31 @@ fn main() -> anyhow::Result<()> {
                 .build(),
         )
         .manage(state.clone())
+        .manage(Arc::new(terminals::Terminals::default()))
+        .manage(Arc::new(desktops::Desktops::default()))
         .invoke_handler(tauri::generate_handler![
+            space_application,
             snapshot,
+            set_autostart,
             configure,
             reconnect,
             peers,
+            direct_peers,
+            desktop_service,
+            network,
+            open_network_link,
+            spaces,
+            terminals::terminal_open,
+            terminals::terminal_input,
+            terminals::terminal_close,
+            desktops::desktop_open,
+            desktops::desktop_input,
+            desktops::desktop_ack,
+            desktops::desktop_close,
+            projects,
+            local_projects,
+            local_sessions,
+            terminal_sessions,
             mcp_config,
             hide_window,
             quit,
@@ -300,19 +528,29 @@ fn main() -> anyhow::Result<()> {
             } else {
                 Ok(None)
             };
-            let configured = initial.as_ref().is_ok_and(|settings| settings.is_some());
-            tauri::async_runtime::block_on(async {
+            let ready = tauri::async_runtime::block_on(async {
                 let mut service = setup_state.service.lock().await;
+                match cranibox_node::local::LocalNode::start(cranibox_node::peer::config::path_for(
+                    &path,
+                ))
+                .await
+                {
+                    Ok(local) => service.local = Some(Arc::new(local)),
+                    Err(error) => service.error = Some(format!("{error:#}")),
+                }
                 match initial {
                     Ok(Some(settings)) => {
-                        service.settings = Some(settings.clone());
-                        service.running = Some(start(settings));
+                        service.settings = Some(settings);
+                        if let Err(error) = resume(&mut service) {
+                            service.error = Some(error);
+                        }
                     }
                     Ok(None) => {}
                     Err(error) => service.error = Some(format!("{error:#}")),
                 }
+                service.local.is_some() && service.error.is_none()
             });
-            if !background || !configured {
+            if !background || !ready {
                 show(app.handle());
             }
             let handle = app.handle().clone();
@@ -325,7 +563,14 @@ fn main() -> anyhow::Result<()> {
                             .running
                             .as_ref()
                             .map(|running| running.control.status.borrow().state.clone())
-                            .unwrap_or("未配置".into())
+                            .unwrap_or(
+                                if service.local.is_some() {
+                                    "本机服务运行中"
+                                } else {
+                                    "本机服务不可用"
+                                }
+                                .into(),
+                            )
                     };
                     if let Some(tray) = handle.tray_by_id("node") {
                         let _ = tray.set_tooltip(Some(format!("Cranibox Node — {status}")));

@@ -7,6 +7,7 @@ use std::{
     sync::mpsc,
 };
 use tokio::sync::mpsc as async_mpsc;
+pub mod engine;
 #[cfg(feature = "herdr")]
 pub mod herdr;
 pub mod persistent;

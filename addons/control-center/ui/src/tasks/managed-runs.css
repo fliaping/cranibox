@@ -1,0 +1,38 @@
+.managed-runs { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--direct-surface); min-width: 0; }
+.managed-runs > summary, .managed-run-launch > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 600; }
+.managed-runs > summary > span { color: var(--muted); font-size: 13px; font-weight: 400; }
+.managed-runs-content { display: grid; gap: 16px; margin-top: 16px; min-width: 0; }
+.managed-run-device { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--code-bg); }
+.managed-run-device label { display: grid; gap: 8px; min-width: 0; font-weight: 600; }
+.managed-run-device select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; color: var(--direct-text); background: var(--direct-surface); border: 1px solid var(--border); border-radius: 6px; }
+.managed-run-device > p { grid-column: 1 / -1; margin: 0; line-height: 1.65; overflow-wrap: anywhere; }
+.managed-runs-content p { margin: 0; line-height: 1.65; overflow-wrap: anywhere; }
+.managed-run-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.managed-run-card { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; }
+.managed-run-card code, .managed-run-card small, .managed-runs dd { overflow-wrap: anywhere; }
+.managed-run-heading { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.managed-run-heading > div { display: grid; gap: 4px; }
+.managed-run-heading > span { font-size: 13px; color: var(--muted); }
+.managed-run-card small { color: var(--muted); }
+.managed-run-output, .managed-run-review { display: grid; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.managed-run-output pre { max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 8px; font-size: 13px; line-height: 1.6; }
+.managed-runs dd { margin: 4px 0 12px; min-width: 0; }
+.managed-runs dt { color: var(--muted); font-size: 13px; }
+.managed-run-launch > .direct-editor { margin-top: 16px; }
+.managed-runs button { min-height: 44px; }
+.managed-runs input, .managed-runs textarea, .managed-runs select { font-size: 16px; }
+.managed-run-fields, .managed-run-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.managed-run-fields label, .managed-run-facts > div { min-width: 0; }
+.managed-run-facts { margin: 0; }
+.managed-run-review h3, .managed-run-review h4 { margin: 0; }
+.managed-run-form > button { justify-self: start; }
+.managed-run-form select { width: 100%; min-height: 44px; }
+.managed-run-prompt { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); font-size: 14px; line-height: 1.65; margin: 8px 0 0; }
+.managed-run-command { min-width: 0; }
+.managed-run-command > summary { cursor: pointer; min-height: 44px; align-content: center; color: var(--muted); }
+.managed-run-command code { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .managed-run-fields, .managed-run-facts { grid-template-columns: minmax(0, 1fr); }
+  .managed-run-review { padding: 12px; }
+  .managed-run-form > button { justify-self: stretch; }
+}

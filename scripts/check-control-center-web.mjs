@@ -67,7 +67,7 @@ try {
   assert.ok(html.includes('/web.js'));
   assert.ok(html.includes('href="/web.css"'));
   assert.ok(html.includes('id="root"'), 'React mount point is present');
-  assert.ok(html.includes('src="/web.js" defer'), 'compiled UI loads after boot configuration');
+  assert.ok(html.includes('src="/web.js" type="module"'), 'compiled UI loads as a deferred ES module after boot configuration');
   assert.equal((await request('/web.js')).status, 200);
   assert.equal((await request('/web.css')).status, 200);
   assert.equal((await request('/api/poll', {}, { 'X-Workspace-CSRF': 'wrong' })).status, 401);

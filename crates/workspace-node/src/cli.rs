@@ -13,9 +13,10 @@ use std::path::PathBuf;
 struct Args {
     #[arg(long, global = true)]
     server: Option<String>,
-    #[arg(long, global = true)]
+    // Local commands also have IDs and token files; keep their Clap keys separate.
+    #[arg(long, global = true, id = "connection-id")]
     id: Option<String>,
-    #[arg(long, global = true)]
+    #[arg(long, global = true, id = "connection-token-file")]
     token_file: Option<PathBuf>,
     #[arg(long, global = true)]
     name: Option<String>,
@@ -26,8 +27,30 @@ struct Args {
     #[command(subcommand)]
     command: Option<agent::Command>,
 }
+
 pub async fn run() -> anyhow::Result<()> {
+    if agent_workspace_runtime::peers::tasks::worker::maybe_serve(
+        &std::env::args().collect::<Vec<_>>(),
+    )
+    .await?
+    {
+        return Ok(());
+    }
     let args = Args::parse();
+    let peer_path = crate::peer::config::path_for(&args.config);
+    let command = match args.command {
+        Some(agent::Command::Space { command }) => {
+            let result = crate::spaces::Store::new(peer_path)
+                .manage(command, false)
+                .await?;
+            agent_workspace_runtime::client::print(result);
+            return Ok(());
+        }
+        Some(agent::Command::Peer { command }) => {
+            return crate::peer::run(peer_path, command).await;
+        }
+        command => command,
+    };
     let settings = if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
         Settings {
             server: args
@@ -44,16 +67,96 @@ pub async fn run() -> anyhow::Result<()> {
         Settings::read(&args.config)?
     };
     settings.validate()?;
-    if let Some(command) = args.command {
+    if let Some(command) = command {
         agent::run(settings, command).await
     } else {
-        node::run(
-            settings.server,
-            settings.id,
-            settings.token_file,
-            settings.name,
-            settings.allow_insecure,
-        )
-        .await
+        let control = node::Control::default();
+        let signal = control.stop.clone();
+        tokio::spawn(async move {
+            agent_workspace_runtime::shutdown_signal().await;
+            signal.cancel();
+        });
+        node::run_managed_at(settings, control, peer_path).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{peer, spaces};
+
+    #[test]
+    fn space_ids_are_distinct_from_the_gateway_node_id() {
+        let id = uuid::Uuid::new_v4();
+        for operation in ["stop", "resume", "remove", "credentials"] {
+            let args = Args::try_parse_from([
+                "cranibox-node",
+                "--id",
+                "gateway-node",
+                "space",
+                operation,
+                &id.to_string(),
+            ])
+            .unwrap();
+            assert_eq!(args.id.as_deref(), Some("gateway-node"));
+            let parsed = match args.command.unwrap() {
+                agent::Command::Space {
+                    command:
+                        spaces::Command::Stop { id }
+                        | spaces::Command::Resume { id }
+                        | spaces::Command::Remove { id }
+                        | spaces::Command::Credentials { id },
+                } => id,
+                other => panic!("unexpected command: {other:?}"),
+            };
+            assert_eq!(parsed, id);
+        }
+    }
+
+    #[test]
+    fn job_ids_do_not_become_gateway_credentials() {
+        for operation in ["job", "cancel"] {
+            let args = Args::try_parse_from(["cranibox-node", operation, "job-123"]).unwrap();
+            assert!(args.id.is_none());
+            let parsed = match args.command.unwrap() {
+                agent::Command::Job { id } | agent::Command::Cancel { id } => id,
+                other => panic!("unexpected command: {other:?}"),
+            };
+            assert_eq!(parsed, "job-123");
+        }
+    }
+
+    #[test]
+    fn peer_tokens_are_distinct_from_the_gateway_token() {
+        for (operation, flag) in [
+            ("grant", "--output-token"),
+            ("connect", "--credential-file"),
+        ] {
+            let mut command = vec![
+                "cranibox-node",
+                "--token-file",
+                "gateway.token",
+                "peer",
+                operation,
+                "--node",
+                "peer-node",
+                flag,
+                "peer.token",
+            ];
+            if operation == "connect" {
+                command.extend(["--url", "http://127.0.0.1:9020"]);
+            }
+            let args = Args::try_parse_from(command).unwrap();
+            assert_eq!(args.token_file, Some(PathBuf::from("gateway.token")));
+            let parsed = match args.command.unwrap() {
+                agent::Command::Peer {
+                    command:
+                        peer::Command::Grant { token_file, .. }
+                        | peer::Command::Connect { token_file, .. },
+                } => token_file,
+                other => panic!("unexpected command: {other:?}"),
+            };
+            assert_eq!(parsed, PathBuf::from("peer.token"));
+        }
     }
 }

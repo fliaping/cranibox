@@ -2,15 +2,38 @@ name: Cranibox server and independent node client
 
 on:
   push:
-    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_gateway_terminal.py', 'tests/test_node_peers.py', 'tests/test_node_identity.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_relay.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspace_projects.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   pull_request:
-    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_gateway_terminal.py', 'tests/test_node_peers.py', 'tests/test_node_identity.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_relay.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspace_projects.py', 'tests/test_rust_runtime.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-workspace-runtime.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  wayland:
+    name: Real Wayland desktop (Sway and wayvnc)
+    runs-on: ubuntu-latest
+    # wayvnc in older runner repositories predates the managed provider's 0.8 minimum.
+    container: ubuntu:26.04
+    steps:
+      - name: Install isolated desktop test dependencies
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 sway swaybg wayvnc fonts-dejavu-core
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wayland
+      - run: npm ci --prefix addons/control-center/ui
+      - run: cargo build --locked --workspace
+      - name: Verify real Wayland authentication, pixels, keyboard and independent node recovery
+        shell: bash
+        run: |
+          useradd --create-home cranibox-test
+          runuser -u cranibox-test -- env "PATH=$PATH" CRANIBOX_TEST_REAL_WAYLAND=1 python3 -m unittest discover -s tests -p test_desktop_real_wayland.py -v
   desktop:
     name: node desktop (${{ matrix.os }})
     strategy:
@@ -89,7 +112,7 @@ jobs:
         if: runner.os == 'Linux'
         with:
           node-version: '22'
-      - run: sudo apt-get update && sudo apt-get install -y s6
+      - run: sudo apt-get update && sudo apt-get install -y s6 xvfb x11vnc x11-utils x11-xserver-utils xdotool
         if: runner.os == 'Linux'
       - run: npm ci --prefix addons/control-center/ui
         if: runner.os == 'Linux'
@@ -111,6 +134,84 @@ jobs:
         if: runner.os == 'Linux'
         env:
           CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_gateway_terminal.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_workspace_projects.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_web_direct_peers.py -v
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_web_peer_paths.py -v
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_project_catalog_sync.py -v
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_background_project_sync.py -v
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_web_host_node.py -v
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_device_messages.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_device_tasks.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_task_runs.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_task_worker_mcp.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_automatic_task_worker.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_collaboration_runs.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_task_dependencies.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_agent_executions.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_remote_agent_executions.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_project_handoffs.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_project_streaming.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_agent_runs_mcp.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_node_peers.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_node_identity.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_remote_desktops.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_desktop_relay.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_desktop_service.py -v
+        if: runner.os == 'Linux'
+      - name: Verify real VNC authentication, pixels, input and headless restart
+        if: runner.os == 'Linux'
+        run: python -m unittest discover -s tests -p test_desktop_real_vnc.py -v
+        env:
+          CRANIBOX_TEST_REAL_VNC: '1'
+      - run: python -m unittest discover -s tests -p test_device_networks.py -v
+        if: runner.os == 'Linux'
+      - name: Verify real userspace EasyTier networking, restart and entry failover
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/cranibox-easytier.zip" https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-linux-x86_64-v2.6.4.zip
+          printf '%s  %s\n' 61b659eaedba658fa66fe47d17e1426cdd77e5d02fa15fed447bb4357c09dfd6 "$RUNNER_TEMP/cranibox-easytier.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/cranibox-easytier.zip" -d "$RUNNER_TEMP/cranibox-easytier"
+          chmod u+x "$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64/easytier-core" "$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64/easytier-cli"
+          CRANIBOX_TEST_EASYTIER_DIR="$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64" cargo test --locked -p cranibox-node network::tests::real_ -- --ignored --nocapture --test-threads=1
+      - run: python -m unittest discover -s tests -p test_virtual_spaces.py -v
+        if: runner.os == 'Linux'
+      - run: python -m unittest discover -s tests -p test_space_catalog.py -v
+        if: runner.os == 'Linux'
       - run: node scripts/check-control-center-web.mjs
         if: runner.os == 'Linux'
       - run: python -m pip install PyYAML

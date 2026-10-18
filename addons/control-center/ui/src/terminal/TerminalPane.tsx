@@ -5,14 +5,15 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CornerDownLeft, Keyboard, Maximize, Minimize, Play, SendHorizontal, Unplug, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Status } from '../components';
-import { request, t } from '../workspace';
+import { Button, Status } from './ui';
+import { useTerminalEnvironment, type TerminalConnection } from './TerminalEnvironment';
 import type { OpenTerminal } from './types';
 import { TerminalMenu } from './TerminalMenu';
 
 export function TerminalPane({ entry, visible, online, machine, onClose, onRename, onEnd }: { entry: OpenTerminal; visible: boolean; online: boolean; machine: string; onClose: () => void; onRename: () => void; onEnd: () => void }) {
+  const { t, connect } = useTerminalEnvironment();
   const host = useRef<HTMLDivElement>(null), pane = useRef<HTMLElement>(null), inputBox = useRef<HTMLTextAreaElement>(null);
-  const terminal = useRef<Terminal | null>(null), fit = useRef<FitAddon | null>(null), socket = useRef<WebSocket | null>(null);
+  const terminal = useRef<Terminal | null>(null), fit = useRef<FitAddon | null>(null), socket = useRef<TerminalConnection | null>(null);
   const alive = useRef(false), generation = useRef(0), attaching = useRef(false), timeout = useRef<number | undefined>(undefined);
   const wanted = useRef(true), retry = useRef<number | undefined>(undefined), backoff = useRef(0);
   const reconnect = useRef<() => void>(() => {});
@@ -41,45 +42,30 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
     const current = ++generation.current, term = terminal.current;
     try {
       if (host.current?.clientWidth) fit.current?.fit();
-      const { ticket } = await request('/api/terminal/ticket', { node: entry.node || null, session_id: entry.id, takeover, cols: term.cols, rows: term.rows });
-      if (!alive.current || current !== generation.current) return;
-      const endpoint = new URL('/api/terminal/ws', location.href);
-      endpoint.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'; endpoint.searchParams.set('ticket', ticket);
-      const ws = new WebSocket(endpoint); ws.binaryType = 'arraybuffer'; socket.current = ws;
-      timeout.current = window.setTimeout(() => { if (alive.current && current === generation.current) { setError(t('接入超时，请重试或检查节点。', 'Attachment timed out. Retry or check the node.')); ws.close(); } }, 20000);
-      ws.onopen = () => {
-        if (current !== generation.current) { ws.close(); return; }
-        term.reset();
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
-      };
-      ws.onmessage = event => {
-        if (!alive.current || current !== generation.current) return;
-        if (event.data instanceof ArrayBuffer) {
-          window.clearTimeout(timeout.current); attaching.current = false; backoff.current = 0; setStatus('connected');
-          term.write(new Uint8Array(event.data));
-        } else {
-          try {
-            const value = JSON.parse(event.data);
-            if (value.type === 'error') { wanted.current = false; setError(value.message); ws.close(); }
-            if (value.type === 'attachment_closed') { wanted.current = false; ws.close(); }
-          } catch { wanted.current = false; setError(t('终端响应异常，请重新接回。', 'Invalid terminal response. Reattach to continue.')); ws.close(); }
-        }
-      };
-      ws.onerror = () => { if (alive.current && current === generation.current) setError(t('无法连接终端，请检查节点后重试。', 'Unable to connect. Check the node and retry.')); };
-      ws.onclose = () => {
-        if (socket.current === ws) socket.current = null;
-        if (alive.current && current === generation.current) { window.clearTimeout(timeout.current); attaching.current = false; setStatus('disconnected'); scheduleReconnect(); }
-      };
+      const valid = () => alive.current && current === generation.current;
+      term.reset();
+      timeout.current = window.setTimeout(() => { if (valid()) { setError(t('接入超时，请重试或检查节点。', 'Attachment timed out. Retry or check the node.')); detach(false); scheduleReconnect(); } }, 20000);
+      let closed = false;
+      const connection = await connect({ node: entry.node, session_id: entry.id, takeover, cols: term.cols, rows: term.rows }, {
+        ready: () => { if (valid()) { window.clearTimeout(timeout.current); attaching.current = false; backoff.current = 0; setError(''); setStatus('connected'); } },
+        output: data => { if (valid()) term.write(data); },
+        error: (message, fatal) => { if (valid()) { if (fatal) wanted.current = false; setError(message); } },
+        ended: () => { if (valid()) wanted.current = false; },
+        closed: () => { closed = true; if (valid()) { socket.current = null; window.clearTimeout(timeout.current); attaching.current = false; setStatus('disconnected'); scheduleReconnect(); } },
+      });
+      if (!valid() || closed) { connection.close(); return; }
+      socket.current = connection;
+      connection.send({ type: 'resize', cols: term.cols, rows: term.rows });
     } catch (problem) {
-      if (alive.current && current === generation.current) { attaching.current = false; setError(problem instanceof Error ? problem.message : String(problem)); setStatus('disconnected'); scheduleReconnect(); }
+      if (alive.current && current === generation.current) { window.clearTimeout(timeout.current); attaching.current = false; setError(problem instanceof Error ? problem.message : String(problem)); setStatus('disconnected'); scheduleReconnect(); }
     }
-  }, [entry.node, entry.id, online, scheduleReconnect]);
+  }, [entry.node, entry.id, online, connect, detach, scheduleReconnect]);
   useEffect(() => { reconnect.current = () => { if (wanted.current) void attach(); }; }, [attach]);
   useEffect(() => {
     alive.current = true;
     const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', scrollback: 3000, screenReaderMode: true, minimumContrastRatio: 4.5, theme: { background: '#0f141c', foreground: '#f1f5f9', cursor: '#a3e635', selectionBackground: '#303d50' } });
     const fitted = new FitAddon(); term.loadAddon(fitted); term.open(host.current!); terminal.current = term; fit.current = fitted;
-    const send = (value: unknown) => { if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(value)); };
+    const send = (value: Parameters<TerminalConnection['send']>[0]) => socket.current?.send(value);
     const input = term.onData(data => send({ type: 'input', data }));
     const resized = term.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }));
     let frame = 0;
@@ -102,11 +88,11 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
   }, [visible, status]);
   useEffect(() => { if (terminal.current) { terminal.current.options.fontSize = fontSize; if (host.current?.clientWidth) fit.current?.fit(); } }, [fontSize]);
   function key(data: string) {
-    if (socket.current?.readyState !== WebSocket.OPEN || !connected) return false;
-    socket.current.send(JSON.stringify({ type: 'input', data })); return true;
+    if (!socket.current || !connected) return false;
+    socket.current.send({ type: 'input', data }); return true;
   }
   function sendDraft() {
-    if (!connected || composing.current || socket.current?.readyState !== WebSocket.OPEN) return;
+    if (!connected || composing.current || !socket.current) return;
     if (draft) terminal.current?.paste(draft);
     if (key('\r')) setDraft('');
     inputBox.current?.focus();

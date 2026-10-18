@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    lib: { entry: 'src/main.tsx', name: 'Cranibox', formats: ['iife'], fileName: () => 'web.js', cssFileName: 'web' },
+    lib: { entry: 'src/main.tsx', formats: ['es'], fileName: () => 'web.js', cssFileName: 'web' },
     sourcemap: false,
     target: 'es2022',
   },

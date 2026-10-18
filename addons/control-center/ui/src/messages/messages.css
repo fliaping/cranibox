@@ -1,0 +1,37 @@
+.device-messages h2 { display: flex; align-items: center; gap: 10px; }
+.messages-identity { display: flex; flex-wrap: wrap; gap: 16px 32px; margin-bottom: 20px; padding: 16px 20px; background: var(--direct-surface); border: 1px solid var(--border); border-radius: 10px; }
+.messages-identity > span { display: grid; gap: 5px; min-width: 0; font-size: 12px; color: var(--muted); }
+.messages-identity code, .messages-identity strong, .messages-identity time { color: var(--direct-text); font-size: 14px; overflow-wrap: anywhere; }
+.messages-identity code { user-select: all; }
+.messages-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.messages-compose, .messages-feed { min-width: 0; }
+.messages-compose .direct-editor { margin-bottom: 16px !important; }
+.messages-guidance { display: flex; gap: 10px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.messages-guidance > svg { flex-shrink: 0; margin-top: 3px; }
+.messages-guidance h3 { font-size: 14px; color: var(--direct-text); }
+.messages-guidance p { margin-top: 8px; }
+.messages-guidance button { margin-top: 12px; }
+.messages-reply { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--code-bg); border-radius: 4px; font-size: 13px; }
+.messages-reply span { min-width: 0; } .messages-reply code { display: block; overflow-wrap: anywhere; font-size: 12px; }
+.messages-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.messages-tabs button[aria-pressed=true] { border-color: var(--accent); }
+.messages-tabs span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.message-card { margin-bottom: 16px; padding: 20px; background: var(--direct-surface); border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.message-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.message-heading > div { min-width: 0; } .message-heading small { display: block; color: var(--muted); margin-bottom: 4px; font-size: 12px; }
+.message-heading strong { display: block; overflow-wrap: anywhere; font-size: 15px; }
+.message-status { flex-shrink: 0; font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.message-acknowledged { border-color: var(--accent); } .message-blocked, .message-expired { border-color: var(--danger, #e87888); }
+.message-card .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.7; margin-bottom: 16px; }
+.message-agent-address { display: grid; gap: 5px; margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+.message-agent-address code { overflow-wrap: anywhere; user-select: all; color: var(--direct-text); }
+.message-card details { margin-bottom: 16px; font-size: 12px; color: var(--muted); }
+.message-card summary { cursor: pointer; min-height: 44px; align-content: center; }
+.message-card dl { display: grid; gap: 8px; margin: 8px 0 0; }
+.message-card dl > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px; }
+.message-card dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.message-card .direct-actions { padding-top: 12px; border-top: 1px solid var(--border); }
+.message-card > .direct-note { margin-top: 12px; }
+.messages-notice { margin-bottom: 16px !important; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; font-size: 14px; }
+@media(max-width:1000px) { .messages-layout { grid-template-columns: 1fr; } .messages-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .7fr); gap: 20px; } }
+@media(max-width:650px) { .messages-compose { display: block; } .messages-guidance { margin-bottom: 20px; } .message-card { padding: 16px; } .message-heading { flex-wrap: wrap; } .messages-identity { padding: 14px; } }

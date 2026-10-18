@@ -10,7 +10,7 @@ if (result.status !== 0) process.exit(result.status || 1);
 for (const asset of ['web.js', 'web.css']) {
   const source = path.join(output, 'ui/dist', asset), destination = path.join(output, asset);
   if (asset === 'web.js') {
-    const notice = fs.readFileSync(path.resolve(__dirname, '../docs/licenses/herdr-web-ui.txt'), 'utf8');
+    const notice = ['herdr-web-ui.txt', 'novnc.txt'].map(name => fs.readFileSync(path.resolve(__dirname, '../docs/licenses', name), 'utf8')).join('\n\n').replace(/[ \t]+$/gm, '');
     fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + fs.readFileSync(source, 'utf8'));
   } else fs.copyFileSync(source, destination);
 }
@@ -27,6 +27,6 @@ for (const language of ['en', 'zh-cn']) {
     '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +
     '<noscript>' + (zh ? '请启用 JavaScript 后使用控制中心。' : 'Enable JavaScript to use the control center.') + '</noscript>\n' +
     '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;</script>\n' +
-    '<script nonce="__WORKSPACE_NONCE__" src="/web.js" defer></script>\n</body></html>\n';
+    '<script nonce="__WORKSPACE_NONCE__" src="/web.js" type="module"></script>\n</body></html>\n';
   fs.writeFileSync(path.join(output, 'index.' + language + '.html'), html);
 }

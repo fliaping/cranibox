@@ -22,10 +22,54 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+#[derive(Debug)]
+struct HttpError {
+    status: u16,
+    message: String,
+}
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "API {}: {}", self.status, self.message)
+    }
+}
+impl std::error::Error for HttpError {}
+
+pub(crate) fn not_found(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<HttpError>()
+        .is_some_and(|e| e.status == 404)
+}
+
+/// Only transport outages and explicit upstream outages may use an offline
+/// catalog. Authorization, identity and protocol failures must remain failures.
+pub(crate) fn unavailable(error: &anyhow::Error) -> bool {
+    error.is::<PathsUnavailable>()
+        || error.is::<crate::peers::local_forward::Unavailable>()
+        || error
+            .downcast_ref::<reqwest::Error>()
+            .is_some_and(|e| e.is_connect() || e.is_timeout())
+        || error
+            .downcast_ref::<HttpError>()
+            .is_some_and(|e| matches!(e.status, 502..=504))
+}
+#[derive(Debug)]
+struct PathsUnavailable;
+impl std::fmt::Display for PathsUnavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "All configured paths are unavailable. Check the device and its network connections."
+        )
+    }
+}
+impl std::error::Error for PathsUnavailable {}
+
 pub struct Api {
     options: ApiOptions,
     client: reqwest::Client,
     mesh: bool,
+    target: Option<String>,
+    endpoints: Vec<crate::peers::config::Endpoint>,
 }
 impl Api {
     pub fn new(options: ApiOptions) -> Result<Self> {
@@ -39,10 +83,17 @@ impl Api {
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(15))
             .build()?;
+        let endpoints = vec![crate::peers::config::Endpoint {
+            url: options.url.clone(),
+            allow_insecure: options.allow_insecure,
+            local_forward_lock: None,
+        }];
         Ok(Self {
             options,
             client,
             mesh: false,
+            target: None,
+            endpoints,
         })
     }
     pub fn mesh(options: ApiOptions) -> Result<Self> {
@@ -50,11 +101,175 @@ impl Api {
         api.mesh = true;
         Ok(api)
     }
-    fn token(&self) -> Result<String> {
+    /// Direct calls name the expected target before any operation can run.
+    pub fn direct(options: ApiOptions, target: String) -> Result<Self> {
+        anyhow::ensure!(valid_node_id(&target), "invalid target node ID");
+        let mut api = Self::mesh(options)?;
+        api.target = Some(target);
+        Ok(api)
+    }
+    fn token(&self, endpoint: &crate::peers::config::Endpoint) -> Result<String> {
+        if let Some(lease) = &endpoint.local_forward_lock {
+            crate::peers::local_forward::ensure_running(lease)?;
+        }
         match &self.options.token_file {
             Some(path) => config::read_token(path),
             None => Ok(config::Credentials::read(&self.options.credentials)?.controller_token),
         }
+    }
+    pub(crate) fn with_paths(
+        mut self,
+        endpoints: Vec<crate::peers::config::Endpoint>,
+    ) -> Result<Self> {
+        anyhow::ensure!(
+            !endpoints.is_empty() && endpoints.len() <= crate::peers::config::MAX_PATHS,
+            "invalid node paths"
+        );
+        for endpoint in &endpoints {
+            endpoint.validate()?;
+        }
+        // Preserve eager lease validation for existing single-path callers.
+        if endpoints.len() == 1
+            && let Some(lease) = &endpoints[0].local_forward_lock
+        {
+            crate::peers::local_forward::ensure_running(lease)?;
+        }
+        self.endpoints = endpoints;
+        Ok(self)
+    }
+    /// Only read-only authorization probes may try another path. Actual requests
+    /// and WebSocket upgrades are sent once, even if their response is lost.
+    async fn select_endpoint(&self) -> Result<&crate::peers::config::Endpoint> {
+        if self.endpoints.len() == 1 {
+            return Ok(&self.endpoints[0]);
+        }
+        let target = self
+            .target
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("multiple paths require a direct target"))?;
+        for endpoint in &self.endpoints {
+            if endpoint
+                .local_forward_lock
+                .as_ref()
+                .is_some_and(|lease| crate::peers::local_forward::ensure_running(lease).is_err())
+            {
+                continue;
+            }
+            match self
+                .request_at(
+                    reqwest::Method::GET,
+                    "/api/v1/nodes",
+                    None,
+                    4096,
+                    endpoint,
+                    Some(Duration::from_secs(2)),
+                )
+                .await
+            {
+                Ok(value) => {
+                    Self::check_identity(&value, target)?;
+                    return Ok(endpoint);
+                }
+                Err(error) if unavailable(&error) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(PathsUnavailable.into())
+    }
+    fn check_identity(value: &Value, target: &str) -> Result<()> {
+        anyhow::ensure!(
+            value["nodes"]
+                .as_array()
+                .is_some_and(|nodes| nodes.len() == 1 && nodes[0]["id"].as_str() == Some(target)),
+            "unexpected target identity"
+        );
+        Ok(())
+    }
+    pub async fn probe(&self) -> Result<Value> {
+        let endpoint = self.select_endpoint().await?;
+        let mut value = self
+            .request_at(
+                reqwest::Method::GET,
+                "/api/v1/nodes",
+                None,
+                4096,
+                endpoint,
+                Some(Duration::from_secs(2)),
+            )
+            .await?;
+        if let Some(target) = &self.target {
+            Self::check_identity(&value, target)?;
+        }
+        value["connection"] = json!({"url":endpoint.url, "fallback":endpoint.url != self.endpoints[0].url, "path_count":self.endpoints.len()});
+        Ok(value)
+    }
+    /// Native attachment over either the gateway or an explicitly bound direct route.
+    pub async fn terminal(
+        &self,
+        node: &str,
+        session: &str,
+        cols: u16,
+        rows: u16,
+        takeover: bool,
+    ) -> Result<crate::peers::terminal::Terminal> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        anyhow::ensure!(valid_node_id(node), "invalid node ID");
+        anyhow::ensure!(uuid::Uuid::parse_str(session).is_ok(), "invalid session ID");
+        anyhow::ensure!(
+            self.target.as_ref().is_none_or(|target| target == node),
+            "terminal target mismatch"
+        );
+        crate::peers::terminal::Input::Resize { cols, rows }.validate()?;
+        let endpoint = self.select_endpoint().await?;
+        let mut url = config::check_url(&endpoint.url, false, endpoint.allow_insecure)?;
+        let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
+        url.set_scheme(scheme)
+            .map_err(|_| anyhow::anyhow!("invalid terminal URL"))?;
+        let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
+        url.set_path(&format!("{prefix}/nodes/{node}/terminal/ws"));
+        url.query_pairs_mut()
+            .append_pair("session", session)
+            .append_pair("cols", &cols.to_string())
+            .append_pair("rows", &rows.to_string())
+            .append_pair("takeover", &takeover.to_string());
+        let mut request = url.as_str().into_client_request()?;
+        request.headers_mut().insert(
+            "authorization",
+            format!("Bearer {}", self.token(endpoint)?).parse()?,
+        );
+        if let Some(target) = &self.target {
+            request
+                .headers_mut()
+                .insert("x-cranibox-target", target.parse()?);
+        }
+        crate::peers::terminal::Terminal::connect_request(request).await
+    }
+    /// Use a bound direct target, or a gateway with authenticated caller identity.
+    pub async fn desktop(&self, node: &str) -> Result<crate::peers::desktop::Stream> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        anyhow::ensure!(
+            crate::protocol::valid_node_id(node)
+                && self.target.as_deref().is_none_or(|target| target == node),
+            "desktop target mismatch"
+        );
+        let endpoint = self.select_endpoint().await?;
+        let mut url = config::check_url(&endpoint.url, false, endpoint.allow_insecure)?;
+        let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
+        url.set_scheme(scheme)
+            .map_err(|_| anyhow::anyhow!("invalid desktop URL"))?;
+        let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
+        url.set_path(&format!("{prefix}/nodes/{node}/desktop/ws"));
+        let mut request = url.as_str().into_client_request()?;
+        request.headers_mut().insert(
+            "authorization",
+            format!("Bearer {}", self.token(endpoint)?).parse()?,
+        );
+        if let Some(target) = &self.target {
+            request
+                .headers_mut()
+                .insert("x-cranibox-target", target.parse()?);
+        }
+        crate::peers::desktop::Stream::connect_request(request).await
     }
     async fn request(
         &self,
@@ -62,13 +277,35 @@ impl Api {
         path: &str,
         body: Option<Value>,
     ) -> Result<Value> {
+        self.request_bounded(method, path, body, 1024 * 1024).await
+    }
+    async fn request_bounded(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<Value>,
+        limit: usize,
+    ) -> Result<Value> {
+        let endpoint = self.select_endpoint().await?;
+        self.request_at(method, path, body, limit, endpoint, None)
+            .await
+    }
+    async fn request_at(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<Value>,
+        limit: usize,
+        endpoint: &crate::peers::config::Endpoint,
+        timeout: Option<Duration>,
+    ) -> Result<Value> {
         let mut request = self
             .client
             .request(
                 method,
                 format!(
                     "{}{}",
-                    self.options.url.trim_end_matches('/'),
+                    endpoint.url.trim_end_matches('/'),
                     if self.mesh {
                         path.replacen("/api/v1", "/api/v1/mesh", 1)
                     } else {
@@ -76,34 +313,63 @@ impl Api {
                     }
                 ),
             )
-            .bearer_auth(self.token()?);
+            .bearer_auth(self.token(endpoint)?);
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
+        } else if limit > 1024 * 1024 {
+            request = request.timeout(Duration::from_secs(120));
+        }
+        if let Some(target) = &self.target {
+            request = request.header("x-cranibox-target", target);
+        }
         if let Some(body) = body {
             request = request.json(&body);
         }
         let mut response = request.send().await?;
         let status = response.status();
-        let mut bytes = vec![];
-        while let Some(chunk) = response.chunk().await? {
-            anyhow::ensure!(
-                bytes.len() + chunk.len() <= 1024 * 1024,
-                "response exceeds 1 MiB"
-            );
-            bytes.extend_from_slice(&chunk);
+        let value: Result<Value> = async {
+            let mut bytes = vec![];
+            while let Some(chunk) = response.chunk().await? {
+                anyhow::ensure!(
+                    bytes.len() + chunk.len() <= limit,
+                    "response exceeds allowed size"
+                );
+                bytes.extend_from_slice(&chunk);
+            }
+            Ok(serde_json::from_slice(&bytes)?)
         }
-        let value: Value = serde_json::from_slice(&bytes)?;
-        anyhow::ensure!(
-            status.is_success(),
-            "API {}: {}",
-            status.as_u16(),
-            value["error"].as_str().unwrap_or("request failed")
-        );
-        Ok(value)
+        .await;
+        // Preserve the HTTP status even when an error body is malformed, too
+        // large or times out. A denied request must never become an outage.
+        if !status.is_success() {
+            return Err(HttpError {
+                status: status.as_u16(),
+                message: value
+                    .as_ref()
+                    .ok()
+                    .and_then(|v| v["error"].as_str())
+                    .unwrap_or("request failed")
+                    .to_owned(),
+            }
+            .into());
+        }
+        value
     }
     pub async fn get(&self, path: &str) -> Result<Value> {
         self.request(reqwest::Method::GET, path, None).await
     }
     pub async fn post(&self, path: &str, body: Value) -> Result<Value> {
         self.request(reqwest::Method::POST, path, Some(body)).await
+    }
+    /// Only the explicitly bounded code snapshot endpoints use the larger frame.
+    pub(crate) async fn copy_request(&self, path: &str, body: Value) -> Result<Value> {
+        self.request_bounded(
+            reqwest::Method::POST,
+            path,
+            Some(body),
+            crate::projects::copy::MAX_WIRE,
+        )
+        .await
     }
     pub async fn execute(&self, node: &str, request: ExecRequest, detach: bool) -> Result<Value> {
         anyhow::ensure!(valid_node_id(node), "invalid node ID");
@@ -156,7 +422,13 @@ fn tools() -> Value {
             "cwd":{"type":"string"},"env":{"type":"object","additionalProperties":{"type":"string"}},
             "timeout_secs":{"type":"integer","minimum":1,"maximum":3600,"default":60}},"required":["node","program"],"additionalProperties":false}},
         {"name":"workspace_job","description":"Read a job's current stdout/stderr, exit code and outcome. Output is bounded to 64 KiB; truncated indicates loss. Jobs are in memory and expire after ten minutes.","inputSchema":job},
-        {"name":"workspace_cancel","description":"Cancel a running remote command and terminate its process tree. Poll workspace_job for confirmation.","inputSchema":job}
+        {"name":"workspace_cancel","description":"Cancel a running remote command and terminate its process tree. Poll workspace_job for confirmation.","inputSchema":job},
+        {"name":"workspace_projects","description":"Read or manage the authorized project catalog. Register records an existing absolute directory without copying files. Bind links an existing terminal UUID; unbind and forget keep files and shells. Direct connections require project permission, plus terminal permission for bind. A ProjectID may explicitly join working copies across nodes.",
+         "inputSchema":{"type":"object","properties":{"command":{"type":"object","properties":{
+            "operation":{"type":"string","enum":["list","register","bind","unbind","forget"]},
+            "name":{"type":"string"},"node":{"type":["string","null"]},"path":{"type":"string"},
+            "project_id":{"type":["string","null"]},"replica_id":{"type":"string"},"terminal_id":{"type":"string"}},
+            "required":["operation"],"additionalProperties":false}},"required":["command"],"additionalProperties":false}}
     ])
 }
 async fn call(api: &Api, params: &Value) -> Result<Value> {
@@ -164,6 +436,23 @@ async fn call(api: &Api, params: &Value) -> Result<Value> {
     let args = params.get("arguments").cloned().unwrap_or(json!({}));
     match name {
         "workspace_nodes" => api.get("/api/v1/nodes").await,
+        "workspace_projects" => {
+            let mut command: crate::projects::Command =
+                serde_json::from_value(args["command"].clone())?;
+            let path = if let Some(target) = &api.target {
+                if let crate::projects::Command::Register { node, .. } = &mut command {
+                    anyhow::ensure!(
+                        node.as_ref().is_none_or(|node| node == target),
+                        "project target mismatch"
+                    );
+                    *node = Some(target.clone());
+                }
+                format!("/api/v1/nodes/{target}/projects")
+            } else {
+                "/api/v1/projects".into()
+            };
+            api.post(&path, serde_json::to_value(command)?).await
+        }
         "workspace_exec" => {
             let mut args = args
                 .as_object()
@@ -188,8 +477,82 @@ async fn call(api: &Api, params: &Value) -> Result<Value> {
     }
 }
 pub async fn mcp(api: Api) -> Result<()> {
+    mcp_service(McpBackend::Workspace(api)).await
+}
+/// Local device messaging uses no Workspace administrator or relay credential.
+pub async fn messages_mcp(store: crate::peers::Store) -> Result<()> {
+    mcp_service(McpBackend::Messages(store)).await
+}
+/// Explicit process execution is opt-in; the message MCP keeps its existing tools.
+pub async fn executions_mcp(store: crate::peers::Store) -> Result<()> {
+    mcp_service(McpBackend::Executions(store)).await
+}
+pub async fn task_worker_mcp(worker: crate::peers::tasks::worker::Worker) -> Result<()> {
+    mcp_service(McpBackend::TaskWorker(worker)).await
+}
+enum McpBackend {
+    Workspace(Api),
+    Messages(crate::peers::Store),
+    Executions(crate::peers::Store),
+    TaskWorker(crate::peers::tasks::worker::Worker),
+}
+impl McpBackend {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Workspace(_) => "agent-workspace-nodes",
+            Self::Messages(_) => "cranibox-device-messages",
+            Self::Executions(_) => "cranibox-device-runs",
+            Self::TaskWorker(_) => "cranibox-task-worker",
+        }
+    }
+    fn tools(&self) -> Value {
+        match self {
+            Self::Workspace(_) => tools(),
+            Self::Executions(_) => crate::peers::executions::mcp::tools(),
+            Self::TaskWorker(_) => crate::peers::tasks::worker::tools(),
+            Self::Messages(_) => {
+                let mut tools = crate::peers::messages::tools().as_array().unwrap().clone();
+                tools.extend(
+                    crate::peers::tasks::tools()
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .cloned(),
+                );
+                tools.extend(
+                    crate::peers::agent_sessions::tools()
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .cloned(),
+                );
+                Value::Array(tools)
+            }
+        }
+    }
+    async fn call(&self, parameters: &Value) -> Result<Value> {
+        match self {
+            Self::Workspace(api) => call(api, parameters).await,
+            Self::Executions(store) => store.execution_tool(parameters).await,
+            Self::TaskWorker(worker) => worker.call(parameters).await,
+            Self::Messages(store) => match parameters["name"].as_str() {
+                Some("device_tasks") => store.task_tool(parameters).await,
+                Some("device_agent_sessions") => store.agent_session_tool(parameters).await,
+                _ => store.message_tool(parameters).await,
+            },
+        }
+    }
+}
+async fn mcp_service(backend: McpBackend) -> Result<()> {
     let mut input = BufReader::new(tokio::io::stdin());
     let mut output = tokio::io::stdout();
+    // JSON escaping can expand a valid 16 KiB prompt beyond 64 KiB. Keep the
+    // larger frame bound specific to the opt-in run server; field limits apply below.
+    let frame_limit = if matches!(backend, McpBackend::Executions(_)) {
+        128 * 1024
+    } else {
+        MAX_FRAME
+    };
     loop {
         // Stdio frames are newline-delimited JSON, with a bound before allocation can grow.
         let mut line = vec![];
@@ -203,8 +566,9 @@ pub async fn mcp(api: Api) -> Result<()> {
                 .position(|b| *b == b'\n')
                 .map_or(available.len(), |at| at + 1);
             anyhow::ensure!(
-                line.len() + count <= MAX_FRAME,
-                "MCP request exceeds 64 KiB"
+                line.len() + count <= frame_limit,
+                "MCP request exceeds {} KiB",
+                frame_limit / 1024
             );
             let done = available[count - 1] == b'\n';
             line.extend_from_slice(&available[..count]);
@@ -234,11 +598,13 @@ pub async fn mcp(api: Api) -> Result<()> {
                             } else {
                                 "2024-11-05"
                             };
-                        json!({"protocolVersion":protocol,"capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"agent-workspace-nodes","version":env!("CARGO_PKG_VERSION")}})
+                        json!({"protocolVersion":protocol,"capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":backend.name(),"version":env!("CARGO_PKG_VERSION")}})
                     }
                     "ping" => json!({}),
-                    "tools/list" => json!({"tools":tools()}),
-                    "tools/call" => match call(&api, &req["params"]).await {
+                    "tools/list" => {
+                        json!({"tools":backend.tools()})
+                    }
+                    "tools/call" => match backend.call(&req["params"]).await {
                         Ok(value) => {
                             json!({"content":[{"type":"text","text":serde_json::to_string(&value)?}]})
                         }

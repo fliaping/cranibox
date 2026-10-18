@@ -3,6 +3,80 @@ use axum::body::Body;
 use futures_util::StreamExt;
 use tower::ServiceExt;
 
+#[test]
+fn application_gateway_requires_an_isolated_origin() {
+    let mut config = Config::default();
+    assert!(config.validate().is_ok());
+    for origin in [
+        "https://console.test",
+        "https://localhost:3001",
+        "http://localhost:8443",
+    ] {
+        config.public_url = "https://console.test".into();
+        config.applications_url = origin.into();
+        assert!(config.validate().is_err());
+    }
+    for origin in [
+        "https://apps.test/nested/",
+        "https://user:password@apps.test",
+        "https://apps.test/?token=secret",
+    ] {
+        config.applications_url = origin.into();
+        assert!(config.validate().is_err());
+    }
+    config.applications_url = "https://apps.test".into();
+    assert!(config.validate().is_ok());
+}
+
+#[tokio::test]
+async fn application_paths_reject_console_host_and_cross_origin_requests() {
+    let (_directory, state, session) = fixture().await;
+    let path = "/cranibox-app-11111111-1111-4111-8111-111111111111-desktop/";
+    for (host, origin) in [
+        ("localhost:9080", "https://localhost:3002"),
+        ("localhost:3002", "https://attacker.test"),
+    ] {
+        let request = Request::builder()
+            .uri(path)
+            .header("host", host)
+            .header("origin", origin)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            router(state.clone())
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+    assert_eq!(
+        call(
+            &state,
+            &session,
+            "/api/spaces/application",
+            json!({"id":"invalid","application":"desktop"}),
+            false
+        )
+        .await
+        .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        call(
+            &state,
+            &session,
+            "/api/spaces/application",
+            json!({"id":"invalid","application":"desktop","url":"http://attacker.test"}),
+            true
+        )
+        .await
+        .status(),
+        StatusCode::BAD_REQUEST
+    );
+}
+
 async fn fixture() -> (tempfile::TempDir, State, SessionRef) {
     let directory = tempfile::tempdir().unwrap();
     let state = State::new(
@@ -69,6 +143,69 @@ async fn frame(
     }
 }
 #[tokio::test]
+async fn closed_browsers_release_capacity_without_expiring_a_live_connection() {
+    let (_directory, state, live) = fixture().await;
+    live.lock().await.seen = Instant::now() - Duration::from_secs(13 * 3600);
+    let live_id = live.lock().await.id.clone();
+    let closed = state.new_session().await.unwrap();
+    let closed_id = closed.lock().await.id.clone();
+    closed.lock().await.seen = Instant::now() - Duration::from_secs(60);
+    drop(closed);
+    for _ in 2..64 {
+        state.new_session().await.unwrap();
+    }
+    let replacement = state.new_session().await.unwrap();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "cookie",
+        HeaderValue::from_str(&format!("aw_session={closed_id}")).unwrap(),
+    );
+    assert!(state.session(&headers).await.is_none());
+    assert!(state.has_session(&live_id).await);
+    assert_eq!(state.sessions.lock().await.len(), 64);
+    assert_ne!(replacement.lock().await.id, closed_id);
+    state.cleanup().await;
+    assert!(state.has_session(&live_id).await);
+    drop(live);
+    state.cleanup().await;
+    assert!(!state.has_session(&live_id).await);
+}
+#[tokio::test]
+async fn session_pressure_keeps_disconnected_operations_prompts_and_live_requests() {
+    let (_directory, state, session) = fixture().await;
+    session.lock().await.busy = true;
+    for _ in 1..64 {
+        state.new_session().await.unwrap().lock().await.busy = true;
+    }
+    assert!(state.new_session().await.is_err());
+    session.lock().await.busy = false;
+    // An in-flight request or WebSocket still owns this reference.
+    assert!(state.new_session().await.is_err());
+    let id = session.lock().await.id.clone();
+    let (sender, _receiver) = oneshot::channel();
+    session.lock().await.prompt = Some(Prompt {
+        view: json!({"type":"confirm"}),
+        validation: Validation::Confirm {
+            choices: vec!["yes".into()],
+        },
+        sender,
+    });
+    drop(session);
+    assert!(state.new_session().await.is_err());
+    state
+        .sessions
+        .lock()
+        .await
+        .get(&id)
+        .unwrap()
+        .lock()
+        .await
+        .prompt = None;
+    assert!(state.new_session().await.is_ok());
+    assert!(!state.has_session(&id).await);
+    assert_eq!(state.sessions.lock().await.len(), 64);
+}
+#[tokio::test]
 async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
     let (directory, state, session) = fixture().await;
     let path = directory
@@ -79,6 +216,7 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
         &serde_json::to_vec(&agent_workspace_runtime::config::Credentials {
             controller_token: token(),
             mesh_groups: Default::default(),
+            node_aliases: Default::default(),
             nodes: Default::default(),
         })
         .unwrap(),

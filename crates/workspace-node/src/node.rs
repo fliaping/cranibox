@@ -1,5 +1,5 @@
 use crate::settings::Settings;
-use agent_workspace_pty::persistent::Engine as TerminalEngine;
+use agent_workspace_pty::engine::Engine as TerminalEngine;
 use agent_workspace_runtime::{config, protocol::*};
 use anyhow::{Context, Result};
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -20,6 +20,8 @@ use tokio_tungstenite::{
     tungstenite::{Message, client::IntoClientRequest, protocol::WebSocketConfig},
 };
 use tokio_util::sync::CancellationToken;
+
+mod desktop_relay;
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct ConnectionStatus {
@@ -81,6 +83,31 @@ pub async fn run(
 }
 
 pub async fn run_managed(settings: Settings, control: Control) -> Result<()> {
+    run_managed_at(
+        settings,
+        control,
+        crate::peer::config::path_for(&crate::settings::default_path()),
+    )
+    .await
+}
+pub async fn run_managed_at(
+    settings: Settings,
+    control: Control,
+    peer_path: PathBuf,
+) -> Result<()> {
+    settings.validate()?;
+    let local = Arc::new(crate::local::LocalNode::start(peer_path).await?);
+    let result = connect_managed(settings, control, local.clone()).await;
+    let shutdown = local.shutdown().await;
+    result.and(shutdown)
+}
+
+/// Replacing a gateway connection must not replace the device's Shell owner.
+pub async fn connect_managed(
+    settings: Settings,
+    control: Control,
+    local: Arc<crate::local::LocalNode>,
+) -> Result<()> {
     settings.validate()?;
     let Settings {
         server,
@@ -108,11 +135,6 @@ pub async fn run_managed(settings: Settings, control: Control) -> Result<()> {
     anyhow::ensure!(name.len() <= 128, "node name too long");
     let stop = control.stop.clone();
     let endpoint = format!("{}/ws/nodes/{id}", server.trim_end_matches('/'));
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .unwrap_or(std::env::current_dir()?);
-    let engine = TerminalEngine::new(home);
     let mut delay = 1u64;
     loop {
         if stop.is_cancelled() {
@@ -127,7 +149,7 @@ pub async fn run_managed(settings: Settings, control: Control) -> Result<()> {
             &token_file,
             &name,
             &connection_stop,
-            &engine,
+            &local,
             &control,
         );
         tokio::pin!(connection);
@@ -149,7 +171,6 @@ pub async fn run_managed(settings: Settings, control: Control) -> Result<()> {
         tokio::select! { _ = stop.cancelled() => break, _ = control.reconnect.notified() => {}, _ = tokio::time::sleep(Duration::from_millis(delay * 1000 + jitter)) => {} }
         delay = (delay * 2).min(30);
     }
-    engine.shutdown().await;
     control.report("stopped", None);
     Ok(())
 }
@@ -159,18 +180,20 @@ async fn session(
     token_file: &std::path::Path,
     name: &str,
     stop: &CancellationToken,
-    engine: &TerminalEngine,
+    local: &Arc<crate::local::LocalNode>,
     control: &Control,
 ) -> Result<()> {
+    let engine = &local.engine;
+    let slots = &local.slots;
+    let token = config::read_token(token_file)?;
     let mut request = endpoint.into_client_request()?;
-    request.headers_mut().insert(
-        "authorization",
-        format!("Bearer {}", config::read_token(token_file)?).parse()?,
-    );
+    request
+        .headers_mut()
+        .insert("authorization", format!("Bearer {token}").parse()?);
     let ws_config = WebSocketConfig::default()
         .max_message_size(Some(MAX_FRAME))
         .max_frame_size(Some(MAX_FRAME));
-    let (mut socket, _) = tokio::select! {
+    let (mut socket, response) = tokio::select! {
         _ = stop.cancelled() => return Ok(()),
         r = tokio::time::timeout(Duration::from_secs(10), connect_async_with_config(request, Some(ws_config), false)) => r??,
     };
@@ -183,6 +206,10 @@ async fn session(
                 arch: std::env::consts::ARCH.into(),
                 terminal: true,
                 terminal_sessions: true,
+                desktop_relay: response
+                    .headers()
+                    .get("x-cranibox-desktop-relay")
+                    .is_some_and(|v| v == "1"),
             })?
             .into(),
         ))
@@ -202,6 +229,8 @@ async fn session(
     let (tx, mut rx) = mpsc::channel::<Wire>(32);
     let mut tasks = JoinSet::new();
     let mut terminal_tasks = JoinSet::new();
+    let mut desktop_tasks = JoinSet::new();
+    let mut desktops = BTreeMap::<String, CancellationToken>::new();
     let mut active = BTreeMap::<String, CancellationToken>::new();
     let mut terminals = BTreeMap::<String, tokio::sync::mpsc::Sender<Wire>>::new();
     let mut heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_SECS));
@@ -216,6 +245,7 @@ async fn session(
                     active.remove(&id);
                 }
                 Some(_) = terminal_tasks.join_next(), if !terminal_tasks.is_empty() => {},
+                Some(result) = desktop_tasks.join_next(), if !desktop_tasks.is_empty() => { desktops.remove(&result?); },
                 _ = heartbeat.tick() => {
                     anyhow::ensure!(last_seen.elapsed() <= Duration::from_secs(DEAD_SECS), "server heartbeat expired");
                     tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(serde_json::to_string(&Wire::Heartbeat {})?.into()))).await??;
@@ -228,16 +258,30 @@ async fn session(
                     match message {
                         Message::Text(text) => match serde_json::from_str::<Wire>(&text)? {
                             Wire::Heartbeat {} => last_seen = Instant::now(),
+                            Wire::DesktopOpen { id, caller, ticket } => {
+                                anyhow::ensure!(uuid::Uuid::parse_str(&id).is_ok() && !desktops.contains_key(&id) && valid_node_id(&caller) && (32..=128).contains(&ticket.len()) && ticket.bytes().all(|b| b.is_ascii_alphanumeric()), "invalid desktop request");
+                                if desktops.len() >= 4 { tx.send(Wire::DesktopError { id, error: "desktop relay capacity reached".into() }).await?; continue; }
+                                let cancel = stop.child_token();
+                                desktops.insert(id.clone(), cancel.clone());
+                                let endpoint = endpoint.to_owned(); let token = token.clone(); let local = local.clone(); let tx = tx.clone();
+                                desktop_tasks.spawn(async move {
+                                    let result = tokio::select! { _ = cancel.cancelled() => Ok(()), result = desktop_relay::run(&endpoint, &token, &id, &caller, &ticket, local) => result };
+                                    if let Err(error) = result { let _ = tx.send(Wire::DesktopError { id: id.clone(), error: error.to_string().chars().take(1000).collect() }).await; }
+                                    id
+                                });
+                            }
+                            Wire::DesktopClose { id } => { if let Some(cancel) = desktops.get(&id) { cancel.cancel(); } }
                             Wire::Execute { id, request } => {
                                 anyhow::ensure!(uuid::Uuid::parse_str(&id).is_ok() && !active.contains_key(&id), "invalid or duplicate job ID");
-                                if active.len() >= MAX_PARALLEL || request.validate().is_err() {
+                                let permit = slots.clone().try_acquire_owned();
+                                if active.len() >= MAX_PARALLEL || request.validate().is_err() || permit.is_err() {
                                     tx.send(Wire::Finished { id, exit_code:None, outcome:Outcome::Failed, error:Some("invalid command or node capacity reached".into()) }).await?;
                                     continue;
                                 }
                                 let cancel = CancellationToken::new();
                                 active.insert(id.clone(), cancel.clone());
                                 let tx = tx.clone();
-                                tasks.spawn(async move { execute(id.clone(), request, cancel, tx).await; id });
+                                tasks.spawn(async move { let _permit = permit.unwrap(); execute(id.clone(), request, cancel, tx).await; id });
                             }
                             Wire::Cancel { id } => if let Some(cancel) = active.get(&id) { cancel.cancel(); },
                             Wire::TerminalManage { id, request } => {
@@ -283,6 +327,8 @@ async fn session(
         Ok(())
     }.await;
     terminals.clear();
+    desktop_tasks.abort_all();
+    while desktop_tasks.join_next().await.is_some() {}
     terminal_tasks.abort_all();
     while terminal_tasks.join_next().await.is_some() {}
     for cancel in active.values() {
@@ -347,7 +393,7 @@ async fn read_output<R: tokio::io::AsyncRead + Unpin>(
         }
     }
 }
-async fn execute(
+pub(crate) async fn execute(
     id: String,
     request: ExecRequest,
     cancel: CancellationToken,
@@ -443,19 +489,19 @@ async fn execute_process(
 }
 
 #[cfg(unix)]
-struct ProcessTree {
+pub(crate) struct ProcessTree {
     pid: i32,
     alive: std::sync::atomic::AtomicBool,
 }
 #[cfg(unix)]
 impl ProcessTree {
-    fn new(child: &tokio::process::Child) -> Result<Self> {
+    pub(crate) fn new(child: &tokio::process::Child) -> Result<Self> {
         Ok(Self {
             pid: child.id().context("missing child PID")? as i32,
             alive: std::sync::atomic::AtomicBool::new(true),
         })
     }
-    fn kill(&self) {
+    pub(crate) fn kill(&self) {
         if self.alive.swap(false, Ordering::Relaxed) {
             unsafe {
                 libc::kill(-self.pid, libc::SIGKILL);
@@ -471,7 +517,7 @@ impl Drop for ProcessTree {
 }
 
 #[cfg(windows)]
-struct ProcessTree {
+pub(crate) struct ProcessTree {
     job: windows_sys::Win32::Foundation::HANDLE,
 }
 #[cfg(windows)]
@@ -480,7 +526,7 @@ unsafe impl Send for ProcessTree {}
 unsafe impl Sync for ProcessTree {}
 #[cfg(windows)]
 impl ProcessTree {
-    fn new(child: &tokio::process::Child) -> Result<Self> {
+    pub(crate) fn new(child: &tokio::process::Child) -> Result<Self> {
         use windows_sys::Win32::System::JobObjects::*;
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -514,7 +560,7 @@ impl ProcessTree {
             Ok(tree)
         }
     }
-    fn kill(&self) {
+    pub(crate) fn kill(&self) {
         unsafe {
             windows_sys::Win32::System::JobObjects::TerminateJobObject(self.job, 1);
         }
@@ -589,7 +635,7 @@ async fn terminal(
         let _ = tx.send(Wire::TerminalExit { id, code: 1 }).await;
         return;
     };
-    for data in std::mem::take(&mut pty.replay) {
+    for data in pty.take_replay() {
         let wire = Wire::TerminalOutput {
             id: id.clone(),
             data: STANDARD.encode(data),
@@ -612,7 +658,7 @@ async fn terminal(
                 Some(Wire::TerminalResize { cols, rows, .. }) => if pty.resize(cols, rows).is_err() { break; },
                 _ => break,
             },
-            output = pty.output.recv() => {
+            output = pty.recv() => {
                 let wire = match output {
                     Some(agent_workspace_pty::Event::Output(data)) => Wire::TerminalOutput { id: id.clone(), data: STANDARD.encode(data) },
                     Some(agent_workspace_pty::Event::Exit(code)) => { exit_code = code; break; },
@@ -638,14 +684,12 @@ mod terminal_tests {
     use super::*;
     use agent_workspace_pty::{
         Event,
-        persistent::{Attachment, Manage},
+        engine::{Attachment, Manage},
     };
 
-    async fn expect(attachment: &mut Attachment, text: &str) {
-        let mut output: Vec<u8> = std::mem::take(&mut attachment.replay)
-            .into_iter()
-            .flatten()
-            .collect();
+    async fn expect(attachment: &mut Attachment, text: &str) -> usize {
+        let mut output: Vec<u8> = attachment.take_replay().into_iter().flatten().collect();
+        let replay_bytes = output.len();
         let finished = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 if output
@@ -654,7 +698,7 @@ mod terminal_tests {
                 {
                     return;
                 }
-                match attachment.output.recv().await {
+                match attachment.recv().await {
                     Some(Event::Output(data)) => output.extend(data),
                     _ => panic!(
                         "terminal closed before {text}: {}",
@@ -669,6 +713,7 @@ mod terminal_tests {
             "terminal timed out before {text}: {}",
             String::from_utf8_lossy(&output[output.len().saturating_sub(2048)..])
         );
+        replay_bytes
     }
 
     fn marker(first: &str, second: &str) -> Vec<u8> {
@@ -717,7 +762,7 @@ mod terminal_tests {
         assert!(engine.attach(&id, 80, 24, false).await.is_err());
         let mut replacement = engine.attach(&id, 80, 24, true).await.unwrap();
         drop(second);
-        replacement.replay.clear();
+        replacement.take_replay();
         replacement.write(marker("TAKEOVER", "_READY")).unwrap();
         expect(&mut replacement, "TAKEOVER_READY").await;
         engine
@@ -737,7 +782,7 @@ mod terminal_tests {
             serde_json::json!([])
         );
         tokio::time::timeout(Duration::from_secs(5), async {
-            while let Some(event) = replacement.output.recv().await {
+            while let Some(event) = replacement.recv().await {
                 if matches!(event, Event::Exit(_)) {
                     return;
                 }
@@ -765,7 +810,7 @@ mod terminal_tests {
         let mut output = Vec::new();
         let code = tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                match attachment.output.recv().await {
+                match attachment.recv().await {
                     Some(Event::Exit(code)) => return code,
                     Some(Event::Output(data)) => output.extend(data),
                     None => panic!("shell closed without an exit status"),
@@ -808,8 +853,7 @@ mod terminal_tests {
         .await
         .expect("offline output blocked the shell");
         let mut reconnected = engine.attach(id, 80, 24, false).await.unwrap();
-        assert!(reconnected.replay.iter().map(Vec::len).sum::<usize>() <= 256 * 1024);
-        expect(&mut reconnected, "REPLAY_DONE").await;
+        assert!(expect(&mut reconnected, "REPLAY_DONE").await <= 256 * 1024);
         reconnected.write(marker("AFTER", "_OFFLINE")).unwrap();
         expect(&mut reconnected, "AFTER_OFFLINE").await;
         engine.shutdown().await;

@@ -1,5 +1,8 @@
 mod actions;
+mod applications;
+mod desktop;
 mod metrics;
+mod projects;
 mod remote;
 mod server;
 mod terminal;
@@ -30,6 +33,9 @@ struct Args {
 }
 
 pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
+    if agent_workspace_runtime::peers::tasks::worker::maybe_serve(&arguments).await? {
+        return Ok(());
+    }
     let args = Args::parse_from(arguments);
     anyhow::ensure!(
         args.host.is_loopback(),
@@ -47,6 +53,17 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
         .command
         .unwrap_or_else(|| args.config_root.join("bin/workspacectl"));
     let mut state = server::State::new(args.config_root.clone(), command, config.clone())?;
+    state.local = Some(std::sync::Arc::new(
+        cranibox_node::local::LocalNode::start_with(
+            args.config_root.join(".config/cranibox-node/peers.json"),
+            agent_workspace_pty::engine::Engine::Herdr(state.terminals.engine()),
+            agent_workspace_runtime::projects::Store::new(
+                args.config_root
+                    .join(".config/agent-workspace/projects.json"),
+            ),
+        )
+        .await?,
+    ));
     if integrated {
         let path = args
             .config_root
@@ -57,6 +74,7 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
                 let creds = agent_workspace_runtime::config::Credentials {
                     controller_token: agent_workspace_runtime::config::token(),
                     mesh_groups: Default::default(),
+                    node_aliases: Default::default(),
                     nodes: Default::default(),
                 };
                 agent_workspace_runtime::config::write_private(
@@ -66,7 +84,12 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
                 )?;
             }
         }
-        state.gateway = Some(agent_workspace_runtime::server::Gateway::new(path)?);
+        state.gateway = Some(
+            agent_workspace_runtime::server::Gateway::new_with_local_node(
+                path,
+                state.local.as_ref().map(|local| local.id.clone()),
+            )?,
+        );
     }
     let listener = tokio::net::TcpListener::bind((args.host, config.port)).await?;
     println!(
@@ -85,6 +108,7 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
     } else {
         None
     };
+    let node_updates = state.track_nodes();
     let cleanup_state = state.clone();
     let cleanup = tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
@@ -93,7 +117,6 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
             cleanup_state.maintenance().await;
         }
     });
-    let shutdown = state.clone();
     let router = if let Some(gateway) = &state.gateway {
         gateway
             .router()
@@ -103,10 +126,6 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
     };
     let mut closed = state.closing.subscribe();
     let mut compatibility_closed = state.closing.subscribe();
-    let signal = tokio::spawn(async move {
-        agent_workspace_runtime::shutdown_signal().await;
-        shutdown.shutdown().await;
-    });
     let main = axum::serve(listener, router.clone()).with_graceful_shutdown(async move {
         let _ = closed.changed().await;
     });
@@ -121,10 +140,24 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
             Ok(())
         }
     };
-    let (first, second) = tokio::join!(main, extra);
-    signal.abort();
-    first?;
-    second?;
+    let serving = async { tokio::try_join!(async { main.await }, extra).map(|_| ()) };
+    tokio::pin!(serving);
+    let result = tokio::select! {
+        result = &mut serving => {
+            state.shutdown().await;
+            result
+        }
+        _ = agent_workspace_runtime::shutdown_signal() => {
+            // Closing the listeners can finish before node cleanup. Await both
+            // so private provider files and child processes are fully released.
+            let ((), result) = tokio::join!(state.shutdown(), serving);
+            result
+        }
+    };
+    if let Some(updates) = node_updates {
+        updates.abort();
+    }
     cleanup.abort();
+    result?;
     Ok(())
 }

@@ -28,26 +28,7 @@ pub struct Record {
     workspace: String,
     terminal: String,
 }
-#[derive(Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Manage {
-    List,
-    Create {
-        name: String,
-        #[serde(default)]
-        cwd: Option<String>,
-    },
-    Rename {
-        id: String,
-        name: String,
-    },
-    End {
-        id: String,
-    },
-    Remove {
-        id: String,
-    },
-}
+pub use crate::persistent::Manage;
 fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

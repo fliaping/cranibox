@@ -1,3 +1,7 @@
+mod desktop;
+mod identity;
+mod terminal;
+
 use crate::journal::Journal;
 use crate::{config, protocol::*};
 use axum::{
@@ -21,12 +25,15 @@ use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot, watch};
 
 #[derive(Clone)]
 struct App {
+    projects: crate::projects::Store,
+    local_node: Option<String>,
     credentials: PathBuf,
     inner: Arc<Mutex<Registry>>,
+    nodes_changed: watch::Sender<u64>,
     history: Arc<Mutex<Journal>>,
     proxy: reqwest::Client,
     upstream: Option<String>,
@@ -37,6 +44,7 @@ struct Registry {
     jobs: BTreeMap<String, Job>,
     terminals: BTreeMap<String, TerminalRoute>,
     terminal_requests: BTreeMap<String, TerminalRequest>,
+    desktops: BTreeMap<String, desktop::Route>,
 }
 struct TerminalRequest {
     node: String,
@@ -62,6 +70,7 @@ struct Node {
     arch: String,
     terminal: bool,
     terminal_sessions: bool,
+    desktop_relay: bool,
     generation: String,
     tx: Option<mpsc::Sender<Wire>>,
     last_seen: u64,
@@ -167,19 +176,22 @@ struct Peer {
 }
 impl Peer {
     fn can_access(&self, target: &str) -> bool {
+        let target = self.credentials.resolve_node(target);
+        let id = self.credentials.resolve_node(&self.id);
         self.credentials.nodes.contains_key(target)
-            && (target == self.id
+            && (target == id
                 || self
                     .credentials
                     .mesh_groups
-                    .get(&self.id)
+                    .get(id)
                     .is_some_and(|group| self.credentials.mesh_groups.get(target) == Some(group)))
     }
     fn authorize_job(&self, value: &Value) -> Result<(), ApiError> {
-        if value["requester"].as_str() == Some(self.id.as_str())
-            && value["node"]
-                .as_str()
-                .is_some_and(|target| self.can_access(target))
+        if value["requester"].as_str().is_some_and(|id| {
+            self.credentials.resolve_node(id) == self.credentials.resolve_node(&self.id)
+        }) && value["node"]
+            .as_str()
+            .is_some_and(|target| self.can_access(target))
         {
             Ok(())
         } else {
@@ -219,6 +231,100 @@ async fn peer_auth(State(app): State<App>, mut req: Request, next: Next) -> Resp
     });
     next.run(req).await
 }
+async fn projects(
+    State(app): State<App>,
+    peer: Option<Extension<Peer>>,
+    Json(mut command): Json<crate::projects::Command>,
+) -> Result<Json<Value>, ApiError> {
+    let credentials = config::Credentials::read(&app.credentials)
+        .map_err(|_| error(StatusCode::SERVICE_UNAVAILABLE, "credentials unavailable"))?;
+    let aliases = credentials.node_aliases.clone();
+    let store = app.projects.clone();
+    tokio::task::spawn_blocking(move || store.resolve_nodes(&aliases))
+        .await
+        .map_err(|_| {
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "project catalog unavailable",
+            )
+        })?
+        .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))?;
+    if let crate::projects::Command::Register {
+        node: Some(node), ..
+    } = &mut command
+    {
+        *node = credentials.resolve_node(node).to_owned();
+    }
+    if peer.is_none()
+        && let crate::projects::Command::Register { node, .. } = &mut command
+        && node.is_none()
+    {
+        *node = app.local_node.clone();
+    }
+    let local_node = app.local_node.clone();
+    let allowed = move |node: Option<&str>| match node {
+        None => peer.is_none(),
+        Some(node) if local_node.as_deref() == Some(node) => peer.is_none(),
+        Some(node) => {
+            credentials.nodes.contains_key(node)
+                && peer.as_ref().is_none_or(|peer| peer.can_access(node))
+        }
+    };
+    if let crate::projects::Command::Bind {
+        replica_id,
+        terminal_id,
+    } = &command
+    {
+        let replica = app
+            .projects
+            .replica(replica_id, &allowed)
+            .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))?;
+        if let Some(node) = replica.node
+            && app.local_node.as_deref() != Some(&node)
+        {
+            let catalog = terminal_manage(&app, &node, json!({"operation":"list"}))
+                .await
+                .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))?;
+            if !catalog["sessions"].as_array().is_some_and(|sessions| {
+                sessions
+                    .iter()
+                    .any(|s| s["id"].as_str() == Some(terminal_id))
+            }) {
+                return Err(error(
+                    StatusCode::BAD_REQUEST,
+                    "terminal session unavailable",
+                ));
+            }
+        }
+    }
+    let catalog = tokio::task::spawn_blocking(move || app.projects.apply(command, allowed))
+        .await
+        .map_err(|_| {
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "project catalog unavailable",
+            )
+        })?
+        .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))?;
+    Ok(Json(serde_json::to_value(catalog).unwrap()))
+}
+async fn terminal_sessions(
+    State(app): State<App>,
+    Path(node): Path<String>,
+    peer: Option<Extension<Peer>>,
+    Json(request): Json<Value>,
+) -> Result<Json<Value>, ApiError> {
+    if peer.as_ref().is_some_and(|peer| !peer.can_access(&node)) {
+        return Err(error(
+            StatusCode::FORBIDDEN,
+            "target is outside this device group",
+        ));
+    }
+    terminal_manage(&app, &node, request)
+        .await
+        .map(Json)
+        .map_err(|e| error(StatusCode::BAD_REQUEST, &e.to_string()))
+}
 async fn nodes(
     State(app): State<App>,
     peer: Option<Extension<Peer>>,
@@ -228,8 +334,8 @@ async fn nodes(
     let registry = app.inner.lock().await;
     let nodes: Vec<_> = creds.nodes.keys().filter(|id| peer.as_ref().is_none_or(|peer| peer.can_access(id))).map(|id| {
         if let Some(n) = registry.nodes.get(id) {
-            json!({"id":id,"name":n.name,"os":n.os,"arch":n.arch,"terminal":n.terminal,"terminal_sessions":n.terminal_sessions,"online":n.tx.is_some(),"last_seen":n.last_seen,"mesh_group":creds.mesh_groups.get(id)})
-        } else { json!({"id":id,"online":false,"mesh_group":creds.mesh_groups.get(id)}) }
+            json!({"id":id,"name":n.name,"os":n.os,"arch":n.arch,"terminal":n.terminal,"terminal_sessions":n.terminal_sessions,"desktop_relay":n.desktop_relay,"online":n.tx.is_some(),"last_seen":n.last_seen,"mesh_group":creds.mesh_groups.get(id),"aliases":creds.node_aliases.iter().filter_map(|(alias,target)| (target == id).then_some(alias)).collect::<Vec<_>>()})
+        } else { json!({"id":id,"online":false,"mesh_group":creds.mesh_groups.get(id),"aliases":creds.node_aliases.iter().filter_map(|(alias,target)| (target == id).then_some(alias)).collect::<Vec<_>>()}) }
     }).collect();
     Ok(Json(json!({"nodes":nodes, "protocol_version":VERSION})))
 }
@@ -239,6 +345,10 @@ async fn execute(
     peer: Option<Extension<Peer>>,
     Json(request): Json<ExecRequest>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
+    let node = config::Credentials::read(&app.credentials)
+        .map_err(|_| error(StatusCode::SERVICE_UNAVAILABLE, "credentials unavailable"))?
+        .resolve_node(&node)
+        .to_owned();
     if peer.as_ref().is_some_and(|peer| !peer.can_access(&node)) {
         return Err(error(
             StatusCode::FORBIDDEN,
@@ -410,6 +520,7 @@ async fn upgrade(
     let token = bearer(&headers).unwrap_or_default().to_owned();
     let creds = config::Credentials::read(&app.credentials)
         .map_err(|_| error(StatusCode::SERVICE_UNAVAILABLE, "credentials unavailable"))?;
+    let id = creds.resolve_node(&id).to_owned();
     if !creds
         .nodes
         .get(&id)
@@ -420,10 +531,14 @@ async fn upgrade(
             "node authentication required",
         ));
     }
-    Ok(ws
+    let mut response = ws
         .max_message_size(MAX_FRAME)
         .max_frame_size(MAX_FRAME)
-        .on_upgrade(move |socket| connection(app, id, token, socket)))
+        .on_upgrade(move |socket| connection(app, id, token, socket));
+    response
+        .headers_mut()
+        .insert(desktop::FEATURE, "1".parse().unwrap());
+    Ok(response)
 }
 async fn send(socket: &mut WebSocket, wire: Wire) -> anyhow::Result<()> {
     tokio::time::timeout(
@@ -442,6 +557,7 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
         arch,
         terminal,
         terminal_sessions,
+        desktop_relay,
     }) = hello.ok().flatten().and_then(Result::ok).and_then(|m| {
         if let Message::Text(s) = m {
             serde_json::from_str(&s).ok()
@@ -460,6 +576,16 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
     let (tx, mut rx) = mpsc::channel(16);
     {
         let mut registry = app.inner.lock().await;
+        // The hello may arrive after a credential rotation, revocation or identity
+        // migration. Recheck while serialized with migration and dispatch.
+        if !config::Credentials::read(&app.credentials).is_ok_and(|credentials| {
+            credentials
+                .nodes
+                .get(&id)
+                .is_some_and(|expected| config::matches(&token, expected))
+        }) {
+            return;
+        }
         if registry.nodes.get(&id).is_some_and(|n| n.tx.is_some()) {
             return;
         }
@@ -477,12 +603,14 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
                 arch,
                 terminal,
                 terminal_sessions,
+                desktop_relay,
                 generation: generation.clone(),
                 tx: Some(tx),
                 last_seen: now(),
             },
         );
     }
+    app.nodes_changed.send_modify(|revision| *revision += 1);
     // All exits after registration must run disconnect cleanup.
     let mut last_seen = Instant::now();
     let mut heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_SECS));
@@ -528,6 +656,10 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
                                 let mut history = app.history.lock().await;
                                 history.update(&job_id, |v| merge_record(v, view));
                                 if history.flush().is_err() { eprintln!("operation history flush failed"); }
+                            }
+                            Wire::DesktopError { id: request_id, error } => {
+                                if error.len() > 2048 { break; }
+                                desktop::failed(&app, &id, &generation, &request_id, error).await;
                             }
                             Wire::TerminalResult { id: request_id, result } => {
                                 let mut registry = app.inner.lock().await;
@@ -583,6 +715,9 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
     registry
         .terminal_requests
         .retain(|_, r| !(r.node == id && r.generation == generation));
+    registry
+        .desktops
+        .retain(|_, r| !(r.node == id && r.generation == generation));
     let mut history = app.history.lock().await;
     for (job_id, job) in &registry.jobs {
         history.update(job_id, |v| merge_record(v, job.view(job_id)));
@@ -590,6 +725,9 @@ async fn connection(app: App, id: String, token: String, mut socket: WebSocket) 
     if history.flush().is_err() {
         eprintln!("operation history flush failed");
     }
+    drop(history);
+    drop(registry);
+    app.nodes_changed.send_modify(|revision| *revision += 1);
 }
 
 fn strip_hop_headers(headers: &mut HeaderMap) {
@@ -632,14 +770,31 @@ async fn proxy(State(app): State<App>, request: Request) -> Response {
         .into_response();
     }
     strip_hop_headers(&mut parts.headers);
+    // The enrollment endpoint has its own short-lived credential, never a gateway
+    // controller/node token. Do not relax authorization stripping for any other path.
+    let invitation = parts.method == axum::http::Method::POST
+        && parts.uri.path() == "/api/network/bootstrap"
+        && parts.uri.query().is_none()
+        && parts.headers.get_all("authorization").iter().count() == 1
+        && parts
+            .headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value.strip_prefix("Bearer cbi_").is_some_and(|token| {
+                    token.len() == 64 && token.bytes().all(|c| c.is_ascii_hexdigit())
+                })
+            });
     for name in [
         "forwarded",
         "x-forwarded-host",
         "x-forwarded-proto",
         "x-forwarded-for",
-        "authorization",
     ] {
         parts.headers.remove(name);
+    }
+    if !invitation {
+        parts.headers.remove("authorization");
     }
     let body = match to_bytes(body, MAX_FRAME).await {
         Ok(b) => b,
@@ -675,6 +830,131 @@ async fn proxy(State(app): State<App>, request: Request) -> Response {
     result
 }
 
+async fn terminal_manage(app: &App, node: &str, request: Value) -> anyhow::Result<Value> {
+    let credentials = config::Credentials::read(&app.credentials)?;
+    let node = credentials.resolve_node(node);
+    anyhow::ensure!(credentials.nodes.contains_key(node), "node is not enrolled");
+    let id = uuid::Uuid::new_v4().to_string();
+    let (reply, receiver) = oneshot::channel();
+    {
+        let mut registry = app.inner.lock().await;
+        registry
+            .terminal_requests
+            .retain(|_, r| !r.reply.is_closed());
+        anyhow::ensure!(
+            registry.terminal_requests.len() < 32,
+            "too many terminal requests"
+        );
+        let n = registry
+            .nodes
+            .get(node)
+            .ok_or_else(|| anyhow::anyhow!("unknown node"))?;
+        anyhow::ensure!(
+            n.terminal_sessions,
+            "update this node to cranibox-node with persistent terminal support"
+        );
+        let tx =
+            n.tx.clone()
+                .ok_or_else(|| anyhow::anyhow!("node offline"))?;
+        let generation = n.generation.clone();
+        tx.try_send(Wire::TerminalManage {
+            id: id.clone(),
+            request,
+        })
+        .map_err(|_| anyhow::anyhow!("node queue unavailable"))?;
+        registry.terminal_requests.insert(
+            id.clone(),
+            TerminalRequest {
+                node: node.into(),
+                generation,
+                reply,
+            },
+        );
+    }
+    let result = tokio::time::timeout(Duration::from_secs(20), receiver).await;
+    app.inner.lock().await.terminal_requests.remove(&id);
+    let value = result
+        .map_err(|_| anyhow::anyhow!("node terminal request timed out"))?
+        .map_err(|_| anyhow::anyhow!("node disconnected"))?;
+    anyhow::ensure!(
+        value.get("error").is_none(),
+        "{}",
+        value["error"]
+            .as_str()
+            .unwrap_or("node terminal request failed")
+    );
+    Ok(value)
+}
+
+async fn terminal_open(
+    app: &App,
+    node: &str,
+    cols: u16,
+    rows: u16,
+    session: String,
+    takeover: bool,
+) -> anyhow::Result<RemoteTerminal> {
+    anyhow::ensure!(valid_node_id(node), "invalid node ID");
+    let credentials = config::Credentials::read(&app.credentials)?;
+    let node = credentials.resolve_node(node);
+    anyhow::ensure!(
+        uuid::Uuid::parse_str(&session).is_ok(),
+        "invalid session ID"
+    );
+    anyhow::ensure!(
+        (2..=500).contains(&cols) && (2..=300).contains(&rows),
+        "invalid terminal size"
+    );
+    anyhow::ensure!(credentials.nodes.contains_key(node), "node is not enrolled");
+    let mut registry = app.inner.lock().await;
+    registry.terminals.retain(|_, r| !r.tx.is_closed());
+    anyhow::ensure!(
+        registry.terminals.len() < 32
+            && registry
+                .terminals
+                .values()
+                .filter(|r| r.node == node)
+                .count()
+                < 4,
+        "terminal capacity reached"
+    );
+    let n = registry
+        .nodes
+        .get(node)
+        .ok_or_else(|| anyhow::anyhow!("unknown node"))?;
+    anyhow::ensure!(
+        n.terminal_sessions,
+        "update this node to cranibox-node with persistent terminal support"
+    );
+    let tx =
+        n.tx.clone()
+            .ok_or_else(|| anyhow::anyhow!("node offline"))?;
+    let generation = n.generation.clone();
+    let id = uuid::Uuid::new_v4().to_string();
+    let (output, receiver) = mpsc::channel(32);
+    tx.try_send(Wire::TerminalOpen {
+        id: id.clone(),
+        cols,
+        rows,
+        session,
+        takeover,
+    })
+    .map_err(|_| anyhow::anyhow!("node queue unavailable"))?;
+    registry.terminals.insert(
+        id.clone(),
+        TerminalRoute {
+            node: node.into(),
+            generation,
+            tx: output,
+        },
+    );
+    Ok(RemoteTerminal {
+        id,
+        tx,
+        output: receiver,
+    })
+}
+
 #[derive(Clone)]
 pub struct Gateway {
     app: App,
@@ -682,6 +962,16 @@ pub struct Gateway {
 }
 impl Gateway {
     pub fn new(credentials: PathBuf) -> anyhow::Result<Self> {
+        Self::new_with_local_node(credentials, None)
+    }
+    pub fn new_with_local_node(
+        credentials: PathBuf,
+        local_node: Option<String>,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            local_node.as_deref().is_none_or(valid_node_id),
+            "invalid local node ID"
+        );
         let upstream: Option<String> = None;
         config::Credentials::read(&credentials)?;
         if let Some(value) = &upstream {
@@ -697,9 +987,12 @@ impl Gateway {
         }
         let history = Journal::open(credentials.with_extension("history"))?;
         let app = App {
+            local_node,
+            projects: crate::projects::Store::new(credentials.with_file_name("projects.json")),
             history: Arc::new(Mutex::new(history)),
             credentials,
             inner: Arc::new(Mutex::new(Registry::default())),
+            nodes_changed: watch::channel(0).0,
             proxy: reqwest::Client::builder()
                 .no_proxy()
                 .redirect(reqwest::redirect::Policy::none())
@@ -708,6 +1001,11 @@ impl Gateway {
             upstream: upstream.map(|s| s.trim_end_matches('/').to_owned()),
         };
         let api = Router::new()
+            .route("/projects", post(projects))
+            .route("/nodes/{node}/identity", post(identity::migrate))
+            .route("/nodes/{node}/terminal/sessions", post(terminal_sessions))
+            .route("/nodes/{node}/terminal/ws", get(terminal::upgrade))
+            .route("/nodes/{node}/desktop/ws", get(desktop::upgrade))
             .route("/nodes", get(nodes))
             .route("/nodes/{node}/exec", post(execute))
             .route("/jobs", get(jobs))
@@ -715,6 +1013,10 @@ impl Gateway {
             .route("/jobs/{id}/cancel", post(cancel))
             .route_layer(middleware::from_fn_with_state(app.clone(), controller_auth));
         let mesh = Router::new()
+            .route("/projects", post(projects))
+            .route("/nodes/{node}/terminal/sessions", post(terminal_sessions))
+            .route("/nodes/{node}/terminal/ws", get(terminal::upgrade))
+            .route("/nodes/{node}/desktop/ws", get(desktop::upgrade))
             .route("/nodes", get(nodes))
             .route("/nodes/{node}/exec", post(execute))
             .route("/jobs/{id}", get(job))
@@ -724,6 +1026,7 @@ impl Gateway {
             .nest("/api/v1", api)
             .nest("/api/v1/mesh", mesh)
             .route("/ws/nodes/{id}", get(upgrade))
+            .route("/ws/desktops/{id}", get(desktop::attach))
             .route(
                 "/healthz",
                 get(|| async { Json(json!({"ok":true,"protocol_version":VERSION})) }),
@@ -735,6 +1038,13 @@ impl Gateway {
     pub fn router(&self) -> Router {
         self.router.clone()
     }
+    pub async fn desktop(&self, node: &str) -> anyhow::Result<crate::peers::desktop::Stream> {
+        let token = config::Credentials::read(&self.app.credentials)?.controller_token;
+        desktop::open(&self.app, node, None, token).await
+    }
+    pub fn subscribe_nodes(&self) -> watch::Receiver<u64> {
+        self.app.nodes_changed.subscribe()
+    }
     pub async fn maintenance(&self) {
         let _ = self.app.history.lock().await.flush();
     }
@@ -742,6 +1052,7 @@ impl Gateway {
         let mut registry = self.app.inner.lock().await;
         registry.terminals.clear();
         registry.terminal_requests.clear();
+        registry.desktops.clear();
         for node in registry.nodes.values_mut() {
             node.tx = None;
         }
@@ -769,121 +1080,10 @@ impl Gateway {
         session: String,
         takeover: bool,
     ) -> anyhow::Result<RemoteTerminal> {
-        anyhow::ensure!(
-            (2..=500).contains(&cols) && (2..=300).contains(&rows),
-            "invalid terminal size"
-        );
-        anyhow::ensure!(
-            config::Credentials::read(&self.app.credentials)?
-                .nodes
-                .contains_key(node),
-            "node is not enrolled"
-        );
-        let mut registry = self.app.inner.lock().await;
-        registry.terminals.retain(|_, r| !r.tx.is_closed());
-        anyhow::ensure!(
-            registry.terminals.len() < 32
-                && registry
-                    .terminals
-                    .values()
-                    .filter(|r| r.node == node)
-                    .count()
-                    < 4,
-            "terminal capacity reached"
-        );
-        let n = registry
-            .nodes
-            .get(node)
-            .ok_or_else(|| anyhow::anyhow!("unknown node"))?;
-        anyhow::ensure!(
-            n.terminal_sessions,
-            "update this node to cranibox-node with persistent terminal support"
-        );
-        let tx =
-            n.tx.clone()
-                .ok_or_else(|| anyhow::anyhow!("node offline"))?;
-        let generation = n.generation.clone();
-        let id = uuid::Uuid::new_v4().to_string();
-        let (output, receiver) = mpsc::channel(32);
-        tx.try_send(Wire::TerminalOpen {
-            id: id.clone(),
-            cols,
-            rows,
-            session,
-            takeover,
-        })
-        .map_err(|_| anyhow::anyhow!("node queue unavailable"))?;
-        registry.terminals.insert(
-            id.clone(),
-            TerminalRoute {
-                node: node.into(),
-                generation,
-                tx: output,
-            },
-        );
-        Ok(RemoteTerminal {
-            id,
-            tx,
-            output: receiver,
-        })
+        terminal_open(&self.app, node, cols, rows, session, takeover).await
     }
     pub async fn terminal_manage(&self, node: &str, request: Value) -> anyhow::Result<Value> {
-        anyhow::ensure!(
-            config::Credentials::read(&self.app.credentials)?
-                .nodes
-                .contains_key(node),
-            "node is not enrolled"
-        );
-        let id = uuid::Uuid::new_v4().to_string();
-        let (reply, receiver) = oneshot::channel();
-        {
-            let mut registry = self.app.inner.lock().await;
-            registry
-                .terminal_requests
-                .retain(|_, r| !r.reply.is_closed());
-            anyhow::ensure!(
-                registry.terminal_requests.len() < 32,
-                "too many terminal requests"
-            );
-            let n = registry
-                .nodes
-                .get(node)
-                .ok_or_else(|| anyhow::anyhow!("unknown node"))?;
-            anyhow::ensure!(
-                n.terminal_sessions,
-                "update this node to cranibox-node with persistent terminal support"
-            );
-            let tx =
-                n.tx.clone()
-                    .ok_or_else(|| anyhow::anyhow!("node offline"))?;
-            let generation = n.generation.clone();
-            tx.try_send(Wire::TerminalManage {
-                id: id.clone(),
-                request,
-            })
-            .map_err(|_| anyhow::anyhow!("node queue unavailable"))?;
-            registry.terminal_requests.insert(
-                id.clone(),
-                TerminalRequest {
-                    node: node.into(),
-                    generation,
-                    reply,
-                },
-            );
-        }
-        let result = tokio::time::timeout(Duration::from_secs(20), receiver).await;
-        self.app.inner.lock().await.terminal_requests.remove(&id);
-        let value = result
-            .map_err(|_| anyhow::anyhow!("node terminal request timed out"))?
-            .map_err(|_| anyhow::anyhow!("node disconnected"))?;
-        anyhow::ensure!(
-            value.get("error").is_none(),
-            "{}",
-            value["error"]
-                .as_str()
-                .unwrap_or("node terminal request failed")
-        );
-        Ok(value)
+        terminal_manage(&self.app, node, request).await
     }
     pub async fn api(
         &self,
@@ -1017,6 +1217,7 @@ mod tests {
             &serde_json::to_vec(&config::Credentials {
                 controller_token: config::token(),
                 mesh_groups: Default::default(),
+                node_aliases: Default::default(),
                 nodes: BTreeMap::from([("one".into(), config::token())]),
             })
             .unwrap(),
@@ -1024,6 +1225,9 @@ mod tests {
         )
         .unwrap();
         App {
+            projects: crate::projects::Store::new(directory.join("projects.json")),
+            nodes_changed: watch::channel(0).0,
+            local_node: None,
             credentials,
             history: Arc::new(Mutex::new(
                 Journal::open(directory.join("history")).unwrap(),
@@ -1039,6 +1243,7 @@ mod tests {
                         arch: "x86_64".into(),
                         terminal: true,
                         terminal_sessions: true,
+                        desktop_relay: true,
                         generation: "generation".into(),
                         tx: Some(tx),
                         last_seen: now(),

@@ -53,6 +53,10 @@ class RuntimeTests(unittest.TestCase):
                 self.end_headers()
                 self.wfile.write(payload)
 
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                self.do_GET()
+
             def log_message(self, *args):
                 pass
 
@@ -98,6 +102,10 @@ class RuntimeTests(unittest.TestCase):
         cls.logs.append(log)
         binary = NODE_BINARY if args[0] == "node" else BINARY
         args = args[1:] if args[0] == "node" else args
+        if binary == NODE_BINARY:
+            # Each simulated device has its own persistent identity and Shell owner.
+            node_id = args[args.index("--id") + 1]
+            args = ("--config", cls.path / node_id / "settings.json", *args)
         process = subprocess.Popen([str(binary), *map(str, args)], stdin=subprocess.DEVNULL, stdout=log, stderr=log)
         cls.processes.append(process)
         return process
@@ -217,6 +225,26 @@ class RuntimeTests(unittest.TestCase):
         self.assertIsNone(value["authorization"])
         self.assertIsNone(value["forwarded"])
 
+    def test_bootstrap_proxy_forwards_only_invitation_credentials(self):
+        invitation = "cbi_" + "d" * 64
+        node_token = (self.path / "one.token").read_text().strip()
+        for path, body, token, forwarded in [
+            ("/api/network/bootstrap", {}, invitation, True),
+            ("/api/network/bootstrap", {}, self.token, False),
+            ("/api/network/bootstrap", {}, node_token, False),
+            ("/api/network/bootstrap", {}, "cbi_" + "d" * 63, False),
+            ("/api/network/bootstrap", {}, "cbi_" + "z" * 64, False),
+            ("/api/network/bootstrap", None, invitation, False),
+            ("/api/network/bootstrap?next=private", {}, invitation, False),
+            ("/api/network/bootstrap/", {}, invitation, False),
+            ("/api/network", {}, invitation, False),
+            ("/existing-ui", {}, invitation, False),
+        ]:
+            with self.subTest(path=path, post=body is not None, forwarded=forwarded):
+                status, value = self.http(path, body, token=token)
+                self.assertEqual(status, 200)
+                self.assertEqual(value["authorization"], "Bearer " + invitation if forwarded else None)
+
     def test_output_environment_cwd_and_nonzero_exit(self):
         code = "import os,sys; print(os.getcwd()); print(os.environ['TEST_VAR']); sys.stderr.write('错误'); sys.exit(7)"
         job = self.finished(self.start_job(code, cwd=str(self.path), env={"TEST_VAR":"value with spaces; $(echo untouched)"}))
@@ -265,7 +293,7 @@ class RuntimeTests(unittest.TestCase):
         result = self.cli("mcp", "--credentials", self.credentials, "--url", self.url, input="".join(json.dumps(r) + "\n" for r in requests))
         responses = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(len(responses), 3)
-        self.assertEqual(len(responses[1]["result"]["tools"]), 4)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 5)
         job = json.loads(responses[2]["result"]["content"][0]["text"])
         self.assertEqual(self.finished(job["id"])["stdout"].strip(), "MCP")
 

@@ -25,6 +25,9 @@ RUN cargo build --release --locked -p cranibox && cargo build --release --locked
 # Selkies and PulseAudio startup scripts are inherited from the official image.
 FROM linuxserver/webtop:ubuntu-${DESKTOP}
 
+# Virtual-space managers verify this before creating data or waiting for enrollment.
+LABEL io.cranibox.space-protocol="1"
+
 USER root
 
 # ==========================================
@@ -124,12 +127,17 @@ RUN pip3 install --no-cache-dir textual --break-system-packages \
 # 复制脚本和服务
 # ==========================================
 
-COPY scripts/ /usr/local/bin/
-COPY services/ /etc/services.d/
-COPY agent-context/ /usr/local/share/agent-workspace/context/
-COPY s6-rc.d/ /etc/s6-overlay/s6-rc.d/
-COPY --from=workspace-rust-builder /build/target/release/cranibox /build/target/release/cranibox-node /usr/local/lib/agent-workspace/
-COPY --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
+# Runtime scripts run as both root and abc. Do not inherit a private checkout's
+# permissions: chmod +x alone still leaves scripts unreadable to abc.
+COPY --chmod=0755 scripts/ /usr/local/bin/
+COPY --chmod=0755 services/ /etc/services.d/
+COPY --chmod=0755 agent-context/ /usr/local/share/agent-workspace/context/
+COPY --chmod=0755 s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+COPY --chmod=0644 nginx/cranibox-applications.conf /usr/local/share/agent-workspace/cranibox-applications.conf
+RUN cat /usr/local/share/agent-workspace/cranibox-applications.conf >> /defaults/default.conf
+EXPOSE 3002
+COPY --chmod=0755 --from=workspace-rust-builder /build/target/release/cranibox /build/target/release/cranibox-node /usr/local/lib/agent-workspace/
+COPY --chmod=0755 --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
 # Startup tasks are native s6-rc oneshots; they leave no sleep process behind.
 RUN mkdir -p /usr/local/lib/agent-workspace \
     && for task in init custom-services systemctl-services; do \

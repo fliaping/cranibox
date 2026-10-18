@@ -3,6 +3,9 @@ use anyhow::{Result, bail};
 #[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
     let mut args: Vec<String> = std::env::args().collect();
+    if agent_workspace_runtime::peers::tasks::worker::maybe_serve(&args).await? {
+        return Ok(());
+    }
     let name = std::path::Path::new(&args[0])
         .file_stem()
         .and_then(|s| s.to_str())

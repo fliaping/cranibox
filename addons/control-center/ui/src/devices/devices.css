@@ -1,0 +1,81 @@
+.direct-devices { --direct-surface: var(--surface, var(--card, #1b2336)); --direct-text: var(--text, #f8fafc); min-width: 0; margin: 0 0 28px; color: var(--direct-text); }
+.direct-devices h2, .direct-devices h3, .direct-devices p { margin: 0; overflow-wrap: anywhere; }
+.direct-devices h2 { font-size: 20px; } .direct-devices h3 { font-size: 16px; }
+.direct-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+.direct-heading > div:first-child, .direct-heading h3 { min-width: 0; }
+.direct-heading p, .direct-note, .direct-probe small, .direct-list small { color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.direct-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.direct-devices button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--direct-surface); color: var(--direct-text); cursor: pointer; font: inherit; transition: background 180ms, border-color 180ms; }
+.direct-devices button:hover:not(:disabled) { background: var(--surface-raised, #334155); }
+.direct-devices button:disabled { opacity: .5; cursor: not-allowed; }
+.direct-devices button.direct-primary { justify-self: start; background: var(--accent); color: var(--on-accent, #0f172a); font-weight: 600; }
+.direct-devices button.direct-primary:hover:not(:disabled) { background: var(--accent-hover, #4ade80); }
+.direct-devices :focus-visible { outline: 2px solid var(--focus, #e2e8f0); outline-offset: 3px; }
+.direct-devices form { display: grid; gap: 16px; margin: 0; }
+.direct-devices label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; }
+.direct-devices input:not([type=checkbox]), .direct-devices textarea, .direct-devices select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--code-bg, #131d2d); color: var(--direct-text); font: inherit; }
+.direct-devices textarea { resize: vertical; } .direct-devices input::placeholder { color: var(--muted); }
+.direct-devices .direct-check { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.direct-check input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--accent); }
+.direct-editor, .direct-detail, .direct-empty { padding: 20px; border: 1px solid var(--border); background: var(--direct-surface); border-radius: 12px; min-width: 0; }
+.direct-editor { margin-bottom: 20px !important; } .direct-editor .direct-heading { margin: 0; }
+.direct-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.direct-layout { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); align-items: start; gap: 20px; }
+.direct-list { display: grid; gap: 8px; min-width: 0; }
+.direct-list > button { justify-content: flex-start; text-align: start; width: 100%; }
+.direct-list > button[aria-pressed=true] { border-color: var(--accent); }
+.direct-list svg { flex-shrink: 0; } .direct-list span { min-width: 0; } .direct-list strong, .direct-list small { display: block; overflow-wrap: anywhere; }
+.direct-probe { margin-bottom: 12px; font-size: 14px; }
+.direct-detail > .direct-actions { margin: 16px 0; }
+.direct-command, .direct-jobs { padding-top: 20px; border-top: 1px solid var(--border); }
+.direct-jobs { display: grid; gap: 12px; margin-top: 20px; } .direct-jobs .direct-heading { margin: 0; align-items: center; }
+.direct-devices pre { min-height: 64px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; margin: 0; border-radius: 8px; background: var(--code-bg, #131d2d); color: var(--direct-text); font: 13px/1.6 ui-monospace, monospace; }
+.direct-devices .direct-error { padding: 12px; margin-bottom: 12px; border: 1px solid var(--danger, #e87888); border-radius: 8px; color: var(--direct-text); overflow-wrap: anywhere; }
+.direct-devices > .direct-note { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.direct-empty { text-align: center; } .direct-empty svg { margin-bottom: 8px; color: var(--muted); } .direct-empty p { margin-top: 8px; font-size: 14px; color: var(--muted); }
+@media(max-width:900px) { .direct-layout { grid-template-columns: 1fr; } .direct-list { grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); } }
+@media(max-width:580px) { .direct-heading { flex-wrap: wrap; gap: 12px; } .direct-fields { grid-template-columns: 1fr; } .direct-editor, .direct-detail, .direct-empty { padding: 16px; } }
+@media(prefers-reduced-motion:reduce) { .direct-devices * { transition: none !important; } }
+
+.direct-identity { display: grid; justify-items: start; gap: 6px; padding: 14px 16px; margin-bottom: 20px; background: var(--direct-surface); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; }
+.direct-identity code { user-select: all; overflow-wrap: anywhere; } .direct-identity small, .direct-identity span { color: var(--muted); }
+
+.direct-access { margin-bottom: 20px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--direct-surface); min-width: 0; }
+.direct-access h3 { display: flex; gap: 8px; align-items: center; }
+.direct-access h3 svg { flex-shrink: 0; }
+.direct-access > .direct-note { margin-bottom: 16px; }
+.direct-listener { margin-bottom: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.direct-listener .direct-heading { margin-bottom: 8px; }
+.direct-listener h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 14px; }
+.direct-listener code { overflow-wrap: anywhere; user-select: all; }
+.direct-listener form { margin-top: 16px; }
+.direct-grant-form { margin-bottom: 16px !important; }
+.direct-grant-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
+.direct-grant-form legend { font-size: 14px; padding: 0 6px; }
+.direct-grant-list { display: grid; gap: 12px; }
+.direct-grant-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.direct-grant-row > div { min-width: 0; overflow-wrap: anywhere; }
+.direct-grant-row > button { flex-shrink: 0; }
+.direct-token-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--direct-surface); color: var(--direct-text); }
+.direct-token-dialog::backdrop { background: rgb(0 0 0 / .6); }
+.direct-token-dialog p { font-size: 14px; line-height: 1.6; }
+.direct-token-dialog code { display: block; overflow-wrap: anywhere; margin: 12px 0; user-select: all; }
+.direct-token-dialog label { margin: 16px 0 8px; }
+.direct-token-dialog textarea { font-family: ui-monospace, monospace; }
+.direct-token-dialog > .direct-actions { margin-top: 20px; justify-content: flex-end; }
+.direct-paths { display: grid; gap: 14px; margin: 20px 0; padding-top: 20px; border-top: 1px solid var(--border); min-width: 0; }
+.direct-paths .direct-heading { margin-bottom: 0; }
+.direct-paths h4 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.direct-paths h4 span { margin-inline-start: 6px; color: var(--muted); font-weight: 400; }
+.direct-paths ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.direct-paths li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.direct-path-address { display: grid; gap: 6px; min-width: 0; }
+.direct-path-address code { overflow-wrap: anywhere; font-size: 13px; user-select: all; }
+.direct-path-address small { color: var(--muted); font-size: 12px; }
+.direct-path-label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.direct-path-label span { padding: 3px 6px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; }
+.direct-paths li > .direct-actions { flex-shrink: 0; }
+.direct-paths form { padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+.direct-paths .direct-error { margin-bottom: 0; }
+@media(max-width:580px) { .direct-paths li { align-items: flex-start; flex-direction: column; gap: 10px; } .direct-paths li > .direct-actions { align-self: flex-end; } }
+@media(max-width:580px) { .direct-access, .direct-token-dialog { padding: 16px; } }

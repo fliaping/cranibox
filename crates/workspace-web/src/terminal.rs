@@ -3,7 +3,11 @@ use agent_workspace_pty::{
     Event, Session,
     herdr::{Engine as SessionEngine, Manage},
 };
-use agent_workspace_runtime::{protocol::Wire, server::RemoteTerminal};
+use agent_workspace_runtime::{
+    peers::{Store, terminal as direct},
+    protocol::Wire,
+    server::RemoteTerminal,
+};
 use axum::{
     Json,
     extract::{
@@ -32,6 +36,9 @@ pub struct Hub {
     engine: SessionEngine,
 }
 impl Hub {
+    pub(crate) fn engine(&self) -> SessionEngine {
+        self.engine.clone()
+    }
     pub fn new(root: PathBuf) -> Self {
         Self {
             tickets: Arc::default(),
@@ -50,6 +57,10 @@ struct Ticket {
 struct Options {
     #[serde(default)]
     node: Option<String>,
+    #[serde(default)]
+    local: bool,
+    #[serde(default)]
+    direct: bool,
     cols: u16,
     rows: u16,
     #[serde(default)]
@@ -61,6 +72,14 @@ impl Hub {
     pub async fn issue(&self, session: String, body: Value) -> anyhow::Result<Value> {
         let options: Options = serde_json::from_value(body)?;
         agent_workspace_pty::validate_size(options.cols, options.rows)?;
+        anyhow::ensure!(
+            !options.direct || options.node.is_some(),
+            "direct terminal requires a node"
+        );
+        anyhow::ensure!(
+            !options.direct || !options.local,
+            "conflicting terminal routes"
+        );
         if let Some(node) = &options.node {
             anyhow::ensure!(
                 agent_workspace_runtime::protocol::valid_node_id(node),
@@ -118,6 +137,7 @@ pub async fn upgrade(
     ws.max_message_size(16 * 1024)
         .max_frame_size(16 * 1024)
         .on_upgrade(move |socket| async move {
+            let _session = session;
             let _permit = permit;
             match open(&state, ticket.options).await {
                 Ok(terminal) => run(socket, terminal, closing).await,
@@ -141,9 +161,31 @@ fn failure(status: StatusCode, message: &str) -> Response {
 enum Terminal {
     Local(Session),
     Remote(RemoteTerminal),
+    Direct(direct::Terminal),
+}
+fn peer_store(state: &State) -> Store {
+    Store::new(state.root.join(".config/cranibox-node/peers.json"))
 }
 async fn open(state: &State, options: Options) -> anyhow::Result<Terminal> {
-    if let Some(node) = options.node {
+    let local = state
+        .local
+        .as_ref()
+        .is_some_and(|local| options.node.as_deref() == Some(&local.id));
+    anyhow::ensure!(!options.local || local, "local node identity changed");
+    if let Some(node) = options.node.filter(|_| options.direct || !local) {
+        if options.direct {
+            return Ok(Terminal::Direct(
+                direct::Terminal::connect(
+                    peer_store(state).route(&node)?,
+                    &node,
+                    &options.session_id,
+                    options.cols,
+                    options.rows,
+                    options.takeover,
+                )
+                .await?,
+            ));
+        }
         let gateway = state.gateway.as_ref().ok_or_else(|| {
             anyhow::anyhow!("Remote terminals require the unified Cranibox server")
         })?;
@@ -171,15 +213,12 @@ async fn open(state: &State, options: Options) -> anyhow::Result<Terminal> {
         .await?;
     Ok(Terminal::Local(pty))
 }
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-enum Input {
-    Input { data: String },
-    Resize { cols: u16, rows: u16 },
-}
+type Input = direct::Input;
 impl Terminal {
     fn input(&self, message: Input) -> anyhow::Result<()> {
+        message.validate()?;
         match (self, message) {
+            (Self::Direct(remote), message) => remote.send(message),
             (Self::Local(pty), Input::Input { data }) => pty.write(data.into_bytes()),
             (Self::Local(pty), Input::Resize { cols, rows }) => pty.resize(cols, rows),
             (Self::Remote(remote), Input::Input { data }) => remote.send(Wire::TerminalInput {
@@ -199,6 +238,11 @@ impl Terminal {
     async fn output(&mut self) -> Option<Event> {
         match self {
             Self::Local(pty) => pty.output.recv().await,
+            Self::Direct(remote) => match remote.output.recv().await? {
+                direct::Event::Output(data) => Some(Event::Output(data)),
+                direct::Event::Exit(code) => Some(Event::Exit(code)),
+                direct::Event::Error(_) => None,
+            },
             Self::Remote(remote) => match remote.output.recv().await? {
                 Wire::TerminalOutput { data, .. } => STANDARD.decode(data).ok().map(Event::Output),
                 Wire::TerminalExit { code, .. } => Some(Event::Exit(code)),
@@ -208,6 +252,16 @@ impl Terminal {
     }
 }
 async fn run(mut socket: WebSocket, mut terminal: Terminal, mut closing: watch::Receiver<bool>) {
+    if !matches!(
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            socket.send(Message::Text(json!({"type":"ready"}).to_string().into()))
+        )
+        .await,
+        Ok(Ok(()))
+    ) {
+        return;
+    }
     let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
     let mut seen = Instant::now();
     let mut activity = Instant::now();
@@ -252,15 +306,51 @@ fn uuid_is_valid(id: &str) -> bool {
         })
 }
 pub async fn manage(state: &State, mut body: Value) -> anyhow::Result<Value> {
-    let node = body.as_object_mut().unwrap().remove("node");
+    let object = body
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("session command must be an object"))?;
+    let node = object.remove("node");
+    let local = match object.remove("local") {
+        None | Some(Value::Bool(false)) => false,
+        Some(Value::Bool(true)) => true,
+        _ => anyhow::bail!("invalid local flag"),
+    };
+    let direct = match object.remove("direct") {
+        None | Some(Value::Bool(false)) => false,
+        Some(Value::Bool(true)) => true,
+        _ => anyhow::bail!("invalid direct flag"),
+    };
+    anyhow::ensure!(
+        !direct || matches!(&node, Some(Value::String(_))),
+        "direct terminal requires a node"
+    );
+    let own_node = state
+        .local
+        .as_ref()
+        .is_some_and(|local| node.as_ref().and_then(Value::as_str) == Some(&local.id));
+    anyhow::ensure!(
+        !local || (own_node && !direct),
+        "local node identity changed"
+    );
     let request: Manage = serde_json::from_value(body.clone())?;
     match node {
         None | Some(Value::Null) => state.terminals.engine.manage(request).await,
+        Some(Value::String(_)) if own_node && !direct => {
+            state.terminals.engine.manage(request).await
+        }
         Some(Value::String(node)) => {
             anyhow::ensure!(
                 agent_workspace_runtime::protocol::valid_node_id(&node),
                 "invalid node"
             );
+            if direct {
+                return peer_store(state)
+                    .manage(agent_workspace_runtime::peers::Command::Sessions {
+                        node,
+                        command: body,
+                    })
+                    .await;
+            }
             state
                 .gateway
                 .as_ref()

@@ -1,7 +1,7 @@
 import { Grip, Maximize2, Minimize2, Minus, Terminal, X } from 'lucide-react';
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { TerminalPage } from '../pages/TerminalPage';
-import { t, useWorkspace } from '../workspace';
+import { useTerminalEnvironment } from './TerminalEnvironment';
 import { TerminalMenu } from './TerminalMenu';
 import { useTerminalWindow } from './TerminalWindowContext';
 
@@ -32,12 +32,13 @@ function savedRect(): Rect {
 }
 
 export function TerminalWindowToggle() {
+  const { t } = useTerminalEnvironment();
   const terminal = useTerminalWindow(), minimized = terminal.mode === 'minimized';
   return <button id="terminal-window-toggle" className={'terminal-window-toggle' + (terminal.mode !== 'closed' ? ' has-terminals' : '')} aria-label={minimized ? t('恢复终端窗口', 'Restore terminal window') : t('打开终端窗口', 'Open terminal window')} title={(terminal.title ? terminal.title + ' · ' : '') + (minimized ? t('点击恢复终端', 'Restore terminal') : t('终端', 'Terminal'))} aria-expanded={terminal.mode === 'open'} aria-controls="floating-terminal" onClick={() => terminal.openTerminal()}><Terminal size={18} aria-hidden="true" /><span className="terminal-window-toggle-label">{t('终端', 'Terminal')}</span>{terminal.mode !== 'closed' && <span className="terminal-window-count">{terminal.count}</span>}{minimized && <span className="terminal-window-minimized-dot" aria-hidden="true" />}</button>;
 }
 
 export function TerminalWindow({ suspended = false }: { suspended?: boolean }) {
-  const terminal = useTerminalWindow(), { snapshot } = useWorkspace();
+  const terminal = useTerminalWindow(), { t, available } = useTerminalEnvironment();
   const [rect, setRect] = useState(savedRect), [area, setArea] = useState(viewport), [maximized, setMaximized] = useState(false), [moving, setMoving] = useState(false);
   const gesture = useRef<{ pointer: number; edge: string; startX: number; startY: number; rect: Rect } | null>(null);
   const frame = useRef(0), queued = useRef<Rect | null>(null), windowRef = useRef<HTMLDivElement>(null);
@@ -85,7 +86,7 @@ export function TerminalWindow({ suspended = false }: { suspended?: boolean }) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
   function preset(width: number, height: number) { setMaximized(false); setRect(defaultRect(width, height)); }
-  if (terminal.mode === 'closed' || !snapshot) return null;
+  if (terminal.mode === 'closed' || !available) return null;
   const size = area.mobile || maximized ? area : constrain(rect, area);
   const hidden = terminal.mode === 'minimized' || suspended;
   return <div ref={windowRef} id="floating-terminal" role="dialog" aria-modal="false" aria-labelledby="terminal-window-title" tabIndex={-1} hidden={hidden} inert={hidden} className={'terminal-window' + (moving ? ' is-moving' : '') + (maximized ? ' is-maximized' : '')} style={{ left: size.x, top: size.y, width: size.width, height: size.height }}>

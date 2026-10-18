@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { snapshot } from './fixture.mjs';
+import { rfbFixture } from './rfb-fixture.mjs';
 
 const uiRoot = fileURLToPath(new URL('..', import.meta.url));
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cranibox-ui-preview-'));
@@ -21,11 +22,15 @@ await fs.writeFile(command, [
   "else if (args[0] === 'logs' && args[1] === 'long-job') { console.log('long job started'); setInterval(() => console.log('operation still running'), 500); }",
   "else { console.log('preview: ' + args.join(' ')); setTimeout(() => console.log('done'), 400); }",
 ].join('\n'), { mode: 0o700 });
+// Keep network previews independent of any Tailscale daemon on the test host.
+await fs.writeFile(path.join(directory, 'tailscale'), '#!' + process.execPath + '\nconsole.log(JSON.stringify({BackendState:"Stopped",Peer:{}}));\n', { mode: 0o700 });
 const binary = process.env.CRANIBOX_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox');
 const node = process.env.CRANIBOX_NODE_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox-node');
 const runtime = process.env.WORKSPACE_RUNTIME_BIN || path.resolve(uiRoot, '../../../target/debug/workspace-runtime');
 const webPort = Number(process.env.UI_PREVIEW_PORT || '19080');
 const runtimePort = webPort + 10;
+const closeDesktopFixture = await rfbFixture(webPort + 30);
+const closeAuthenticatedDesktopFixture = await rfbFixture(webPort + 34, { username: 'cranibox', password: 'wayland8' });
 const credentials = path.join(directory, '.config/agent-workspace/runtime.json');
 await fs.mkdir(path.dirname(credentials), { recursive: true });
 await fs.writeFile(path.join(path.dirname(credentials), 'web.json'), JSON.stringify({ runtimeUrl: 'http://127.0.0.1:' + runtimePort }));
@@ -34,6 +39,8 @@ let stopping = false;
 async function stop(code = 0) {
   if (stopping) return;
   stopping = true;
+  closeDesktopFixture();
+  closeAuthenticatedDesktopFixture();
   for (const child of [...processes].reverse()) {
     if (child.exitCode === null && child.signalCode === null) {
       const ended = new Promise(resolve => child.once('exit', resolve));
@@ -52,7 +59,8 @@ async function stop(code = 0) {
   process.exit(code);
 }
 function start(command, args) {
-  const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...process.env, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : process.env });
+  const environment = { ...process.env, PATH: directory + path.delimiter + (process.env.PATH || '') };
+  const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...environment, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : environment });
   processes.push(child);
   child.on('error', error => { console.error(error.message); void stop(1); });
   child.on('exit', code => { if (!stopping) void stop(code || 1); });
@@ -74,7 +82,15 @@ try {
   }
   start(binary, ['serve', '--config-root', directory, '--command', command, '--port', String(webPort), '--gateway-port', String(runtimePort)]);
   await wait(async () => (await fetch('http://127.0.0.1:' + runtimePort + '/healthz')).ok);
-  start(node, ['--id', 'preview-node', '--name', 'Preview Linux node', '--server', 'ws://127.0.0.1:' + runtimePort, '--token-file', path.join(directory, 'node.token')]);
+  const host = JSON.parse(await fs.readFile(path.join(directory, '.config/cranibox-node/peers.json'), 'utf8')).node_id;
+  for (const args of [
+    ['desktop', '--address', '127.0.0.1:' + (webPort + 30)],
+    ['grant', '--node', host, '--desktop', '--output-token', path.join(directory, 'desktop-grant.token')],
+  ]) {
+    const result = spawnSync(node, ['--config', path.join(directory, 'preview-node/settings.json'), 'peer', ...args], { stdio: 'pipe' });
+    if (result.status !== 0) throw Error('Preview desktop setup failed: ' + result.stderr);
+  }
+  start(node, ['--config', path.join(directory, 'preview-node/settings.json'), '--id', 'preview-node', '--name', 'Preview Linux node', '--server', 'ws://127.0.0.1:' + runtimePort, '--token-file', path.join(directory, 'node.token')]);
   const controller = JSON.parse(await fs.readFile(credentials, 'utf8')).controller_token;
   await wait(async () => (await (await fetch('http://127.0.0.1:' + runtimePort + '/api/v1/nodes', { headers: { Authorization: 'Bearer ' + controller } })).json()).nodes.some(node => node.online));
 } catch (error) {

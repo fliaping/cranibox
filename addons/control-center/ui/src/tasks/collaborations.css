@@ -1,0 +1,35 @@
+.collaborations { margin: 24px 0; padding: 20px; border: 1px solid var(--border); border-radius: 14px; min-width: 0; }
+.collaborations-heading, .collaboration-title { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.collaborations-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; }
+.collaborations-heading p { margin: 8px 0 0; color: var(--muted); line-height: 1.65; }
+.collaborations-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); align-items: start; gap: 16px; margin-top: 16px; }
+.collaboration-card { display: grid; gap: 14px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--code-bg); }
+.collaboration-card h4, .collaboration-card p { margin: 0; }
+.collaboration-title h4 { font-size: 16px; line-height: 1.5; flex: 1; min-width: 0; }
+.collaboration-title > span { padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.collaboration-card p, .collaboration-card code, .collaboration-card dd { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.collaboration-card small, .collaboration-progress span, .collaboration-create small { color: var(--muted); font-size: 13px; }
+.collaboration-progress { display: grid; gap: 8px; }
+.collaboration-progress progress { width: 100%; height: 8px; accent-color: var(--accent); }
+.collaboration-stats { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
+.collaboration-result { border-top: 1px solid var(--border); padding-top: 14px; }
+.collaboration-result p { margin-top: 8px; }
+.collaboration-card ul { padding-left: 20px; }
+.collaboration-card details, .collaboration-card dl, .collaboration-create details { min-width: 0; }
+.collaboration-card dl > div { margin-top: 12px; }
+.collaboration-card dt { color: var(--muted); font-size: 12px; }
+.collaboration-card dd { margin: 4px 0 0; font-family: var(--font-mono, monospace); font-size: 13px; }
+.collaboration-create, .collaboration-close { display: grid; gap: 12px; min-width: 0; }
+.collaboration-create { margin-top: 20px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; }
+.collaboration-create label, .collaboration-close label { display: grid; gap: 8px; min-width: 0; }
+.collaboration-create input, .collaboration-create textarea, .collaboration-close textarea, .collaboration-filter select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); background: var(--direct-surface); color: var(--direct-text); border-radius: 8px; font-size: 16px; }
+.collaboration-create textarea, .collaboration-close textarea { resize: vertical; }
+.collaboration-create fieldset { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.collaboration-create .collaboration-member { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.collaboration-create .collaboration-member input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 auto; accent-color: var(--accent); }
+.collaboration-member code { overflow-wrap: anywhere; }
+.collaboration-filter { display: grid; gap: 8px; margin-bottom: 16px; }
+.task-collaboration { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.task-collaboration p, .task-collaboration code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-collaboration code { display: block; margin-top: 8px; }
+@media (max-width: 600px) { .collaborations, .collaboration-create, .collaboration-card { padding: 16px; } }

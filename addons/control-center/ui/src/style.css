@@ -209,6 +209,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .modal-head .button { border-color: transparent; background: transparent; }
 .modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
 .field { display: grid; gap: 8px; margin-top: 20px; }
+.node-identity-dialog .field + .muted { margin-top: 16px; }
 .field > span { font-size: 12px; font-weight: 600; }
 .field input, .field textarea { width: 100%; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 12px; min-height: 44px; font-size: 16px; }
 .field textarea { font-family: var(--mono); font-size: 13px; resize: vertical; }
@@ -248,6 +249,8 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .modal-emergency { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 @media (max-width: 900px) { .mobile-menu-close { display: inline-flex; } .sidebar-brand .brand { padding-right: 8px; } }
 .node-form { display:grid; gap:16px; margin-top:20px; }
+.node-host .button { min-height: 44px; }
+@media (max-width: 600px) { .node-host .row-end, .node-host .row-end .button { width: 100%; } }
 .node-list .list-row { flex-wrap: wrap; }
 .node-list .row-end { width: 100%; min-width: 0; }
 .node-list .row-end .actions { align-items: flex-end; }

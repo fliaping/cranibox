@@ -1,8 +1,20 @@
 # 托盘客户端与 Agent 设备组网
 
-cranibox-node-desktop 是独立的 Windows/macOS/Linux 节点应用。Rust 节点引擎负责连接、任务和原生 PTY，Tauri 2 提供系统托盘、窗口和登录自启动，React 提供配置界面。客户端不包含 herdr。服务端保持浏览器访问方式。
+cranibox-node-desktop 是独立的 Windows/macOS/Linux 节点应用。Rust 节点引擎负责本机项目、任务和原生 PTY，Tauri 2 提供系统托盘、窗口和登录自启动，React 提供操作界面。应用启动后即可管理本机项目和 Shell，Workspace 网关是可选连接。客户端不包含 herdr。服务端保持浏览器访问方式。
 
-无界面的 cranibox-node 仍独立发布，适合服务器或已有进程管理器。两个客户端复用节点引擎；同一个凭据文件只允许一个常驻节点进程，避免互相挤掉连接。
+无界面的 cranibox-node 仍独立发布，适合服务器或已有进程管理器。两个客户端复用节点引擎；同一持久 NodeID 配置目录只允许一个常驻节点进程，即使没有启用直连监听也会加锁，避免多个进程分别持有同一设备的 Shell。同一凭据文件也只允许一个网关连接进程。需要在同一主机模拟独立设备时，为各进程指定不同的 --config 目录。
+
+本文说明现有版本。直连与目标本地授权见[配置与边界](direct-node-peers.md)，Web/Tauri 现已共用 [VNC/noVNC 桌面查看器及服务管理](remote-desktops.md)和[虚拟空间创建向导](virtual-spaces.md)。Linux/X11 支持托管 x11vnc，兼容 wlroots 的 Wayland 会话支持托管 wayvnc；两者支持异常重启及节点重启恢复。Windows、macOS 和其他 Wayland 会话可接入已有本机 VNC 服务，这些环境的自动安装与进程托管仍待实现。现已提供 [EasyTier 托管组网、发现、短期邀请及授权连接，以及系统 Tailscale 状态和登录](device-networks.md)，并支持显式多路径的新连接选路；公钥配对、全网目录分发和既有连接无缝迁移仍按[对等节点组网设计](decentralized-node-network-design.md)推进。
+
+Web/Tauri 已共用“项目与会话”页面，支持工作副本目录和持久 Shell 的关联、创建与找回、授权来源的目录增量同步和明确启用的后台同步，见[使用与边界](project-session-catalog.md)。“设备消息”提供持久收发箱、线程回复、明确收件确认，以及不依赖网关的 Agent MCP，见[设备消息](device-messages.md)。直连与网关设备的终端都使用共用 React 浮动窗口，Tauri 通过本机 Rust IPC 附着，无需打开系统浏览器。“协作任务”支持持久委托、明确领取、进度与结果回传，以及默认关闭的接收端自动接单，见[使用与边界](device-tasks.md)。本机 Agent 可主动登记公开状态，按会话 UUID 定向委托，见[Agent 会话](agent-sessions.md)。节点已提供[明确启动的本机后台执行及 Codex/Claude Code 非交互适配](agent-executions.md)，关闭页面后可继续运行和找回输出；实机环境见[验证清单](client-validation.md)。真正运行会话迁移仍见[多设备项目与 Agent 工作空间](distributed-agent-workspace-design.md)。
+
+## 浏览器与 Tauri 共用界面
+
+采用一套 React 业务组件和 Rust 核心，分别构建浏览器资源与 Tauri 应用。浏览器通过 HTTP/WebSocket/SSE 访问运行中的 Rust 服务；Tauri 通过 IPC/事件调用本机 Rust 核心。托盘、自启动和系统权限由桌面接入层处理。Tauri 的 invoke 需要宿主环境，不能作为普通浏览器的后端；浏览器构建需要独立的网络适配器。
+
+目前项目与会话、设备消息、协作任务、直连设备、入站授权、EasyTier/Tailscale 管理、浮动终端、VNC 查看器和虚拟空间已共用组件；其余页面尚未完全统一。已接入授权来源可同步项目目录，但设备、项目、Agent 和任务的全网统一视图与自动分发仍按分布式设计分阶段实现。浏览器操作设备时，以后端所在设备为接入端，不会因此获得浏览器所在电脑的本地系统能力。
+
+Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一方式，参见 [Tauri 官方前端配置](https://v2.tauri.app/start/frontend/)。
 
 ## 安装和连接
 
@@ -17,19 +29,19 @@ cranibox-node-desktop 是独立的 Windows/macOS/Linux 节点应用。Rust 节�
 
 选择与目标 OS 和 CPU 一致的产物；当前矩阵使用 GitHub 对应平台默认 runner 的 CPU，不是所有架构的通用包。Linux 的托盘依赖桌面环境支持 AppIndicator；无桌面的机器使用 CLI 客户端。
 
-1. 在 Workspace 网页的「远程节点」注册设备，保存本次显示的节点 Token。
-2. 安装并打开 Cranibox Node，在「连接设置」填写服务端地址、节点 ID 和 Token。公网填写 wss://workspace.example.com，地址不带路径。
-3. 默认勾选「登录系统后自动启动」，保存并连接。
-4. 关闭窗口后仍在托盘运行。托盘菜单可打开窗口、重新连接或主动退出。
-5. 在 Workspace 将可信设备加入同一设备组，例如 personal；各设备客户端的「设备网络」显示可访问的设备。
+1. 安装并打开 Cranibox Node。「设备网络」显示“这台设备”的持久 NodeID，可直接打开本机终端；「项目与会话」可注册本机目录和关联 Shell。
+2. 需要随登录启动时，在「连接设置」勾选「登录系统后自动启动」，该选项独立保存，无需配置中继。
+3. 需要连接 Workspace 网关时，在 Workspace 网页的「远程节点」注册设备并保存节点 Token，再在客户端填写服务端地址、网关节点 ID 和 Token。公网填写 wss://workspace.example.com，地址不带路径，点击「保存并连接」。
+4. 关闭窗口后仍在托盘运行。托盘菜单可打开窗口、重新连接网关或主动退出。
+5. 在 Workspace 将可信设备加入同一设备组，例如 personal；各设备客户端的「设备网络」显示可访问的网关设备。直连连接和入站授权可独立配置，不依赖网关。
 
 登录自启动属于当前用户，会在用户登录后启动，不是登录前的系统守护服务。账户权限决定远程命令的权限。安装包目前未配置发布者签名和 macOS 公证。
 
 ## 会话保持
 
-节点引擎在窗口之外运行。关闭窗口或退出浏览器都不会结束 Shell。网络断开后客户端自动重连；「重新连接」只重建网络连接，保留现有 PTY 和 Shell。服务端恢复后可通过浏览器重新附着原会话，断线期间保留最近 256 KiB 输出。
+节点引擎在窗口之外运行。关闭窗口或退出浏览器都不会结束 Shell。网络断开后客户端自动重连；「重新连接」只重建网络连接，保留现有 PTY 和 Shell。服务端恢复后可通过浏览器或客户端重新附着原会话，断线期间保留最近 256 KiB 输出。
 
-主动退出客户端、重启进程或更改服务端/节点身份会结束本机现有 Shell；界面会先确认。电脑重启后登录自启动恢复的是节点连接，无法恢复此前的 Shell 进程。普通命令任务仍遵循超时、取消及断线清理规则，不自动重放。
+更改网关地址、网关节点别名或 Token 只会替换网关连接，本机持久 NodeID、项目目录和 Shell 保持。旧网关上的附着和命令任务会断开；连接新网关后可重新附着已有 Shell。主动退出客户端需确认，并会结束本机 Shell；重启进程或设备也无法保留原 Shell 进程。登录自启动恢复的是本机服务和已配置的网关连接，不会重建此前的 Shell。普通命令任务仍遵循超时、取消及断线清理规则，不自动重放。
 
 ## Tailscale 或公网中继
 
@@ -37,16 +49,19 @@ cranibox-node-desktop 是独立的 Windows/macOS/Linux 节点应用。Rust 节�
 
 Tailscale 模式：使用已有的 Tailscale 客户端，把 Workspace 和设备接入可互通的 tailnet，并按 Tailscale ACL 放行 Workspace 端口。客户端填写 Workspace 的 Tailscale IP 或域名，例如 wss://workspace.example.ts.net。若私网入口没有 TLS，可使用 ws://100.x.x.x:9090 并勾选「允许可信私网的 ws:// 连接」。容器部署需要发布可访问的监听地址，不能把容器回环地址直接用作其他设备的入口。
 
-两种模式使用相同的节点协议和设备组。Tailscale 提供私网连通与它自身的中继；应用层远程命令仍由 Workspace 转发。本功能不是通用 VPN、任意 TCP 转发或文件共享，不会自动安装或登录 Tailscale。
+这两种网关连接模式使用相同的节点协议和设备组，应用层远程命令仍由 Workspace 转发。独立的直连能力可以通过 EasyTier 或 Tailscale 私网访问，不必经过 Workspace。Tailscale 管理页提供明确触发的官方登录，不自动安装或修改系统服务；EasyTier 的安装与托管范围见[设备自动组网](device-networks.md)。
 
 ## 每台设备上的 Agent
 
-在托盘界面的「Agent 接入」复制 MCP 配置到本机 Agent。该配置调用本机客户端的 mcp 子命令，复用已保存的节点设置和 Token 文件；不另外启动托盘或节点服务。提供四个工具：
+在托盘界面的「Agent 接入」复制 MCP 配置到本机 Agent。配置包含两个独立入口：`cranibox-devices` 调用本机客户端的 `mcp` 子命令，复用已保存的网关节点设置和 Token 文件；`cranibox-messages` 调用 `peer messages mcp`，无需网关设置即可使用 device_messages 读取本机邮箱、发消息和确认收件，以及使用 device_tasks 委托、领取和报告任务，以及 device_agent_sessions 登记、续期和查询公开 Agent 会话。两个入口都不另外打开托盘窗口，配置不含明文 Token。消息 MCP 本身也会保持后台投递；入站连接仍由本机服务监听。已配置的直连目标可另通过 `peer call --node NODE mcp` 访问。网关 MCP 提供五个工具：
 
 - workspace_nodes：列出本机及同组节点。
 - workspace_exec：在允许的设备上提交命令，返回任务 ID。
 - workspace_job：查询本机 Agent 提交的任务和输出。
 - workspace_cancel：取消本机 Agent 提交的任务。
+- workspace_projects：读取和管理授权范围内的项目目录及会话关联。
+
+默认不包含后台进程工具。需要由 Agent 明确启动另一个 Agent 时，可在「Agent 接入」勾选“添加 Agent 后台运行工具”，加入独立的 cranibox-runs 入口。它提供 device_nodes 和 device_agent_runs，不依赖 Workspace 中继；每次操作都必须指定精确 NodeID，远端需授予 exec 权限，并先启动目标节点服务。关闭 MCP 不会停止目标节点持有的运行。准备、启动、输出分页、去重及撤权边界见 [Agent 后台执行](agent-executions.md)。
 
 CLI 使用同一设置，例如：
 
@@ -95,5 +110,13 @@ cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets 
 cd apps/node-desktop
 npm run tauri -- build --features desktop -- --locked
 ~~~
+
+在已生成 `apps/node-desktop/dist` 后，如果直接使用 Cargo 构建供实机运行的二进制，需要同时启用静态资源协议：
+
+~~~bash
+cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
+~~~
+
+仅启用 `desktop` 的直接 Cargo 构建会使用 `tauri.conf.json` 中的 Vite 开发地址；开发服务器关闭后窗口无法加载。Tauri CLI 的正式构建会自动配置 `custom-protocol`。实机验证应在开发服务器关闭时确认窗口内容及本机 IPC 均可用。
 
 桌面构建要求 Rust 1.90+、Node.js 22+ 和对应平台的 Tauri 系统依赖。三平台 CI 独立构建安装包。浏览器交互测试使用 Tauri IPC 模拟，验证窗口操作、设置、MCP 配置和布局；它不能代替各 OS 的真实托盘、登录自启动与休眠恢复体验测试。网关集成测试使用真实节点验证设备调用、组隔离、任务归属和客户端 MCP。

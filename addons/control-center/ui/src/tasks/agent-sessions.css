@@ -1,0 +1,40 @@
+.agent-session-directory { margin: 16px 0 20px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--direct-surface); }
+.agent-session-directory > summary { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; }
+.agent-session-directory > summary span { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; }
+.agent-session-directory[open] > summary { margin-bottom: 12px; }
+.agent-session-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; margin-top: 16px; }
+.agent-session-card { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.agent-session-card > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.agent-session-card p { margin: 8px 0; color: var(--muted); }
+.agent-session-card code { display: block; overflow-wrap: anywhere; font-size: 12px; }
+.agent-session-card small { display: block; margin-top: 12px; color: var(--muted); }
+.agent-session-current { color: var(--good, #86efac); font-size: 12px; }
+.agent-session-picker { display: grid; gap: 10px; min-width: 0; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.agent-session-picker .direct-note { margin: 0; }
+.agent-session-picker .direct-actions small { color: var(--muted); }
+
+.agent-federation { margin: 16px 0 20px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--direct-surface); min-width: 0; }
+.agent-federation-heading { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 16px; }
+.agent-federation-heading h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 18px; }
+.agent-federation-heading p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.agent-federation-filters { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: end; margin: 20px 0; }
+.agent-federation-filters > label:first-child { display: grid; gap: 8px; flex: 1 1 280px; min-width: 0; font-size: 13px; }
+.agent-federation-filters > label > span { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; }
+.agent-federation input[type=search] { min-width: 0; width: 100%; min-height: 44px; padding: 10px 0; color: var(--direct-text); background: transparent; border: 0; font-size: 16px; }
+.agent-federation .agent-federation-inactive { display: flex; flex-direction: row; gap: 10px; align-items: center; min-height: 44px; font-size: 13px; cursor: pointer; }
+.agent-federation-inactive input { width: 18px; height: 18px; accent-color: var(--accent); }
+.agent-federation-sources { display: grid; gap: 16px; }
+.agent-federation-source { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; }
+.agent-federation-device { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.agent-federation-device > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.agent-federation-device code { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+.agent-federation-device > span { color: var(--muted); font-size: 12px; }
+.agent-federation .agent-session-card { display: flex; flex-direction: column; gap: 12px; }
+.agent-federation .agent-session-card strong { overflow-wrap: anywhere; }
+.agent-federation .agent-session-card p { margin: 0; overflow-wrap: anywhere; }
+.agent-federation .agent-session-card details { font-size: 12px; color: var(--muted); }
+.agent-federation .agent-session-card summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.agent-federation .agent-session-card button { margin-top: auto; align-self: start; }
+.agent-federation-unavailable { display: flex; flex-wrap: wrap; gap: 12px; align-items: start; justify-content: space-between; margin-top: 12px; }
+.agent-federation-unavailable p { flex: 1 1 200px; margin: 0; overflow-wrap: anywhere; }
+@media(max-width:600px) { .agent-federation { padding: 16px 12px; } .agent-federation-source { padding: 12px; } .agent-federation-heading .direct-actions { width: 100%; } .agent-federation-heading .direct-actions button { flex: 1 1 160px; } }

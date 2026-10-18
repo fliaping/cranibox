@@ -45,6 +45,13 @@ enum Command {
         #[arg(long, default_value_os_t = config::default_credentials())]
         credentials: PathBuf,
     },
+    /// Move a gateway registration to a device NodeID, preserving its token and old paths.
+    MigrateIdentity {
+        id: String,
+        target: String,
+        #[command(flatten)]
+        api: ApiOptions,
+    },
     /// HTTP + WebSocket gateway. Optionally forward existing Web UI to --web-upstream.
     Serve {
         #[arg(long, default_value = "127.0.0.1:9090")]
@@ -92,6 +99,9 @@ enum Command {
 }
 
 pub async fn run(args: Vec<String>) -> Result<()> {
+    if crate::peers::tasks::worker::maybe_serve(&args).await? {
+        return Ok(());
+    }
     match Cli::parse_from(args).command {
         Command::Group {
             id,
@@ -104,6 +114,7 @@ pub async fn run(args: Vec<String>) -> Result<()> {
             );
             let _lock = config::lock_credentials(&credentials)?;
             let mut value = config::Credentials::read(&credentials)?;
+            let id = value.resolve_node(&id).to_owned();
             anyhow::ensure!(value.nodes.contains_key(&id), "unknown node");
             if group.is_empty() {
                 value.mesh_groups.remove(&id);
@@ -118,6 +129,7 @@ pub async fn run(args: Vec<String>) -> Result<()> {
                 controller_token: config::token(),
                 nodes: Default::default(),
                 mesh_groups: Default::default(),
+                node_aliases: Default::default(),
             };
             config::write_private(&credentials, &serde_json::to_vec_pretty(&value)?, false)?;
             eprintln!("Created {}", credentials.display());
@@ -138,6 +150,10 @@ pub async fn run(args: Vec<String>) -> Result<()> {
             );
             let mut value = config::Credentials::read(&credentials)?;
             anyhow::ensure!(
+                !value.node_aliases.contains_key(&id),
+                "node ID is reserved by an identity migration; enroll the canonical NodeID"
+            );
+            anyhow::ensure!(
                 value.nodes.len() < 128 || value.nodes.contains_key(&id),
                 "maximum 128 enrolled nodes"
             );
@@ -153,8 +169,7 @@ pub async fn run(args: Vec<String>) -> Result<()> {
         Command::Revoke { id, credentials } => {
             let _lock = config::lock_credentials(&credentials)?;
             let mut value = config::Credentials::read(&credentials)?;
-            anyhow::ensure!(value.nodes.remove(&id).is_some(), "unknown node");
-            value.mesh_groups.remove(&id);
+            value.revoke_node(&id)?;
             config::write_private(&credentials, &serde_json::to_vec_pretty(&value)?, true)?;
             eprintln!("Revoked {id}");
         }
@@ -164,6 +179,20 @@ pub async fn run(args: Vec<String>) -> Result<()> {
             web_upstream,
         } => server::serve(listen, credentials, web_upstream).await?,
         Command::Nodes { api } => client::print(client::Api::new(api)?.get("/api/v1/nodes").await?),
+        Command::MigrateIdentity { id, target, api } => {
+            anyhow::ensure!(
+                protocol::valid_node_id(&id) && protocol::valid_node_id(&target),
+                "invalid node ID"
+            );
+            client::print(
+                client::Api::new(api)?
+                    .post(
+                        &format!("/api/v1/nodes/{id}/identity"),
+                        serde_json::json!({"target":target}),
+                    )
+                    .await?,
+            );
+        }
         Command::Job { api, id } => {
             client::print(client::Api::new(api)?.get(&client::job_path(&id)?).await?)
         }

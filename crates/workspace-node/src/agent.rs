@@ -5,6 +5,16 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Create and manage isolated container workspaces on this device.
+    Space {
+        #[command(subcommand)]
+        command: crate::spaces::Command,
+    },
+    /// Manage target-owned direct connectivity without a Workspace connection.
+    Peer {
+        #[command(subcommand)]
+        command: crate::peer::Command,
+    },
     /// List devices accessible to this device's Agent.
     Nodes,
     /// Execute on a device in the same trust group.
@@ -32,6 +42,9 @@ pub enum Command {
 pub async fn run(settings: Settings, command: Command) -> Result<()> {
     let api = settings.api()?;
     match command {
+        Command::Peer { .. } | Command::Space { .. } => {
+            anyhow::bail!("device commands use their local configuration")
+        }
         Command::Nodes => client::print(api.get("/api/v1/nodes").await?),
         Command::Job { id } => client::print(api.get(&client::job_path(&id)?).await?),
         Command::Cancel { id } => client::print(

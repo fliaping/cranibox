@@ -72,11 +72,25 @@ pub enum Wire {
         terminal: bool,
         #[serde(default)]
         terminal_sessions: bool,
+        #[serde(default, skip_serializing_if = "is_false")]
+        desktop_relay: bool,
     },
     Welcome {
         version: u32,
     },
     Heartbeat {},
+    DesktopOpen {
+        id: String,
+        caller: String,
+        ticket: String,
+    },
+    DesktopClose {
+        id: String,
+    },
+    DesktopError {
+        id: String,
+        error: String,
+    },
     TerminalOpen {
         id: String,
         cols: u16,
@@ -131,6 +145,9 @@ pub enum Wire {
         error: Option<String>,
     },
 }
+fn is_false(value: &bool) -> bool {
+    !value
+}
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Stream {
@@ -159,6 +176,28 @@ pub fn valid_node_id(id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_feature_is_optional_for_older_gateways() {
+        let old = serde_json::json!({"type":"hello","version":1,"name":"node","os":"linux","arch":"x86_64","terminal":true,"terminal_sessions":true});
+        let hello: Wire = serde_json::from_value(old.clone()).unwrap();
+        assert!(matches!(
+            hello,
+            Wire::Hello {
+                desktop_relay: false,
+                ..
+            }
+        ));
+        assert_eq!(serde_json::to_value(hello).unwrap(), old);
+        let mut enabled = old;
+        enabled["desktop_relay"] = true.into();
+        assert!(matches!(
+            serde_json::from_value::<Wire>(enabled).unwrap(),
+            Wire::Hello {
+                desktop_relay: true,
+                ..
+            }
+        ));
+    }
     #[test]
     fn reject_invalid_commands_and_versions() {
         let mut r: ExecRequest = serde_json::from_str(r#"{"program":"echo"}"#).unwrap();

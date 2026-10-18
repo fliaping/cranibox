@@ -349,12 +349,14 @@ pub struct WebArgs {
     #[arg(long)]
     pub desktop_url: Option<String>,
     #[arg(long)]
+    pub applications_url: Option<String>,
+    #[arg(long)]
     pub runtime_url: Option<String>,
     #[arg(long)]
     pub port: Option<u16>,
 }
 fn web_config(ctx: &Context) -> Result<Value> {
-    let mut config = json!({"port":9080,"publicUrl":"","workspaceUrl":"http://localhost:8443","desktopUrl":"https://localhost:3001","runtimeUrl":"http://127.0.0.1:9090"});
+    let mut config = json!({"port":9080,"publicUrl":"","workspaceUrl":"http://localhost:8443","desktopUrl":"https://localhost:3001","applicationsUrl":"https://localhost:3002","runtimeUrl":"http://127.0.0.1:9090"});
     let path = ctx.root.join(".config/agent-workspace/web.json");
     if path.exists() {
         let value: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
@@ -392,6 +394,7 @@ pub async fn web(ctx: &Context, args: WebArgs) -> Result<i32> {
             || (args.public_url.is_none()
                 && args.workspace_url.is_none()
                 && args.desktop_url.is_none()
+                && args.applications_url.is_none()
                 && args.runtime_url.is_none()
                 && args.port.is_none()),
         "configuration options require web configure"
@@ -425,11 +428,14 @@ pub async fn web(ctx: &Context, args: WebArgs) -> Result<i32> {
                 ("publicUrl", args.public_url),
                 ("workspaceUrl", args.workspace_url),
                 ("desktopUrl", args.desktop_url),
+                ("applicationsUrl", args.applications_url),
                 ("runtimeUrl", args.runtime_url),
             ] {
                 if let Some(url) = option {
-                    let validated =
-                        validate_web_url(&url, key == "publicUrl" || key == "runtimeUrl")?;
+                    let validated = validate_web_url(
+                        &url,
+                        matches!(key, "publicUrl" | "runtimeUrl" | "applicationsUrl"),
+                    )?;
                     if key == "runtimeUrl" {
                         let parsed = reqwest::Url::parse(&validated)?;
                         ensure!(
@@ -442,6 +448,16 @@ pub async fn web(ctx: &Context, args: WebArgs) -> Result<i32> {
                         );
                     }
                     value[key] = json!(validated);
+                }
+            }
+            let application = reqwest::Url::parse(inspect::text(&value["applicationsUrl"]))?;
+            for key in ["publicUrl", "workspaceUrl", "desktopUrl"] {
+                let text = inspect::text(&value[key]);
+                if !text.is_empty() {
+                    ensure!(
+                        reqwest::Url::parse(text)?.origin() != application.origin(),
+                        "applications-url must use a separate origin from the console, editor and host desktop"
+                    );
                 }
             }
             atomic_write(

@@ -84,6 +84,7 @@ pub async fn manage(state: &State, action: &str, body: &Value) -> Result<Value> 
             tokio::task::spawn_blocking(move || {
                 let _lock = config::lock_credentials(&path)?;
                 let mut creds = config::Credentials::read(&path)?;
+                let id = creds.resolve_node(&id).to_owned();
                 ensure!(creds.nodes.contains_key(&id), "Unknown node");
                 if group.is_empty() {
                     creds.mesh_groups.remove(&id);
@@ -108,11 +109,15 @@ pub async fn manage(state: &State, action: &str, body: &Value) -> Result<Value> 
                 let _lock = config::lock_credentials(&path)?;
                 let mut creds = config::Credentials::read(&path)?;
                 if revoke {
-                    ensure!(creds.nodes.remove(&id).is_some(), "Unknown node");
-                    creds.mesh_groups.remove(&id);
+                    creds.revoke_node(&id)?;
                     config::write_private(&path, &serde_json::to_vec_pretty(&creds)?, true)?;
                     Ok(json!({"ok":true}))
                 } else {
+                    ensure!(
+                        rotate || !creds.node_aliases.contains_key(&id),
+                        "Node ID is reserved by an identity migration; use the canonical NodeID"
+                    );
+                    let id = creds.resolve_node(&id).to_owned();
                     ensure!(
                         rotate || !creds.nodes.contains_key(&id),
                         "Node already registered; explicitly rotate its credential"
@@ -129,6 +134,21 @@ pub async fn manage(state: &State, action: &str, body: &Value) -> Result<Value> 
                 }
             })
             .await?
+        }
+        "identity" => {
+            let id = body["id"].as_str().context("Node ID required")?;
+            let target = body["target"].as_str().context("Target NodeID required")?;
+            ensure!(
+                protocol::valid_node_id(id) && protocol::valid_node_id(target),
+                "Invalid node ID"
+            );
+            api(
+                state,
+                reqwest::Method::POST,
+                &format!("/nodes/{id}/identity"),
+                Some(json!({"target":target})),
+            )
+            .await
         }
         "exec" => {
             let id = body["id"].as_str().context("Node ID required")?;

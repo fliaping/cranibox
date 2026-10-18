@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const pages = ['overview', 'nodes', 'terminal', 'history', 'performance', 'agents', 'browser', 'resources', 'services', 'desktop', 'network', 'diagnostics'];
+const pages = ['overview', 'nodes', 'projects', 'terminal', 'history', 'performance', 'agents', 'browser', 'resources', 'services', 'desktop', 'network', 'diagnostics'];
 for (const width of [375, 768, 1024, 1440]) {
   test('all pages render without overflow at ' + width + 'px', async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -44,8 +44,11 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   const sockets: import('@playwright/test').WebSocket[] = [];
   page.on('websocket', socket => sockets.push(socket));
   await page.goto('/#/terminal');
-  await expect(page.getByRole('combobox', { name: 'Target', exact: true }).locator('option')).toHaveCount(2);
-  for (const node of ['', 'preview-node']) {
+  const target = page.getByRole('combobox', { name: 'Target', exact: true });
+  await expect(target.locator('option')).toHaveCount(3);
+  const host = await target.inputValue();
+  expect(host).toMatch(/^node-/);
+  for (const node of [host, 'preview-node']) {
     await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption(node);
     await createTerminal(page, 'Browser task');
     await expect(page.getByRole('combobox', { name: 'Target', exact: true })).toBeEnabled();
@@ -233,6 +236,8 @@ test('mobile command composer protects IME input, exposes shortcuts and manages 
   await page.getByRole('menuitem', { name: 'Rename Mobile task', exact: true }).click();
   await page.getByRole('dialog', { name: 'Rename session', exact: true }).getByRole('textbox').fill('Mobile renamed');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Rename session', exact: true })).toBeHidden();
+  await expect(page.getByRole('tab', { name: 'Mobile renamed', exact: true })).toBeVisible();
   await page.reload();
   await expect(activePane(page).locator('.status')).toContainText('Connected');
   await endTerminal(page, 'Mobile renamed');

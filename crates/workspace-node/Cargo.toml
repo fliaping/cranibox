@@ -6,6 +6,7 @@ rust-version = "1.89"
 
 [dependencies]
 anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
 agent-workspace-runtime = { path = "../workspace-runtime", default-features = false, features = ["client"] }
 agent-workspace-pty = { path = "../workspace-pty", default-features = false }
 base64 = "0.22"
@@ -13,15 +14,17 @@ clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
 fs2 = "0.4"
 rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util"] }
 tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
 tokio-util = "0.7"
-uuid = { version = "1", features = ["v4"] }
-
-[dev-dependencies]
-tempfile = "3"
+uuid = { version = "1", features = ["v4", "serde"] }
+url = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
