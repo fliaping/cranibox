@@ -68,7 +68,20 @@ EasyTier 使用节点托管的独立进程，可以在没有 Workspace 网关的
 
 界面读取当前用户可用的系统 `tailscale status --json`，展示登录状态与有限的设备信息。需要登录时启动官方 `tailscale login --accept-dns=false --timeout=5m`，登录链接在浏览器打开；Tauri 使用系统浏览器。本次登录不接收 tailnet 下发的 DNS 配置；系统 Tailscale 仍会按自身行为建立网络接口和路由。取消登录只终止本次登录命令，不退出账号或停止系统服务。
 
-没有安装或系统服务不可用时，界面给出下载/启动提示；当前没有托管安装、提权或启动系统 Tailscale。不会调用 `tailscale up/down`，不会配置子网路由、出口节点或 tailnet ACL。设备间仍需满足 tailnet 策略。
+### 安装与系统服务引导
+
+没有安装或系统服务不可用时，点击“检查 Tailscale 安装方案”。先查看当前节点的平台、实际命令、所需管理员权限，以及内置脚本和 SHA-256；勾选确认后才会执行。方案有效期十分钟、只能执行一次；执行前重新检查安装和命令，系统状态改变后需重新审阅。安装不自动登录账号，成功执行命令也不等于已完成系统权限授权或加入 tailnet。
+
+| 平台 | 安装方式 | 已安装但服务不可用 | 限制 |
+| --- | --- | --- | --- |
+| Debian / Ubuntu 桌面主机 | PolicyKit 授权后，内置脚本添加官方稳定 APT 源并安装，启用 tailscaled | 明确确认后使用 systemctl enable --now tailscaled | 需要 systemd、图形会话和 pkexec；其他发行版转官方指引 |
+| macOS | 已有 Homebrew 下载并校验 tailscale-app 官方安装包，核对包签名；macOS 管理员弹窗只授权系统 installer，随后打开应用 | 对已有 /Applications/Tailscale.app 执行 open；CLI 服务提示沿用原系统配置 | 不自动安装 Homebrew，网络扩展仍需用户在系统设置授权 |
+| Windows | 使用已有 winget 安装固定软件 ID Tailscale.Tailscale，显示系统授权 | 使用系统 PowerShell 和 UAC 启动现有 Tailscale 服务 | 没有 winget 时转官方下载；不绕过 UAC |
+| Docker / Podman 容器 | 不执行主机安装 | 给出容器宿主或已有 Workspace Tailscale 服务的指引 | 不修改宿主网络，不取得额外容器权限 |
+
+安装任务由 Rust 节点持有，关闭网页或窗口不取消。状态记录在 peers.json 旁的私有 tailscale-setup.json，Unix 权限 0600。节点重启后，未完成任务显示 interrupted，提醒检查系统安装器，不自动重放；三十分钟监控超时也不会主动终止系统包事务。输出不写入产品日志；失败显示退出码和恢复指引。没有取消安装按钮，重试前应确认系统安装器已结束。
+
+原本可用的系统 Tailscale 不进行重复安装或服务修改。不会调用 tailscale up/down，不配置子网路由、出口节点或 tailnet ACL；设备间仍需满足 tailnet 策略。安装包可能启用已有后台服务，其网络行为由系统 Tailscale 原配置决定。以上平台适配已实现，但真实管理员弹窗、系统安装及账号登录仍需各平台实机验收。
 
 ### 持续发现节点
 
@@ -95,6 +108,8 @@ EasyTier 使用节点托管的独立进程，可以在没有 Workspace 网关的
 签名节点目录、公钥配对、Tailscale 能力广播、既有连接的无缝迁移、全网目录自动分发、离线编辑和跨设备运行中 Agent 迁移仍待实现。已接入授权设备的项目目录支持增量读取、只读离线快照和明确启用的后台同步，见[项目与会话目录](project-session-catalog.md)。短期邀请完成网络配置的引导，不提供节点的密码学配对；多入口仅解决 EasyTier 的重新入网，不表示已有 TCP 连接可以无缝迁移。整体设计见[对等组网设计](decentralized-node-network-design.md)。
 
 ## 验证
+
+系统安装引导另有四项 Rust 夹具测试，覆盖未审阅不执行、方案 ID/过期/系统变更、单次执行、失败后的状态持久化、写盘失败不启动及重启不重放；夹具只运行临时目录中的无害 Shell，不调用真实包管理器。网络 API 验证认证、CSRF、同源、拒绝任意程序/下载 URL、已有可用服务不修改和容器拒绝主机安装。共享 UI 验证确认、错误恢复、刷新与重进、过期、官方外链、明暗、小屏、横屏、减弱动画及大字号；Tauri 使用模拟 IPC。各系统真实安装与管理员授权仍待实机验收，见[收尾记录](remote-workspace-validation-2026-10-18.md#tailscale-安装引导收尾)。
 
 Rust 测试覆盖配置校验、发现去重与身份匹配、下载校验和安全解压、Tailscale 状态脱敏，以及邀请的哈希保存、过期、网络绑定、单次领取、撤销和地址限制。Tailscale 查找及持续发现另验证在线成员限制、IPv4/IPv6、响应大小和版本、禁止重定向、不发送凭据，以及已有连接与 Token 的原子保护。持续发现另覆盖不安全地址排除、身份冲突、地址回退、后台扫描、显式停止、私有设置持久化及无页面请求时的重启恢复。`tests/test_device_networks.py` 通过真实 Rust Web API 验证认证、CSRF、同源限制、私有配置、正常退出与重启恢复、两个 Workspace 的邀请接入和失败前置检查，以及在线状态变化后拒绝查找，使用隔离的进程替身，不改动系统网络服务。Web 与 Tauri 浏览器测试覆盖安装确认、表单保留、邀请、后台状态、授权、登录链接、Tailscale 逐设备查找与身份变化、页面重进和移动布局；Tauri 测试使用模拟 IPC。真实 Tailscale 设备间的 ACL、监听与连接仍需实机验收。
 

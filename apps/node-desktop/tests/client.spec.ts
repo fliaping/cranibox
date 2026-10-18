@@ -1,5 +1,38 @@
 import { expect, test } from '@playwright/test';
 
+test('native Tailscale setup uses the reviewed plan through IPC and survives navigation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const status: any = { node_id: 'own-device', easytier: { installed: false, enabled: false, phase: 'stopped', devices: [], connections: [] }, tailscale: { installed: false, state: 'NotInstalled', devices: [], setup: { phase: 'idle' } } };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'network') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (payload.command.operation === 'tailscale_setup_plan') return { available: true, id: 'native-reviewed-plan', platform: 'windows', action: 'install', requires_admin: true, expires_in_seconds: 600, commands: [{ program: 'winget.exe', args: ['install', '--id', 'Tailscale.Tailscale'] }] };
+        if (payload.command.operation === 'tailscale_setup') status.tailscale.setup = { phase: 'running', action: 'install' };
+        return structuredClone(status);
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备网络', exact: true }).click();
+  const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
+  await ts.getByRole('link', { name: '打开官方下载页面', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).calls.find((c: any) => c.command === 'open_network_link')?.payload.url)).toBe('https://tailscale.com/download');
+  await ts.getByRole('button', { name: '检查 Tailscale 安装方案', exact: true }).click();
+  const execute = ts.getByRole('button', { name: '确认并执行', exact: true });
+  await expect(execute).toBeDisabled();
+  await ts.getByLabel('我已审阅，允许在当前节点执行以上操作', { exact: true }).check();
+  await execute.click();
+  await expect(ts).toContainText('正在执行安装方案');
+  await page.getByRole('button', { name: '项目与会话', exact: true }).click();
+  await page.getByRole('button', { name: '设备网络', exact: true }).click();
+  await expect(ts).toContainText('正在执行安装方案');
+  const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'network' && c.payload.command.operation !== 'status'));
+  expect(calls.map((c: any) => c.payload.command)).toEqual([{ operation: 'tailscale_setup_plan' }, { operation: 'tailscale_setup', plan_id: 'native-reviewed-plan' }]);
+});
+
 test('native background catalog sync configures and pauses the shared Rust node policy', async ({ page }) => {
   await page.addInitScript(() => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;

@@ -8,6 +8,10 @@
 .network-phase::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .network-phase.active { color: var(--good, var(--accent)); }
 .network-setup, .network-advanced, .network-plan { display: grid; justify-items: start; gap: 12px; min-width: 0; }
+.tailscale-setup, .tailscale-setup .network-plan, .tailscale-setup details { width: 100%; }
+.tailscale-setup p { margin: 0; }
+.tailscale-setup-commands { display: grid; gap: 12px; min-width: 0; }
+.tailscale-setup pre { max-width: 100%; margin: 0; padding: 12px; border-radius: 6px; background: var(--direct-surface); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
 .network-advanced { justify-items: stretch; padding-top: 12px; }
 .network-provider details { border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; }
 .network-provider summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 13px; }

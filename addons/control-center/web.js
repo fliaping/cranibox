@@ -41838,14 +41838,148 @@ function qS({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 	] });
 }
 //#endregion
+//#region src/devices/TailscaleSetup.tsx
+function JS({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
+	let [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(!1), [d, f] = (0, x.useState)(0), [p, m] = (0, x.useState)(Date.now()), h = (0, x.useRef)(null), g = (0, x.useRef)(null), _ = e?.phase === "running", v = !!s?.available && p >= d;
+	if ((0, x.useEffect)(() => {
+		s && h.current?.focus();
+	}, [s]), (0, x.useEffect)(() => {
+		_ && (c(void 0), u(!1));
+	}, [_]), (0, x.useEffect)(() => {
+		if (!s?.available) return;
+		let e = setInterval(() => m(Date.now()), 1e3);
+		return () => clearInterval(e);
+	}, [s]), !["NotInstalled", "Unavailable"].includes(t) && (!e || e.phase === "idle") && !s) return null;
+	let y = () => {
+		c(void 0), u(!1), requestAnimationFrame(() => g.current?.focus());
+	}, b = s?.action === "start_service" ? r("启动系统 Tailscale 服务", "Start the system Tailscale service") : s?.action === "open_app" ? r("打开 Tailscale 应用", "Open the Tailscale app") : r("安装系统 Tailscale", "Install system Tailscale");
+	return /* @__PURE__ */ (0, z.jsxs)("div", {
+		className: "network-setup tailscale-setup",
+		"aria-label": r("Tailscale 安装引导", "Tailscale setup"),
+		"aria-busy": _ || n,
+		children: [
+			_ && /* @__PURE__ */ (0, z.jsx)("p", {
+				className: "direct-note",
+				role: "status",
+				children: r("正在执行安装方案，请在这台设备上完成系统授权。关闭此页面不会中断安装；请勿重复运行安装器。", "Setup is running. Complete the system permission prompt on this device. You can close this page; do not run a second installer.")
+			}),
+			e?.phase === "succeeded" && /* @__PURE__ */ (0, z.jsx)("p", {
+				className: "direct-note",
+				role: "status",
+				children: r("安装命令已完成，正在检查系统服务。若仍无法连接，请打开 Tailscale 完成系统权限设置。登录需在下方单独完成。", "Setup commands finished. Checking the system service. If it stays unavailable, open Tailscale to complete system permissions. Sign in separately below.")
+			}),
+			(e?.phase === "failed" || e?.phase === "interrupted" || e?.error) && /* @__PURE__ */ (0, z.jsx)("p", {
+				className: "direct-error",
+				role: "alert",
+				children: e.error || r("安装尚未完成，请检查系统安装器后重试。", "Setup is incomplete. Check the system installer before retrying.")
+			}),
+			!_ && ["NotInstalled", "Unavailable"].includes(t) && /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
+				/* @__PURE__ */ (0, z.jsx)("p", {
+					className: "direct-note",
+					children: r("先检查当前节点的安装或服务启动方案，再确认执行。系统可能要求管理员授权；安装不会自动登录账号。", "Review installation or service startup on this node, then confirm. The system may request administrator permission. Setup does not sign in automatically.")
+				}),
+				s ? /* @__PURE__ */ (0, z.jsxs)("div", {
+					className: "network-plan",
+					children: [/* @__PURE__ */ (0, z.jsx)("h4", {
+						tabIndex: -1,
+						ref: h,
+						children: s.available ? b : r("需要手动配置", "Manual setup required")
+					}), s.available ? /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
+						/* @__PURE__ */ (0, z.jsxs)("p", {
+							className: "direct-note",
+							children: [
+								s.platform,
+								" · ",
+								s.requires_admin ? r("需要系统管理员授权", "System administrator permission required") : r("无需管理员权限", "No administrator permission required")
+							]
+						}),
+						/* @__PURE__ */ (0, z.jsx)("p", {
+							className: "direct-note",
+							children: r("使用官方软件源或系统包管理器，接受 Tailscale 的软件许可；可能修改软件源并启用后台服务。已有网络配置保持不变。", "Uses official packages or the system package manager and accepts Tailscale software terms. May add a package source and enable its service. Existing network settings are preserved.")
+						}),
+						s.platform === "macos" && /* @__PURE__ */ (0, z.jsx)("p", {
+							className: "direct-note",
+							children: r("安装后请在 macOS 系统设置中允许 Tailscale 的网络扩展。", "After installation, allow the Tailscale network extension in macOS System Settings.")
+						}),
+						/* @__PURE__ */ (0, z.jsxs)("details", { children: [/* @__PURE__ */ (0, z.jsx)("summary", { children: r("查看实际命令", "View commands") }), /* @__PURE__ */ (0, z.jsxs)("div", {
+							className: "tailscale-setup-commands",
+							children: [s.commands?.map((e, t) => /* @__PURE__ */ (0, z.jsx)("pre", { children: /* @__PURE__ */ (0, z.jsx)("code", { children: [e.program, ...e.args.map((e) => JSON.stringify(e))].join(" ") }) }, t)), s.script && /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [/* @__PURE__ */ (0, z.jsxs)("p", {
+								className: "direct-note",
+								children: ["SHA-256 ", /* @__PURE__ */ (0, z.jsx)("code", { children: s.script_sha256 })]
+							}), /* @__PURE__ */ (0, z.jsx)("pre", { children: /* @__PURE__ */ (0, z.jsx)("code", { children: s.script }) })] })]
+						})] }),
+						/* @__PURE__ */ (0, z.jsxs)("label", {
+							className: "direct-check",
+							children: [/* @__PURE__ */ (0, z.jsx)("input", {
+								type: "checkbox",
+								checked: l,
+								disabled: n || v,
+								onChange: (e) => u(e.target.checked)
+							}), r("我已审阅，允许在当前节点执行以上操作", "I reviewed and allow these actions on this node")]
+						}),
+						v && /* @__PURE__ */ (0, z.jsx)("p", {
+							className: "direct-error",
+							role: "alert",
+							children: r("方案已过期，请取消后重新检查。", "This plan expired. Cancel and review a new plan.")
+						}),
+						/* @__PURE__ */ (0, z.jsxs)("div", {
+							className: "direct-actions",
+							children: [/* @__PURE__ */ (0, z.jsx)("button", {
+								className: "direct-primary",
+								disabled: n || !l || v || !s.id,
+								onClick: () => {
+									s.id && a(s.id, y);
+								},
+								children: n ? r("正在提交…", "Submitting…") : r("确认并执行", "Confirm and run")
+							}), /* @__PURE__ */ (0, z.jsx)("button", {
+								disabled: n,
+								onClick: y,
+								children: r("取消", "Cancel")
+							})]
+						})
+					] }) : /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [/* @__PURE__ */ (0, z.jsx)("p", {
+						className: "direct-note",
+						role: "status",
+						children: s.reason
+					}), /* @__PURE__ */ (0, z.jsx)("button", {
+						disabled: n,
+						onClick: y,
+						children: r("返回", "Back")
+					})] })]
+				}) : /* @__PURE__ */ (0, z.jsxs)("button", {
+					ref: g,
+					disabled: n,
+					onClick: () => void i((e) => {
+						c(e), u(!1);
+						let t = Date.now();
+						m(t), f(t + (e.expires_in_seconds || 0) * 1e3);
+					}),
+					children: [/* @__PURE__ */ (0, z.jsx)(Pe, {
+						size: 16,
+						"aria-hidden": "true"
+					}), n ? r("正在检查…", "Checking…") : r("检查 Tailscale 安装方案", "Review Tailscale setup")]
+				}),
+				/* @__PURE__ */ (0, z.jsx)("a", {
+					className: "network-link",
+					href: "https://tailscale.com/download",
+					onClick: (e) => o(e, "https://tailscale.com/download"),
+					target: "_blank",
+					rel: "noreferrer",
+					children: r("打开官方下载页面", "Open official downloads")
+				})
+			] })
+		]
+	});
+}
+//#endregion
 //#region src/devices/NetworkProvidersView.tsx
-var JS = (e) => e instanceof Error ? e.message : String(e);
-function YS(e) {
+var YS = (e) => e instanceof Error ? e.message : String(e);
+function XS(e) {
 	let t = e;
 	if (!t?.easytier || !Array.isArray(t.easytier.devices) || !t.tailscale || !Array.isArray(t.tailscale.devices)) throw Error("Network management is unavailable. Upgrade the node backend and retry.");
 	return t;
 }
-function XS(e) {
+function ZS(e) {
 	try {
 		let t = new URL(e || "");
 		return t.protocol === "https:" && t.hostname === "login.tailscale.com" && !t.port && !t.username && !t.password && !t.hash ? t.href : void 0;
@@ -41853,16 +41987,16 @@ function XS(e) {
 		return;
 	}
 }
-function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
+function QS({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
 	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, te] = (0, x.useState)(""), P = (0, x.useId)(), ne = (0, x.useRef)(null), [re, F] = (0, x.useState)(""), [ie, I] = (0, x.useState)(""), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(!1), ce = (0, x.useRef)(0), le = (0, x.useRef)(null), ue = (0, x.useRef)(null), de = (0, x.useCallback)(async () => {
 		if (se.current || oe.current || document.hidden) return;
 		se.current = !0;
 		let t = ++ce.current;
 		try {
-			let n = YS(await e({ operation: "status" }));
+			let n = XS(await e({ operation: "status" }));
 			ae.current && t === ce.current && (o(n), f(""));
 		} catch (e) {
-			ae.current && t === ce.current && f(JS(e));
+			ae.current && t === ce.current && f(YS(e));
 		} finally {
 			se.current = !1, ae.current && t === ce.current && g(!1);
 		}
@@ -41885,11 +42019,12 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 				let r = await e(t);
 				ae.current && ([
 					"plan",
+					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
-				].includes(t.operation) || o(YS(r)), n?.(r));
+				].includes(t.operation) || o(XS(r)), n?.(r));
 			} catch (e) {
-				ae.current && c(JS(e));
+				ae.current && c(YS(e));
 			} finally {
 				oe.current = !1, ae.current && (m(!1), g(!1));
 			}
@@ -41933,13 +42068,13 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			node: re,
 			token: ie
 		}, (e) => {
-			o(YS(e.network)), I(""), F(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
+			o(XS(e.network)), I(""), F(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let R = a?.easytier, he = a?.tailscale, ge = R?.phase === "running" ? i("后台运行中", "Running in background") : R?.phase === "installing" ? i("正在安装…", "Installing…") : R?.phase === "restarting" ? i("正在连接…", "Connecting…") : R?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), _e = XS(he?.login_url);
+	let R = a?.easytier, he = a?.tailscale, ge = R?.phase === "running" ? i("后台运行中", "Running in background") : R?.phase === "installing" ? i("正在安装…", "Installing…") : R?.phase === "restarting" ? i("正在连接…", "Connecting…") : R?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), _e = ZS(he?.login_url);
 	function ve(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ae.current && c(JS(e));
+			ae.current && c(YS(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, z.jsxs)("section", {
@@ -42263,7 +42398,7 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									peers: e
 								}, (e) => {
 									let n = e;
-									o(YS(n.network)), t(n.invitation);
+									o(XS(n.network)), t(n.invitation);
 								}),
 								revoke: (e) => L({
 									operation: "easy_tier_revoke_invitation",
@@ -42337,22 +42472,20 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							role: "alert",
 							children: he.error
 						}),
-						he?.state === "NotInstalled" && /* @__PURE__ */ (0, z.jsxs)("p", {
-							className: "direct-note",
-							children: [
-								i("先安装并启动系统 Tailscale，之后可以在这里登录和查看网络。", "Install and start the system Tailscale service, then sign in and view its network here."),
-								" ",
-								/* @__PURE__ */ (0, z.jsx)("a", {
-									href: "https://tailscale.com/download",
-									onClick: (e) => ve(e, "https://tailscale.com/download"),
-									target: "_blank",
-									rel: "noreferrer",
-									children: i("打开官方下载页面", "Open official downloads")
-								})
-							]
+						/* @__PURE__ */ (0, z.jsx)(JS, {
+							setup: he?.setup,
+							systemState: he?.state || "Checking",
+							busy: p || !!he?.login_pending,
+							t: i,
+							openLink: ve,
+							review: (e) => L({ operation: "tailscale_setup_plan" }, (t) => e(t)),
+							execute: (e, t) => L({
+								operation: "tailscale_setup",
+								plan_id: e
+							}, t)
 						}),
 						he?.state === "NeedsLogin" && !he.login_pending && /* @__PURE__ */ (0, z.jsx)("button", {
-							disabled: p,
+							disabled: p || he.setup?.phase === "running",
 							onClick: () => void L({ operation: "tailscale_login" }),
 							children: i("登录 Tailscale", "Sign in to Tailscale")
 						}),
@@ -42381,7 +42514,7 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							devices: he.devices,
 							discovery: he.discovery,
 							onDiscoveryChanged: (e) => {
-								++ce.current, o(YS(e)), f("");
+								++ce.current, o(XS(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
@@ -42399,7 +42532,7 @@ function ZS({ client: e, language: t = "en", host: n = "local", openExternal: r 
 }
 //#endregion
 //#region src/pages/Nodes.tsx
-function QS() {
+function $S() {
 	let { snapshot: e, refresh: t, notify: n } = oo(), { openTerminal: r } = Qa(), i = (0, x.useCallback)((e) => no("/api/peers", e), []), a = (0, x.useCallback)((e) => no("/api/network", e), []), o = e?.remote_nodes, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(null), [p, m] = (0, x.useState)(() => location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "ws://" + location.host : "wss://" + location.host), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)("[]"), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)("60"), [E, D] = (0, x.useState)({}), [O, k] = (0, x.useState)(null), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)("");
 	async function P(e, n, r) {
 		if (!M) {
@@ -42483,7 +42616,7 @@ function QS() {
 				children: B("浏览器通过这台设备访问工作空间。命令在这台设备执行；其他设备需获得授权后接入。", "Your browser accesses the workspace through this device. Commands run here; other devices need permission to connect.")
 			})]
 		}),
-		/* @__PURE__ */ (0, z.jsx)(ZS, {
+		/* @__PURE__ */ (0, z.jsx)(QS, {
 			client: a,
 			language: window.workspaceWeb.language,
 			host: "server"
@@ -42817,7 +42950,7 @@ function QS() {
 }
 //#endregion
 //#region src/pages/Performance.tsx
-function $S() {
+function eC() {
 	let { snapshot: e, state: t, refresh: n } = oo(), r = e?.metrics;
 	return /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
 		/* @__PURE__ */ (0, z.jsx)(fo, {
@@ -42887,7 +43020,7 @@ function $S() {
 }
 //#endregion
 //#region src/main.tsx
-var eC = [
+var tC = [
 	{
 		id: "overview",
 		label: B("总览", "Overview"),
@@ -42969,7 +43102,7 @@ var eC = [
 		icon: hn
 	}
 ];
-function tC() {
+function nC() {
 	let e = oo(), { snapshot: t, state: n, error: r, notice: i } = e, a = vi(), o = xi(), s = Qa();
 	(0, x.useEffect)(() => {
 		if (a.pathname !== "/terminal") return;
@@ -42990,7 +43123,7 @@ function tC() {
 		} catch {
 			return "dark";
 		}
-	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = eC.find((e) => a.pathname === "/" + e.id) || eC[0];
+	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = tC.find((e) => a.pathname === "/" + e.id) || tC[0];
 	(0, x.useEffect)(() => {
 		document.documentElement.dataset.theme = c;
 		try {
@@ -43040,7 +43173,7 @@ function tC() {
 				children: [
 					/* @__PURE__ */ (0, z.jsxs)("div", {
 						className: "sidebar-brand",
-						children: [/* @__PURE__ */ (0, z.jsx)(nC, {}), /* @__PURE__ */ (0, z.jsx)("button", {
+						children: [/* @__PURE__ */ (0, z.jsx)(rC, {}), /* @__PURE__ */ (0, z.jsx)("button", {
 							className: "button secondary icon-button mobile-menu-close",
 							"aria-label": B("关闭导航", "Close navigation"),
 							onClick: () => {
@@ -43055,7 +43188,7 @@ function tC() {
 					}),
 					/* @__PURE__ */ (0, z.jsx)("nav", {
 						"aria-label": B("工作区导航", "Workspace navigation"),
-						children: eC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, z.jsxs)("button", {
+						children: tC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, z.jsxs)("button", {
 							className: "nav-link terminal-nav-button" + (s.mode === "open" ? " active" : ""),
 							"aria-label": e.label,
 							title: e.label,
@@ -43246,7 +43379,7 @@ function tC() {
 								}),
 								/* @__PURE__ */ (0, z.jsx)(Gi, {
 									path: "/nodes",
-									element: /* @__PURE__ */ (0, z.jsx)(QS, {})
+									element: /* @__PURE__ */ (0, z.jsx)($S, {})
 								}),
 								/* @__PURE__ */ (0, z.jsx)(Gi, {
 									path: "/history",
@@ -43254,7 +43387,7 @@ function tC() {
 								}),
 								/* @__PURE__ */ (0, z.jsx)(Gi, {
 									path: "/performance",
-									element: /* @__PURE__ */ (0, z.jsx)($S, {})
+									element: /* @__PURE__ */ (0, z.jsx)(eC, {})
 								}),
 								/* @__PURE__ */ (0, z.jsx)(Gi, {
 									path: "/overview",
@@ -43333,7 +43466,7 @@ function tC() {
 		]
 	});
 }
-function nC() {
+function rC() {
 	return /* @__PURE__ */ (0, z.jsxs)("a", {
 		className: "brand",
 		href: "#/overview",
@@ -43347,6 +43480,6 @@ function nC() {
 		}), /* @__PURE__ */ (0, z.jsxs)("span", { children: [/* @__PURE__ */ (0, z.jsx)("strong", { children: "Cranibox" }), /* @__PURE__ */ (0, z.jsx)("small", { children: "AGENT WORKSPACE" })] })]
 	});
 }
-var rC = location.hash.slice(1);
-eC.some((e) => e.id === rC) && history.replaceState(null, "", "#/" + rC), (0, Ja.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, z.jsx)(Na, { children: /* @__PURE__ */ (0, z.jsx)($a, { children: /* @__PURE__ */ (0, z.jsx)(so, { children: /* @__PURE__ */ (0, z.jsx)(MS, { children: /* @__PURE__ */ (0, z.jsx)(tC, {}) }) }) }) }));
+var iC = location.hash.slice(1);
+tC.some((e) => e.id === iC) && history.replaceState(null, "", "#/" + iC), (0, Ja.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, z.jsx)(Na, { children: /* @__PURE__ */ (0, z.jsx)($a, { children: /* @__PURE__ */ (0, z.jsx)(so, { children: /* @__PURE__ */ (0, z.jsx)(MS, { children: /* @__PURE__ */ (0, z.jsx)(nC, {}) }) }) }) }));
 //#endregion

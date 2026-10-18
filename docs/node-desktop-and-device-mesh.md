@@ -49,7 +49,7 @@ Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一
 
 Tailscale 模式：使用已有的 Tailscale 客户端，把 Workspace 和设备接入可互通的 tailnet，并按 Tailscale ACL 放行 Workspace 端口。客户端填写 Workspace 的 Tailscale IP 或域名，例如 wss://workspace.example.ts.net。若私网入口没有 TLS，可使用 ws://100.x.x.x:9090 并勾选「允许可信私网的 ws:// 连接」。容器部署需要发布可访问的监听地址，不能把容器回环地址直接用作其他设备的入口。
 
-这两种网关连接模式使用相同的节点协议和设备组，应用层远程命令仍由 Workspace 转发。独立的直连能力可以通过 EasyTier 或 Tailscale 私网访问，不必经过 Workspace。Tailscale 管理页提供明确触发的官方登录，不自动安装或修改系统服务；EasyTier 的安装与托管范围见[设备自动组网](device-networks.md)。
+这两种网关连接模式使用相同的节点协议和设备组，应用层远程命令仍由 Workspace 转发。独立的直连能力可以通过 EasyTier 或 Tailscale 私网访问，不必经过 Workspace。Tailscale 管理页提供审阅后确认的系统安装/服务启动引导和独立触发的官方登录，不随应用启动自动安装或接管已有系统服务；平台限制与 EasyTier 托管范围见[设备自动组网](device-networks.md)。
 
 ## 每台设备上的 Agent
 

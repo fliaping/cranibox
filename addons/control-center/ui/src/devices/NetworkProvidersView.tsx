@@ -5,8 +5,10 @@ import './networks.css';
 import { InvitationEnrollment, NetworkInvitations, type Invitation } from './NetworkInvitations';
 import { TailscaleNodes, type TailscaleDevice } from './TailscaleNodes';
 import type { TailscaleDiscoveryState } from './TailscaleDiscovery';
+import { TailscaleSetup, type TailscaleSetupState, type TailscaleSetupPlan } from './TailscaleSetup';
 
-export type NetworkCommand = { operation: 'status' | 'plan' | 'install' | 'easy_tier_stop' | 'tailscale_login' | 'tailscale_cancel_login' }
+export type NetworkCommand = { operation: 'status' | 'plan' | 'install' | 'easy_tier_stop' | 'tailscale_login' | 'tailscale_cancel_login' | 'tailscale_setup_plan' }
+  | { operation: 'tailscale_setup'; plan_id: string }
   | { operation: 'easy_tier_join'; network: string; token: string; peers: string[]; listen_port: number | null }
   | { operation: 'easy_tier_enroll'; url: string; token: string; listen_port: number | null }
   | { operation: 'easy_tier_invite'; peers: string[] }
@@ -17,7 +19,7 @@ export type NetworkCommand = { operation: 'status' | 'plan' | 'install' | 'easy_
   | { operation: 'tailscale_connect'; address: string; port: number; node: string; token: string };
 export type NetworkClient = (command: NetworkCommand) => Promise<unknown>;
 type Device = { node: string; address: string; path: string; latency_ms: number | null };
-type State = { node_id: string; easytier: { installed: boolean; enabled: boolean; version: string; phase: string; network: string | null; peer: string | null; peers?: string[]; listen_port: number | null; error: string | null; devices: Device[]; connections: string[]; invitations?: Invitation[]; invitation_error?: string | null }; tailscale: { installed?: boolean; state: string; login_pending?: boolean; login_url?: string | null; error?: string; devices: TailscaleDevice[]; discovery?: TailscaleDiscoveryState } };
+type State = { node_id: string; easytier: { installed: boolean; enabled: boolean; version: string; phase: string; network: string | null; peer: string | null; peers?: string[]; listen_port: number | null; error: string | null; devices: Device[]; connections: string[]; invitations?: Invitation[]; invitation_error?: string | null }; tailscale: { installed?: boolean; state: string; login_pending?: boolean; login_url?: string | null; error?: string; devices: TailscaleDevice[]; discovery?: TailscaleDiscoveryState; setup?: TailscaleSetupState } };
 type Plan = { version: string; platform: string; directory: string; sha256: string };
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 function state(value: unknown): State {
@@ -60,7 +62,7 @@ export function NetworkProvidersView({ client, language = 'en', host = 'local', 
   async function run(command: NetworkCommand, done?: (value: unknown) => void) {
     if (mutation.current) return;
     mutation.current = true; ++serial.current; setBusy(true); setError(''); setNotice('');
-    try { const value = await client(command); if (mounted.current) { if (!['plan', 'easy_tier_connect', 'easy_tier_invite'].includes(command.operation)) setStatus(state(value)); done?.(value); } }
+    try { const value = await client(command); if (mounted.current) { if (!['plan', 'tailscale_setup_plan', 'easy_tier_connect', 'easy_tier_invite'].includes(command.operation)) setStatus(state(value)); done?.(value); } }
     catch (e) { if (mounted.current) setError(message(e)); }
     finally { mutation.current = false; if (mounted.current) { setBusy(false); setLoading(false); } }
   }
@@ -130,8 +132,8 @@ export function NetworkProvidersView({ client, language = 'en', host = 'local', 
       </article>
       <article className="network-provider" aria-label="Tailscale"><div className="direct-heading"><div><h3><ShieldCheck size={18} aria-hidden="true" />Tailscale</h3><p>{t('使用系统服务 · 可与 EasyTier 同时运行', 'Uses the system service · Works alongside EasyTier')}</p></div><span className={'network-phase ' + (ts?.state === 'Running' ? 'active' : '')} role="status">{ts?.state === 'Running' ? t('已连接', 'Connected') : ts?.state === 'NeedsLogin' ? t('等待登录', 'Login required') : ts?.state === 'NotInstalled' ? t('尚未安装', 'Not installed') : ts?.state === 'Checking' ? t('检查中…', 'Checking…') : t('检查系统服务', 'Check system service')}</span></div>
         {ts?.error && <p className="direct-error" role="alert">{ts.error}</p>}
-        {ts?.state === 'NotInstalled' && <p className="direct-note">{t('先安装并启动系统 Tailscale，之后可以在这里登录和查看网络。', 'Install and start the system Tailscale service, then sign in and view its network here.')} <a href="https://tailscale.com/download" onClick={e => openLink(e, 'https://tailscale.com/download')} target="_blank" rel="noreferrer">{t('打开官方下载页面', 'Open official downloads')}</a></p>}
-        {ts?.state === 'NeedsLogin' && !ts.login_pending && <button disabled={busy} onClick={() => void run({ operation: 'tailscale_login' })}>{t('登录 Tailscale', 'Sign in to Tailscale')}</button>}
+        <TailscaleSetup setup={ts?.setup} systemState={ts?.state || 'Checking'} busy={busy || !!ts?.login_pending} t={t} openLink={openLink} review={done => run({ operation: 'tailscale_setup_plan' }, value => done(value as TailscaleSetupPlan))} execute={(plan_id, done) => run({ operation: 'tailscale_setup', plan_id }, done)} />
+        {ts?.state === 'NeedsLogin' && !ts.login_pending && <button disabled={busy || ts.setup?.phase === 'running'} onClick={() => void run({ operation: 'tailscale_login' })}>{t('登录 Tailscale', 'Sign in to Tailscale')}</button>}
         {ts?.login_pending && <div className="network-setup"><p className="direct-note">{auth ? t('在 Tailscale 页面完成登录，此处会自动刷新。', 'Complete sign in on Tailscale. Status refreshes automatically.') : t('正在等待 Tailscale 返回登录链接…', 'Waiting for a Tailscale sign in link…')}</p><div className="direct-actions">{auth && <a className="network-link" href={auth} onClick={e => openLink(e, auth)} target="_blank" rel="noreferrer">{t('打开 Tailscale 登录', 'Open Tailscale sign in')}</a>}<button disabled={busy} onClick={() => void run({ operation: 'tailscale_cancel_login' })}>{t('取消登录', 'Cancel sign in')}</button></div></div>}
         {(ts?.state === 'Running' || ts?.discovery?.enabled) && <TailscaleNodes devices={ts.devices} discovery={ts.discovery} onDiscoveryChanged={value => { ++serial.current; setStatus(state(value)); setReadError(''); }} own={status.node_id} client={client} disabled={busy} t={t} onConnected={() => { window.dispatchEvent(new Event('cranibox:peers-changed')); window.dispatchEvent(new Event('cranibox:network-routes-changed')); void read(); }} />}
       </article>

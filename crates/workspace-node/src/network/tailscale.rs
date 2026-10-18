@@ -17,6 +17,8 @@ pub(super) fn executable() -> Option<PathBuf> {
     paths
         .into_iter()
         .chain([
+            PathBuf::from("/opt/homebrew/bin/tailscale"),
+            PathBuf::from("/usr/local/bin/tailscale"),
             PathBuf::from("/Applications/Tailscale.app/Contents/MacOS/Tailscale"),
             PathBuf::from(r"C:\Program Files\Tailscale\tailscale.exe"),
         ])

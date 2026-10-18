@@ -1,6 +1,102 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const initial = () => ({ node_id: 'this-node', easytier: { installed: true, enabled: false, version: '2.6.4', phase: 'stopped', network: null, peer: null, listen_port: null, error: null, devices: [] as any[], connections: [] as string[] }, tailscale: { installed: true, state: 'Running', devices: [{ name: 'Personal laptop', addresses: ['100.64.0.2'], online: true, path: 'direct' }] } });
+
+test('Tailscale setup requires a reviewed confirmation, retains errors and continues after reload', async ({ page }) => {
+  const status: any = initial(), actions: any[] = [], errors: string[] = [];
+  status.tailscale = { installed: false, state: 'NotInstalled', devices: [], setup: { phase: 'idle' } };
+  let attempts = 0;
+  page.on('pageerror', e => errors.push(e.message));
+  await page.route('**/api/network', route => {
+    const command = route.request().postDataJSON(); actions.push(command);
+    if (command.operation === 'tailscale_setup_plan') return route.fulfill({ json: { available: true, id: 'reviewed-plan', platform: 'linux', action: 'install', requires_admin: true, expires_in_seconds: 600, commands: [{ program: '/usr/bin/pkexec', args: ['/bin/sh', '-c', '<bundled installation script>'] }], script: '#!/bin/sh\n# fixed official source\n', script_sha256: 'a'.repeat(64) } });
+    if (command.operation === 'tailscale_setup') {
+      if (++attempts === 1) return route.fulfill({ status: 400, json: { error: 'System permission is unavailable. Review administrator access.' } });
+      status.tailscale.setup = { phase: 'running', action: 'install' };
+    }
+    return route.fulfill({ json: status });
+  });
+  await page.goto('/#/nodes');
+  const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
+  await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
+  await expect(ts.getByRole('heading', { name: 'Install system Tailscale', exact: true })).toBeFocused();
+  const execute = ts.getByRole('button', { name: 'Confirm and run', exact: true });
+  await expect(execute).toBeDisabled();
+  await ts.getByText('View commands', { exact: true }).click();
+  await expect(ts.locator('pre').first()).toContainText('/usr/bin/pkexec "/bin/sh"');
+  expect(actions.some(action => action.operation === 'tailscale_setup')).toBe(false);
+  await ts.getByLabel('I reviewed and allow these actions on this node', { exact: true }).check();
+  await execute.click(); await expect(page.getByRole('alert')).toContainText('System permission is unavailable');
+  await expect(execute).toBeEnabled();
+  await execute.click(); await expect(ts).toContainText('Setup is running.');
+  await expect(ts.getByRole('button', { name: 'Review Tailscale setup', exact: true })).toHaveCount(0);
+  await page.reload(); await expect(ts).toContainText('Setup is running.');
+  status.tailscale.state = 'NeedsLogin'; status.tailscale.installed = true; status.tailscale.setup = { phase: 'succeeded', action: 'install' };
+  await page.reload(); await expect(ts).toContainText('Setup commands finished.');
+  await expect(ts.getByRole('button', { name: 'Sign in to Tailscale', exact: true })).toBeEnabled();
+  expect(actions.filter(action => action.operation !== 'status')).toEqual([{ operation: 'tailscale_setup_plan' }, { operation: 'tailscale_setup', plan_id: 'reviewed-plan' }, { operation: 'tailscale_setup', plan_id: 'reviewed-plan' }]);
+  expect(errors).toEqual([]);
+});
+
+test('Tailscale manual setup explains container boundaries and mobile layouts remain usable', async ({ page }) => {
+  const status: any = initial(), actions: any[] = [];
+  status.tailscale = { installed: true, state: 'Unavailable', devices: [], setup: { phase: 'interrupted', error: 'The system installer may still be working. Check it before retrying.' } };
+  await page.route('**/api/network', route => {
+    const command = route.request().postDataJSON(); actions.push(command);
+    return route.fulfill({ json: command.operation === 'tailscale_setup_plan' ? { available: false, platform: 'linux', reason: 'Install Tailscale on the container host. Container setup does not change the host network.' } : status });
+  });
+  await page.goto('/#/nodes');
+  const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
+  await expect(ts.getByRole('alert')).toContainText('Check it before retrying');
+  await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
+  await expect(ts.getByRole('heading', { name: 'Manual setup required', exact: true })).toBeFocused();
+  await expect(ts).toContainText('container host');
+  await expect(ts.getByRole('link', { name: 'Open official downloads', exact: true })).toHaveAttribute('href', 'https://tailscale.com/download');
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+  }
+  await ts.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(ts.getByRole('button', { name: 'Review Tailscale setup', exact: true })).toBeFocused();
+  expect(actions.some(action => action.operation === 'tailscale_setup')).toBe(false);
+});
+
+test('Tailscale setup expires without execution and preserves command details on a small screen', async ({ page }) => {
+  await page.clock.install();
+  const script = readFileSync(new URL('../../../../crates/workspace-node/src/network/install-tailscale-macos.sh', import.meta.url), 'utf8');
+  const status: any = initial(), actions: any[] = [];
+  status.tailscale = { installed: false, state: 'NotInstalled', devices: [], setup: { phase: 'idle' } };
+  await page.route('**/api/network', route => {
+    const command = route.request().postDataJSON(); actions.push(command);
+    return route.fulfill({ json: command.operation === 'tailscale_setup_plan' ? { available: true, id: 'expiring-plan', platform: 'macos', action: 'install', requires_admin: true, expires_in_seconds: 600, commands: [{ program: '/bin/sh', args: ['-c', '<bundled installation script>', 'tailscale-setup', '/opt/homebrew/bin/brew'] }], script, script_sha256: 'a'.repeat(64) } : status });
+  });
+  await page.goto('/#/nodes');
+  const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
+  await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
+  await ts.getByText('View commands', { exact: true }).click();
+  await page.setViewportSize({ width: 375, height: 1000 });
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await ts.screenshot({ path: '/tmp/cranibox-tailscale-setup-' + theme + '.png', animations: 'disabled' });
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => document.documentElement.style.fontSize = '200%');
+  for (const viewport of [{ width: 375, height: 1000 }, { width: 667, height: 375 }]) {
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(ts.getByRole('button', { name: 'Confirm and run', exact: true })).toBeVisible();
+  }
+  await ts.getByLabel('I reviewed and allow these actions on this node', { exact: true }).check();
+  await page.clock.fastForward(601000);
+  await expect(ts.getByRole('alert')).toContainText('plan expired');
+  await expect(ts.getByRole('button', { name: 'Confirm and run', exact: true })).toBeDisabled();
+  expect(actions.some(action => action.operation === 'tailscale_setup')).toBe(false);
+});
 
 test('continuous Tailscale discovery retains errors, survives reload and connects only on request', async ({ page }) => {
   const status: any = initial(), actions: any[] = [];

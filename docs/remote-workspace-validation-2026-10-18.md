@@ -543,3 +543,42 @@ apt-get install -y --no-install-recommends \
 分别连接内层 KDE wayland-0 和 Selkies 外层 wayland-1 运行 wayland-info，两次退出码均为 0。两层都未公布 wlr screencopy 或 ext image-copy-capture 协议；内层没有虚拟键盘/指针，外层只有 zwp_virtual_keyboard_manager_v1、没有虚拟指针。因此不能通过把 wayvnc 的 WAYLAND_DISPLAY 改成外层 socket 来完成当前桌面共享。该结论仅针对本环境，不能推断所有 KDE 主机均不可用，也没有将协议探测算作新的 VNC 画面/输入验收。
 
 证据保存在 /config/validation-artifacts/kde-capture-followup-20261018，目录权限 0700：inspection.json、kwin-support-information.txt、wayland-0-protocols.txt、wayland-1-protocols.txt 均为 0600。同时重新读取功能提交 71f2397 的 ci-final.json，确认矩阵七个作业及 Release、GitCode 同步的保存记录均为 success；Linux 安装包 acceptance.json 仍为 passed: true。上述是既有证据复核，不是重跑 CI 或安装包验收。最后重新请求 3080 Web 和 3031 桌面入口，均为匿名 401、认证 200，结果为同目录 0600 的 entrypoint-checks.json。主验证容器此时 running / healthy，仍使用原镜像，没有 privileged 或宿主 Docker socket。
+
+## Tailscale 安装引导收尾
+
+按最终交接要求，收尾既有的系统 Tailscale 安装引导，更新[功能需求总表、验收边界与后续优先级](implementation-handoff-2026-10-18.md)。以下测试均在 admin@192.168.217.6:22022 的 cranibox-validation 中以 abc 用户执行；本机只编辑、同步文件、查看截图和操作 Git。没有在本机创建产品服务或测试套接字。
+
+### 实现与限制
+
+共享 Web/Tauri 页面先请求 tailscale_setup_plan，展示平台、实际命令、内置脚本摘要和管理员权限；勾选确认后才发送 tailscale_setup。后端仅接受十分钟内、单次、当前系统条件仍一致的方案 ID，不接受任意程序、参数或下载地址。开始前保存私有状态，关闭网页不会终止节点任务；重启后将进行中状态标记 interrupted，不自动重放；系统包事务不会因监控三十分钟超时而被主动终止。
+
+Debian/Ubuntu 图形主机使用 pkexec、内置 APT 脚本与官方稳定源，启用 tailscaled；macOS 复用已有 Homebrew 下载 tailscale-app、核对包签名，再由系统管理员弹窗授权 installer 并打开应用；Windows 复用 winget，已有服务可通过 UAC 启动。容器拒绝主机安装；缺少前置条件时提供官方手动入口。已有可用系统服务不修改；安装、登录、目标能力授权是分开的操作。平台矩阵与状态文件详见[设备网络](device-networks.md#安装与系统服务引导)。
+
+### 命令与结果
+
+运行目录 /config/agent-workspace-manager/source，环境 CARGO_HOME=/config/.cargo、CARGO_TARGET_DIR=/config/validation-build/target、CARGO_BUILD_JOBS=2。集成和 Web 预览将 WORKSPACE_WEB_BIN、WORKSPACE_RUNTIME_BIN、CRANIBOX_NODE_BIN、CRANIBOX_BIN 指向该 target/debug 下对应程序。
+
+| 命令 | 最终结果 | 说明 |
+| --- | --- | --- |
+| cargo test --locked -p cranibox-node --lib | 47 通过，2 忽略 | 新增 4 项安装方案/状态单元测试，使用无害临时 Shell 夹具；真实 EasyTier 两项本轮未跑 |
+| python3 -m unittest discover -s tests -p test_device_networks.py -v | 17 通过 | 真实 Rust Web API，网络进程使用隔离替身；包含容器安装限制和已有服务保护 |
+| npm test --prefix addons/control-center/ui -- tests/networks.spec.ts | 11 通过 | 新增 3 项；确认、错误恢复、过期、后台状态与小屏可访问性 |
+| npm test --prefix apps/node-desktop -- --workers=2 | 43 通过 | 全套原生前端测试，模拟 IPC，包含安装与原生官方外链 |
+| cargo fmt --all --check | 通过 | 最终格式复核 |
+| cargo clippy --locked --workspace --all-targets -- -D warnings | 通过 | 全工作区严格检查 |
+| cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings | 通过 | 最终原生特性检查 |
+| node scripts/build-control-center-ui.cjs | 通过 | 包含 TypeScript、Vite 和实际发布资源复制；重复生成四份资源摘要一致 |
+| npm run build --prefix apps/node-desktop | 通过 | TypeScript 与客户端生产资源 |
+| cargo build --locked --workspace | 通过 | Web 发布资源生成后重新构建嵌入资源的程序 |
+| cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol | 通过 | 最终代码及原生静态资源构建 |
+| /bin/sh -n 两份 install-tailscale 脚本 | 通过 | 仅语法检查，不代表在 macOS 或真实 Linux 主机执行安装 |
+
+合计 118 项不同自动化测试通过，不将同一用例的重跑或此前验证相加。Web 第一次运行 8 通过、3 失败：辅助构建只执行 npm build，遗漏从 ui/dist 复制到 Rust include_str 使用的发布资源。按仓库 scripts/build-control-center-ui.cjs 生成、重新构建 Rust 后，11 项全部通过；原失败日志单独保留。实际 web.js、web.css 已与源码一同更新。
+
+页面覆盖 375/768/1440px、明暗、667×375 横屏、200% 根字号及减弱动画设置，无横向溢出；已查看手机宽度下包含真实 macOS 内置脚本的两张主题截图。未执行人工读屏或各系统原生安装授权。
+
+### 证据与交接状态
+
+证据为 /config/validation-artifacts/tailscale-setup-20261018，目录 0700，报告和日志 0600：rust-final.json、desktop-final.json、web-final.json 记录命令与退出码；rust-tests.log、network-api.log、web-networks.log、native-ui.log 记录测试；web-networks-initial.log 保留初始失败；asset-digests.json 记录重复生成一致的资源摘要。手机明暗截图保留在该目录的 mobile-light.png、mobile-dark.png。
+
+本轮未运行真实系统安装器，没有提升容器权限、安装 Tailscale、登录账号、修改 tailnet 或宿主路由，也未替换日常主服务和原生客户端；新代码只在隔离测试进程运行。Windows/macOS 实机、系统管理员授权、macOS 网络扩展、真实 Tailscale ACL/互访仍未验收。此前 KDE VNC 捕获失败结论不变，继续使用 Selkies。此前 71f2397 的 CI、完整镜像与 .deb 验收绑定旧提交，不应自动外推到此次安装引导。

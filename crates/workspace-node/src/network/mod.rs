@@ -8,6 +8,7 @@ mod process;
 mod tailscale;
 mod tailscale_discovery;
 mod tailscale_nodes;
+mod tailscale_setup;
 #[cfg(all(test, unix))]
 mod tests;
 
@@ -71,6 +72,10 @@ pub enum Command {
     },
     TailscaleLogin {},
     TailscaleCancelLogin {},
+    TailscaleSetupPlan {},
+    TailscaleSetup {
+        plan_id: String,
+    },
     TailscaleDiscovery {
         port: Option<u16>,
         ports: Option<Vec<u16>>,
@@ -154,10 +159,12 @@ struct Manager {
     login: Option<Child>,
     tailscale_requested: Option<Instant>,
     tailscale_discovery: tailscale_discovery::Discovery,
+    tailscale_setup: tailscale_setup::Setup,
 }
 impl Manager {
     fn new(peers: PathBuf, endpoint: NetworkEndpoint) -> Self {
         Self {
+            tailscale_setup: tailscale_setup::Setup::new(&peers),
             spec_path: peers.with_file_name("networks.json"),
             own_id: String::new(),
             peers,
@@ -287,6 +294,7 @@ impl Manager {
         };
         let mut tailscale = self.tailscale.clone();
         tailscale["login_pending"] = json!(self.login.is_some());
+        tailscale["setup"] = self.tailscale_setup.status();
         tailscale["discovery"] = self
             .tailscale_discovery
             .status(&self.spec.discovery_ports());
@@ -474,6 +482,10 @@ impl Manager {
                 return Ok(json!({"network":self.status(),"catalog":result}));
             }
             Command::TailscaleLogin {} => {
+                ensure!(
+                    !self.tailscale_setup.running(),
+                    "Wait for Tailscale setup to finish before signing in."
+                );
                 ensure!(self.login.is_none(), "Tailscale login is already pending.");
                 self.login = Some(tailscale::login().await?);
                 self.next_poll = Instant::now();
@@ -482,6 +494,24 @@ impl Manager {
                 if let Some(mut login) = self.login.take() {
                     let _ = login.kill().await;
                 }
+                self.next_poll = Instant::now();
+            }
+            Command::TailscaleSetupPlan {} => {
+                ensure!(
+                    self.login.is_none(),
+                    "Finish or cancel Tailscale sign in before setup."
+                );
+                let unavailable = tailscale::status().await.is_err();
+                return self.tailscale_setup.review(unavailable);
+            }
+            Command::TailscaleSetup { plan_id } => {
+                ensure!(
+                    self.login.is_none(),
+                    "Finish or cancel Tailscale sign in before setup."
+                );
+                let unavailable = tailscale::status().await.is_err();
+                self.tailscale_setup.start(&plan_id, unavailable)?;
+                self.tailscale_requested = Some(Instant::now());
                 self.next_poll = Instant::now();
             }
             Command::TailscaleDiscovery { port, ports } => {
@@ -662,6 +692,10 @@ impl Manager {
                 }));
             }
         }
+        if self.tailscale_setup.reconcile().await {
+            self.tailscale_requested = Some(Instant::now());
+            self.next_poll = Instant::now();
+        }
         if self
             .tailscale_poll
             .as_ref()
@@ -704,6 +738,7 @@ impl Manager {
                 }));
             }
             if (self.login.is_some()
+                || self.tailscale_setup.running()
                 || !self.spec.discovery_ports().is_empty()
                 || self
                     .tailscale_requested

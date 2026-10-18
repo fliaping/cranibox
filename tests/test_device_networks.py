@@ -49,7 +49,7 @@ class DeviceNetworkTests(unittest.TestCase):
             program.chmod(0o700)
 
     def test_network_api_requires_session_csrf_and_same_origin(self):
-        commands = [{'operation': 'status'}, {'operation': 'plan'}, {'operation': 'install'}, {'operation': 'easy_tier_stop'}, {'operation': 'tailscale_login'}, {'operation': 'tailscale_discovery', 'port': 1234}, {'operation': 'tailscale_discovery', 'ports': [1234, 4321]}, {'operation': 'tailscale_discover', 'address': '100.64.0.2', 'port': 1234}, {'operation': 'tailscale_connect', 'address': '100.64.0.2', 'port': 1234, 'node': 'remote', 'token': 'a' * 64}]
+        commands = [{'operation': 'status'}, {'operation': 'plan'}, {'operation': 'install'}, {'operation': 'easy_tier_stop'}, {'operation': 'tailscale_login'}, {'operation': 'tailscale_setup_plan'}, {'operation': 'tailscale_setup', 'plan_id': 'unreviewed'}, {'operation': 'tailscale_discovery', 'port': 1234}, {'operation': 'tailscale_discovery', 'ports': [1234, 4321]}, {'operation': 'tailscale_discover', 'address': '100.64.0.2', 'port': 1234}, {'operation': 'tailscale_connect', 'address': '100.64.0.2', 'port': 1234, 'node': 'remote', 'token': 'a' * 64}]
         for command in commands:
             for headers in ({'Content-Type': 'application/json'}, {'Cookie': self.h.cookie, 'Content-Type': 'application/json'}, {**self.h.headers(), 'Origin': 'https://untrusted.example'}):
                 with self.subTest(command=command, headers=list(headers)):
@@ -69,6 +69,9 @@ class DeviceNetworkTests(unittest.TestCase):
         for command in [
             {'operation': 'execute', 'program': 'touch /tmp/never'},
             {'operation': 'install', 'url': 'https://untrusted.example/payload'},
+            {'operation': 'tailscale_setup_plan', 'program': '/bin/sh'},
+            {'operation': 'tailscale_setup', 'plan_id': 'unreviewed'},
+            {'operation': 'tailscale_setup', 'plan_id': 'unreviewed', 'url': 'https://untrusted.example/payload'},
             {'operation': 'easy_tier_join', 'network': 'home', 'token': self.token, 'peer': 'tcp://user:password@host:11010', 'listen_port': None},
             {'operation': 'easy_tier_join', 'network': 'home', 'token': 'short', 'peer': 'tcp://host:11010', 'listen_port': None},
             {'operation': 'easy_tier_join', 'network': 'home', 'token': self.token, 'peer': '', 'listen_port': None},
@@ -91,6 +94,24 @@ class DeviceNetworkTests(unittest.TestCase):
                 code, _ = self.h.post('/api/network', command)
                 self.assertEqual(code, 400)
                 self.assertFalse(self.config.exists())
+
+    def test_tailscale_setup_does_not_install_or_change_an_existing_system_service(self):
+        plan = self.network(operation='tailscale_setup_plan')
+        self.assertFalse(plan['available'])
+        self.assertIn('already available', plan['reason'])
+        self.assertNotIn('id', plan)
+        self.assertEqual(self.network(operation='status')['tailscale']['setup']['phase'], 'idle')
+        self.assertFalse((self.config.parent / 'tailscale-setup.json').exists())
+        self.assertFalse(self.config.exists())
+        if Path('/.dockerenv').exists() or Path('/run/.containerenv').exists():
+            (self.root / 'tailscale').write_text('#!' + sys.executable + '\nraise SystemExit(1)\n')
+            plan = self.network(operation='tailscale_setup_plan')
+            self.assertFalse(plan['available'])
+            self.assertIn('container host', plan['reason'])
+            self.assertNotIn('id', plan)
+            code, _ = self.h.post('/api/network', dict(operation='tailscale_setup', plan_id='unreviewed'))
+            self.assertEqual(code, 400)
+            self.assertFalse((self.config.parent / 'tailscale-setup.json').exists())
 
     def test_continuous_tailscale_discovery_persists_without_an_open_view(self):
         calls = self.root / 'status-calls.txt'
