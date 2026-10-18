@@ -74,6 +74,8 @@
 
 本轮共 204 项自动化测试通过（178 + 4 + 22），另 4 项 Rust 按条件忽略；不累计到此前轮次。本轮未改前端，48 项原生界面与 126 项 Web 界面沿用各自原提交证据，不写成本轮重跑。证据仍在 /config/validation-artifacts/native-clipboard-debug-20261018，新增 final-rust-regression.log、final-desktop-backend.log、transport-cleanup-final.json、transport、transport2、transport3、direct 子目录；direct/result.json 记录无代理对照，原始失败截图与协议元数据保留在私有远端，不提交 Git。源码核对见 source-snapshot-final.json，日常健康见 final-health.json。
 
+代码与上述文档已提交为 **fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2** 并推送 origin/main。新矩阵 **39141291171 尚在运行，已经出现一项失败，不能写为通过**：真实 Wayland 作业 117716093179 在 cargo build 获取依赖时无法解析 index.crates.io，下载 config.json 失败；真实 Wayland 测试步骤尚未执行，不是握手断言失败，也没有源码编译诊断。尝试单独重跑返回 job cannot be rerun，交接时尚未重跑成功。接手先运行 gh run view 39141291171 --repo fliaping/cranibox，待运行结束后可重跑失败作业，并核对新四项原生测试和三平台产物。Release 39141291175、Sync to GitCode 39141291229 已 completed / success，完整 headSha 已核对；它们不替代矩阵或产品镜像验收。CI 元数据与失败日志在 final-ci.json、ci-wayland-first-failure.log。后续文档提交不重触发该矩阵。
+
 ### 最新排查：原生断线提示与反向剪贴板
 
 本次修复 apps/node-desktop/src/DesktopTransport.ts：原生事件先保存错误再通知查看器，关闭时保留已有错误；因此节点报告的错误和 JPEG 解码错误能显示具体原因。新增两项界面回归分别覆盖这两条路径，并检查附件只释放一次、无页面异常。它们使用模拟 Tauri IPC，不冒充真实原生验收。

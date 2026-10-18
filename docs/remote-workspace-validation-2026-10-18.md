@@ -907,6 +907,8 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 
 最终回归在指定远端执行：全工作区 Rust 178 通过/4 按条件忽略，原生 desktop 二进制四项全部通过，桌面后端 remote_desktops 7 + desktop_relay 7 + desktop_service 8 共 22 项全部通过（52.674 秒）。合计 204 项不同自动化测试，不重复累计早期专项与历史测试；原生四项不在工作区 178 项内。fmt、工作区与原生 desktop 所有 target 严格 Clippy、工作区构建、实际运行的 desktop,custom-protocol debug 构建通过。本轮没有改前端或重跑完整 Web/Tauri UI，旧界面结果保持原提交绑定。
 
+收尾代码 fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2 已推送 origin/main。矩阵 39141291171 在交接时仍 in_progress 且已有失败：Wayland 作业 117716093179 构建依赖时无法解析 index.crates.io，config.json 下载失败，真实 Wayland 步骤未执行；没有源码编译错误或桌面断言结论。请求单独重跑返回 job cannot be rerun，尚未完成复测。待整轮结束后需复核并重跑失败作业，不以远端 204 项或上一版绿色覆盖此失败。Release 39141291175、GitCode 39141291229 已成功，均核对完整 headSha；最终状态和原日志分别保存 final-ci.json、ci-wayland-first-failure.log。
+
 final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 不变；测试安装包仍已卸载。transport-cleanup-final.json 复核所有本轮隔离 GUI 目录无存活进程及剪贴板备份。未升级日常服务、未安装系统 Tailscale，也未重启合成器。
 
 私有证据根目录仍为 /config/validation-artifacts/native-clipboard-debug-20261018；新增 final-rust-regression.log、final-desktop-backend.log、source-snapshot-final.json、transport* 与 direct 的截图、GUI 元数据、协议生命周期、清理和 direct/result.json。原始截图、剪贴板、配置、凭据及环境不进入 Git。接手优先修复原生反向文字更新，并在实际安装包、正常图形会话及另一物理设备验证；不要用新增自动化测试替代真实验收。
