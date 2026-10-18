@@ -101,3 +101,5 @@ Web 使用登录会话、Origin 和 CSRF 校验的 `POST /api/desktop/ticket`，
 Selkies 的 Rust 单元与服务集成覆盖分片/合并、输入白名单、128 KiB 输出的分块、只探测不接管、慢查看器撤权和控制名额释放。Web 使用真实 Rust 通道与合成 JPEG 服务验证画面、连续文字、鼠标、只读及重连；Tauri 使用模拟 IPC 验证分片、逐帧确认、JPEG 和输入合并。`tests/test_desktop_real_selkies.py` 另需明确设置 `CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082`，通过出站节点中继访问现有 KDE 桌面、向自身 kdialog 输入完整文字、重连及撤权。它会接管正在使用的主显示器，要求已有 Chromium、Playwright、kdialog 与图形会话环境，不在普通 CI 自动执行。2026-10-18 在指定远端容器中通过；这不等于 KDE 的 VNC 捕获成功或完整产品镜像/安装包已重新验收。
 
 剪贴板回归覆盖 noVNC 的 Latin-1 往返与 64 KiB 上限、Selkies 的中文/emoji、UTF-8 字节限制、跨传输块的输入、跨字符的输出分块、坏数据及 secret 拒绝、只读、主动复制、HTTP 复制受阻、离开页面后迟到的复制结果，以及断开/重连清除暂存内容。Web 使用真实 Rust 通道与 RFB/JPEG 夹具；Tauri 为浏览器模拟 IPC。真实 KDE 剪贴板另加 `CRANIBOX_TEST_SELKIES_CLIPBOARD=1`，要求图形会话与 wl-copy/wl-paste；测试先拒绝非纯文本原内容，临时验证双向文字后恢复原剪贴板并核对字节，不输出原内容。这是主动接管现有桌面的可选检查，不在普通 CI 自动执行。
+
+2026-10-18 另实际运行 a8a97f5 的 Linux CI .deb/AppImage，原生 Selkies 画面通过；.deb 发送中文、emoji、多行文字到真实 Wayland 剪贴板通过，**反向“获取远端文字”仍未更新，原因未定位**。复现于私有 D-Bus 的 KDE 同机查看场景，断开重连后仍未收到新文字；不能用 Web 双向测试或模拟 IPC 通过代替原生双向验收。完整复现、包摘要和后续优先级见[交接文档](implementation-handoff-2026-10-18.md#最新补验a8a97f5-linux-安装包)。

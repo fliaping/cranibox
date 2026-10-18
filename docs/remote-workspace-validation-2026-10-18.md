@@ -827,3 +827,49 @@ Tauri 单实例插件按桌面 D-Bus 会话识别应用，即使 XDG 目录不�
 测试授权撤销、失效 Token 文件删除、无测试自启项，真实输入检查后剪贴板恢复、备份删除。此轮没有创建浏览器会话。日常主 Web PID 538744、客户端 PID 767446 始终保留，客户端 SHA-256 仍为 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510，NodeID 仍为 node-82bf96c6f15d4f00923656f7877b8609；没有部署新包到日常服务。
 
 最终容器 running / healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401、认证 200，没有本轮配置的残留进程。私有证据目录 /config/validation-artifacts/linux-installer-3c1a38d（0700）包含 acceptance.json、artifact.json、packages.json、real-computer-acceptance.json、两包 *-native-start.json、*-computer-ui.json、appimage-real-mcp.json、auxiliary-cleanup.json、final-health.json、安装/卸载日志和截图。文件保持 0600，AppImage 0700；桌面截图、凭据、剪贴板和环境不提交 Git。
+
+## a8a97f5 Linux 包、原生桌面与剪贴板补验
+
+绑定功能提交 a8a97f5f5af91619c379e64fd2f2f9aeda45bc34、最终矩阵 39128492641（7/7 成功）。此次按用户要求收尾验证并整理模型交接，没有修改产品代码或更新日常部署。所有包执行、套接字、原生 GUI 和浏览器仍只在 admin@192.168.217.6:22022 的 cranibox-validation 进行。自动化 392 项及四项忽略的原口径不变；下述 Browser Use 是同一现有用例重跑，人工包验收单列，不累计成新的全量测试数。
+
+### 包摘要与隔离
+
+Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,077 字节，SHA-256 为 2d732eeec383ccc8438a225ddd9317c768688ba3d1ad9dbe421fb474fa9d1c1f。下载与远端接收后均核对摘要，实际执行的是该运行的产物。
+
+| 文件 | 字节数 | SHA-256 | 执行 |
+| --- | --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,293,998 | 1ac53f7569540ce31bf3ee7e985b5e32281e19fa9ed988116bffac4cccac4992 | dpkg 安装 cranibox-node，release CLI/节点、MCP、真实 Tauri GUI |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,464,440 | f6c77e7e07f6ab03edf4e8ffa8fa11e9cfd18a54045f1466fe0c2c3a316a0395 | --appimage-extract-and-run，真实 GUI 节点与 MCP |
+
+安装后二进制 /usr/bin/cranibox-node-desktop 的 SHA-256 为 c43b114dbe60a59a73ae3438663b2c10a446040612d1e5c3cc273ba226018a03；AppImage 实际内部程序为 903f669e29d4d1ddff08d41693d57d377a91b3bec8faf1422f2b272f87563db3。版本号仍为 0.1.0，不能只按文件名识别源码。
+
+使用独立 XDG config/data/state/cache，两包共用测试 NodeID node-58c96310e3a84859b90b18253d1ec42b，调用身份另行生成。真实桌面是现有 KDE Wayland，复用 PixelFlux 8764，项目 Python bridge 使用私有状态与随机回环端口 55935；节点监听随机回环端口 59201。私有 dbus-run-session 避免单实例唤回日常旧包，保留真实图形会话环境。日常进程始终运行，未与其共用身份；这种私有 D-Bus 测法不证明正常托盘、portal、登录或自启集成。
+
+### 实际通过的检查
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| .deb Computer Use | 真实 1024×768 PNG、查找并聚焦自建 xcb kdialog；无控制权输入拒绝；取得控制权后实际输入并 Return，stdout 完整符合标记；目标绑定 MCP 返回 image/png |
+| 停止、重启与撤权 | 紧急停止拒绝旧输入及新 acquire；目标重启仍暂停；本机 owner 明确恢复后可取得新控制权；撤权后 status 拒绝、MCP 工具为空 |
+| .deb Browser Use | 使用 /usr/bin/cranibox-node-desktop 运行 test_browser_real_chromium，1/1、12.733 秒；独立 Chromium profile 与随机 CDP、官方 MCP，打开页面、快照、填表提交、PNG、停止后无重放及正常退出；不访问日常 9222 |
+| .deb 原生 Selkies | 真实管理界面配置本机 Selkies 并连接，看到实际 KDE 画面；断开重连重新出现画面，同时清空草稿和收到的文字 |
+| .deb 原生剪贴板发送 | 通过实际 GTK 粘贴填充中文/emoji/多行草稿，再将目标剪贴板另置标记，点击发送后 wl-paste 取得 55 字节，与预期逐字节一致；发送不会自动粘贴到应用 |
+| AppImage GUI 与 MCP | 真正启动 AppImage 内部 GUI，保持相同隔离 NodeID；Selkies 查看器真实 IPC 与画面；AppImage 自身启动 Computer Use MCP，连接该 GUI 节点宿主并返回真实 1024×768 PNG；测试授权随后撤销 |
+
+首次用于填草稿的 PixelFlux type 操作没有完整输入 Unicode，改用真实 GTK 上下文菜单粘贴后通过字节检查。这是本轮操作驱动限制，没有修改产品或据此声称 Unicode 自动键盘输入已修复。多个辅助脚本的命令转义问题亦只修正验证脚本，不算产品修复。Computer Use 的原生键盘验收使用 ASCII 标记，中文输入的通过结论仅限上述文字剪贴板流程。
+
+### 未通过：原生 Selkies 反向剪贴板
+
+在 .deb 原生界面发送完成后，经 wl-copy/Klipper 将目标剪贴板改为另一段 Unicode 多行文字，并用 wl-paste 确认实际字节已更新。点击“获取远端文字”后，接收栏仍停留在先前文字；断开、重连、重新展开剪贴板后，两栏已清空，再次获取仍为空，未显示错误。查看器仍保持连接；没有证据证明画面被冻结。
+
+此项明确记为未通过，根因未定位。环境为私有 D-Bus、同一 KDE 主机上的原生查看器访问本机 Selkies，尚未排除上游剪贴板通知、原生传输及会话环境因素。此前 Web 的真实双向文字往返和模拟 Tauri IPC 测试通过，均不能替代此实际原生结果；AppImage 本轮只补验画面与 MCP，没有重新测双向剪贴板。后续先复现，再对比正常桌面会话及另一个物理设备，保留失败记录后修复。
+
+### 清理、证据与后续边界
+
+两包 GUI、AppImage 运行时、独立 bridge、节点和测试 Chromium/MCP 均已退出；确认隔离 XDG 后终止残留 portal/keyring/剪贴板辅助进程。已卸载 cranibox-node，确认 /usr/bin/cranibox-node-desktop 不存在；临时授权撤销、Token 文件删除、无测试自启项。原剪贴板通过 Klipper 恢复，wl-paste 逐字节核对后删除备份，未输出原内容。
+
+最终健康检查确认容器 running / healthy、非 privileged、无 Docker socket；LAN 3080/3031 都为匿名 401、认证 200。日常 Web PID 538744，二进制 SHA-256 59075b010d1cd8b745e0f39645e5f7a8d8ab7c40600e7970dbc4fd18a90e295c；日常客户端 PID 767446，SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、NodeID node-82bf96c6f15d4f00923656f7877b8609 保持。未升级主服务或替换日常程序。
+
+私有证据目录 /config/validation-artifacts/linux-installer-a8a97f5（0700）。关键文件为 artifact.json、install.log/uninstall.log、real-computer-acceptance.json、deb-browser-real.log、两包 *-native-start.json、deb-native-clipboard-send.json、**deb-native-clipboard-receive.json（passed=false）**、appimage-real-mcp.json、auxiliary-cleanup.json、restored.json、acceptance.json、final-health.json，以及实际桌面截图。acceptance 状态为 completed_with_documented_failure_and_limits。文件保持 0600、AppImage 0700，截图、环境、凭据和剪贴板不提交 Git。
+
+正常托盘/自启/完整终端仍参照 6396b93 的独立验收；本轮不覆盖普通 FUSE、实际系统登录/休眠、网关真实断网、Windows/macOS 原生安装与权限、真实 Tailnet、多物理设备、模型 Agent 工作流及公开产品镜像发布/拉取。接手入口与按优先级排列的验收条件见[交接文档](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)。
