@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import select
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -17,7 +18,7 @@ import test_node_peers as peers
 from workspace_web_harness import NODE, sockets_allowed, until
 
 
-@unittest.skipUnless(os.environ.get('CRANIBOX_TEST_REAL_BROWSER') == '1' and NODE.exists() and sockets_allowed(),
+@unittest.skipUnless(os.name == 'posix' and os.environ.get('CRANIBOX_TEST_REAL_BROWSER') == '1' and NODE.exists() and sockets_allowed(),
                      'set CRANIBOX_TEST_REAL_BROWSER=1; Chromium, Node.js and npm access required')
 class RealBrowserTests(unittest.TestCase):
     cli, http, start = peers.PeerTests.cli, peers.PeerTests.http, peers.PeerTests.start
@@ -26,6 +27,27 @@ class RealBrowserTests(unittest.TestCase):
     def setUp(self):
         peers.PeerTests.setUp(self)
         self.buffer, self.sequence, self.submitted = b'', 0, []
+
+    def stop_browser(self, browser):
+        # Chromium children can still write the profile after the parent exits.
+        # Stop this test's entire process group before TemporaryDirectory cleanup.
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(browser.pid, sig)
+            except ProcessLookupError:
+                pass
+            try:
+                browser.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                if sig == signal.SIGKILL:
+                    raise
+
+        def children_exited():
+            groups = subprocess.check_output(['ps', '-eo', 'pgid=,stat='], text=True)
+            return not any(int(group) == browser.pid and not state.startswith('Z')
+                           for group, state in (line.split() for line in groups.splitlines()))
+
+        until(children_exited, seconds=5)
 
     def rpc(self, method, params=None):
         self.sequence += 1
@@ -59,8 +81,9 @@ class RealBrowserTests(unittest.TestCase):
         log = (self.root / 'chromium.log').open('wb'); self.logs.append(log)
         chrome = subprocess.Popen([executable, '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-background-networking',
                                    '--no-first-run', '--no-default-browser-check', '--remote-debugging-address=127.0.0.1',
-                                   '--remote-debugging-port=0', f'--user-data-dir={profile}', 'about:blank'], stdout=log, stderr=log)
-        self.processes.append(chrome)
+                                   '--remote-debugging-port=0', f'--user-data-dir={profile}', 'about:blank'],
+                                  stdout=log, stderr=log, start_new_session=True)
+        self.addCleanup(self.stop_browser, chrome)
         until(lambda: (profile / 'DevToolsActivePort').exists())
         port = int((profile / 'DevToolsActivePort').read_text().splitlines()[0])
         owner = self
