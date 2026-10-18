@@ -71,6 +71,29 @@ class DeviceMessagesTests(unittest.TestCase):
         return dict(id=message_id, thread=message_id, in_reply_to=None, sender=self.caller,
                     recipient=self.target, text='Untrusted plain text', created_at=created, expires_at=created+7*24*3600)
 
+    def test_inbound_policy_holds_for_owner_approval_and_refuses(self):
+        self.cli('inbound', '--node', self.caller, '--policy', 'hold')
+        held_id, _ = self.send('Held until the owner approves.')
+        self.delivered(held_id)
+        listed = self.cli('messages', 'list')
+        self.assertNotIn(held_id, json.dumps(listed['incoming']))
+        self.assertEqual(listed['held'], 1)
+        queue = self.cli('messages', 'held')
+        self.assertEqual(queue['held'][0]['message']['id'], held_id)
+        rejected_id, _ = self.send('Rejected by the owner.')
+        self.delivered(rejected_id)
+        self.cli('messages', 'reject', '--message-id', rejected_id)
+        self.cli('messages', 'release', '--message-id', held_id)
+        incoming = json.dumps(self.cli('messages', 'list')['incoming'])
+        self.assertIn(held_id, incoming)
+        self.assertNotIn(rejected_id, incoming)
+        self.assertEqual(self.cli('messages', 'held')['held'], [])
+        self.cli('inbound', '--node', self.caller, '--policy', 'refuse')
+        envelope = self.envelope()
+        status, value = self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', envelope)
+        self.assertEqual(status, 403, value)
+        self.assertNotIn(envelope['id'], json.dumps(self.cli('messages', 'held')))
+
     def test_offline_queue_survives_restart_and_acknowledgements_are_explicit(self):
         self.h.stop(self.h.server)
         self.h.stop(self.process)
