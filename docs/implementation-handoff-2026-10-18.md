@@ -2,7 +2,7 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-本次修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段中文、emoji、多行新文字逐字节匹配，覆盖等待超过一分钟及断开重连。此前 a8a97f5 安装包的失败记录仍保留；**新版正式安装包、正常登录桌面及另一物理设备尚未完成同等验收**。
+本次修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段新文字通过后，进一步下载同一产品提交的 CI Linux .deb/AppImage，两包真实窗口的中文、emoji、多行双向剪贴板、等待后更新及断开重连均通过。此前 a8a97f5 的失败记录仍保留。**新包使用隔离 XDG、私有 D-Bus；正常登录桌面及另一物理设备尚待同等验收**。
 
 交接不代表全部产品需求完成。没有升级日常 Web/客户端、重启 KDE/Selkies 或安装系统 Tailscale；日常身份和配置保持。后续先完成安装包及跨平台日用流程，再推进更完整的数据同步与 Agent 接续。
 
@@ -33,7 +33,7 @@
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
 | 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。a8a97f5 两包补验私有 D-Bus 下的窗口和桌面 IPC，未重验正常托盘。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
-| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生 .deb 发送通过、反向获取失败；2026-10-19 修复后的原生 debug 程序连续五段新文字逐字节通过，最新安装包待补验。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
+| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用，见远程桌面文档 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过，公开产品镜像拉取与各 OS 系统依赖安装仍未验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
@@ -72,7 +72,20 @@
 
 最终清理核对原剪贴板逐字节恢复、测试 GUI/辅助进程停止；容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 均匿名 401/认证 200，日常 Web/客户端 PID、摘要和 NodeID 保持。
 
-本轮额外尝试发送方向的原生自动化，在准备文本框输入时未成功，未执行“发送文字”，不计为产品通过或产品失败。原生发送的既有真实证据仍绑定 a8a97f5。新版本双向安装包流程是下一步验收条件。
+上述 debug 轮次的发送自动化在准备文本框输入时未成功，未执行“发送文字”，不计为产品通过或产品失败。后续同提交 CI 安装包使用 AT-SPI 聚焦、Selkies 键盘粘贴准备输入，逐字节检查完整草稿；再将系统剪贴板改成另一段文字，确认目标与草稿不同后才点击原生“发送文字”。.deb 的 41 字节及 AppImage 的 46 字节中文、emoji、多行文字均逐字节到达目标，避免把准备阶段写剪贴板误当作产品发送成功。
+
+### 同提交 CI Linux 安装包实测
+
+下载矩阵 39162097500 的 cranibox-node-desktop-ubuntu-latest，核对完整产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a 及文件 SHA-256。两包均在指定远端现有 KDE 中运行真实原生窗口、真实 IPC，直接连接日常 Selkies 8082，不经过诊断代理。
+
+| 包 | 实测结果 | 范围 |
+| --- | --- | --- |
+| .deb | 实际 dpkg 安装；初次 48 字节、连接数分钟后 62 字节、重连后 55 字节、重连超过一分钟后 63 字节均逐字节匹配；主动发送 41 字节通过 | 系统包名 cranibox-node；测试后卸载，未替换日常客户端 |
+| AppImage | 使用 --appimage-extract-and-run；初次 48 字节、第二段 56 字节、连接超过一分钟后 57 字节、重连后 55 字节、重连超过两分钟后 63 字节均逐字节匹配；主动发送 46 字节通过 | 未重验普通 FUSE 启动 |
+
+两包均确认实际画面可见、重连前接收栏移除、重连后先清空再接收新文字。隔离 XDG 与私有 D-Bus 避免占用日常单实例身份；这不等于正常登录、托盘、自启、休眠、另一物理设备或 Windows/macOS 验收。新包未额外制造超时、断网或撤权，不能挪用 Web/夹具结果补齐这些范围。
+
+私有证据根目录为 /config/validation-artifacts/linux-installer-2c95dd4：artifact.json、deb-install.json、各包 GUI/操作/发送/截图/清理记录、acceptance.json 与 final-health.json。包摘要见[安装包专项记录](remote-workspace-validation-2026-10-18.md#2026-10-19-同提交-ci-linux-安装包实测)。全部测试结束后恢复原剪贴板、停止测试窗口及辅助进程；日常服务 PID、程序摘要与 NodeID 保持，两个 LAN 入口匿名 401/认证 200，容器健康。辅助脚本、正文、截图及凭据不提交 Git。
 
 ### 修复依据与失败记录
 
@@ -93,7 +106,7 @@
 | Release | 39162097404 | 成功，脚本验证及 README 下载入口检查 |
 | Sync GitCode | 39162097385 | 成功 |
 
-Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc、EasyTier 两项及 GIO 启动器均通过。三平台 Rust、原生传输与打包步骤也通过。它们与远端表中的重复范围不累计，不能替代 Windows/macOS 或新安装包的人工实机验收。
+Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc、EasyTier 两项及 GIO 启动器均通过。三平台 Rust、原生传输与打包步骤也通过。它们与远端表中的重复范围不累计；后续 Linux 包实测见上节，Windows/macOS 实机仍未验收。
 
 矩阵共上传 10 项 Actions Artifacts：三平台各自的 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。客户端 Ubuntu 产物含 .deb/AppImage，Windows 为 NSIS .exe，macOS 为 .dmg；在 Actions 中打开运行 39162097500 下载。资源报告仅作为该 CI 环境的产物，不将旧版本的资源数字当成本次测量。
 
@@ -116,7 +129,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 新安装包的剪贴板与持续桌面流程 | 下载本次代码对应的 CI .deb/AppImage，在正常桌面及另一物理设备连续双向中文/emoji/多行；等待、重连清空、超时/恢复、撤权均正确。保留旧失败对照，不用 debug 或模拟 IPC 替代 |
+| P0 | 正常登录及跨设备的持续桌面流程 | 本次 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；继续在正常桌面及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网。保留旧失败对照，不以私有 D-Bus、debug 或模拟 IPC 替代 |
 | P0 | Windows/macOS 桌面互访与安装 | 原生安装、录屏/输入权限、VNC 提供者引导、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。WSL2 不是 Windows 原生验收 |
 | P0 | 公开产品镜像发布/拉取 | 核对最新构建的镜像来源、可拉取性、首次启动和重启；保留 71f2397 本地完整镜像验收的版本边界 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
@@ -201,4 +214,4 @@ Web 的 npm run build 只生成 ui/dist；scripts/build-control-center-ui.cjs �
 DISPLAY=:1 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/config/.XDG CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082 CRANIBOX_TEST_SELKIES_CLIPBOARD=1 python3 -m unittest test_desktop_real_selkies -v
 ~~~
 
-Browser Use 的 test_browser_real_chromium 需 CRANIBOX_TEST_REAL_BROWSER=1 与 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，使用临时 profile/随机端口，不访问日常 9222。Computer Use 为 test_computer_use；更多条件见对应功能文档。下一位模型从 P0 的新安装包实测开始，保留已有日志和版本界限，勿重复已经撤回的诊断方案。
+Browser Use 的 test_browser_real_chromium 需 CRANIBOX_TEST_REAL_BROWSER=1 与 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，使用临时 profile/随机端口，不访问日常 9222。Computer Use 为 test_computer_use；更多条件见对应功能文档。下一位模型从 P0 的正常桌面、另一物理设备及跨平台流程开始；同提交 Linux 包的隔离 KDE 验收已完成，保留已有日志和版本界限，勿重复已经撤回的诊断方案。

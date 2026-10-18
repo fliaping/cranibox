@@ -134,3 +134,5 @@ cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
 仅启用 `desktop` 的直接 Cargo 构建会使用 `tauri.conf.json` 中的 Vite 开发地址；开发服务器关闭后窗口无法加载。Tauri CLI 的正式构建会自动配置 `custom-protocol`。实机验证应在开发服务器关闭时确认窗口内容及本机 IPC 均可用。
 
 桌面构建要求 Rust 1.90+、Node.js 22+ 和对应平台的 Tauri 系统依赖。三平台 CI 独立构建安装包。浏览器交互测试使用 Tauri IPC 模拟，验证窗口操作、设置、MCP 配置和布局；它不能代替各 OS 的真实托盘、登录自启动与休眠恢复体验测试。网关集成测试使用真实节点验证设备调用、组隔离、任务归属和客户端 MCP。
+
+2026-10-19 对产品提交 2c95dd4 的 CI Linux .deb/AppImage 另做真实 KDE 窗口验收：两包均通过直接连接 Selkies、中文/emoji/多行双向剪贴板、等待后新文字和断开重连清空。.deb 实际安装后卸载；AppImage 使用 --appimage-extract-and-run。为保留日常客户端，两包使用独立身份与私有 D-Bus，不能据此宣布正常登录、托盘、自启、休眠或其他物理设备已验收。完整需求、测试版本和剩余工作见[交接入口](implementation-handoff-2026-10-18.md)。

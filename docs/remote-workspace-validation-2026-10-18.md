@@ -1080,10 +1080,39 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 
 私有证据位于 /config/validation-artifacts/native-desktop-correlated-20261019（临时追踪、旧实现失败与新实现通过）、native-desktop-coalescing-20261019（首轮真实失败与协议元数据）、native-desktop-coalescing-v2-20261019（最终源码摘要、构建、各测试 json/log、五轮操作、截图、清理和健康）。辅助脚本、剪贴板、截图、配置与凭据不随 Git 提交。
 
-**限制：当前新修复的真实原生验收是 debug 程序及隔离桌面会话，不是新版正式安装包或正常登录桌面，也未覆盖另一物理设备、Windows/macOS、系统权限和实际登录/休眠。**下一步从新 CI 安装包的连续双向剪贴板及跨设备桌面开始，完整需求和优先级见[交接入口](implementation-handoff-2026-10-18.md)。
+**该轮限制：新修复的真实原生验收是 debug 程序及隔离桌面会话，不是新版正式安装包或正常登录桌面，也未覆盖另一物理设备、Windows/macOS、系统权限和实际登录/休眠。**后续安装包补验见下节“同提交 CI Linux 安装包实测”，完整需求和当前优先级见[交接入口](implementation-handoff-2026-10-18.md)。
 
 ### 提交与最终 CI 核对
 
 产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a 已推送 origin/main；对应矩阵运行 39162097500 的七项作业全部成功，Release 39162097404 与 Sync GitCode 39162097385 也成功。Linux 日志确认 Web Playwright 126/126、原生模拟 IPC 48/48，真实 Chromium/官方 MCP、X11 VNC、独立 Sway/wayvnc、用户态 EasyTier 两项及 GIO 启动器均通过。三平台 Rust 与 Tauri 打包成功，共上传 10 项产物（三平台各一份服务端、节点与桌面客户端，以及 Linux 资源报告）；下载和后续验收须绑定该运行与提交。
 
-最终证据目录 native-desktop-coalescing-v2-20261019 增加 ci-final.json 与三份 Linux/Wayland 原始作业日志，保留提交、状态和产物元数据；acceptance.json 追加 Git 发布信息。最终补记提交只改文档，不重计测试。CI 结果与上述远端专项有重叠，不能累加，也不改变新版安装包、另一物理设备及 Windows/macOS 实机仍待验收的结论。
+最终证据目录 native-desktop-coalescing-v2-20261019 增加 ci-final.json 与三份 Linux/Wayland 原始作业日志，保留提交、状态和产物元数据；acceptance.json 追加 Git 发布信息。该次补记提交只改文档，不重计测试。CI 结果与上述远端专项有重叠，不能累加；截至此次 CI 核对，新版安装包、另一物理设备及 Windows/macOS 实机仍待验收，随后 Linux 包的实测见下节。
+
+## 2026-10-19 同提交 CI Linux 安装包实测
+
+在上述 CI 之后下载运行 39162097500 的 cranibox-node-desktop-ubuntu-latest（Artifact 12149318027），核对完整产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a；传到指定远端 admin@192.168.217.6:22022 的 cranibox-validation 后再次逐字节核对包摘要。本轮只增加验收与文档，没有改变产品源码，也不重跑或重计已通过的自动化矩阵。
+
+| 产物 | 大小 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,304,766 字节 | 897ba2ce2b266f12993766a6ef89587d50930e9127c09a7ec176230ae4c3dec3 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,476,728 字节 | 46e21f5b2e809f1b8e96cf0e1cc24e1e71951aa91417b949f506a029cbc5677a |
+
+.deb 通过 dpkg 实际安装，包名为 cranibox-node，程序位于 /usr/bin/cranibox-node-desktop；启动程序 SHA-256 为 b72d4c277e6f9579fb9e34c1a77470933923a2771ce17957656cf9ddbabb9b4e。AppImage 通过 --appimage-extract-and-run 启动，实际内置程序摘要为 67a31350877bec72e5b52f8cbeb12081fabe2f42183b03fa798a16280bc3ad35。各包使用独立 XDG、全新 NodeID、私有 D-Bus，在现有 KDE 中运行真实 Tauri 窗口与 IPC，直接连接日常 Selkies 8082，无诊断代理、插桩或模拟 IPC。
+
+| 真实操作 | .deb | AppImage |
+| --- | --- | --- |
+| 初次获取新文字 | 48 字节逐字节匹配 | 48 字节逐字节匹配 |
+| 更换文字并再次获取 | 连接数分钟后 62 字节匹配 | 第二段 56 字节、连接超过一分钟后 57 字节匹配 |
+| 原生界面主动发送 | 41 字节匹配 | 46 字节匹配 |
+| 主动断开并重连 | 接收栏移除，重连后先清空，新 55 字节匹配 | 接收栏移除，重连后先清空，新 55 字节匹配 |
+| 重连后等待再更新 | 超过一分钟，新 63 字节匹配 | 超过两分钟，新 63 字节匹配 |
+
+各段文字包含中文、emoji、多行，实际画面可见且非黑屏。管理脚本时间包含 SSH 与辅助进程启动，不当作协议响应延迟。发送测试先逐字节核对界面草稿，再将目标系统剪贴板改为不同的哨兵文字，确认目标与草稿不同且草稿未变后，点击真实“发送文字”并用 wl-paste 检查目标。准备输入时使用 AT-SPI 聚焦和 Selkies 键盘 Ctrl+A/V，未通过产品发送接口提前写入目标；因此发送结果不等同于准备阶段写剪贴板。
+
+最初输入准备尝试中，PixelFlux type 只输入了 ASCII 部分，几种快捷键字符串也未完成粘贴；未执行产品发送，不计为产品失败。更正辅助脚本后中文完整准备及真实发送通过；保留 draft-ui-type.json、draft-ui.json、key-probe.json 与最终 send-preparation.json、send-result.json。最初 dpkg 查询误用了可执行文件名作为包名，实际安装成功，随后按包元数据核对 cranibox-node；同样属于辅助脚本修正。
+
+最终恢复各轮原剪贴板并逐字节检查，停止测试窗口与私有会话辅助进程，卸载临时 .deb。日常 Web PID 538744、客户端 PID 767446、程序摘要与 NodeID 保持；容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 入口均匿名 401/认证 200。未升级日常程序、重启 KDE/Selkies 或改动日常自启配置。
+
+私有证据根目录 /config/validation-artifacts/linux-installer-2c95dd4 包含包元数据、安装/卸载日志、baseline/final-health.json、各包 GUI 元数据、操作/发送/截图/清理记录，以及最终 acceptance.json、final-health.json。正文、截图、凭据、配置与辅助工具不随 Git 提交。
+
+本轮补齐同提交 Linux 正式产物的隔离 KDE 双向剪贴板与重连；**仍未覆盖正常登录 D-Bus/托盘/自启、真实登录和休眠、普通 FUSE、另一物理设备、Windows/macOS，以及新包的超时/断网/撤权流程**。P0 已调整为这些未覆盖的日用流程，详见[交接入口](implementation-handoff-2026-10-18.md)。
