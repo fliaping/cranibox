@@ -49,7 +49,7 @@ Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一
 
 Linux 自启动使用绝对 XDG_CONFIG_HOME/autostart；未设置或为相对路径时使用 HOME/.config/autostart。启用时会迁移原插件留在 HOME/.config 的同名条目，关闭时同时清理两处，避免重复启动。启动项正确转义空格和特殊字符。移动 AppImage 后应重新开启自启动、重新复制 MCP 配置。
 
-远端 KDE 已实际验收 6396b93、CI 运行 39110808540 的 .deb/AppImage：原生界面复制配置与 XDG 自启开关通过，三个入口在 GUI 退出、无兼容环境变量时均完成 MCP 初始化和工具枚举；AppImage 生成启动项通过 GIO 在无 FUSE 环境静默进入托盘，单实例唤回及身份保留通过。普通 FUSE 模式、真实注销/登录与休眠仍待验证，详见[交接记录](implementation-handoff-2026-10-18.md#最新补验6396b93-linux-ci-安装包)。旧 afaa137 及更早构建生成的配置仍需自行添加运行时参数或设置 APPIMAGE_EXTRACT_AND_RUN=1。
+远端 KDE 已实际验收 6396b93、CI 运行 39110808540 的 .deb/AppImage：原生界面复制配置与 XDG 自启开关通过，三个入口在 GUI 退出、无兼容环境变量时均完成 MCP 初始化和工具枚举；AppImage 生成启动项通过 GIO 在无 FUSE 环境静默进入托盘，单实例唤回及身份保留通过。普通 FUSE 模式、真实注销/登录与休眠仍待验证，详见[交接记录](implementation-handoff-2026-10-18.md#历史验证索引)。旧 afaa137 及更早构建生成的配置仍需自行添加运行时参数或设置 APPIMAGE_EXTRACT_AND_RUN=1。
 
 ## 会话保持
 

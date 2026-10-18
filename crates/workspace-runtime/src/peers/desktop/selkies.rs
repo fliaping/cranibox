@@ -1,5 +1,6 @@
 //! Selkies websocket mode, carried through the same bounded, authorized desktop
 //! stream as RFB. The destination is always the owner's configured loopback port.
+mod output;
 use super::{Event, MAX_CHUNK, Stream};
 use anyhow::{Context, Result, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -59,67 +60,75 @@ pub async fn connect(
 ) -> Result<Stream> {
     let mut socket = socket(address).await?;
     ensure!(valid(), "desktop sharing stopped or access revoked");
-    Ok(Stream::spawn(move |mut incoming, outgoing| async move {
-        let _permit = permit;
-        let io = async {
-            outgoing.send(Event::Data(MAGIC.to_vec())).await?;
-            let mut input = Decoder::default();
-            let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
-            let mut seen = Instant::now();
-            loop {
-                tokio::select! {
-                    _ = outgoing.closed() => break,
-                    _ = heartbeat.tick() => {
-                        ensure!(seen.elapsed() < Duration::from_secs(60), "Selkies connection timed out");
-                        tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Ping(vec![].into()))).await??;
-                    }
-                    data = incoming.recv() => {
-                        let Some(data) = data else { break; };
-                        ensure!(valid(), "desktop sharing stopped or access revoked");
-                        for text in input.push(&data)? {
-                            tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(text.into()))).await??;
+    // Leave only two data chunks ahead of the viewer (plus the reserved error
+    // slot). Coalescing below keeps the upstream socket drained instead of
+    // accumulating seconds of stale video in its TCP buffers.
+    Ok(Stream::spawn_with_capacity(
+        3,
+        move |mut incoming, outgoing| async move {
+            let _permit = permit;
+            let io = async {
+                outgoing.send(Event::Data(MAGIC.to_vec())).await?;
+                let mut input = Decoder::default();
+                let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
+                let mut seen = Instant::now();
+                let mut output = output::Output::default();
+                let mut delivered = tokio::time::Instant::now();
+                loop {
+                    tokio::select! {
+                        _ = outgoing.closed() => break,
+                        _ = tokio::time::sleep_until(delivered + Duration::from_secs(5)), if !output.is_empty() => {
+                            anyhow::bail!("Desktop viewer receive queue stalled for 5 seconds");
                         }
-                    }
-                    message = socket.next() => {
-                        let Some(message) = message else { break; };
-                        seen = Instant::now();
-                        let (kind, payload) = match message? {
-                            Message::Text(data) => (0, data.as_bytes().to_vec()),
-                            Message::Binary(data) => (1, data.to_vec()),
-                            Message::Ping(data) => {
-                                tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Pong(data))).await??;
-                                continue;
+                        permit = outgoing.reserve(), if !output.is_empty() => {
+                            permit?.send(Event::Data(output.next_chunk()));
+                            delivered = tokio::time::Instant::now();
+                        }
+                        _ = heartbeat.tick() => {
+                            ensure!(seen.elapsed() < Duration::from_secs(60), "Selkies connection timed out");
+                            tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Ping(vec![].into()))).await??;
+                        }
+                        data = incoming.recv() => {
+                            let Some(data) = data else { break; };
+                            ensure!(valid(), "desktop sharing stopped or access revoked");
+                            for text in input.push(&data)? {
+                                tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(text.into()))).await??;
                             }
-                            Message::Pong(_) => continue,
-                            Message::Close(_) => break,
-                            _ => anyhow::bail!("Invalid Selkies websocket message"),
-                        };
-                        ensure!(payload.len() <= MAX_FRAME, "Selkies frame too large");
-                        let mut framed = Vec::with_capacity(5 + payload.len());
-                        framed.push(kind);
-                        framed.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-                        framed.extend_from_slice(&payload);
-                        for chunk in framed.chunks(MAX_CHUNK) {
-                            tokio::time::timeout(Duration::from_secs(5), outgoing.send(Event::Data(chunk.to_vec()))).await
-                                .context("Desktop viewer receive queue stalled for 5 seconds")??;
+                        }
+                        message = socket.next() => {
+                            let Some(message) = message else { break; };
+                            seen = Instant::now();
+                            let (kind, payload) = match message? {
+                                Message::Text(data) => (0, data.as_bytes().to_vec()),
+                                Message::Binary(data) => (1, data.to_vec()),
+                                Message::Ping(data) => {
+                                    tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Pong(data))).await??;
+                                    continue;
+                                }
+                                Message::Pong(_) => continue,
+                                Message::Close(_) => break,
+                                _ => anyhow::bail!("Invalid Selkies websocket message"),
+                            };
+                            if output.is_empty() { delivered = tokio::time::Instant::now(); }
+                            output.push(kind, payload)?;
                         }
                     }
                 }
-            }
-            Ok(())
-        };
-        // Independent of slow consumers, decoders and the local websocket.
-        let guard = async {
-            let mut tick = tokio::time::interval(Duration::from_millis(250));
-            loop {
-                tick.tick().await;
-                ensure!(valid(), "desktop sharing stopped or access revoked");
-            }
-        };
-        let result = tokio::select! { result = io => result, result = guard => result };
-        let _ = tokio::time::timeout(Duration::from_secs(1), socket.close(None)).await;
-        result
-    }))
+                Ok(())
+            };
+            // Independent of slow consumers, decoders and the local websocket.
+            let guard = async {
+                let mut tick = tokio::time::interval(Duration::from_millis(250));
+                loop {
+                    tick.tick().await;
+                    ensure!(valid(), "desktop sharing stopped or access revoked");
+                }
+            };
+            let result = tokio::select! { result = io => result, result = guard => result };
+            let _ = tokio::time::timeout(Duration::from_secs(1), socket.close(None)).await;
+            result
+        },
+    ))
 }
 
 /// Only text control messages are accepted. File, audio and device streams are
@@ -243,6 +252,80 @@ mod tests {
             assert!(!allowed(&text));
             assert!(Decoder::default().push(&framed(&text)).is_err());
         }
+    }
+    #[tokio::test]
+    async fn slow_viewer_keeps_upstream_drained_and_clipboard_input_live() {
+        use std::sync::Arc;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (started, ready) = tokio::sync::oneshot::channel();
+        let (received, request) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            started.send(()).unwrap();
+            // A primary Selkies display may ignore frame ACK backpressure.
+            // Its damage burst must not prevent the adapter from reading cr.
+            for id in 0..500 {
+                let mut jpeg = output::tests::jpeg(id, 0, 160, 100);
+                jpeg.resize(MAX_CHUNK, 0);
+                ws.send(Message::Binary(jpeg.into())).await.unwrap();
+            }
+            while let Some(message) = ws.next().await {
+                if matches!(message.unwrap(), Message::Text(text) if text == "cr") {
+                    received.send(()).unwrap();
+                    ws.send(Message::Text("clipboard,Y3VycmVudA==".into()))
+                        .await
+                        .unwrap();
+                    break;
+                }
+            }
+            while ws.next().await.is_some() {}
+        });
+        let lease = Arc::new(tokio::sync::Semaphore::new(1));
+        let mut stream = connect(address, lease.acquire_owned().await.unwrap(), || true)
+            .await
+            .unwrap();
+        ready.await.unwrap();
+        // Do not consume output until the upstream has received our request.
+        stream.send(framed("cr")).unwrap();
+        tokio::time::timeout(Duration::from_secs(3), request)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut bytes = Vec::new();
+        let mut frames = 0;
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                let Some(Event::Data(data)) = stream.output.recv().await else {
+                    panic!("missing clipboard")
+                };
+                bytes.extend_from_slice(&data);
+                if bytes.starts_with(MAGIC) {
+                    bytes.drain(..MAGIC.len());
+                }
+                while bytes.len() >= 5 {
+                    let size = u32::from_be_bytes(bytes[1..5].try_into().unwrap()) as usize;
+                    if bytes.len() < 5 + size {
+                        break;
+                    }
+                    frames += 1;
+                    if bytes[0] == 0 && &bytes[5..5 + size] == b"clipboard,Y3VycmVudA==" {
+                        return;
+                    }
+                    bytes.drain(..5 + size);
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(
+            frames < 10,
+            "superseded video delayed the clipboard by {frames} frames"
+        );
+        drop(stream);
+        server.abort();
+        let _ = server.await;
     }
     #[tokio::test]
     async fn slow_consumers_cannot_prevent_revocation_or_keep_controller_lease() {

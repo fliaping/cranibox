@@ -56,8 +56,15 @@ impl Stream {
         F: FnOnce(mpsc::Receiver<Vec<u8>>, mpsc::Sender<Event>) -> T + Send + 'static,
         T: Future<Output = Result<()>> + Send + 'static,
     {
+        Self::spawn_with_capacity(32, run)
+    }
+    pub(crate) fn spawn_with_capacity<F, T>(capacity: usize, run: F) -> Self
+    where
+        F: FnOnce(mpsc::Receiver<Vec<u8>>, mpsc::Sender<Event>) -> T + Send + 'static,
+        T: Future<Output = Result<()>> + Send + 'static,
+    {
         let (input, incoming) = mpsc::channel(32);
-        let (outgoing, output) = mpsc::channel(32);
+        let (outgoing, output) = mpsc::channel(capacity);
         // Keep one bounded slot for the terminal error. A slow viewer must not
         // turn a provider failure into a seemingly clean disconnect, or delay
         // releasing the controller lease while waiting for queue space.

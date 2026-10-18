@@ -21151,6 +21151,13 @@ var Yf = 16777216, Xf = class extends EventTarget {
 			}
 			let t = Math.min(this.payload.length - this.payloadUsed, e.length);
 			if (this.payload.set(e.subarray(0, t), this.payloadUsed), this.payloadUsed += t, e = e.subarray(t), this.payloadUsed === this.payload.length) {
+				if (this.header[0] === 0) {
+					let e = new TextDecoder("utf-8", { fatal: !0 }).decode(this.payload);
+					if (e.startsWith("clipboard")) {
+						this.headerUsed = 0, this.clipboardMessage(e);
+						continue;
+					}
+				}
 				if (this.queuedBytes += this.payload.length, this.queue.length >= 256 || this.queuedBytes > 2 * Yf) throw Error("Selkies decoder cannot keep up. Reconnect using a lower server frame rate.");
 				this.queue.push({
 					kind: this.header[0],

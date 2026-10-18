@@ -1288,6 +1288,15 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
       const image = Uint8Array.from(atob(images[typed ? 1 : 0]), char => char.charCodeAt(0));
       const bytes = new Uint8Array(6 + image.length); bytes.set([3, 0, 0, typed ? 2 : 1, 0, 0]); bytes.set(image, 6); frame(1, bytes);
     }
+    (window as any).stallPicture = () => {
+      const decode = window.createImageBitmap;
+      window.createImageBitmap = (async (...args: Parameters<typeof decode>) => {
+        window.createImageBitmap = decode;
+        const bitmap = await decode(...args);
+        return new Promise<ImageBitmap>(resolve => { (window as any).finishPicture = () => resolve(bitmap); });
+      }) as typeof decode;
+      picture();
+    };
     const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: { address: '127.0.0.1:8082', protocol: 'selkies' } };
     internals.invoke = async (command: string, payload: any) => {
       if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: false, error: null, quit_requested: false };
@@ -1347,6 +1356,18 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
   expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([]);
   await panel.getByRole('button', { name: '复制到本机', exact: true }).click();
   expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([unicode]);
+  // Native IPC can deliver controls while a JPEG decode is still pending.
+  // Clipboard changes must reach the UI without waiting for that bitmap.
+  await page.evaluate(() => (window as any).stallPicture());
+  await expect.poll(() => page.evaluate(() => typeof (window as any).finishPicture)).toBe('function');
+  const updated = '解码期间的新剪贴板 👋\ncurrent clipboard';
+  try {
+    await page.evaluate(value => (window as any).replyClipboard('clipboard,' + btoa(String.fromCharCode(...new TextEncoder().encode(value)))), updated);
+    await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(updated);
+    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
+  } finally { await page.evaluate(() => (window as any).finishPicture()); }
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
   await section.getByRole('button', { name: '允许输入', exact: true }).click();
   await expect(panel.getByRole('button', { name: '发送文字', exact: true })).toBeDisabled();
   await panel.getByRole('button', { name: '获取远端文字', exact: true }).click();
