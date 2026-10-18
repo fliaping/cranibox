@@ -64,6 +64,8 @@
 
 本轮共 60 项不同界面测试通过（48 + 12）。真实 KDE 检查说明用户现在能看见失败并重试，**不说明剪贴板根因已修复**，也不替代安装包或正常图形登录验收。本轮未修改 Rust 后端，没有重跑下节 fa1d401 的 204 项测试，也未重跑此前完整 Web 126 项；不同版本与范围不相加。新的验证和清理证据根目录为 /config/validation-artifacts/clipboard-feedback-20261019，包含各项日志、源码摘要及 native-kde。文档后的旧结果保留其原提交绑定。
 
+本次代码已提交为 **2312b640d5a754d29e2d0269b1d3c2a6a0f74753** 并推送 origin/main。对应矩阵 **39151770009**、Release **39151770010**、GitCode **39151769875** 已触发并核对完整 headSha；推送后初次查询分别为 queued、in_progress、in_progress，尚无最终结论。接手时用 gh run view 39151770009 --json headSha,status,conclusion,jobs 复核，不沿用 fa1d401 的绿色 CI；后续仅更新本文的提交不会重新运行路径过滤矩阵。
+
 另尝试为上游排查启动隔离 Selkies：虽能返回剪贴板和 JPEG，但实际查看器为黑屏，无法确认它捕获原 KDE 桌面，因此该对照无结论，不能据此宣称停滞消失或定位根因。测试服务和 GUI 已停止，原剪贴板恢复；诊断数据位于 native-clipboard-debug-20261019 的 isolated-server、selfview-isolated。后续优先使用真实正常桌面与另一物理设备对照，避免继续用无效画面替代验收。
 
 ### fa1d401：Rust 桌面传输与交接
