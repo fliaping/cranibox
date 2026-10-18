@@ -9,6 +9,47 @@ async function api(page: Page, command: Record<string, unknown>) {
 async function pixel(page: Page) {
   return page.locator('.vnc-screen canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3));
 }
+test('Selkies shares a JPEG desktop with keyboard, pointer, view only and reconnect', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/#/desktop');
+  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
+  await section.getByRole('button', { name: 'Configure sharing', exact: true }).click();
+  await section.getByLabel('Desktop protocol', { exact: true }).selectOption('selkies');
+  await expect(section.getByLabel('Local Selkies address', { exact: true })).toHaveValue('127.0.0.1:8082');
+  await section.getByLabel('Local Selkies address', { exact: true }).fill('127.0.0.1:19118');
+  await section.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  await expect(section.getByRole('status').filter({ hasText: 'Local sharing enabled' })).toBeVisible();
+  try {
+    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
+    const initial = await pixel(page); expect(initial[1]).toBeGreaterThan(initial[0]);
+    await section.getByRole('button', { name: 'Keyboard', exact: true }).click();
+    await section.getByLabel('Remote keyboard input', { exact: true }).fill('cranibox-selkies-input-20261018');
+    await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(180);
+    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
+    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
+    await expect.poll(async () => (await pixel(page))[0]).toBeLessThan(100);
+    await section.getByRole('button', { name: 'Input enabled', exact: true }).click();
+    await expect(section.getByRole('button', { name: 'Keyboard', exact: true })).toBeDisabled();
+    await section.locator('canvas').click();
+    expect((await pixel(page))[0]).toBeLessThan(100);
+    await section.getByRole('button', { name: 'View only', exact: true }).click();
+    await section.locator('canvas').click();
+    await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(180);
+    for (const width of [375, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await section.screenshot({ path: '/tmp/cranibox-selkies-' + width + '-' + theme + '.png' });
+      }
+    }
+    await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
+    await expect(section.getByRole('button', { name: 'Connect desktop', exact: true })).toBeDisabled();
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
 test('an available Selkies desktop opens without requiring the editor extension', async ({ page }) => {
   let runtime = true;
   const actions: unknown[] = [];
@@ -264,7 +305,7 @@ test('Selkies Wayland guidance avoids VNC installation and keeps existing server
   });
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-  await expect(section).toContainText('existing Selkies browser entry');
+  await expect(section).toContainText('Choose Selkies below');
   await expect(section.getByRole('button', { name: /installation|Start and share/ })).toHaveCount(0);
   await section.getByRole('button', { name: 'Check VNC environment', exact: true }).click();
   const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });

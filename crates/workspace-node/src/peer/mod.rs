@@ -103,10 +103,12 @@ pub enum Command {
     },
     /// Disable the listener for the next service start.
     Disable,
-    /// Share an existing local VNC server. Omit --address to stop sharing.
+    /// Share an existing loopback desktop server. Omit --address to stop sharing.
     Desktop {
         #[arg(long)]
         address: Option<SocketAddr>,
+        #[arg(long, default_value = "vnc", value_parser = ["vnc", "selkies"])]
+        protocol: String,
     },
     /// Register an outbound direct route using a token issued by that target.
     Connect {
@@ -520,10 +522,17 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             })?
             .public_view(),
         ),
-        Command::Desktop { address } => client::print(
+        Command::Desktop { address, protocol } => client::print(
             Config::update(&path, |config| {
-                config.desktop = address
-                    .map(|address| agent_workspace_runtime::peers::config::Desktop { address });
+                config.desktop =
+                    address.map(|address| agent_workspace_runtime::peers::config::Desktop {
+                        address,
+                        protocol: if protocol == "selkies" {
+                            agent_workspace_runtime::peers::config::DesktopProtocol::Selkies
+                        } else {
+                            agent_workspace_runtime::peers::config::DesktopProtocol::Vnc
+                        },
+                    });
                 config.desktop_epoch = config
                     .desktop_epoch
                     .checked_add(1)

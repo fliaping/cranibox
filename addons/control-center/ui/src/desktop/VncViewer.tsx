@@ -3,6 +3,8 @@ import { Keyboard, Maximize, Monitor, MousePointer2, RefreshCw, Unplug } from 'l
 // @ts-expect-error noVNC publishes its documented JavaScript API without TypeScript definitions.
 import RFB from '@novnc/novnc';
 import type { DesktopConnector, DesktopTarget } from './transport';
+import { openDesktop } from './openDesktop';
+import { SelkiesViewer } from './SelkiesViewer';
 
 interface Viewer extends EventTarget {
   scaleViewport: boolean; resizeSession: boolean; viewOnly: boolean;
@@ -28,14 +30,17 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
       try {
         transport = await connect(target, cancellation.signal);
         if (disposed || !host.current) { if (typeof transport === 'object') transport.close(); return; }
-        viewer = new RFB(host.current, transport, { shared: true }) as Viewer;
+        const opened = await openDesktop(transport, cancellation.signal);
+        transport = opened.channel;
+        if (disposed || !host.current) { transport.close(); return; }
+        viewer = opened.protocol === 'selkies' ? new SelkiesViewer(host.current, opened.channel) : new RFB(host.current, opened.channel, { shared: true }) as Viewer;
         rfb.current = viewer; viewer.scaleViewport = true; viewer.resizeSession = false;
         viewer.viewOnly = false; viewer.focusOnClick = true; viewer.qualityLevel = 6; viewer.compressionLevel = 2; setViewOnly(false);
         viewer.addEventListener('connect', () => { if (!disposed) { setPhase('connected'); setTypes([]); setCredentials({}); } });
         viewer.addEventListener('disconnect', event => {
           if (disposed) return;
           setPhase('closed'); setTypes([]); setCredentials({}); setKeyboard(false);
-          if (!(event as CustomEvent<{ clean: boolean }>).detail.clean) setError(previous => (typeof transport === 'object' && transport.error) || previous || t('连接已断开。检查节点、VNC 服务和授权后重新连接。', 'Connection lost. Check the node, VNC server and grant, then reconnect.'));
+          if (!(event as CustomEvent<{ clean: boolean }>).detail.clean) setError(previous => (typeof transport === 'object' && transport.error) || previous || t('连接已断开。检查节点、桌面服务和授权后重新连接。', 'Connection lost. Check the node, desktop server and grant, then reconnect.'));
         });
         viewer.addEventListener('credentialsrequired', event => {
           if (!disposed) setTypes((event as CustomEvent<{ types: string[] }>).detail.types);

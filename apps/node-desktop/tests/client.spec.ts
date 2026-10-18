@@ -1189,6 +1189,80 @@ test('leaving a pending native desktop releases the attachment when IPC finishes
   expect(errors).toEqual([]);
 });
 
+test('the native Selkies channel decodes fragmented JPEG frames and batches pasted input', async ({ page }) => {
+  const { readFileSync } = await import('node:fs');
+  const images: string[] = JSON.parse(readFileSync(new URL('../../../addons/control-center/ui/tests/selkies-frames.json', import.meta.url), 'utf8'));
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(images => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const callbacks = new Map<number, Function>(); let next = 1, index = 0, sequence = 0, pending = false, typed = false;
+    let callback: Function; const queue: Uint8Array[] = [];
+    internals.transformCallback = (fn: Function) => { const id = next++; callbacks.set(id, fn); return id; };
+    internals.unregisterCallback = (id: number) => callbacks.delete(id);
+    function output(bytes: Uint8Array) { queue.push(bytes); flush(); }
+    function flush() {
+      if (pending || !queue.length) return; pending = true;
+      let binary = ''; for (const byte of queue.shift()!) binary += String.fromCharCode(byte);
+      callback({ index: index++, message: { type: 'data', data: btoa(binary), sequence: ++sequence } });
+    }
+    function frame(kind: number, data: Uint8Array) {
+      const bytes = new Uint8Array(5 + data.length); bytes[0] = kind;
+      new DataView(bytes.buffer).setUint32(1, data.length); bytes.set(data, 5);
+      output(bytes.subarray(0, 3)); output(bytes.subarray(3));
+    }
+    function text(value: string) { frame(0, new TextEncoder().encode(value)); }
+    function picture() {
+      const image = Uint8Array.from(atob(images[typed ? 1 : 0]), char => char.charCodeAt(0));
+      const bytes = new Uint8Array(6 + image.length); bytes.set([3, 0, 0, typed ? 2 : 1, 0, 0]); bytes.set(image, 6); frame(1, bytes);
+    }
+    const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: { address: '127.0.0.1:8082', protocol: 'selkies' } };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: false, error: null, quit_requested: false };
+      if (command === 'direct_peers') return catalog;
+      if (command === 'desktop_open') {
+        callback = callbacks.get(payload.events.id)!; callback({ index: index++, message: { type: 'ready' } });
+        const magic = new TextEncoder().encode('CRANIBOX-SELKIES/1\n'); output(magic.subarray(0, 3)); output(magic.subarray(3));
+        text('MODE websockets'); return 'selkies-attachment';
+      }
+      if (command === 'desktop_ack') {
+        if (!pending || payload.sequence !== sequence) throw Error('Out-of-order Selkies acknowledgement');
+        pending = false; flush(); return;
+      }
+      if (command === 'desktop_input') {
+        const bytes = Uint8Array.from(atob(payload.data), char => char.charCodeAt(0)), view = new DataView(bytes.buffer);
+        const commands: string[] = [];
+        for (let offset = 0; offset < bytes.length;) {
+          const size = view.getUint32(offset + 1); if (bytes[offset] !== 0 || offset + 5 + size > bytes.length) throw Error('Invalid input frame');
+          commands.push(new TextDecoder().decode(bytes.subarray(offset + 5, offset + 5 + size))); offset += 5 + size;
+        }
+        (window as any).calls.push({ command, commands });
+        for (const value of commands) {
+          if (value.startsWith('SETTINGS,')) { text(JSON.stringify({ type: 'stream_resolution', width: 160, height: 100 })); picture(); }
+          if (value === 'kd,97' && !typed) { typed = true; picture(); }
+        }
+        return;
+      }
+      if (command === 'desktop_close') { (window as any).calls.push({ command, payload }); return; }
+      return previous(command, payload);
+    };
+  }, images);
+  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
+  await section.getByRole('button', { name: '连接桌面', exact: true }).click();
+  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
+  const red = () => section.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data[0]);
+  expect(await red()).toBeLessThan(100);
+  await section.getByRole('button', { name: '键盘', exact: true }).click();
+  await section.getByLabel('远程键盘输入', { exact: true }).fill('cranibox-selkies-input-20261018');
+  await expect.poll(red).toBeGreaterThan(180);
+  const batches = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_input').map((call: any) => call.commands));
+  expect(batches.flat().filter((command: string) => command.startsWith('kd,')).length).toBe('cranibox-selkies-input-20261018'.length);
+  expect(batches.length).toBeLessThan(10);
+  await page.getByRole('button', { name: '设备网络', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_close').length)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
 test('the native desktop channel completes RFB, acknowledges frames and releases the viewer', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {

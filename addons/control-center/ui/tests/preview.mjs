@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { snapshot } from './fixture.mjs';
 import { rfbFixture } from './rfb-fixture.mjs';
+import { selkiesFixture } from './selkies-fixture.mjs';
 
 const uiRoot = fileURLToPath(new URL('..', import.meta.url));
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cranibox-ui-preview-'));
@@ -31,6 +32,7 @@ const webPort = Number(process.env.UI_PREVIEW_PORT || '19080');
 const runtimePort = webPort + 10;
 const closeDesktopFixture = await rfbFixture(webPort + 30);
 const closeAuthenticatedDesktopFixture = await rfbFixture(webPort + 34, { username: 'cranibox', password: 'wayland8' });
+const closeSelkiesFixture = await selkiesFixture(webPort + 38);
 const credentials = path.join(directory, '.config/agent-workspace/runtime.json');
 await fs.mkdir(path.dirname(credentials), { recursive: true });
 await fs.writeFile(path.join(path.dirname(credentials), 'web.json'), JSON.stringify({ runtimeUrl: 'http://127.0.0.1:' + runtimePort }));
@@ -41,6 +43,7 @@ async function stop(code = 0) {
   stopping = true;
   closeDesktopFixture();
   closeAuthenticatedDesktopFixture();
+  closeSelkiesFixture();
   for (const child of [...processes].reverse()) {
     if (child.exitCode === null && child.signalCode === null) {
       const ended = new Promise(resolve => child.once('exit', resolve));

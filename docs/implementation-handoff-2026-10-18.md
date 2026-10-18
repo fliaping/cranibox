@@ -2,9 +2,9 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442，包含 Tailscale 安装引导及实际发布前端资源；后续交接提交只补充文档与对应 CI 结果。
+本次最新功能收尾是 Selkies 节点桌面接入，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证。此前 Tailscale 安装引导提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442，其 CI 结果只覆盖该历史提交；本次提交后的 CI 另行记录。
 
-交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。下一阶段优先处理真实桌面互访及跨平台安装验收。此次新增 Tailscale 安装引导；远端日常运行的 Web 与原生程序仍是此前版本，本轮只在隔离测试进程中运行新代码，未替换主服务或安装系统 Tailscale。
+交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，下一阶段优先验收 Windows/macOS 桌面与安装。远端日常运行的 Web 与原生程序仍是 71f2397，本轮只在隔离测试进程中运行新代码，未替换主服务、安装系统 Tailscale 或重启合成器。
 
 ## 用户已经确定的方向
 
@@ -33,7 +33,7 @@
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
 | 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | CI 的 Linux .deb 在远端 KDE 中通过窗口关闭、托盘打开/退出、自启配置开关、后台启动及单实例唤回验收；实际系统登录、休眠恢复、托盘重连和 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 页面关闭/网络断开后保留节点内 Shell；客户端进程或系统退出后不能保留该 Shell |
-| 桌面互访 | 共用 noVNC；本机、直连及出站 WebSocket 中继；目标桌面单独授权、单控制者、停止与撤权取消 | 已有 VNC 可接入多平台；Windows/macOS 及 KDE/GNOME 的自动安装与托管未实现 |
+| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；目标桌面单独授权、单控制者、停止与撤权取消 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测屏幕捕获失败，Selkies 可用，见下文 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过，公开产品镜像拉取与各 OS 系统依赖安装仍未验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
@@ -49,7 +49,30 @@
 
 ## 测试情况与可信范围
 
-### 最新收尾：Tailscale 系统安装引导
+### 最新收尾：Selkies 节点桌面接入
+
+KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径连接已运行 Selkies 的内部 WebSocket，走既有目标签发授权、单控制者、直连/中继和 Tauri IPC；Web/Tauri 按首包选择 noVNC 或 JPEG 查看器。配置和 CLI 显式选择 protocol，旧 VNC 配置保持兼容；只探测 MODE，不主动接管桌面。连续文字产生的键盘事件按批传输，修复真实输入时挤满节点有界队列的断开。
+
+全部执行仍在指定远端容器，最新专项验证如下；同一用例重跑不累计，模拟与实机分开：
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| runtime peers Rust 单元测试 | 61 通过 | 含协议兼容、分片/合并、大小限制、输入白名单、探测不接管、慢消费者撤权与控制名额释放 |
+| cranibox-node Rust 单元测试 | 47 通过，2 忽略 | 原有节点/网络/服务回归；两个真实 EasyTier 用例本轮未跑 |
+| 桌面 API/直连/中继/服务集成 | 22 通过 | remote_desktops 7、desktop_relay 7、desktop_service 8；含 Selkies 128 KiB 输出分块、输入、授权、停止与撤销 |
+| Web 桌面界面 | 11 通过 | 真实 Rust 通道、合成 RFB/JPEG；连续文字、鼠标、只读、重连、取消待连接、认证、服务引导及明暗/小屏 |
+| Tauri 前端全套 | 44 通过 | 浏览器模拟 IPC；新增 Selkies 首包/画面分片、逐帧确认、完整连续输入和关闭清理，兼容原 RFB |
+| 真实 KDE/Selkies | 1 通过 | 出站节点经 Workspace 中继，1024×768、113 种采样颜色；整段 31 字符送达自身 kdialog，重连、撤权及零页面异常 |
+
+本轮共 186 项不同测试通过，2 项忽略；不与此前 118 项等历史轮次累加。全工作区格式、严格 Clippy、Web/Tauri TypeScript 与生产资源、Rust 工作区和 desktop,custom-protocol 原生构建另列检查项。375px 明色与 1440px 暗色截图已查看，测试两种主题均无横向溢出。真实 KDE 测试使用自身对话框并清理，不修改主服务或用户数据。
+
+接入地址在本镜像中是 127.0.0.1:8082；第一次误用 8081 的连接失败、连续输入修复前的真实断开，以及 Web 初始端口冲突/旧文案断言/预览二进制环境遗漏均保留在证据中。最终 11 项 Web 与真实 KDE 重测通过；取消连接用例单独复测及最终整套均通过，没有据此修改取消逻辑。
+
+证据目录为远端 /config/validation-artifacts/selkies-desktop-20261018，命令及日志见[专项记录](remote-workspace-validation-2026-10-18.md#selkies-节点桌面收尾)。Selkies 需要已运行的无 token 握手服务；连接会接管主显示器并断开其原查看器，外部 Selkies 查看器也能反向接管。当前不支持音频、剪贴板、文件传输、视频编码或自动托管 Selkies，详见[接入限制](remote-desktops.md#已有-selkies-服务)。
+
+本轮远端验证不能代替 Windows/macOS 实机、最新安装包实际安装、完整镜像重新构建或真实多物理设备互访。本次功能提交的 CI 状态以提交后的复核记录为准，历史绿色结果不外推。
+
+### 此前：Tailscale 系统安装引导
 
 新增 Web/Tauri 共用的方案审阅、实际命令与脚本展示、确认、过期提示、失败恢复及后台安装状态。Rust 节点使用十分钟一次性方案，执行前重新验证系统条件，先持久保存状态再启动；关闭页面不影响任务，节点重启不重放安装。Linux 使用 PolicyKit/APT，macOS 使用 Homebrew 下载与系统安装器授权，Windows 使用 winget/UAC。容器明确转宿主或已有服务指引，已有可用服务不修改，登录另行触发。详见[平台限制](device-networks.md#安装与系统服务引导)。
 
@@ -129,25 +152,25 @@
 | 协作前置依赖 | Rust 23、后端 34、Web 23、Tauri 模拟 IPC 2 项 | 多个节点是同一远端容器中的独立进程 |
 | 实际空间 | 真实 Docker 创建、停止、归档、恢复、身份/文件保留；页面终端及 Selkies/code-server HTTPS 和 WebSocket | 该专项使用远端主机上的旧镜像叠加；完整 Dockerfile 构建另见下一行 |
 | 完整产品镜像 | 71f2397 的完整 Dockerfile 构建成功；空配置首次启动、默认服务、认证 API、容器重启与数据保留通过 | Linux amd64 / KDE / 国际源；未发布产品镜像，未验证新实例的实际桌面画面与输入 |
-| 实际桌面 | 真实 X11/Xvfb+x11vnc、隔离 Sway+wayvnc 测试及 noVNC；远端 KDE 的 Selkies 与 Tauri 窗口 | X11/Sway 通过不能推导 KDE、Windows、macOS 通过 |
+| 实际桌面 | 真实 X11/Xvfb+x11vnc、隔离 Sway+wayvnc，以及本轮 KDE/Selkies 节点中继的画面、完整输入、重连和撤权 | KDE 的 VNC 捕获仍失败；Windows/macOS 原生桌面未验收 |
 | 原生壳 | CI Linux .deb 实际安装；远端 KDE 中可见原生界面、真实 IPC、托盘打开/退出、自启配置、后台启动、单实例与身份保留 | 未验证 AppImage、实际系统登录/休眠及每个业务流程；Windows/macOS 仍待实机安装 |
 
 ### 明确未通过或尚未验证
 
 - **KDE Wayland VNC 未通过**：w0vncserver 密码和 portal 授权成功，但 KDE 屏幕捕获报 failed to start streaming / 不支持的合成类型，在 ServerInit 前断开；隔离 KWin 回退 QPainter，没有可用 OpenGL 画面。临时进程与密码已清理。当前继续用 Selkies，不得标记 VNC 已完成。
-  - 收尾时再次只读检查：当前 KWin 明确报告 Compositing Type: QPainter，容器没有 /dev/dri；内层 wayland-0 与 Selkies 外层 wayland-1 都未公布 wlr screencopy 或 ext image-copy-capture 协议。外层仅有虚拟键盘、没有虚拟指针，不能直接改用 wayvnc 共享当前桌面。该检查没有修改或重启合成器，也没有重跑 VNC；原始协议清单及 KWin 信息保存在 /config/validation-artifacts/kde-capture-followup-20261018。下一步应在具备可用捕获后端的图形环境验证，或单独设计 Selkies 节点接入，不要把放宽后端检测当成修复。
+  - 收尾时再次只读检查：当前 KWin 明确报告 Compositing Type: QPainter，容器没有 /dev/dri；内层 wayland-0 与 Selkies 外层 wayland-1 都未公布 wlr screencopy 或 ext image-copy-capture 协议。外层仅有虚拟键盘、没有虚拟指针，不能直接改用 wayvnc 共享当前桌面。该检查没有修改或重启合成器，也没有重跑 VNC；原始协议清单及 KWin 信息保存在 /config/validation-artifacts/kde-capture-followup-20261018。本轮已独立实现并验证 Selkies 节点接入；若继续做 KDE VNC，仍需具备可用捕获后端的图形环境，不要放宽检测。
 - Windows 原生与 macOS 的安装包、托盘、登录自启、权限提示、VNC、进程树、断网/休眠恢复、容器安装向导尚未实机验收。WSL2 不能替代 Windows 原生。
 - 真实 Tailscale ACL、两台物理设备互访及日常网络切换未验收；本轮没有连接真实 Tailnet。
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 最新功能代码 b6ed81e 的完整 CI 已通过；实际安装与原生交互仍使用此前 71f2397 的 Linux .deb 验证。新包安装、AppImage、Linux 实际系统登录/休眠及 Windows/macOS 安装与交互仍未验收。
+- 此前 b6ed81e 的完整 CI 已通过；本次 Selkies 代码的 CI 单独复核。实际安装与原生交互仍使用此前 71f2397 的 Linux .deb 验证。新包安装、AppImage、Linux 实际系统登录/休眠及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 桌面互访可日用 | 先在真实 Linux/KDE 主机选择并验证可支持的捕获后端；然后 Windows/macOS 的安装、录屏/输入权限、启停、退出清理均可操作；从另一个节点真正看见画面并输入，撤权断开 |
+| P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
 | P0 | 跨平台安装与产品镜像发布验收 | b6ed81e 的 7 项 CI 已通过；完整 KDE 镜像、新实例启动/重启及 Linux .deb 原生交互证据仍绑定 71f2397。继续验证新包实际安装、Windows/macOS、AppImage、Linux 系统登录/休眠及公开产品镜像的发布/拉取 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
@@ -178,6 +201,7 @@
 | crates/workspace-node/src/{local.rs,peer,network,spaces,supervisor.rs,task_worker.rs,project_sync.rs} | 节点宿主、直连服务、网络/空间、进程、自动接单与后台目录调度 |
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
+| crates/workspace-runtime/src/peers/desktop/selkies.rs；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
 | addons/control-center/ui/src | React 共用业务组件与浏览器适配器 |
 | apps/node-desktop | Tauri 原生宿主、IPC、托盘与客户端适配器 |
 | tests、两端 UI 的 tests | Python 真实服务集成和 Playwright；模拟与实机条件见各文件 |
@@ -212,8 +236,8 @@ cargo clippy --locked -p agent-workspace-runtime -p cranibox-node --all-targets 
 python3 -m unittest test_background_project_sync test_project_catalog_sync -v
 ~~~
 
-UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts，以及客户端 client.spec.ts 中 background catalog sync / resumable snapshots / project 相关用例。
+UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新专项用例为 Web 的 desktops.spec.ts、客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；71f2397 的绿色 CI 不能覆盖后续代码。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；71f2397 或 b6ed81e 的绿色 CI 不能覆盖后续代码。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。

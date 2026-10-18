@@ -1,4 +1,5 @@
-//! Bounded binary RFB transport. Dropping a viewer only detaches from the desktop.
+//! Bounded desktop transport. Dropping a viewer only detaches from the desktop.
+pub mod selkies;
 use anyhow::{Result, ensure};
 use futures_util::{SinkExt, StreamExt};
 use std::{

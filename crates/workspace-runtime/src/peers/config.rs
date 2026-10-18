@@ -28,17 +28,31 @@ pub struct Permissions {
     #[serde(default)]
     pub spaces: bool,
 }
-/// The owner selects a local VNC server. Peer requests cannot choose a destination.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopProtocol {
+    #[default]
+    Vnc,
+    Selkies,
+}
+impl DesktopProtocol {
+    fn is_vnc(&self) -> bool {
+        *self == Self::Vnc
+    }
+}
+/// The owner selects a local desktop server. Peer requests cannot choose a destination.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Desktop {
     pub address: SocketAddr,
+    #[serde(default, skip_serializing_if = "DesktopProtocol::is_vnc")]
+    pub protocol: DesktopProtocol,
 }
 impl Desktop {
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.address.ip().is_loopback() && self.address.port() != 0,
-            "VNC must use a loopback address and a nonzero port"
+            "Desktop sharing must use a loopback address and a nonzero port"
         );
         Ok(())
     }
@@ -277,6 +291,25 @@ pub fn path_for(settings: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_protocol_is_explicit_and_legacy_vnc_stays_compatible() {
+        let old = serde_json::json!({"address":"127.0.0.1:5900"});
+        let desktop: Desktop = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(desktop.protocol, DesktopProtocol::Vnc);
+        assert_eq!(serde_json::to_value(desktop).unwrap(), old);
+        let desktop: Desktop = serde_json::from_value(
+            serde_json::json!({"address":"127.0.0.1:8081","protocol":"selkies"}),
+        )
+        .unwrap();
+        assert_eq!(desktop.protocol, DesktopProtocol::Selkies);
+        assert!(desktop.validate().is_ok());
+        assert!(
+            serde_json::from_value::<Desktop>(
+                serde_json::json!({"address":"127.0.0.1:8081","protocol":"http"})
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn identity_persists_and_corruption_is_not_overwritten() {
         let root = tempfile::tempdir().unwrap();

@@ -1,6 +1,9 @@
 """Real browser -> Rust Web -> independent node -> TCP desktop forwarding."""
 import json
+import base64
+import hashlib
 import socket
+import struct
 import subprocess
 import threading
 import time
@@ -53,6 +56,65 @@ class DesktopServer:
                 connection.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+            connection.close()
+
+
+class SelkiesServer(DesktopServer):
+    payload = bytes(range(256)) * 512
+
+    def echo(self, connection):
+        def exact(count):
+            value = b''
+            while len(value) < count:
+                chunk = connection.recv(count - len(value))
+                if not chunk:
+                    raise EOFError()
+                value += chunk
+            return value
+
+        def send(payload, opcode):
+            size = len(payload)
+            header = bytes([128 | opcode, size if size < 126 else 126 if size <= 65535 else 127])
+            if size >= 126:
+                header += struct.pack('!H' if size <= 65535 else '!Q', size)
+            connection.sendall(header + payload)
+
+        try:
+            request = b''
+            while not request.endswith(b'\r\n\r\n'):
+                request += exact(1)
+                if len(request) > 8192:
+                    return
+            key = next(line.split(b':', 1)[1].strip() for line in request.split(b'\r\n') if line.lower().startswith(b'sec-websocket-key:'))
+            accept = base64.b64encode(hashlib.sha1(key + b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest())
+            connection.sendall(b'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + b'\r\n\r\n')
+            send(b'MODE websockets', 1)
+            send(self.payload, 2)
+            while True:
+                a, b = exact(2)
+                size = b & 127
+                if size == 126:
+                    size = struct.unpack('!H', exact(2))[0]
+                elif size == 127:
+                    size = struct.unpack('!Q', exact(8))[0]
+                if size > 65536:
+                    return
+                mask = exact(4) if b & 128 else None
+                payload = exact(size)
+                if mask:
+                    payload = bytes(value ^ mask[i % 4] for i, value in enumerate(payload))
+                opcode = a & 15
+                if opcode == 8:
+                    send(b'', 8)
+                    return
+                if opcode == 9:
+                    send(payload, 10)
+                elif opcode == 1:
+                    send(b'input:' + payload, 1)
+        except (OSError, EOFError, StopIteration):
+            pass
+        finally:
+            self.active -= 1
             connection.close()
 
 
@@ -120,6 +182,39 @@ class RemoteDesktopTests(unittest.TestCase):
         second.send(b'keyboard-and-pointer', opcode=2)
         self.assertEqual(second.recv(), (2, b'keyboard-and-pointer'))
         self.assertIsNone(self.target_process.poll())
+
+    def test_selkies_preserves_messages_large_frames_and_target_revocation(self):
+        server = SelkiesServer()
+        self.addCleanup(server.close)
+        self.cli('desktop', '--address', server.address, '--protocol', 'selkies')
+        self.assertEqual(self.api(operation='probe', node=self.target)['nodes'][0]['desktop'], True)
+        connection = self.open()
+        self.assertEqual(connection.status, 101)
+        self.assertEqual(connection.recv(), (2, b'CRANIBOX-SELKIES/1\n'))
+        buffer = b''
+
+        def message():
+            nonlocal buffer
+            while len(buffer) < 5 or len(buffer) < 5 + int.from_bytes(buffer[1:5], 'big'):
+                opcode, data = connection.recv()
+                self.assertEqual(opcode, 2)
+                self.assertLessEqual(len(data), 65536)
+                buffer += data
+            kind, size = buffer[0], int.from_bytes(buffer[1:5], 'big')
+            payload, buffer = buffer[5:5 + size], buffer[5 + size:]
+            return kind, payload
+
+        self.assertEqual(message(), (0, b'MODE websockets'))
+        self.assertEqual(message(), (1, server.payload))
+        data = b'\0' + struct.pack('!I', 5) + b'kd,97'
+        connection.send(data[:3], opcode=2)
+        connection.send(data[3:], opcode=2)
+        self.assertEqual(message(), (0, b'input:kd,97'))
+        self.assertEqual(self.h.post('/api/desktop/ticket', {'node':self.target})[0], 400)
+        self.cli('revoke', '--node', self.caller)
+        self.assertEqual(connection.recv()[0], 8)
+        until(lambda: server.active == 0)
+        self.assertEqual(self.h.post('/api/desktop/ticket', {'node':self.target})[0], 400)
 
     def test_single_controller_and_sharing_stop_release_the_lease(self):
         first = self.connected()

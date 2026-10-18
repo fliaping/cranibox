@@ -10,7 +10,7 @@ pub(super) async fn open(app: &App, caller: Option<Caller>, direct: bool) -> Res
     let epoch = configuration.desktop_epoch;
     let desktop = configuration
         .desktop
-        .context("configure a local VNC server before sharing this desktop")?;
+        .context("configure a local desktop server before sharing this desktop")?;
     desktop.validate()?;
     let permit = app
         .desktops
@@ -18,6 +18,7 @@ pub(super) async fn open(app: &App, caller: Option<Caller>, direct: bool) -> Res
         .try_acquire_owned()
         .context("desktop already has an active controller; disconnect it first")?;
     let address = desktop.address;
+    let protocol = desktop.protocol;
     let app = app.clone();
     let valid = move || {
         !app.stop.is_cancelled()
@@ -35,6 +36,10 @@ pub(super) async fn open(app: &App, caller: Option<Caller>, direct: bool) -> Res
             })
     };
     anyhow::ensure!(valid(), "desktop access not granted or sharing stopped");
+    if protocol == agent_workspace_runtime::peers::config::DesktopProtocol::Selkies {
+        return agent_workspace_runtime::peers::desktop::selkies::connect(address, permit, valid)
+            .await;
+    }
     let tcp = tokio::time::timeout(
         Duration::from_secs(5),
         tokio::net::TcpStream::connect(address),

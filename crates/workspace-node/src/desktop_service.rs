@@ -4,7 +4,7 @@ pub use provider::Provider;
 
 use agent_workspace_runtime::{
     config as secrets,
-    peers::config::{Config, Desktop},
+    peers::config::{Config, Desktop, DesktopProtocol},
 };
 use anyhow::{Context, Result, ensure};
 use rand::{Rng, distr::Alphanumeric};
@@ -29,6 +29,8 @@ pub enum Command {
     Status {},
     Check {
         address: SocketAddr,
+        #[serde(default)]
+        protocol: DesktopProtocol,
     },
     Plan {},
     Install {},
@@ -170,8 +172,11 @@ impl Manager {
     }
     fn enabled(&self) -> bool {
         self.spec.as_ref().is_some_and(|spec| {
-            Config::read(&self.peers)
-                .is_ok_and(|c| c.desktop.is_some_and(|d| d.address == spec.address()))
+            Config::read(&self.peers).is_ok_and(|c| {
+                c.desktop.is_some_and(|d| {
+                    d.address == spec.address() && d.protocol == DesktopProtocol::Vnc
+                })
+            })
         })
     }
     fn provider(&self) -> Provider {
@@ -199,9 +204,14 @@ impl Manager {
     async fn manage(&mut self, command: Command) -> Result<Value> {
         match command {
             Command::Status {} => {}
-            Command::Check { address } => {
-                Desktop { address }.validate()?;
-                let result = rfb(address).await;
+            Command::Check { address, protocol } => {
+                Desktop { address, protocol }.validate()?;
+                let result = match protocol {
+                    DesktopProtocol::Vnc => rfb(address).await,
+                    DesktopProtocol::Selkies => {
+                        agent_workspace_runtime::peers::desktop::selkies::check(address).await
+                    }
+                };
                 return Ok(
                     json!({"address":address,"ready":result.is_ok(),"error":result.err().map(|e|format!("{e:#}"))}),
                 );
@@ -282,6 +292,7 @@ impl Manager {
                         );
                         config.desktop = Some(Desktop {
                             address: spec.address(),
+                            protocol: DesktopProtocol::Vnc,
                         });
                         config.desktop_epoch = config
                             .desktop_epoch

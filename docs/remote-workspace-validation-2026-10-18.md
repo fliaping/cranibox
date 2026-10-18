@@ -596,3 +596,48 @@ Debian/Ubuntu 图形主机使用 pkexec、内置 APT 脚本与官方稳定源，
 七项作业包括三平台原生检查、测试与发布构建，三平台 Tauri 安装包，以及真实 Sway/wayvnc 作业。Linux 原生作业还通过完整 Web、HTTP/CLI/MCP 回归、真实 X11 VNC 认证/画面/输入/重启、真实用户态 EasyTier 网络/重启/入口故障切换及资源基线检查。前述远端专项验证中忽略的两项 EasyTier 测试由 CI 的独立真实网络步骤执行，不将不同范围的结果合并计数。安装包生成不代表实际安装验收，Release 的 main 分支运行没有构建和发布产品镜像。后续交接提交仅更新文档，不再触发有路径过滤的三平台矩阵；该绿色结果绑定 b6ed81e 的功能代码。
 
 本轮未运行真实系统安装器，没有提升容器权限、安装 Tailscale、登录账号、修改 tailnet 或宿主路由，也未替换日常主服务和原生客户端；新代码只在隔离测试进程运行。Windows/macOS 实机、系统管理员授权、macOS 网络扩展、真实 Tailscale ACL/互访仍未验收。此前 KDE VNC 捕获失败结论不变，继续使用 Selkies。此前 71f2397 的 CI、完整镜像与 .deb 验收绑定旧提交，不应自动外推到此次安装引导。
+
+## Selkies 节点桌面收尾
+
+2026-10-18 在相同远端 cranibox-validation 容器收尾 KDE 桌面互访。新增 Rust Selkies WebSocket 适配器与 Web/Tauri 共用 JPEG 查看器，不复制上游 Web UI，不安装新的桌面服务，不重启合成器；VNC 捕获的历史失败保持原结论。最新功能、未完成项及后续优先级以[交接入口](implementation-handoff-2026-10-18.md)为准。
+
+### 实现与真实验收
+
+目标配置可显式选择 vnc 或 selkies，旧配置默认 VNC 且序列化保持兼容。Selkies 适配器只连接已配置的回环 `/websockets`，检查时只等待 MODE，不发送显示设置。授权、配置代次、250ms 撤权检查和单控制者名额复用现有节点实现；慢消费者不能阻止撤权或占住已撤销的名额。输出记录最多 16 MiB，分为不超过 64 KiB 的传输块；输入仅允许受限桌面命令，队列保持有界。
+
+Web/Tauri 从首包识别 RFB 或 Selkies 标记，共享原有工具栏。JPEG 查看器请求 primary/30FPS/质量65，不改显示分辨率，支持键鼠、只读、移动输入、重连及关闭释放按键；无音频、剪贴板或文件传输。接入必须是支持 JPEG、无 token 握手且位于可信容器/回环网络中的现有服务；连接会接管上游主显示器，原 Selkies 查看器会断开，外部查看器也可反向接管。没有实现 Selkies 自动安装或托管。
+
+真实验收使用隔离 Harness 启动统一 Web/网关和出站 test-node，在目标单独授予调用方桌面权限，再用系统 Chromium 打开真实 React 页面，经 Workspace 中继连接现有 KDE/Selkies。采样画面为 1024×768、113 种颜色；打开仅属于测试的 kdialog，使用页面键盘输入框发送 cranibox-selkies-input-20261018，断言原生对话框 stdout 完整返回这 31 个字符；随后断开重连、撤销目标授权并断言查看器断开，页面异常数组为空。对话框与隔离进程均清理，主服务、身份、用户文件和合成器设置不变。
+
+第一次误用了 8081，实际镜像监听 8082，查明后修正默认值。画面接通后的第一次连续输入失败：每个按下/释放独立发送，短时间挤满节点 32 项有界队列。修复为同一任务中的输入按不超过 64 KiB 合并传输，不放宽队列；真实 kdialog 与新增 Tauri 模拟 IPC 的完整文字测试均通过。初始失败日志保留。
+
+### 命令与结果
+
+目录与 Cargo 环境同上。所有运行均在用户指定的远端；本机仅编辑、Git、同步和查看合成截图。
+
+| 命令/检查 | 结果 | 可信范围 |
+| --- | --- | --- |
+| cargo test --locked -p agent-workspace-runtime peers:: | 61 通过 | 含协议兼容、分片/合并/限额、受限命令、无接管探测、慢消费者撤权与名额释放 |
+| cargo test --locked -p cranibox-node --lib | 47 通过，2 忽略 | 节点回归；真实 EasyTier 两项本轮未跑 |
+| python3 -m unittest discover -s tests -p test_remote_desktops.py -v | 7 通过 | 真实 Rust 服务与隔离 TCP/WebSocket，包括 Selkies 128 KiB 输出分块、键盘命令及撤权 |
+| 同上，test_desktop_relay.py | 7 通过 | 中继授权、身份/组、ticket 与取消、跨路径单控制者 |
+| 同上，test_desktop_service.py | 8 通过 | 进程替身的托管、配置、恢复与权限回归 |
+| npm test --prefix addons/control-center/ui -- desktops.spec.ts | 11 通过 | 系统 Chromium、真实 Rust 通道、合成 RFB/JPEG；连续文字、鼠标、只读、重连、取消、认证及服务引导 |
+| npm test --prefix apps/node-desktop -- --workers 2 | 44 通过 | 模拟 IPC 全套；新增首包和 JPEG 分片、帧确认、连续输入合并及关闭清理 |
+| CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082 python3 -m unittest discover -s tests -p test_desktop_real_selkies.py -v | 1 通过 | 上述当前 KDE 原生画面/文字、中继、重连、撤权，无页面异常 |
+| cargo fmt --all --check | 通过 | 全工作区 |
+| cargo clippy --locked --workspace --all-targets -- -D warnings | 通过 | 全工作区严格检查 |
+| node scripts/build-control-center-ui.cjs | 通过 | TypeScript/Vite 及 Rust 实际嵌入的 web.js/web.css 发布资源 |
+| npm run build --prefix apps/node-desktop | 通过 | TypeScript 与原生生产页面 |
+| cargo build --workspace | 通过 | 生成 Web 发布资源之后重新嵌入 |
+| cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol | 通过 | 原生静态资源及桌面特性编译，不等于安装包实际安装 |
+
+共 186 项不同测试通过，2 忽略，不与历史测试数量累加。Web 初始运行存在英/中文预览夹具端口冲突（改用各自 webPort+38）、旧提示文案断言及取消请求偶发 ERR_ABORTED；取消用例单独及最终全套均通过，没有修改生产取消逻辑。另一次最终启动遗漏二进制环境变量，在测试开始前失败，补齐四个 BIN 变量后 11/11 通过。全部日志保留，不将这些失败算作成功。Web 375px/1440px、明暗均无横向溢出；人工查看了合成画面的手机明色与桌面暗色截图。
+
+### 证据与后续
+
+证据目录 /config/validation-artifacts/selkies-desktop-20261018，目录 0700、文件 0600；包含 acceptance.json、rust-final.json、backend-results.json、peers-tests-final.log、node-tests-final.log、三份桌面后端日志、web-desktops-final.log、tauri-ui-final.log、actual-kde-final.log，以及构建/静态检查日志。真实结果日志同时记录采样分辨率/颜色数、keyboard/reconnect/revocation 为 true、pageErrors 为空。source-digests.json 核对本机待提交与远端实际测试的全部 24 份变更源码、测试和发布资源，摘要一致；文档未计入该源码清单。初始失败与中间复测日志分开保留；Playwright 输出和四份 fixture-宽度-主题 合成截图同样保留在远端，不把真实桌面截图提交 Git。
+
+通过复现该真实测试须明确设置环境变量，并提供现有图形会话的 DISPLAY、XDG_RUNTIME_DIR 与 D-Bus 环境；Node、Playwright、Chromium 与 kdialog 必须已存在。测试会接管当前主显示器，普通 CI 不自动执行。当前内部端口 8082 来自实际监听，不能假设所有 Selkies 部署都相同。
+
+本轮没有替换日常 71f2397 Web/客户端，没有重新安装原生包、构建完整镜像、运行 Windows/macOS 实机、连接真实 Tailnet 或执行真实模型任务。KDE/Selkies 节点通道的成功不改变原 VNC 捕获失败，也不能外推为三台物理设备、所有功能或所有平台已完成。功能提交后的 CI 另行核对 headSha 并记录，不沿用 b6ed81e 的绿色结果。
