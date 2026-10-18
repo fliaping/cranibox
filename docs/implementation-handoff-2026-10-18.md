@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-本次最新功能收尾是 Selkies 节点桌面接入，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证。此前 Tailscale 安装引导提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442，其 CI 结果只覆盖该历史提交；本次提交后的 CI 另行记录。
+本次最新功能收尾是 Selkies 节点桌面接入，功能提交为 afaa137ce78c1847cb893e97d1527e3b06b23d6f，已推送 origin/main，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证。此前 Tailscale 安装引导提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442，其 CI 结果只覆盖该历史提交；本次提交后的 CI 另行记录。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，下一阶段优先验收 Windows/macOS 桌面与安装。远端日常运行的 Web 与原生程序仍是 71f2397，本轮只在隔离测试进程中运行新代码，未替换主服务、安装系统 Tailscale 或重启合成器。
 
@@ -70,7 +70,11 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 证据目录为远端 /config/validation-artifacts/selkies-desktop-20261018，命令及日志见[专项记录](remote-workspace-validation-2026-10-18.md#selkies-节点桌面收尾)。Selkies 需要已运行的无 token 握手服务；连接会接管主显示器并断开其原查看器，外部 Selkies 查看器也能反向接管。当前不支持音频、剪贴板、文件传输、视频编码或自动托管 Selkies，详见[接入限制](remote-desktops.md#已有-selkies-服务)。
 
-本轮远端验证不能代替 Windows/macOS 实机、最新安装包实际安装、完整镜像重新构建或真实多物理设备互访。本次功能提交的 CI 状态以提交后的复核记录为准，历史绿色结果不外推。
+本轮远端验证不能代替 Windows/macOS 实机、最新安装包实际安装、完整镜像重新构建或真实多物理设备互访。
+
+**本次功能提交 afaa137 的完整 CI 已完成，矩阵运行 39106262547 为 7/7 成功**。已核对完整 headSha 为 afaa137ce78c1847cb893e97d1527e3b06b23d6f：Linux、Windows、macOS 原生检查/测试与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业均成功。Linux 同时通过完整 Web、后端集成、真实 X11 VNC、用户态 EasyTier 重启/入口切换与资源报告检查。Release 39106262625 和 Sync to GitCode 39106262578 也均 completed / success。最终元数据与产物清单保存在上述远端证据目录的 ci-final.json；此次 main 分支 Release 没有发布产品镜像。
+
+该矩阵运行的 Artifacts 包含 cranibox-node-desktop-ubuntu-latest（.deb、AppImage）、cranibox-node-desktop-windows-latest（NSIS）和 cranibox-node-desktop-macos-latest（.dmg）。服务端与独立节点分别为 cranibox-平台-latest、cranibox-node-平台-latest，资源报告为 resource-baseline-linux。生成安装包不等于在用户实机安装和交互验收；后续模型应下载此运行对应的新包，不沿用旧包证据。
 
 ### 此前：Tailscale 系统安装引导
 
@@ -89,7 +93,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 证据目录为远端 /config/validation-artifacts/tailscale-setup-20261018；日志、命令、退出码和资源摘要见[专项记录](remote-workspace-validation-2026-10-18.md#tailscale-安装引导收尾)。真实各系统安装、管理员弹窗、macOS 网络扩展、Tailscale 账号与跨物理设备网络仍未验收。远端专项验证没有重跑完整 KDE 镜像构建、Linux 安装包安装或 KDE 桌面捕获，不能沿用旧证据宣称新版本完成这些验收。
 
-**当前功能提交 b6ed81e 的完整 CI 已完成，矩阵运行 39101805562 为 7/7 成功**：Linux、Windows、macOS 原生检查与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业。Linux 作业同时通过完整 Web 与后端回归、真实 X11 VNC 和用户态 EasyTier 验证。Release 运行 39101805607 与 Sync to GitCode 运行 39101805611 也均 completed / success，三条运行均核对完整 headSha。元数据保存在上述证据目录的 ci-final.json；这覆盖本次代码的自动化检查，不代替 Tailscale 系统安装、目标 OS 交互和 KDE 捕获验收。此次 main 分支 Release 没有发布产品镜像。
+**该阶段功能提交 b6ed81e 的完整 CI 已完成，矩阵运行 39101805562 为 7/7 成功**：Linux、Windows、macOS 原生检查与发布构建，三平台 Tauri 安装包，以及独立 Sway/wayvnc 作业。Linux 作业同时通过完整 Web 与后端回归、真实 X11 VNC 和用户态 EasyTier 验证。Release 运行 39101805607 与 Sync to GitCode 运行 39101805611 也均 completed / success，三条运行均核对完整 headSha。元数据保存在上述证据目录的 ci-final.json；这覆盖该阶段代码的自动化检查，不代替 Tailscale 系统安装、目标 OS 交互和 KDE 捕获验收。此次 main 分支 Release 没有发布产品镜像。
 
 ### 此前：后台目录同步收尾验证
 
@@ -164,14 +168,14 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 此前 b6ed81e 的完整 CI 已通过；本次 Selkies 代码的 CI 单独复核。实际安装与原生交互仍使用此前 71f2397 的 Linux .deb 验证。新包安装、AppImage、Linux 实际系统登录/休眠及 Windows/macOS 安装与交互仍未验收。
+- 本次 afaa137 的完整 CI 已 7/7 通过；实际安装与原生交互仍使用此前 71f2397 的 Linux .deb 验证。新包安装、AppImage、Linux 实际系统登录/休眠及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | b6ed81e 的 7 项 CI 已通过；完整 KDE 镜像、新实例启动/重启及 Linux .deb 原生交互证据仍绑定 71f2397。继续验证新包实际安装、Windows/macOS、AppImage、Linux 系统登录/休眠及公开产品镜像的发布/拉取 |
+| P0 | 跨平台安装与产品镜像发布验收 | 最新 afaa137 的 7 项 CI 已通过，三平台安装包可在运行 39106262547 的 Artifacts 获取；完整 KDE 镜像、新实例启动/重启及 Linux .deb 原生交互证据仍绑定 71f2397。继续验证新包实际安装、Windows/macOS、AppImage、Linux 系统登录/休眠及公开产品镜像的发布/拉取 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |

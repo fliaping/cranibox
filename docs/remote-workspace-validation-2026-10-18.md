@@ -640,4 +640,16 @@ Web/Tauri 从首包识别 RFB 或 Selkies 标记，共享原有工具栏。JPEG 
 
 通过复现该真实测试须明确设置环境变量，并提供现有图形会话的 DISPLAY、XDG_RUNTIME_DIR 与 D-Bus 环境；Node、Playwright、Chromium 与 kdialog 必须已存在。测试会接管当前主显示器，普通 CI 不自动执行。当前内部端口 8082 来自实际监听，不能假设所有 Selkies 部署都相同。
 
-本轮没有替换日常 71f2397 Web/客户端，没有重新安装原生包、构建完整镜像、运行 Windows/macOS 实机、连接真实 Tailnet 或执行真实模型任务。KDE/Selkies 节点通道的成功不改变原 VNC 捕获失败，也不能外推为三台物理设备、所有功能或所有平台已完成。功能提交后的 CI 另行核对 headSha 并记录，不沿用 b6ed81e 的绿色结果。
+本轮没有替换日常 71f2397 Web/客户端，没有重新安装原生包、构建完整镜像、运行 Windows/macOS 实机、连接真实 Tailnet 或执行真实模型任务。KDE/Selkies 节点通道的成功不改变原 VNC 捕获失败，也不能外推为三台物理设备、所有功能或所有平台已完成。
+
+### 本次提交 CI 收尾
+
+功能提交 afaa137ce78c1847cb893e97d1527e3b06b23d6f 已推送 origin/main。逐一核对完整 headSha 后，结果如下：
+
+| 运行 | ID | 结果 | 范围 |
+| --- | --- | --- | --- |
+| Cranibox server and independent node client | 39106262547 | completed / success，7/7 | 三平台 Rust 检查、测试和发布构建；三平台 Tauri 安装包；独立 Sway/wayvnc；Linux 完整 Web/后端、真实 X11 VNC、EasyTier、资源报告 |
+| Release | 39106262625 | completed / success | main 工作流成功，本次没有发布产品镜像 |
+| Sync to GitCode | 39106262578 | completed / success | 本次提交同步 |
+
+元数据与十项 Artifacts 的清单存入私有证据目录 ci-final.json（0600）。安装包为 cranibox-node-desktop-{ubuntu,windows,macos}-latest；其余为三平台 cranibox/cranibox-node 及 resource-baseline-linux。这里的产物生成与自动化测试成功，不替代新包实际安装、Windows/macOS 图形权限、系统登录/休眠、Tailscale 实际登录或多台物理设备验收。收尾只读检查远端 cranibox-validation 仍为 running / healthy，privileged=false、未挂 Docker socket。
