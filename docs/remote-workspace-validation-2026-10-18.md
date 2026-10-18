@@ -2,7 +2,7 @@
 
 本次按用户要求使用 `admin@192.168.217.6:22022`，在远端 Docker 中启动独立验证容器，不使用本机图形桌面验证客户端。
 
-最新补验见[原生连接积压](#2026-10-19-补验原生连接积压)；功能与完整交接入口为[需求与测试状态](implementation-handoff-2026-10-18.md)。
+最新补验见[IPC 测量与撤回方案](#2026-10-19-补验ipc-测量及撤回的传输方案)，此前有[原生连接积压](#2026-10-19-补验原生连接积压)；功能与完整交接入口为[需求与测试状态](implementation-handoff-2026-10-18.md)。
 
 ## 部署
 
@@ -983,3 +983,20 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 这些观察支持优先检查画面吞吐、IPC ACK 和有序流中的控制消息排队；尚无每条消息的追踪，不能确定延迟在哪一层，也不能覆盖此前上游握手超时的记录。本次没有改产品、没有重跑自动化矩阵、不增加通过数量，原生反向剪贴板继续为 P0 未通过。不要直接以延长超时、降低固定帧率或另开一个控制连接代替定位和实机复验。
 
 私有证据为 /config/validation-artifacts/native-clipboard-layer-20261019：check.py、finalize.py、native-kde 下各次采样与 GUI/反馈/接收/清理记录，以及根目录 acceptance.json、final-health.json。健康检查在全部测试进程退出后执行；未替换日常程序、未重启 Selkies 或 KDE。Git 提交仅包含本节和交接文档，不包含剪贴板、截图或配置。
+
+## 2026-10-19 补验：IPC 测量及撤回的传输方案
+
+继续只在指定远端容器使用真实 KDE/Tauri GUI、隔离 XDG、私有 D-Bus，直接连接日常 Selkies 8082。以 2312b64 产品源码为基线，先加入不含正文的约五秒聚合计数，再分别试验合并已排队的小块、二进制输出及组合。所有轮次保留字节顺序、64 KiB 载荷上限、单块待 ACK 和原超时；没有等待填满块或放宽队列限制。
+
+| 私有原始证据目录（均在 /config/validation-artifacts 下） | 采样区间数 | IPC MiB/s 范围 | 区间平均 ACK 等待 | 真实 GUI 结果 |
+| --- | --- | --- | --- | --- |
+| native-desktop-throughput-20261019 | 22 | 0.355–0.728 | 11.9–24.6 ms | 初始 48 字节可读；目标换为 55 字节经 wl-paste 核对后仍显示旧文字 |
+| native-desktop-batching-20261019 | 29 | 0.408–0.838 | 28.0–81.2 ms | 目标 56 字节已核对，仍显示旧 48 字节，超时后保持连接 |
+| native-desktop-binary-20261019 | 11 | 0.419–1.471 | 7.4–25.9 ms | 目标 54 字节已核对，仍显示旧 48 字节 |
+| native-desktop-coalesced-20261019 | 1 | 1.016 | 40.4 ms | 实际界面出现 Selkies decoder cannot keep up. Reconnect using a lower server frame rate.，随后断开；未完成持续剪贴板验收 |
+
+画面内容、负载和启动阶段不同，这些顺序运行的试验不是受控性能排名。聚合 ACK 平均值不能代表单条剪贴板消息延迟，组合触发现有解码队列保护也不能证明原故障的根因。三个方案均未通过实际 KDE 验收；后续需同时核对上游生产、IPC 消费、JPEG 解码和控制消息到达，并在正常窗口和另一物理设备复验，不能仅提高传输速度、扩大队列或延长超时。
+
+所有产品源码与未验收的测试改动已逐字节恢复到仓库版本，未计入任何新增自动化通过项。远端重新完成客户端 TypeScript/Vite 及未插桩 desktop,custom-protocol debug 构建；恢复后的 desktops.rs 摘要为 f87322338256064ea187e1559ae1d7f34c182bb8e5bad82ce1e73ed6a0b88848，程序摘要为 8a9682473193a9c638a0db30b6ca560bb192557f7c1a44a769c9d77b1c52faf8。产品 CI 仍绑定 2312b64，不能将诊断构建写成通过的正式安装包。
+
+汇总证据根目录 /config/validation-artifacts/native-desktop-transport-trials-20261019：acceptance.json 状态 diagnostic_trials_reverted_no_product_fix；expected-source.json 逐一核对六项关键源码，build-final.json/log 记录恢复构建，final-health.json 记录日常服务。四轮测试 GUI/辅助进程均已停止，隔离 XDG 无存活进程；每轮原剪贴板逐字节恢复并删除备份。容器健康、原日常 PID/程序摘要/NodeID 与两入口匿名 401、认证 200 保持，未替换或升级日常程序。本次仅提交文档；私有辅助工具、日志、截图、文字和配置均不提交 Git。
