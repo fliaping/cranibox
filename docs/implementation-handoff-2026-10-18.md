@@ -2,9 +2,9 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能为独立的跨节点 Browser Use：browser 单独授权、目标已有 Chromium 的回环 CDP、单控制连接、持久紧急停止、绑定目标的官方 MCP，以及共用 Web/Tauri 管理界面。操作与限制见 [Browser Use](browser-use.md)，最新回归及提交状态见下节。此前 Computer Use 功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送，对应 411 项自动化测试和 CI 矩阵最终 7/7 成功；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
+最新功能为独立的跨节点 Browser Use：browser 单独授权、目标已有 Chromium 的回环 CDP、单控制连接、持久紧急停止、绑定目标的官方 MCP，以及共用 Web/Tauri 管理界面。功能提交 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送。操作与限制见 [Browser Use](browser-use.md)，最新回归及提交状态见下节。此前 Computer Use 功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送，对应 411 项自动化测试和 CI 矩阵最终 7/7 成功；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
-交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；3c1a38d 的最新 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
+交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；此前 3c1a38d 的 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，本轮新包未实际安装，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
 ## 用户已经确定的方向
 
@@ -71,7 +71,17 @@
 
 最终检查确认没有残留测试节点、CDP 浏览器或官方 MCP 进程。日常 Web PID 538744、原生客户端 PID 767446、两者二进制摘要与客户端 NodeID 保持不变；容器 running / healthy，非 privileged、没有 Docker socket，3080/3031 两入口均为匿名 401、认证 200。测试没有部署到日常主服务，也没有覆盖日常客户端。
 
-新功能不等于所有需求已完成：浏览器共享没有域名/标签页隔离，不受桌面输入租约约束；系统依赖安装、提供者自动启动、跨物理设备、Windows/macOS、真实模型和新 Linux 安装包尚未验收。旧包的真实 Computer Use 及托盘证据仍只绑定下面各自提交。CI 状态待本次功能提交推送后按完整 headSha 核对。
+新功能不等于所有需求已完成：浏览器共享没有域名/标签页隔离，不受桌面输入租约约束；系统依赖安装、提供者自动启动、跨物理设备、Windows/macOS、真实模型和新 Linux 安装包尚未验收。旧包的真实 Computer Use 及托盘证据仍只绑定下面各自提交。
+
+功能提交为 9b7c0ab412528063d479b25af2a8be8024257582。首轮矩阵 39123660148 最终 failure，6/7 作业成功；Linux 完整 Web 125/125 通过，真实 Chromium/MCP 的功能断言完成，但清理阶段 Chromium 子进程继续写入临时 profile，导致 TemporaryDirectory 删除报 Directory not empty。该运行的后续 Linux 后端和发布步骤没有执行，不能计作通过；元数据与完整 Linux 日志保存在 ci-first.json、ci-first-linux.log。
+
+修复提交 286ec94059a58320f35d36b68896c2e405475fff 只修改真实浏览器测试：专用进程组、整组终止并等待非僵尸进程退出，再删除临时目录，不忽略清理错误。指定远端真实验收连续 3 次通过，日志 real-browser-cleanup.log；这是同一用例的稳定性复测，不增加 449 项不同测试的数量。复测后 final-health.json 再次确认日常服务与身份保持、无测试进程残留。
+
+**最终矩阵 39124347609 为 completed / success，7/7 作业成功**，已核对完整 headSha 为 286ec94059a58320f35d36b68896c2e405475fff。三平台原生检查、测试和发布构建，三平台 Tauri 安装包，以及独立真实 Sway/wayvnc 均通过；Linux 完整 Web、真实 Chromium/官方 MCP、后端回归、真实 X11 VNC、用户态 EasyTier、GIO 启动器与资源测量亦通过。对应 Release 39124347661、Sync to GitCode 39124347635 均 completed / success；main 分支 Release 不代表发布了完整产品镜像。CI 结果单列，不将重复用例累加到远端的 449 项。
+
+该运行提供十项 Artifacts：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。在 GitHub Actions 打开运行 39124347609，选择 cranibox-node-desktop-ubuntu-latest（.deb/AppImage）、cranibox-node-desktop-windows-latest（NSIS）或 cranibox-node-desktop-macos-latest（.dmg）；相同的 0.1.0 文件名不能用于区分提交。本轮没有安装这些新包，也没有升级日常服务。
+
+最终 CI 作业、步骤与十项产物元数据保存在本节证据目录的 ci-final.json；source-snapshot-final.json 记录功能、修复和最终文档提交，并逐一核对本地与远端全部 30 个变更文件的摘要一致；acceptance-final.json 汇总 449 项不同测试、清理复测与最终 CI。原始 acceptance.json、source-snapshot.json 和首轮失败证据保留，不覆盖历史结论。
 
 ### 此前收尾：Computer Use
 
@@ -285,21 +295,21 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 本轮 3c1a38d 的完整 CI 最终 7/7 通过，Linux .deb/AppImage 的真实 Computer Use、原生 IPC 与 MCP 已人工补验；较完整的托盘、自启与终端流程仍绑定此前 6396b93。最新包的正常桌面集成、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- 此前 3c1a38d 的完整 CI 最终 7/7 通过，Linux .deb/AppImage 的真实 Computer Use、原生 IPC 与 MCP 已人工补验；较完整的托盘、自启与终端流程仍绑定此前 6396b93。当前 Browser Use 已完成源码构建、真实 Chromium/MCP 与模拟 IPC 验证，尚未实际安装本次新包。最新包的正常桌面集成、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 3c1a38d 的 7 项 CI 通过，Linux 两包新增 Computer Use、真实原生 IPC/MCP 已补验，托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
+| P0 | 跨平台安装与产品镜像发布验收 | 当前 286ec94 的三平台 Tauri 安装包已由 CI 构建，但未实际安装。此前 3c1a38d 的 Linux 两包真实 Computer Use、原生 IPC/MCP 已补验，托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
 | P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；Computer Use 和 Browser Use 已有 Linux 真实提供者证据，继续新包、多物理设备、模型流程及 Windows/macOS 提供者，完善依赖引导 |
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
-| P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位本轮 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
+| P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位此前 3c1a38d 矩阵中的 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
 
 暂不需要为了节点身份等同引入选主；目前数据由所属节点持有，界面连接任一运行入口。若未来要复制协作协调状态，先定义故障与冲突模型，再决定是否需要一致性协议。
 
