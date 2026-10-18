@@ -2,6 +2,8 @@
 
 本次按用户要求使用 `admin@192.168.217.6:22022`，在远端 Docker 中启动独立验证容器，不使用本机图形桌面验证客户端。
 
+最新补验见[原生连接积压](#2026-10-19-补验原生连接积压)；功能与完整交接入口为[需求与测试状态](implementation-handoff-2026-10-18.md)。
+
 ## 部署
 
 | 项目 | 配置 |
@@ -964,3 +966,20 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 代码提交 2312b640d5a754d29e2d0269b1d3c2a6a0f74753 的矩阵 39151770009 最终 completed / success、7/7 成功，GitHub 更新时间 2026-10-18 18:18:49 UTC。三平台服务端/独立节点构建、三平台 Tauri 打包和原生 ACK 回归、Linux 完整 Web 126/126 与客户端界面 48/48 均通过；真实 Sway/wayvnc 为 1 项、4.291 秒，独立真实 Chromium/MCP 为 1 项、4.181 秒，真实 X11 VNC 为 1 项、3.558 秒，真实 EasyTier 步骤亦成功。不同环境的重跑不与前述 60 项累计。Release 39151770010、GitCode 39151769875 同为 completed / success，三份记录逐一核对完整 headSha；10 份未过期 Artifacts 已核对名称，包括三平台安装包。CI 成功不覆盖原生 KDE 剪贴板失败、Windows/macOS 实机、Tailnet 或产品镜像的验收缺口。
 
 最终 CI 元数据、作业步骤、产物清单及日志摘要在本节证据根目录的 ci-final.json；ci-native-ubuntu.log、ci-desktop-ubuntu.log、ci-wayland.log 保留对应完整日志。交接入口补充了 Web 静态资源生成与 Rust 嵌入构建命令，避免后续只运行 npm build 而验证到旧资源。此次只补充交接和 CI 证据，没有再次部署或启动产品进程。
+
+## 2026-10-19 补验：原生连接积压
+
+使用相同 2312b64 debug 客户端、原 KDE 桌面与日常 Selkies 8082，另建隔离 XDG 和私有 D-Bus；不经过诊断转发器，不改上游代码。真实 GUI 经 AT-SPI 连接桌面、展开剪贴板并请求文字。代码文件摘要与此前等待反馈构建一致，实际程序摘要保存在本节 acceptance.json。
+
+| 本次观察 | 结果与边界 |
+| --- | --- |
+| 原生反向获取 | 首段为 48 字节；目标改为 52 字节且 wl-paste 逐字节核对后，接收栏仍为 48 字节；超时提示、重试按钮和连接状态均可见 |
+| 独立上游读取 | 同次运行、未发送 SETTINGS 的另一个连接能够读到新 52 字节文字；可见窗口时两次成功记录在命令输出，upstream-read.json 仅保留收起后最后一次成功结果 |
+| 可见窗口时 TCP 队列 | Selkies 到原生连接的发送队列两次分别为 4,164,782 与 4,162,469 字节；对应客户端接收队列也有积压，样本见 stats-before-hide.json 和 stats-visible-new.json |
+| 上游进程采样 | 两次均未发现 wl-paste 子进程；分别处于运行/epoll 等待状态。不是完整线程追踪，不能据此排除其他上游阻塞 |
+| 收起对照 | 收起后后续 TCP 队列排空，但 AT-SPI 无法再读剪贴板字段；通过同一私有会话唤回时查看器已断开。因此不能称为恢复、有效性能对照或修复 |
+| 清理与健康 | 原剪贴板逐字节恢复并删除备份；测试 GUI/辅助进程退出，日常服务原 PID、摘要、NodeID 保持，容器健康、两入口匿名 401/认证 200 |
+
+这些观察支持优先检查画面吞吐、IPC ACK 和有序流中的控制消息排队；尚无每条消息的追踪，不能确定延迟在哪一层，也不能覆盖此前上游握手超时的记录。本次没有改产品、没有重跑自动化矩阵、不增加通过数量，原生反向剪贴板继续为 P0 未通过。不要直接以延长超时、降低固定帧率或另开一个控制连接代替定位和实机复验。
+
+私有证据为 /config/validation-artifacts/native-clipboard-layer-20261019：check.py、finalize.py、native-kde 下各次采样与 GUI/反馈/接收/清理记录，以及根目录 acceptance.json、final-health.json。健康检查在全部测试进程退出后执行；未替换日常程序、未重启 Selkies 或 KDE。Git 提交仅包含本节和交接文档，不包含剪贴板、截图或配置。

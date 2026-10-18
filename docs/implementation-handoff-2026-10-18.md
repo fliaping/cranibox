@@ -50,6 +50,14 @@
 
 ## 测试情况与可信范围
 
+### 2026-10-19 补验：原生连接存在画面数据积压
+
+继续使用 2312b64 的实际 Tauri debug 程序、隔离 XDG/私有 D-Bus和原 KDE 桌面，直接连接日常 Selkies 8082。目标新文字经 wl-paste 核对为 52 字节，原生接收栏仍为旧的 48 字节，获取超时但界面保持连接；同次运行的独立上游连接可读到新文字。两次可见窗口采样中，Selkies 向原生连接的 TCP 发送队列分别积压 4,164,782 和 4,162,469 字节，样本中未发现 wl-paste 子进程积压。
+
+这将排查重点进一步指向该连接的画面吞吐、Rust/Tauri IPC 和消息排队，**尚未证明哪一层是根因，也未证明某条剪贴板消息的实际延迟**。不能再把所有停滞归为上游无法读取剪贴板；此前上游握手超时的观察仍保留。收起到托盘后虽看到队列排空，但原生剪贴板字段无法访问，唤回时查看器已断开，不能计为恢复或有效性能对照。
+
+本次未修改产品代码、未重跑完整自动化，也未增加通过项。测试 GUI 和辅助进程已退出，原剪贴板逐字节恢复；日常 PID、二进制摘要、NodeID、端口认证及容器健康复核保持。私有证据为 /config/validation-artifacts/native-clipboard-layer-20261019，包含 acceptance.json、采样、清理和 final-health.json。下一步应测量实际画面字节率、IPC ACK 往返和控制消息顺序，再选择修复；不要直接通过延长超时或降低固定帧率宣布解决。
+
 ### 2026-10-19 收尾：剪贴板等待反馈
 
 本次修改 Web/Tauri 共用面板：获取期间禁用重复点击并显示忙碌状态；10 秒内未收到响应时显示可操作的错误，保留上次文字和桌面连接，允许重试。每条剪贴板事件使用独立序号，因此相同文字也能结束等待；空文字、无效内容、迟到响应及关闭面板的计时器清理都有回归覆盖。先前无效内容的提示不会遮住下一次请求的超时。Web 静态资源已重新生成，并重新嵌入 Rust 服务；没有新增依赖。
@@ -478,6 +486,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 最新剪贴板等待反馈的构建、48 项客户端与 Web 桌面回归、实际 KDE 超时和清理证据在 clipboard-feedback-20261019；此前剪贴板在 desktop-clipboard-20261018，Browser Use 在 browser-use-20261018，真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
+- 最新原生连接积压补验在 native-clipboard-layer-20261019；目标新文字与原生旧文字、独立上游读取、两次约 4 MiB TCP 队列、无效收起对照及最终清理分别记录。它补充排查线索，不改变剪贴板 P0 未通过状态。
 - 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 和 transport* 为各轮 debug 复查，direct 为绕过诊断转发器的对照，inspector 为有限解码计数及其清理，均不能当作 CI 安装包。ci-final-retry.json 和 ci-wayland-retry.log 保存 fa1d401 的最终绿色 CI；原生反向剪贴板仍为 P0。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 包、真实 Computer Use/Chromium、原生 Selkies、剪贴板发送通过及获取未通过的证据在 /config/validation-artifacts/linux-installer-a8a97f5；此前管理面板 IPC 在 linux-installer-3c1a38d，较完整托盘/自启等流程在 linux-installer-6396b93；更早包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
