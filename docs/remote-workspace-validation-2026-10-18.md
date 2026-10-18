@@ -778,3 +778,52 @@ GIO 启动的 AppImage 日志包含 EGL/Mesa 与缺少 GStreamer appsink 的环�
 主 Web PID 538744 未变；容器 running / healthy，原镜像 sha256:a2077e4276f3e6a51e1fa5b3a92b6ef72a3336e303e955fa8034b0ae1724a81b 未替换，privileged=false、无 Docker socket。远端实际绑定地址 192.168.217.6 的 3080/3031 均为未认证 401、认证 200；首次健康检查误用宿主回环地址导致连接拒绝，改用已有绑定地址后通过，未修改端口或服务配置。
 
 私有证据目录 /config/validation-artifacts/linux-installer-6396b93（0700），包含 acceptance.json（completed_with_documented_limits）、artifact.json、install.log/uninstall.log、两包复制配置/自启/托盘/单实例记录、mcp-acceptance.json 与六组原始输出、deb-pty-persist.json、gio-appimage-acceptance.json、restored.json、final-health.json，以及 16 份带摘要的截图。记录/截图 0600，AppImage 0700；私有桌面、环境和剪贴板不提交 Git。此项独立人工验收不增加历史自动化测试数量，最新代码的完整 CI 仍绑定 6396b93。
+
+## 3c1a38d Linux 包及真实 Computer Use 补验
+
+本节绑定 3c1a38d19c66d3b9050f3003705f47a5c7187ace、矩阵 39117202769，功能提交为 973f1c8。该矩阵最终 7/7 成功，首次 Wayland 失败与单项重跑的边界见[交接记录](implementation-handoff-2026-10-18.md#最新收尾computer-use)，没有因此宣称认证超时根因已修复。本节另补真实包和桌面验收，没有改产品代码、部署日常服务或重跑全部自动化矩阵；411 项不同自动化测试及四项忽略的数量维持原口径。
+
+### 包与运行隔离
+
+Artifact 12133315868（cranibox-node-desktop-ubuntu-latest）归档 95,907,899 字节，SHA-256 为 18753c2ce1ebb94c1ed9824966e2593291e5f99fddc0633f0a11701fbb293c98，与 GitHub 元数据和远端接收文件一致。
+
+| 文件 | 字节数 | SHA-256 | 实际执行 |
+| --- | --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,180,816 | 650d987b8d601728782ae52b607505631860a7994cbb606491a34c24c7065aba | dpkg 安装，release CLI、节点、MCP 与真实 GUI |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,366,136 | a1286262ffb37b1865af846eef3f76b66eea6bc941c49d4d6169e301234d9646 | --appimage-extract-and-run，无手动兼容环境变量，实际 GUI 与 MCP |
+
+.deb 的包管理名称是 cranibox-node，二进制为 /usr/bin/cranibox-node-desktop，安装后 SHA-256 为 38ed6b42d4b6fa8e5e3ad6c61a4e7c8e5adebbada64e380fb5cd870e3c0b9e63；AppImage 实际内部程序为 ab5c62ea6c0a144ce660f3d707eecd48da3675fdf94726a6db1078ff8b21259c。包版本仍为 0.1.0，应以运行号和摘要辨别代码。
+
+全部产品执行在 admin@192.168.217.6:22022 的 cranibox-validation，真实 KDE Wayland 图形会话及 Selkies PixelFlux 原生后端 8764。独立 Python bridge 使用私有状态和随机回环端口，不替换日常 bridge；两个节点身份和 XDG 目录独立于日常配置，目标 NodeID 为 node-244f1995638040ebad68513c24708915。没有重启合成器、Selkies 或日常客户端。
+
+Tauri 单实例插件按桌面 D-Bus 会话识别应用，即使 XDG 目录不同，普通第二次 GUI 启动也会唤回日常旧包。因此本轮使用 dbus-run-session 启动测试 GUI，并按隔离 XDG、实际 exe 和 PID 识别新包；保留原 DISPLAY、WAYLAND_DISPLAY 和 XDG_RUNTIME_DIR。私有会话没有正常 KDE 托盘集成，这一方法只证明可见窗口和真实 IPC，不是托盘、portal、登录自启或系统集成验收。
+
+### 真实桌面与 MCP
+
+使用实际安装的 .deb 启动调用方与目标身份，经独立 computer 授权、真实 Python bridge 访问 PixelFlux，不使用原生动作夹具：
+
+| 检查 | 结果 | 证据与边界 |
+| --- | --- | --- |
+| 真实截图 | 通过 | 1440×1050 PNG，实际保存并查看，含输入前后与 MCP 图片 |
+| 查找与聚焦窗口 | 通过 | 找到自建 kdialog 并聚焦；对话框使用 xcb，不能据此声称任意原生 Wayland 窗口管理可用 |
+| 控制权与真实输入 | 通过 | 无控制权输入拒绝；取得短期控制权后输入并发送 Return，kdialog 退出 0，实际 stdout 完整等于 cranibox-real-computer-use-3c1a38d-20261018 |
+| 目标绑定 MCP | 通过 | tools/list 仅暴露 device_computer，tools/call 返回真实 image/png 内容块 |
+| 紧急停止与重启 | 通过 | 旧控制权输入、新 acquire 均拒绝；目标节点重启仍暂停，本机 owner 明确恢复后可取得新控制权 |
+| 撤权 | 通过 | 接口拒绝请求，MCP tools/list 返回空列表 |
+| AppImage GUI 宿主与 MCP | 通过 | GUI 实际持有同一隔离节点；AppImage 自身以兼容参数启动 computer-mcp，从该节点取得真实 PNG；测试授权随后撤销 |
+
+这证明真实桌面后端和实际包能通过节点授权接口工作；两个身份在同一容器，未调用真实模型，不能视为多物理设备、真实 Tailnet 或模型 Agent 完成工作流。首轮真实输入已通过，随后验收辅助程序将 MCP 逐行 JSON 误当成单个 JSON，发生 JSONDecodeError；只修正辅助程序解析，完整重测通过。real-computer-attempt-1.json 保留原始失败，real-computer-acceptance.json 为最终结果。
+
+### 两包原生界面
+
+.deb 与 AppImage 均实际显示新的“Agent 桌面操作”区域，点击“检查桥接状态”得到“桌面桥接就绪”。分别点击紧急停止后，界面显示暂停及仅限本机恢复，peers.json 的 computer_paused 实际为 true；点恢复出现原生确认框，取消保持暂停，重新确认后字段变为 false。没有模拟 Tauri IPC；输入这些本机所有者操作使用原生 PixelFlux，独立于被暂停的 Agent bridge。
+
+两包重用相同隔离 NodeID，分别核对真实业务 PID 与可执行文件，而非仅检查 AppImage 运行时父进程。这轮不重新覆盖 6396b93 的托盘、自动启动项、单实例、完整终端和原有全部业务。普通 FUSE、系统登录/休眠、真实网关网络故障、Windows/macOS、跨设备模型工作流及公开产品镜像发布/拉取仍待验收。
+
+### 清理与最终状态
+
+测试 GUI、AppImage 运行时、bridge 与节点全部退出，测试端口 32991/57303 关闭。私有 D-Bus 所生成的四个 portal/keyring 辅助进程退出后仍存活，按隔离 XDG 和进程名核对并逐一终止；未操作日常会话的同名进程。第一次卸载误用了二进制名称 cranibox-node-desktop，dpkg 返回未安装警告；按包归属改用 cranibox-node 后实际卸载，原警告保存在 uninstall-attempt-1.log，最终确认 /usr/bin/cranibox-node-desktop 不存在。
+
+测试授权撤销、失效 Token 文件删除、无测试自启项，真实输入检查后剪贴板恢复、备份删除。此轮没有创建浏览器会话。日常主 Web PID 538744、客户端 PID 767446 始终保留，客户端 SHA-256 仍为 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510，NodeID 仍为 node-82bf96c6f15d4f00923656f7877b8609；没有部署新包到日常服务。
+
+最终容器 running / healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401、认证 200，没有本轮配置的残留进程。私有证据目录 /config/validation-artifacts/linux-installer-3c1a38d（0700）包含 acceptance.json、artifact.json、packages.json、real-computer-acceptance.json、两包 *-native-start.json、*-computer-ui.json、appimage-real-mcp.json、auxiliary-cleanup.json、final-health.json、安装/卸载日志和截图。文件保持 0600，AppImage 0700；桌面截图、凭据、剪贴板和环境不提交 Git。

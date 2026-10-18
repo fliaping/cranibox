@@ -4,7 +4,7 @@
 
 最新功能为下文的节点 Computer Use：独立授权、回环桥接适配、短期输入控制权、目标绑定 MCP，以及共用 Web/Tauri 管理界面。功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送；本轮 411 项不同自动化测试通过，3c1a38d 的 CI 矩阵最终 7/7 成功，初次失败与重跑边界见下文。此前功能提交 6396b93 修复 Linux AppImage 的 MCP 与登录启动项；Selkies 接入为 afaa137，Tailscale 安装引导为 b6ed81e。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
 
-交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，最新 6396b93 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
+交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；3c1a38d 的最新 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
 ## 用户已经确定的方向
 
@@ -31,7 +31,7 @@
 | EasyTier 与 Tailscale 同时使用 | EasyTier 固定版本安装、用户态网络、节点发现、端口转发、多个入网地址、短期邀请与丢响应恢复；系统 Tailscale 安装/启动方案审阅与确认、后台进度、官方登录、持续发现与授权连接 | Tailscale 是系统服务，不由节点长期托管；自动安装有平台前置条件，容器转宿主/已有服务指引；真实系统安装与 Tailnet 跨设备验收未完成 |
 | 同一设备多条路径 | 保存并排序显式路径，新连接按可用性选择，认证/身份错误不继续回退 | 已建立连接不无缝迁移；桌面直连与网关通道仍显式选择 |
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
-| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 最新 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
+| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。最新 3c1a38d 仅补验私有 D-Bus 下的窗口与 Computer Use IPC，未重验托盘。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
 | 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；目标桌面单独授权、单控制者、停止与撤权取消 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测屏幕捕获失败，Selkies 可用，见下文 |
@@ -42,7 +42,7 @@
 | 多 Agent 通信与任务 | 持久消息、线程回复、确认、离线投递、任务委托/领取/进度/问题/回复/结果/合作取消，CLI/MCP 与共享界面 | 不能由普通消息自动启动进程；同一容器中的独立身份验证不等于多台物理设备验收 |
 | Agent 会话与后台执行 | 主动登记/续期、汇总授权会话、定向委托；Codex/Claude Code 非交互适配、启动检查、持久输出与停止；可选独立执行 MCP | 模型调用与 CLI 登录未实测；不支持运行中追加交互输入、模型检查点恢复或进程迁移 |
 | 多设备协作与自动接单 | 持久协作 Run、任务汇总、统一停止、核对归档、最多八项前置任务；接收端可明确启用按可信发送方和固定目录的后台 worker | 默认关闭；不是通用复杂编排平台；人核对模式与显式自动提案模式分开，退出码不直接等于任务成功 |
-| 各节点 Agent 共享 Computer Use | 本轮新增独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连；12 项后端专项使用可控原生动作夹具，真实桌面与多设备模型调用待验收 |
+| 各节点 Agent 共享 Computer Use | 本轮新增独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连。12 项后端专项使用动作夹具；3c1a38d Linux CI 包另通过真实 KDE 截图、输入、MCP、重启保留停止和两包原生 IPC。多物理设备、模型调用及 Windows/macOS 提供者待验收 |
 | 各节点 Agent 共享 Browser Use | 容器保留现有浏览器集成，也可通过授权命令使用目标已有工具 | 尚无独立的跨节点 Browser Use 协议、授权与提供者；不能以 Computer Use、VNC 或 Shell 代替 |
 | agent-desktop-bridge 是否可删除 | 现有桥接继续保留，并作为本轮 Computer Use 的明确配置提供者；VNC 是桌面传输通道 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
 
@@ -56,7 +56,7 @@
 
 当前只接入现有 bridge 的回环 HTTP 服务，使用直连路由；不是 Windows/macOS 原生驱动，也没有实现 Browser Use 或旧网关转发。未知字段、远端恢复、任意目的 URL、持续按住输入均拒绝，输入失败不自动重发。详细操作、边界和源码见 [Computer Use](computer-use.md)。
 
-下表由本会话直接执行的构建与测试均在指定远端容器 cranibox-validation，使用隔离身份；后述 CI 在 GitHub 执行并单列。真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC，没有操作日常桌面或更新日常服务。
+下表由本会话直接执行的构建与测试均在指定远端容器 cranibox-validation，使用隔离身份；后述 CI 在 GitHub 执行并单列。表内真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC。后续真实桌面和原生安装包验收另列，不计入自动化数量。
 
 | 验证 | 结果 | 可信范围 |
 | --- | --- | --- |
@@ -76,9 +76,21 @@
 
 该矩阵首次 Wayland 作业在两个无效凭据用例后的合法 ARD 认证响应处发生 5 秒套接字超时；六个其他作业成功。整轮结束后仅重跑失败作业，第二次 Wayland 成功，未修改产品代码、跳过错误凭据用例或放宽超时。初次失败保留在 ci-attempt-1.json、ci-wayland-attempt-1.log，最终状态及十项产物元数据在 ci-final.json，成功日志为 ci-wayland-final.log；重跑成功不代表已定位或修复超时原因。通过 gh run view 39117202769 --repo fliaping/cranibox 查看。对应 Release 39117202772、Sync to GitCode 39117202930 也均 completed / success；main 的 Release 不代表发布了产品镜像。
 
-本轮 Artifacts 共十项：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。桌面分别提供 Linux .deb/AppImage、Windows NSIS 和 macOS .dmg；应按运行 39117202769 与提交 3c1a38d 下载，不能只按 0.1.0 文件名判断版本。这批新安装包已构建，尚未人工安装验收；下文 6396b93 的 Linux 实测只覆盖对应旧包。
+本轮 Artifacts 共十项：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。桌面分别提供 Linux .deb/AppImage、Windows NSIS 和 macOS .dmg；应按运行 39117202769 与提交 3c1a38d 下载，不能只按 0.1.0 文件名判断版本。Linux 两包已完成下述新增能力人工验收；Windows/macOS 尚未实机安装，下文 6396b93 的较完整 Linux 流程只覆盖对应旧包。
 
 资源报告 resource-baseline.json 也绑定 3c1a38d。在隔离 Linux CI 的四秒混合 HTTP 轮询与 SSE 场景中，合并服务端 RSS 约 17.4 MiB，独立节点约 10.3 MiB；网关与 Web 属于同一进程，不重复相加。六个相同测试服务的监督开销由 16628 KiB 降至 13136 KiB，降低约 21%，目前仍由 s6 配合 Rust 管理入口监督。以上不是日常空闲、完整 KDE/Agent/业务进程总内存或跨平台资源承诺。
+
+### 最新补验：3c1a38d Linux 包与真实 Computer Use
+
+下载运行 39117202769 的 Linux 桌面 Artifact 12133315868，归档及两包摘要均与元数据一致。实际安装 .deb，再以 --appimage-extract-and-run 运行同一产物的 AppImage；未设置手动兼容变量。两包使用同一隔离 NodeID，日常客户端始终运行。
+
+- .deb 的真实节点/桥接接入 KDE/Selkies PixelFlux，完成 1440×1050 截图、窗口查找/聚焦、短期控制权、文字与 Return；kdialog 实际输出与完整测试文字一致，MCP 返回真实 PNG。
+- 无控制权输入拒绝；紧急停止后旧输入与新控制权拒绝，节点重启仍暂停，本机明确恢复后重新取得控制权；撤权后接口拒绝且 MCP 工具列表为空。
+- 两包的可见 Tauri 窗口与真实 IPC 完成桥接状态、紧急停止、取消恢复与确认恢复，暂停字段实际写盘。AppImage 自身的 computer-mcp 从 AppImage GUI 宿主取得真实桌面截图。
+
+这轮是同一远端容器内的独立身份人工验收，不增加 411 项自动化数量，也不构成多物理设备或真实模型调用。GUI 为避免单实例插件唤回日常旧包，使用私有 D-Bus，会话中的 KDE 托盘不属于正常桌面集成；因此不重验或声称新包托盘、自启、旧版完整业务、普通 FUSE、登录/休眠与真实网络故障已通过。首轮脚本误将逐行 MCP JSON 当成一个 JSON，修正检查脚本后完整通过，未修改产品；原始失败记录保留。
+
+私有证据在 /config/validation-artifacts/linux-installer-3c1a38d，包括 acceptance.json、real-computer-acceptance.json、两包原生 IPC/MCP、摘要、清理及最终健康。测试 GUI、私有会话辅助进程与桥接已退出，.deb 卸载，测试授权撤销、失效 Token 文件删除、剪贴板恢复。日常 Web PID 538744、客户端 PID 767446、原摘要与身份保持，容器 healthy，3080/3031 仍为匿名 401 / 认证 200。包的完整摘要、限制和证据见[专项补验](remote-workspace-validation-2026-10-18.md#3c1a38d-linux-包及真实-computer-use-补验)。
 
 ### 此前补验：6396b93 Linux CI 安装包
 
@@ -250,18 +262,18 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 本轮 3c1a38d 的完整 CI 最终 7/7 通过，但对应新安装包尚未人工验收。此前 6396b93 的 Linux .deb/AppImage 原生、MCP 与启动修复补验通过；普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- 本轮 3c1a38d 的完整 CI 最终 7/7 通过，Linux .deb/AppImage 的真实 Computer Use、原生 IPC 与 MCP 已人工补验；较完整的托盘、自启与终端流程仍绑定此前 6396b93。最新包的正常桌面集成、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 3c1a38d 的 7 项 CI 通过，新包先补验新增 Computer Use 与已有流程；已有人工作证据的 Linux .deb/AppImage 仍为 6396b93。继续 Windows/macOS、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
+| P0 | 跨平台安装与产品镜像发布验收 | 3c1a38d 的 7 项 CI 通过，Linux 两包新增 Computer Use、真实原生 IPC/MCP 已补验，托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
-| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；补验已实现的 Computer Use 真实桌面/模型流程，并独立实现 Browser Use |
+| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；Computer Use 已有 Linux 真实桌面证据，继续多物理设备、模型流程与 Windows/macOS 提供者，并独立实现 Browser Use |
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
 | P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位本轮 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
@@ -303,7 +315,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
-- 最新 Linux 安装包证据在 /config/validation-artifacts/linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，原客户端恢复至 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。最新安装包已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项。
+- 最新 Linux 包与真实 Computer Use 证据在 /config/validation-artifacts/linux-installer-3c1a38d；较完整托盘/自启等流程在 linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
 - 完整镜像验证另留 cranibox-full-validation:71f2397 镜像、已停止的 cranibox-full-firstboot-71f2397 容器与 cranibox-validation-full-build-20261018 构建器缓存。证据在 /config/validation-artifacts/full-image-71f2397；首次启动环境文件含私有凭据，不要输出或提交。停止后的容器可能仍显示 unhealthy，应以 firstboot.json 中停止前健康检查及重启结果判断本次验收。
 - 其余候选设备：Windows/WSL2 192.168.217.226；macOS fliaping@192.168.217.85。macOS 当前拒绝现有 SSH 公钥，Windows 原生登录入口尚未提供；已请求可用账号、端口和密钥文件路径，尚未取得。不得把 WSL2 或 CI 代替原生交互验收，接手时先核对访问与图形登录环境。

@@ -6,7 +6,7 @@
 
 目标用户先配置一个回环 IP:port，再为指定调用方单独授予 computer。旧配置、旧授权和新授权表单均默认关闭；desktop、exec、terminals 不会隐式授予此能力。Web 配置的目标是 Web 服务所在设备，不是浏览器所在电脑。
 
-这条能力使用节点直连路由，可经已有 EasyTier/Tailscale 网络访问，暂不支持旧 Workspace 出站网关转发。Windows/macOS 没有随包提供原生桌面驱动；现有桥接的 Linux/Selkies 路线仍须在具体图形会话验证。VNC/桌面查看器与此接口是不同能力。
+这条能力使用节点直连路由，可经已有 EasyTier/Tailscale 网络访问，暂不支持旧 Workspace 出站网关转发。Windows/macOS 没有随包提供原生桌面驱动。Linux/Selkies 已在指定远端 KDE 图形会话通过下述真实动作验收，其他环境仍须单独验证。VNC/桌面查看器与此接口是不同能力。
 
 ## 配置与调用
 
@@ -79,4 +79,12 @@ cranibox-node peer call --node NODE_B computer-mcp
 
 专项 Python 集成共 12 项，启动真实 Rust 节点、实际 Python 桥接和真实 Web 后端；桌面原生动作使用可控 HTTP 夹具，不操作日常桌面。覆盖默认关闭、授权隔离、控制权竞争/到期/撤销、VNC 互斥、节点及桥接重启后暂停、桥接离线停止、慢查询期间停止、输入不重放、请求与 PNG 边界、目标绑定 MCP。另有 Web 专项 2 项及 Tauri IPC 专项 1 项，后者属于完整客户端界面套件。
 
-真实桌面动作、Windows/macOS 驱动、多台物理设备与模型调用尚未端到端验收。Browser Use、跨平台提供者安装、自动能力发现与公钥信任仍待实现。测试结果和交接入口见[功能与验证交接](implementation-handoff-2026-10-18.md)；原始日志保存在指定远端 /config/validation-artifacts/computer-use-20261018。
+随后使用提交 3c1a38d 的 Linux CI 包（运行 39117202769、Artifact 12133315868）完成真实 KDE/Selkies PixelFlux 验收，没有模拟底层动作：
+
+- 实际安装的 .deb 启动两个独立节点身份，经单独授权完成截图、窗口查找/聚焦、取得控制权、输入和 Return。原生 kdialog 的实际输出与完整测试文字一致。
+- 目标绑定 MCP 返回真实 1440×1050 PNG；无控制权输入被拒绝。紧急停止后旧输入和新控制权均被拒绝，节点重启仍暂停，本机明确恢复后重新取得控制权；撤权后调用失败且 MCP 工具列表为空。
+- .deb 与无 FUSE 兼容模式 AppImage 的真实 Tauri 窗口均完成状态检查、紧急停止、取消恢复和确认恢复；核对持久暂停字段，没有模拟 IPC。AppImage 自身运行的 MCP 还从 AppImage GUI 所宿主的节点取得真实截图。
+
+为保留日常客户端运行，两个测试 GUI 使用独立配置和私有 D-Bus 会话，因此本轮不覆盖 KDE 托盘、自启动、完整旧业务流程或实际登录/休眠。两种身份位于同一远端容器，不构成多台物理设备或真实模型验收。Windows/macOS 驱动仍未验收；Browser Use、跨平台提供者安装、自动能力发现与公钥信任仍待实现。
+
+本次人工验收不增加自动化测试数量，包、摘要、原始尝试与清理记录见[最新 Linux 包及真实 Computer Use 补验](remote-workspace-validation-2026-10-18.md#3c1a38d-linux-包及真实-computer-use-补验)。交接入口见[功能与验证交接](implementation-handoff-2026-10-18.md)；自动化证据位于指定远端 /config/validation-artifacts/computer-use-20261018，真实包与桌面证据位于 /config/validation-artifacts/linux-installer-3c1a38d。私有桌面截图不提交 Git。
