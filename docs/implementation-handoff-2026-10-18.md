@@ -4,7 +4,7 @@
 
 本次收尾补齐 Web/Tauri 共用剪贴板的读取中状态、10 秒未响应提示和重试；相同内容、空文字、迟到响应、无效内容及关闭面板均有相应处理。它改善失败反馈，**不代表原生 KDE 同屏反向剪贴板已修复**。本次代码 2312b64 的 CI 矩阵最终 7/7 成功，三平台安装包已上传；此前 fa1d401 的 Rust ACK/关闭/队列回归也在本次矩阵中通过。各版本的测试、真实桌面对照和限制见下文及[专项记录](remote-workspace-validation-2026-10-18.md)。操作说明见[跨设备桌面](remote-desktops.md#文字剪贴板)。
 
-最新补验已测量真实原生 IPC 吞吐和 ACK 等待，并分别试验有界合并、二进制 Channel 及二者组合。三个方案均未通过实际 KDE 验收，已全部撤回；没有把试验代码或额外测试数量计入最终实现。组合方案触发 JPEG 解码队列保护，后续须同时检查传输和解码压力，不能只增加吞吐。下节记录具体证据，剪贴板仍为 P0。
+最新补验已追踪三次真实原生请求：从 Rust IPC 收到 cr 到发往 Selkies 为 1–20 毫秒，但同一连接中的下一条剪贴板消息在约 21–30 秒后才被 Rust 读到。消息经 Rust 转交原生 Channel 又用时约 0.23–1.38 秒；未记录 JavaScript 接收与解码时刻。协议没有请求编号，且存在主动广播，不能把这些间隔称为每个请求的精确响应延迟。原生新文字仍未稳定更新，剪贴板继续为 P0；诊断改动已撤回。此前有界合并、二进制输出及组合也均未通过并已撤回，不重复当作修复。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。a8a97f5 的 Linux .deb/AppImage 已实际运行，真实 Computer Use、Chromium/MCP 和原生 Selkies 查看器补验通过；原生剪贴板发送通过，但反向获取未更新，作为未解决问题交接。完整托盘/自启流程仍绑定旧版 6396b93，Windows/macOS 桌面与安装仍待实机验收。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -51,6 +51,22 @@
 五项服务是 agent-desktop-bridge、deepseek-harness、openclaw-gateway、proxy-caddy、tailscaled-workspace。其监督方式迁移不代表业务健康：原记录中桌面桥接 health 为 503、Tailscale 为 NeedsLogin，均不能计作迁移修复。见 [Rust 服务与迁移记录](native-services-and-web.md)。
 
 ## 测试情况与可信范围
+
+### 2026-10-19 补验：控制消息分段追踪
+
+以 2312b64 为基线，只在指定远端的两个 Rust 文件临时加入时间戳，运行实际 KDE/Tauri 窗口、隔离 XDG 和私有 D-Bus，直接连接日常 Selkies 8082。记录请求进入 IPC、发往上游、上游文字被读到、文字完成排队和原生 Channel 输出，不记录画面或剪贴板正文。
+
+| 三次真实操作 | IPC 收到 cr → 上游发送完成 | 发送后至下一条剪贴板消息被 Rust 读到 | 消息被读到 → 原生 Channel 输出 |
+| --- | --- | --- | --- |
+| 初始获取 | 8 ms | 30.134 s | 226 ms |
+| 改为 54 字节新标记后获取 | 1 ms | 20.656 s | 408 ms |
+| 改为 52 字节新标记后获取 | 20 ms | 24.404 s | 1,377 ms |
+
+表中的剪贴板消息没有内容摘要或请求编号，可能是自动广播或较早的内容，不能逐条归属到本行请求。独立连接分别能读到当时的 48/54 字节标记；第三次真实界面先显示等待，随后 10 秒超时、恢复重试并保持连接，接收栏仍是旧 48 字节；约 89 秒后的末次检查为旧 54 字节，仍不等于目标 52 字节。不能用“收到过一条消息”代替新文字逐字节验收。
+
+采样仍有约 1.75–2.51 MiB 上游 TCP 发送积压。另只读核对了当前安装的 Selkies 源码：primary 视频通过 websockets.broadcast 发送，当前路径没有依据 backpressure_enabled 跳过慢客户端；辅助显示分支有此判断。这是当前容器版本的代码线索，不代表全部上游版本或已证明的单一根因。前端 JPEG 与文字仍共用顺序解码队列；本轮未追踪 JavaScript，不能推算它的排队时间。
+
+两个 Rust 文件已逐字节恢复；隔离 GUI/辅助进程退出，原剪贴板恢复并删除备份，未插桩的 TypeScript/Vite 和原生构建通过。日常服务身份、程序、健康和入口认证保持。没有新增产品修复或自动化通过项。私有证据为 /config/validation-artifacts/native-desktop-stages-20261019，详见[分段追踪记录](remote-workspace-validation-2026-10-18.md#2026-10-19-补验控制消息分段追踪)。
 
 ### 2026-10-19 补验：IPC 测量与已撤回方案
 
@@ -453,7 +469,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 原生 Selkies 反向剪贴板 | 保留 a8a97f5 .deb 失败、KDE 同屏停滞及代理轮次约 60 秒断线；独立 Xvfb 显示下六次更新、发送、复制和重连已通过真实 debug GUI 对照，不能覆盖原失败。最新面板已实际显示超时并保留旧文字；隔离 Selkies 黑屏对照无结论。已测 IPC 吞吐与 ACK 等待，有界合并、二进制输出及组合均未通过并已撤回，组合另触发解码队列保护。继续追踪上游生产、IPC 消费、JPEG 解码及控制消息顺序，比较正常桌面和另一物理设备；修复后以实际 Tauri 包稳定验证双向中文/emoji/多行、断开清空和错误状态，不能只补模拟 IPC 断言 |
+| P0 | 原生 Selkies 反向剪贴板 | 保留 .deb/KDE 同屏失败和独立 Xvfb 有限通过的对照。最新分段追踪说明三次 cr 在进入 Rust 后很快发往上游，下一条文字消息仍间隔 21–30 秒；没有逐条内容对应和 JavaScript 时间戳。下一步为自有标记记录长度及私有摘要，贯通上游读取、原生 Channel、JS 接收和 JPEG 队列；核对当前上游 primary 广播与背压行为，再设计有界降载。此前三个传输方案已撤回，不能重复当作修复。最终须在实际 Tauri 包、正常桌面及另一物理设备稳定验证连续双向中文/emoji/多行、断开清空和错误状态 |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
 | P0 | 跨平台安装与产品镜像发布验收 | a8a97f5 三平台包由 CI 构建，Linux 两包已运行并补验桌面/MCP，反向剪贴板缺口见上。托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
@@ -505,7 +521,8 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 最新剪贴板等待反馈的构建、48 项客户端与 Web 桌面回归、实际 KDE 超时和清理证据在 clipboard-feedback-20261019；此前剪贴板在 desktop-clipboard-20261018，Browser Use 在 browser-use-20261018，真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
-- 最新 IPC/ACK 诊断汇总在 native-desktop-transport-trials-20261019，四轮原始记录在相邻的 native-desktop-{throughput,batching,binary,coalesced}-20261019。acceptance.json 确认产品源码恢复、未插桩构建成功、四轮隔离进程退出和日常健康；三个方案均未通过，诊断改动未进入最终代码。
+- 最新控制消息分段追踪在 native-desktop-stages-20261019：stage-final.json 保存三次 Rust 时间戳，third-observation.json 保存实际等待/超时和旧文字检查；build-instrumented 与 build-final 分别绑定诊断和恢复后的源码摘要，不能混用。acceptance.json、cleanup.json 和 final-health.json 记录恢复及日常健康；诊断改动未进入产品代码。
+- 此前 IPC/ACK 诊断汇总在 native-desktop-transport-trials-20261019，四轮原始记录在相邻的 native-desktop-{throughput,batching,binary,coalesced}-20261019。acceptance.json 确认产品源码恢复、未插桩构建成功、四轮隔离进程退出和日常健康；三个方案均未通过，诊断改动未进入最终代码。
 - 此前原生连接积压补验在 native-clipboard-layer-20261019；目标新文字与原生旧文字、独立上游读取、两次约 4 MiB TCP 队列、无效收起对照及最终清理分别记录。它补充排查线索，不改变剪贴板 P0 未通过状态。
 - 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 和 transport* 为各轮 debug 复查，direct 为绕过诊断转发器的对照，inspector 为有限解码计数及其清理，均不能当作 CI 安装包。ci-final-retry.json 和 ci-wayland-retry.log 保存 fa1d401 的最终绿色 CI；原生反向剪贴板仍为 P0。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
@@ -559,4 +576,4 @@ cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
 
 Web 的 npm run build --prefix addons/control-center/ui 只生成 ui/dist；上面的脚本还会把附有许可证声明的 web.js，以及 web.css 和两份 HTML 写入 addons/control-center，Rust 服务嵌入的是这些文件。修改 Web 或共用 React 组件后必须运行该脚本并重新构建 cranibox，否则可能验证到旧页面。本轮最终 Web 12 项已使用重新生成的资源。直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新 IPC 测量与已撤回方案、等待反馈、fa1d401 传输收尾、Linux 包补验、对应代码提交的 CI 与本表 P0，从反向剪贴板更新停滞开始。区分诊断代理引入的断线与真实产品连接，也保留解码队列保护的实际错误，不直接重复已撤回试验。剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型先看本文需求表、最新控制消息分段追踪及 P0，再查 IPC 撤回方案、等待反馈、Linux 包和对应代码 CI。优先完成反向剪贴板这一日常流程；区分代理引入的断线、队列保护错误、旧文字迟到和真正新内容，不直接重复已撤回试验。剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档不重跑路径过滤矩阵；修改产品代码后重新按提交复核，不能用旧绿色结果或模拟 IPC 代替真实窗口验收。

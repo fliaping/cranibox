@@ -1000,3 +1000,37 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 所有产品源码与未验收的测试改动已逐字节恢复到仓库版本，未计入任何新增自动化通过项。远端重新完成客户端 TypeScript/Vite 及未插桩 desktop,custom-protocol debug 构建；恢复后的 desktops.rs 摘要为 f87322338256064ea187e1559ae1d7f34c182bb8e5bad82ce1e73ed6a0b88848，程序摘要为 8a9682473193a9c638a0db30b6ca560bb192557f7c1a44a769c9d77b1c52faf8。产品 CI 仍绑定 2312b64，不能将诊断构建写成通过的正式安装包。
 
 汇总证据根目录 /config/validation-artifacts/native-desktop-transport-trials-20261019：acceptance.json 状态 diagnostic_trials_reverted_no_product_fix；expected-source.json 逐一核对六项关键源码，build-final.json/log 记录恢复构建，final-health.json 记录日常服务。四轮测试 GUI/辅助进程均已停止，隔离 XDG 无存活进程；每轮原剪贴板逐字节恢复并删除备份。容器健康、原日常 PID/程序摘要/NodeID 与两入口匿名 401、认证 200 保持，未替换或升级日常程序。本次仅提交文档；私有辅助工具、日志、截图、文字和配置均不提交 Git。
+
+## 2026-10-19 补验：控制消息分段追踪
+
+以 2312b64 为基线，在指定远端临时插桩 desktops.rs 与 peers/desktop/selkies.rs，只输出阶段名称和毫秒时间戳，不改变字节、队列、协议或时限，不记录画面和剪贴板正文。客户端 TypeScript/Vite 与 desktop,custom-protocol 构建通过后，运行实际 KDE/Tauri GUI，使用隔离 XDG、私有 D-Bus、AT-SPI 操作，直接连接日常 Selkies 8082。没有协议代理、模拟 IPC 或上游服务重启。
+
+| 阶段标记 | 位置和含义 |
+| --- | --- |
+| native_cr_ipc_received | desktop_input 解码输入块后发现完整的 cr 帧；不包括此前浏览器排队和 Tauri 调用耗时 |
+| selkies_cr_before_send / selkies_cr_sent | 运行时向上游发送 cr 的前后 |
+| selkies_clipboard_received / selkies_clipboard_forwarded | 运行时读到 clipboard 文字消息、将其全部分块放入有界输出队列之后 |
+| native_clipboard_ipc_output | 原生转发器将含 clipboard 前缀的块交给 Tauri Channel 之前；不是 JS 接收或解码完成 |
+
+三次操作的原始事件共 18 条，使用同一进程的系统时间。没有消息编号或正文摘要；以下只按事件顺序报告区间，**不能认定下一条 clipboard 就是该行请求对应的新文字**，因为 Selkies 同时主动广播、独立读取也可能引发广播。
+
+| 操作 | native_cr_ipc_received | cr 发出至下一条 clipboard 被 Rust 读到 | Rust 读到至 native_clipboard_ipc_output | IPC 收到 cr 至发送完成 |
+| --- | --- | --- | --- | --- |
+| 初始获取，目标 48 字节 | 1792350768167 ms | 30.134 s | 226 ms | 8 ms |
+| 更换为 54 字节新标记后获取 | 1792350873784 ms | 20.656 s | 408 ms | 1 ms |
+| 更换为 52 字节新标记后获取 | 1792350984533 ms | 24.404 s | 1,377 ms | 20 ms |
+
+初始接收栏后来逐字节匹配 48 字节标记。独立上游连接没有发送 SETTINGS，分别成功读取当时的 48/54 字节内容。第二次新标记没有稳定显示；第三次由脚本连续操作，先确认实际忙碌、按钮不可重复点击，随后确认 10 秒超时、重试恢复、连接仍在，目标为 52 字节时接收栏仍是旧 48 字节。末次检查距第三次 Rust 接收请求约 89 秒，栏内为旧 54 字节，仍不匹配当前目标。等待反馈通过，新文字持续更新未通过；不能把迟到的旧内容当作成功。
+
+三次进程/TCP 采样中，匹配该连接的 Selkies 发送队列约为 2,627,141、1,981,932、1,836,278 字节；客户端接收端亦有积压。这支持继续检查该连接的视频生产与消费，不能独自证明所有延迟由网络、Tauri 或 JPEG 解码中的一层造成。本轮没有记录 JavaScript 到达或 createImageBitmap 时间，也没有把消息内容逐条对应到标记；下一位维护者应补齐这些关联，不能把表中区间换算为每个请求的精确响应延迟。
+
+另外只读核对容器实际安装的 Selkies：包元数据版本为 0.0.0，故以源码摘要标识具体副本。selkies.py 的 primary 分支通过 websockets.broadcast 向所有 primary 查看者发送视频，虽然更新背压统计，但此路径没有依据 backpressure_enabled 跳过发送；辅助显示分支存在该判断。input_handler.py 的 cr 则调用 read_clipboard，再广播结果。这是该副本的源代码事实，未通过修改上游证明因果，不应泛化为所有 Selkies 版本。
+
+| 上游文件（/lsiopy/lib/python3.14/site-packages/selkies 下） | SHA-256 |
+| --- | --- |
+| selkies.py | a03a812ca68ebc6f200c32b79e8e5f238c5796629173ff776a6971ce1174ecb4 |
+| input_handler.py | 00fb38a48c0249d54d1bae0e27d093b5aeab62a49ea8542e21edfc4e86a76779 |
+
+本轮插桩只在远端构建源码中临时使用，两个 Rust 文件已逐字节恢复为原始源码；恢复后客户端 TypeScript/Vite 及未插桩 desktop,custom-protocol 构建通过。没有修改产品实现、增加测试或重跑自动化矩阵，产品 CI 仍对应 2312b64。实际 GUI 与私有会话辅助进程已停止，原剪贴板逐字节恢复并删除备份；日常 Web/客户端原 PID、程序摘要、NodeID 保持，容器 healthy、非 privileged、无 Docker socket，3080/3031 均匿名 401、认证 200。
+
+私有证据根目录 /config/validation-artifacts/native-desktop-stages-20261019：stage-final.json 为原始时间戳；third-observation.json 为第三次真实操作与反馈；native-kde 包含 GUI 元数据、各次采样、独立读取及 cleanup.json；build-instrumented.json/log 与 build-final.json/log 分别记录诊断和恢复构建，gui.json 指向前者；source-restored.json、acceptance.json 和 final-health.json 记录逐字节恢复与最终健康。原始日志、标记、配置、凭据和辅助脚本不随 Git 提交。交接入口需求表及 P0 已同步此结论，下一轮应从这些证据继续，不重做已撤回的三个传输试验。
