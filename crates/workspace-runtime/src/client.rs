@@ -271,6 +271,29 @@ impl Api {
         }
         crate::peers::desktop::Stream::connect_request(request).await
     }
+    /// Browser CDP is only available on an explicitly bound direct target.
+    pub async fn browser(&self, node: &str) -> Result<crate::peers::browser::Socket> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        anyhow::ensure!(
+            self.target.as_deref() == Some(node),
+            "browser target mismatch"
+        );
+        let endpoint = self.select_endpoint().await?;
+        let mut url = config::check_url(&endpoint.url, false, endpoint.allow_insecure)?;
+        let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
+        url.set_scheme(scheme)
+            .map_err(|_| anyhow::anyhow!("invalid browser URL"))?;
+        url.set_path(&format!("/api/v1/mesh/nodes/{node}/browser/ws"));
+        let mut request = url.as_str().into_client_request()?;
+        request.headers_mut().insert(
+            "authorization",
+            format!("Bearer {}", self.token(endpoint)?).parse()?,
+        );
+        request
+            .headers_mut()
+            .insert("x-cranibox-target", node.parse()?);
+        crate::peers::browser::connect(request).await
+    }
     async fn request(
         &self,
         method: reqwest::Method,

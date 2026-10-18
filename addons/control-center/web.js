@@ -40262,8 +40262,73 @@ function RS({ children: e }) {
 	});
 }
 //#endregion
+//#region src/devices/BrowserTargetPanel.tsx
+function zS({ client: e, node: t, language: n }) {
+	let r = (e, t) => n.startsWith("zh") ? e : t, [i, a] = (0, x.useState)(!1), [o, s] = (0, x.useState)(!1), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(), f = (0, x.useRef)(0), p = (0, x.useRef)(!0);
+	(0, x.useEffect)(() => (p.current = !0, () => {
+		p.current = !1, ++f.current;
+	}), []);
+	async function m(n) {
+		let i = ++f.current;
+		l(""), n === "status" ? a(!0) : s(!0);
+		try {
+			let a = await e({
+				operation: "browser",
+				node: t,
+				command: { operation: n }
+			});
+			if (a.node !== t) throw Error(r("响应设备身份不匹配。", "Response device identity does not match."));
+			p.current && i === f.current && d(a.result);
+		} catch (e) {
+			p.current && i === f.current && l(e instanceof Error ? e.message : String(e));
+		} finally {
+			p.current && (n === "status" ? a(!1) : s(!1));
+		}
+	}
+	return /* @__PURE__ */ (0, z.jsxs)("section", {
+		className: "direct-grant-form",
+		"aria-label": r("目标浏览器", "Target browser"),
+		children: [
+			/* @__PURE__ */ (0, z.jsx)("h4", { children: r("目标浏览器", "Target browser") }),
+			/* @__PURE__ */ (0, z.jsx)("p", {
+				className: "direct-note",
+				children: r("Agent 在调用设备运行以下 MCP 命令，使用已保存的直连凭据操作目标浏览器。网页只提供状态和停止控制。", "Run this MCP command on the calling device to control the target browser using its saved direct credential. This page provides status and emergency stop.")
+			}),
+			/* @__PURE__ */ (0, z.jsxs)("code", {
+				className: "browser-command",
+				children: [
+					"cranibox-node peer call --node ",
+					t,
+					" browser-mcp"
+				]
+			}),
+			/* @__PURE__ */ (0, z.jsx)("p", {
+				role: "status",
+				children: u ? u.paused ? r("已停止，请在目标设备恢复。", "Stopped. Resume on the target device.") : u.backend_available ? u.control_busy ? r("浏览器正在被远程控制。", "Browser has a remote controller.") : r("目标浏览器就绪。", "Target browser ready.") : r("目标浏览器不可用。", "Target browser unavailable.") : r("尚未检查目标浏览器。", "Target browser not checked.")
+			}),
+			/* @__PURE__ */ (0, z.jsxs)("div", {
+				className: "direct-actions",
+				children: [/* @__PURE__ */ (0, z.jsx)("button", {
+					disabled: i || o,
+					onClick: () => void m("status"),
+					children: i ? r("检查中…", "Checking…") : r("检查目标浏览器", "Check target browser")
+				}), /* @__PURE__ */ (0, z.jsx)("button", {
+					disabled: o,
+					onClick: () => void m("emergency_stop"),
+					children: o ? r("正在停止…", "Stopping…") : r("停止目标浏览器操作", "Stop target browser control")
+				})]
+			}),
+			c && /* @__PURE__ */ (0, z.jsx)("p", {
+				role: "alert",
+				className: "direct-error",
+				children: c
+			})
+		]
+	});
+}
+//#endregion
 //#region src/devices/DirectListenerPanel.tsx
-function zS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function BS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = t.listener_runtime, [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!1), v = (0, x.useRef)(null), y = (0, x.useRef)(null), b = (0, x.useRef)(!0), S = (0, x.useId)(), C = (0, x.useId)(), w = (0, x.useId)();
 	(0, x.useEffect)(() => (b.current = !0, () => {
 		b.current = !1;
@@ -40412,8 +40477,161 @@ function zS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 	});
 }
 //#endregion
+//#region src/devices/BrowserSharingPanel.tsx
+function VS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, x.useId)(), c = t.browser?.address || "", [l, u] = (0, x.useState)(c), [d, f] = (0, x.useState)(), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(""), y = (0, x.useRef)(0), b = (0, x.useRef)(!0);
+	(0, x.useEffect)(() => (b.current = !0, () => {
+		b.current = !1, ++y.current;
+	}), []), (0, x.useEffect)(() => {
+		++y.current, u(c), f(void 0);
+	}, [c]);
+	async function S(t) {
+		let n = ++y.current;
+		await i(async () => {
+			let r = await e({
+				operation: "browser_owner",
+				command: { action: t }
+			});
+			if (!b.current || n !== y.current) return;
+			f(r);
+			let i = await e({ operation: "list" });
+			b.current && n === y.current && a(i);
+		});
+	}
+	async function C() {
+		let t = ++y.current;
+		g(!0), v("");
+		try {
+			let n = await e({
+				operation: "browser_owner",
+				command: { action: "emergency_stop" }
+			});
+			if (b.current && t === y.current) {
+				f(n);
+				let r = await e({ operation: "list" });
+				b.current && t === y.current && a(r);
+			}
+		} catch (e) {
+			b.current && v(e instanceof Error ? e.message : String(e));
+		} finally {
+			b.current && g(!1);
+		}
+	}
+	let w = t.browser_paused || d?.paused;
+	return /* @__PURE__ */ (0, z.jsxs)("details", {
+		className: "direct-grant-form browser-sharing",
+		open: c ? !0 : void 0,
+		children: [/* @__PURE__ */ (0, z.jsxs)("summary", { children: [
+			/* @__PURE__ */ (0, z.jsx)(Je, {
+				size: 18,
+				"aria-hidden": "true"
+			}),
+			" ",
+			o("Agent 浏览器操作", "Agent Browser Use")
+		] }), /* @__PURE__ */ (0, z.jsxs)("div", {
+			role: "region",
+			"aria-label": o("Agent 浏览器操作", "Agent Browser Use"),
+			children: [
+				/* @__PURE__ */ (0, z.jsx)("p", {
+					className: "direct-note",
+					children: o("共享当前接入端所在设备的 Chromium 浏览器。浏览器网页所在的设备可能与接入端不同。", "Share a Chromium browser on this access point’s device. This may differ from the device displaying this page.")
+				}),
+				/* @__PURE__ */ (0, z.jsxs)("form", {
+					onSubmit: (t) => {
+						t.preventDefault();
+						let n = ++y.current;
+						m(!1), i(async () => {
+							let t = await e({
+								operation: "browser_sharing",
+								browser: l.trim() ? { address: l.trim() } : null
+							});
+							b.current && n === y.current && (a(t), f(void 0), m(!0));
+						});
+					},
+					children: [
+						/* @__PURE__ */ (0, z.jsx)("label", {
+							htmlFor: s,
+							children: o("本机 Chromium CDP 地址", "Local Chromium CDP address")
+						}),
+						/* @__PURE__ */ (0, z.jsx)("input", {
+							id: s,
+							"aria-describedby": s + "-hint",
+							placeholder: "127.0.0.1:9222",
+							value: l,
+							disabled: r,
+							maxLength: 64,
+							autoComplete: "off",
+							spellCheck: !1,
+							onChange: (e) => {
+								u(e.target.value), m(!1);
+							}
+						}),
+						/* @__PURE__ */ (0, z.jsx)("p", {
+							id: s + "-hint",
+							className: "direct-note",
+							children: o("先在此设备启动支持远程调试的 Chromium 浏览器。仅接受回环 IP 和端口；留空关闭共享。每个调用方还需要独立的浏览器操作授权。", "Start a Chromium browser with remote debugging on this device first. Loopback IP and port only; leave empty to disable sharing. Each caller also needs a separate Browser Use grant.")
+						}),
+						/* @__PURE__ */ (0, z.jsx)("button", {
+							type: "submit",
+							disabled: r || l.trim() === c,
+							children: r ? o("处理中…", "Working…") : o("保存浏览器共享", "Save browser sharing")
+						})
+					]
+				}),
+				p && /* @__PURE__ */ (0, z.jsx)("p", {
+					role: "status",
+					children: c ? o("浏览器共享已保存。", "Browser sharing saved.") : o("浏览器共享已关闭。", "Browser sharing disabled.")
+				}),
+				c && /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
+					/* @__PURE__ */ (0, z.jsx)("p", {
+						role: "status",
+						children: w ? o("已紧急停止。只能在此设备恢复浏览器共享。", "Emergency stop active. Browser sharing can only be resumed on this device.") : d ? d.backend_available ? o("浏览器已就绪：", "Browser ready: ") + (d.browser?.version || "Chromium") : o("浏览器不可用，请检查远程调试设置。", "Browser unavailable. Check remote debugging settings.") : o("尚未检查浏览器状态。", "Browser status not checked.")
+					}),
+					/* @__PURE__ */ (0, z.jsxs)("div", {
+						className: "direct-actions",
+						children: [
+							/* @__PURE__ */ (0, z.jsxs)("button", {
+								disabled: r || h,
+								onClick: () => void S("status"),
+								children: [/* @__PURE__ */ (0, z.jsx)(nn, {
+									size: 16,
+									"aria-hidden": "true"
+								}), o("检查浏览器状态", "Check browser status")]
+							}),
+							/* @__PURE__ */ (0, z.jsxs)("button", {
+								disabled: h,
+								onClick: () => void C(),
+								children: [/* @__PURE__ */ (0, z.jsx)(Wt, {
+									size: 16,
+									"aria-hidden": "true"
+								}), h ? o("正在停止…", "Stopping…") : o("紧急停止浏览器操作", "Stop browser control")]
+							}),
+							w && /* @__PURE__ */ (0, z.jsx)("button", {
+								disabled: r || h,
+								onClick: () => {
+									confirm(o("恢复浏览器共享？已授权 Agent 将可以重新连接并操作全部标签页。", "Resume browser sharing? Authorized Agents will be able to reconnect and control all tabs.")) && S("resume");
+								},
+								children: o("在此设备恢复浏览器共享", "Resume browser sharing on this device")
+							})
+						]
+					}),
+					/* @__PURE__ */ (0, z.jsx)("p", {
+						className: "direct-note",
+						children: o("每次仅允许一个远程控制连接。紧急停止会断开连接并保留到明确恢复；已发送给浏览器的操作无法撤回，也不会自动重试。", "One remote controller at a time. Emergency stop disconnects it and persists until explicitly resumed. Actions already sent to the browser cannot be recalled and are never automatically replayed.")
+					})
+				] }),
+				_ && /* @__PURE__ */ (0, z.jsx)("p", {
+					className: "direct-error",
+					role: "alert",
+					children: _
+				})
+			]
+		})]
+	});
+}
+//#endregion
 //#region src/devices/ComputerSharingPanel.tsx
-function BS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, x.useId)(), c = t.computer?.address || "", [l, u] = (0, x.useState)(c), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)("");
 	(0, x.useEffect)(() => {
 		u(c), m(void 0);
@@ -40545,7 +40763,7 @@ function BS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/ProjectCopyRootPanel.tsx
-function VS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function US({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, x.useId)(), [c, l] = (0, x.useState)(t.copy_root || ""), [u, d] = (0, x.useState)(!1);
 	return (0, x.useEffect)(() => {
 		l(t.copy_root || "");
@@ -40596,19 +40814,19 @@ function VS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/DirectAccessPanel.tsx
-function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
-	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)(""), M = (0, x.useRef)(null), N = (0, x.useRef)(null), ee = (0, x.useRef)(null), P = (0, x.useRef)(null), F = (0, x.useRef)(!0), te = (0, x.useRef)(0), ne = (0, x.useId)(), I = (0, x.useId)();
-	(0, x.useEffect)(() => (F.current = !0, () => {
-		F.current = !1, te.current++;
+function WS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(), [A, j] = (0, x.useState)(!1), [M, N] = (0, x.useState)(""), ee = (0, x.useRef)(null), P = (0, x.useRef)(null), F = (0, x.useRef)(null), te = (0, x.useRef)(null), ne = (0, x.useRef)(!0), I = (0, x.useRef)(0), re = (0, x.useId)(), L = (0, x.useId)();
+	(0, x.useEffect)(() => (ne.current = !0, () => {
+		ne.current = !1, I.current++;
 	}), []), (0, x.useEffect)(() => {
-		s && ee.current?.focus();
+		s && F.current?.focus();
 	}, [s]), (0, x.useEffect)(() => {
-		E ? M.current?.showModal() : M.current?.close();
-	}, [E]);
-	function re() {
-		te.current++, D(void 0), k(!1), j(""), requestAnimationFrame(() => P.current?.focus());
+		O ? ee.current?.showModal() : ee.current?.close();
+	}, [O]);
+	function ie() {
+		I.current++, k(void 0), j(!1), N(""), requestAnimationFrame(() => te.current?.focus());
 	}
-	async function L(t) {
+	async function ae(t) {
 		t.preventDefault(), await i(async () => {
 			let t = await e({
 				operation: "grant",
@@ -40616,26 +40834,27 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 				permissions: {
 					exec: d,
 					terminals: p,
-					projects: S,
-					desktop: w,
+					projects: w,
+					desktop: E,
 					computer: y,
+					browser: S,
 					messages: h,
 					spaces: _
 				}
 			});
-			F.current && (a(t.catalog), c(!1), u(""), f(!1), m(!1), C(!1), T(!1), b(!1), g(!1), v(!1), k(!1), j(""), te.current++, D({
+			ne.current && (a(t.catalog), c(!1), u(""), f(!1), m(!1), T(!1), D(!1), b(!1), C(!1), g(!1), v(!1), j(!1), N(""), I.current++, k({
 				node: t.node,
 				token: t.token
 			}));
 		});
 	}
-	async function ie() {
-		if (!E) return;
-		let e = te.current;
+	async function oe() {
+		if (!O) return;
+		let e = I.current;
 		try {
-			await navigator.clipboard.writeText(E.token), F.current && e === te.current && (k(!0), j(""));
+			await navigator.clipboard.writeText(O.token), ne.current && e === I.current && (j(!0), N(""));
 		} catch {
-			F.current && e === te.current && (N.current?.focus(), N.current?.select(), j(o("无法自动复制。Token 已选中，请手动复制。", "Automatic copy unavailable. The token is selected for manual copying.")));
+			ne.current && e === I.current && (P.current?.focus(), P.current?.select(), N(o("无法自动复制。Token 已选中，请手动复制。", "Automatic copy unavailable. The token is selected for manual copying.")));
 		}
 	}
 	return /* @__PURE__ */ (0, z.jsxs)("section", {
@@ -40648,10 +40867,10 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					size: 18,
 					"aria-hidden": "true"
 				}), o("入站授权", "Incoming access")] }), /* @__PURE__ */ (0, z.jsx)("p", { children: o("决定哪些设备可以访问此接入端。出站连接和入站授权分别管理。", "Choose which devices may access this endpoint. Incoming grants are managed separately from outbound connections.") })] }), /* @__PURE__ */ (0, z.jsxs)("button", {
-					ref: P,
+					ref: te,
 					disabled: r,
 					onClick: () => {
-						c((e) => !e), u(""), f(!1), m(!1), C(!1), T(!1), b(!1), g(!1), v(!1);
+						c((e) => !e), u(""), f(!1), m(!1), T(!1), D(!1), b(!1), C(!1), g(!1), v(!1);
 					},
 					children: [s ? /* @__PURE__ */ (0, z.jsx)(Vn, {
 						size: 16,
@@ -40662,7 +40881,23 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					}), s ? o("收起授权表单", "Close grant form") : o("授权设备", "Grant device access")]
 				})]
 			}),
-			/* @__PURE__ */ (0, z.jsx)(zS, {
+			/* @__PURE__ */ (0, z.jsx)(BS, {
+				client: e,
+				catalog: t,
+				language: n,
+				busy: r,
+				run: i,
+				onCatalog: a
+			}),
+			/* @__PURE__ */ (0, z.jsx)(US, {
+				client: e,
+				catalog: t,
+				language: n,
+				busy: r,
+				run: i,
+				onCatalog: a
+			}),
+			/* @__PURE__ */ (0, z.jsx)(HS, {
 				client: e,
 				catalog: t,
 				language: n,
@@ -40678,22 +40913,14 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 				run: i,
 				onCatalog: a
 			}),
-			/* @__PURE__ */ (0, z.jsx)(BS, {
-				client: e,
-				catalog: t,
-				language: n,
-				busy: r,
-				run: i,
-				onCatalog: a
-			}),
 			s && /* @__PURE__ */ (0, z.jsxs)("form", {
 				className: "direct-grant-form",
-				onSubmit: L,
+				onSubmit: ae,
 				children: [
 					/* @__PURE__ */ (0, z.jsxs)("label", { children: [
 						o("被授权设备 ID", "Caller node ID"),
 						/* @__PURE__ */ (0, z.jsx)("input", {
-							ref: ee,
+							ref: F,
 							required: !0,
 							pattern: "[A-Za-z0-9_-]{1,64}",
 							maxLength: 64,
@@ -40736,9 +40963,9 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						className: "direct-check",
 						children: [/* @__PURE__ */ (0, z.jsx)("input", {
 							type: "checkbox",
-							checked: S,
+							checked: w,
 							disabled: r,
-							onChange: (e) => C(e.target.checked)
+							onChange: (e) => T(e.target.checked)
 						}), o("读取和管理此设备的项目目录", "Read and manage this device’s project catalog")]
 					}),
 					/* @__PURE__ */ (0, z.jsx)("p", {
@@ -40762,9 +40989,9 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						className: "direct-check",
 						children: [/* @__PURE__ */ (0, z.jsx)("input", {
 							type: "checkbox",
-							checked: w,
+							checked: E,
 							disabled: r,
-							onChange: (e) => T(e.target.checked)
+							onChange: (e) => D(e.target.checked)
 						}), o("查看和控制此设备的桌面", "View and control this device’s desktop")]
 					}),
 					/* @__PURE__ */ (0, z.jsx)("p", {
@@ -40788,6 +41015,19 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						className: "direct-check",
 						children: [/* @__PURE__ */ (0, z.jsx)("input", {
 							type: "checkbox",
+							checked: S,
+							disabled: r,
+							onChange: (e) => C(e.target.checked)
+						}), o("允许 Agent 浏览器操作", "Allow Agent Browser Use")]
+					}),
+					/* @__PURE__ */ (0, z.jsx)("p", {
+						className: "direct-note",
+						children: o("可读取和操作共享浏览器的所有标签页、登录会话和网页数据，并执行页面脚本。需单独配置本机浏览器；不授予 Shell 或桌面权限。", "Allows all tabs, signed-in sessions, page data and page scripts in the shared browser. Configure the local browser separately. This grants no shell or desktop access.")
+					}),
+					/* @__PURE__ */ (0, z.jsxs)("label", {
+						className: "direct-check",
+						children: [/* @__PURE__ */ (0, z.jsx)("input", {
+							type: "checkbox",
 							checked: h,
 							disabled: r,
 							onChange: (e) => g(e.target.checked)
@@ -40800,7 +41040,7 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					/* @__PURE__ */ (0, z.jsxs)("button", {
 						className: "direct-primary",
 						type: "submit",
-						disabled: r || !d && !p && !S && !w && !y && !h && !_,
+						disabled: r || !d && !p && !w && !E && !y && !S && !h && !_,
 						children: [/* @__PURE__ */ (0, z.jsx)(nt, {
 							size: 16,
 							"aria-hidden": "true"
@@ -40821,6 +41061,7 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 							t.permissions.spaces && o("空间目录", "Space catalog"),
 							t.permissions.projects && o("项目目录", "Project catalog"),
 							t.permissions.messages && o("设备消息与协作任务", "Device messages and collaboration tasks"),
+							t.permissions.browser && o("浏览器操作", "Browser Use"),
 							t.permissions.desktop && o("桌面控制", "Desktop control"),
 							t.permissions.computer && o("Agent 桌面操作", "Agent Computer Use")
 						].filter(Boolean).join(" · ")
@@ -40833,7 +41074,7 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 									operation: "revoke",
 									node: t.node
 								});
-								F.current && a(n);
+								ne.current && a(n);
 							});
 						},
 						children: [/* @__PURE__ */ (0, z.jsx)(kn, {
@@ -40847,25 +41088,25 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 				})]
 			}),
 			/* @__PURE__ */ (0, z.jsx)("dialog", {
-				ref: M,
+				ref: ee,
 				className: "direct-token-dialog",
-				"aria-labelledby": ne,
+				"aria-labelledby": re,
 				onCancel: (e) => {
-					e.preventDefault(), re();
+					e.preventDefault(), ie();
 				},
 				onClose: () => {
-					E && re();
+					O && ie();
 				},
-				children: E && /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
+				children: O && /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
 					/* @__PURE__ */ (0, z.jsxs)("div", {
 						className: "direct-heading",
 						children: [/* @__PURE__ */ (0, z.jsx)("h3", {
-							id: ne,
+							id: re,
 							children: o("保存授权 Token", "Save access token")
 						}), /* @__PURE__ */ (0, z.jsx)("button", {
 							autoFocus: !0,
 							"aria-label": o("关闭 Token 窗口", "Close token window"),
-							onClick: re,
+							onClick: ie,
 							children: /* @__PURE__ */ (0, z.jsx)(Vn, {
 								size: 18,
 								"aria-hidden": "true"
@@ -40876,17 +41117,17 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					/* @__PURE__ */ (0, z.jsx)("code", { children: t.node_id }),
 					/* @__PURE__ */ (0, z.jsxs)("p", {
 						className: "direct-note",
-						children: [o("被授权设备：", "Granted device: "), E.node]
+						children: [o("被授权设备：", "Granted device: "), O.node]
 					}),
 					/* @__PURE__ */ (0, z.jsx)("label", {
-						htmlFor: I,
+						htmlFor: L,
 						children: o("新授权 Token", "New access token")
 					}),
 					/* @__PURE__ */ (0, z.jsx)("textarea", {
-						id: I,
-						ref: N,
+						id: L,
+						ref: P,
 						readOnly: !0,
-						value: E.token,
+						value: O.token,
 						rows: 3,
 						spellCheck: !1,
 						autoComplete: "off"
@@ -40895,22 +41136,22 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						className: "direct-note",
 						children: o("关闭窗口后无法再次查看；如果丢失，请撤销授权后重新创建。", "You cannot view it again after closing this window. If lost, revoke access and create a new grant.")
 					}),
-					A && /* @__PURE__ */ (0, z.jsx)("p", {
+					M && /* @__PURE__ */ (0, z.jsx)("p", {
 						className: "direct-error",
 						role: "alert",
-						children: A
+						children: M
 					}),
 					/* @__PURE__ */ (0, z.jsxs)("div", {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, z.jsxs)("button", {
-							onClick: () => void ie(),
+							onClick: () => void oe(),
 							children: [/* @__PURE__ */ (0, z.jsx)(Oe, {
 								size: 16,
 								"aria-hidden": "true"
-							}), O ? o("已复制", "Copied") : o("复制 Token", "Copy token")]
+							}), A ? o("已复制", "Copied") : o("复制 Token", "Copy token")]
 						}), /* @__PURE__ */ (0, z.jsx)("button", {
 							className: "direct-primary",
-							onClick: re,
+							onClick: ie,
 							children: o("已保存，关闭", "Saved, close")
 						})]
 					})
@@ -40921,7 +41162,7 @@ function HS({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/DirectPathsPanel.tsx
-function US({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a, t: o }) {
+function GS({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a, t: o }) {
 	let [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), y = (0, x.useId)(), b = (0, x.useRef)(null), S = (0, x.useRef)(null), C = (0, x.useRef)(null), w = (0, x.useRef)(!1), T = (0, x.useRef)(!0), E = e.paths || [{
 		url: e.url,
 		allow_private_http: e.allow_private_http
@@ -41109,15 +41350,15 @@ function US({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a,
 }
 //#endregion
 //#region src/devices/DirectDevicesView.tsx
-var WS = {
+var KS = {
 	node: "",
 	url: "",
 	token: "",
 	allow_private_http: !1
-}, GS = (e) => e instanceof Error ? e.message : String(e), KS = "cranibox.direct.jobs";
-function qS() {
+}, qS = (e) => e instanceof Error ? e.message : String(e), JS = "cranibox.direct.jobs";
+function YS() {
 	try {
-		let e = JSON.parse(sessionStorage.getItem(KS) || "[]");
+		let e = JSON.parse(sessionStorage.getItem(JS) || "[]");
 		if (Array.isArray(e)) return e.filter((e) => typeof e?.id == "string" && typeof e?.node == "string").slice(-20).map((e) => ({
 			id: e.id,
 			node: e.node,
@@ -41126,8 +41367,8 @@ function qS() {
 	} catch {}
 	return [];
 }
-function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(WS), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [P, F] = (0, x.useState)(qS), [te, ne] = (0, x.useState)(""), [I, re] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), ue = (0, x.useRef)(null), R = i?.routes.find((e) => e.node === o) || i?.routes[0], de = P.filter((e) => e.node === R?.node), pe = de.find((e) => e.id === te) || de.at(-1), me = C?.node === R?.node ? C : void 0, he = (e) => {
+function XS({ client: e, language: t = "en", onOpenTerminal: n }) {
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(KS), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [P, F] = (0, x.useState)(YS), [te, ne] = (0, x.useState)(""), [I, re] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), ue = (0, x.useRef)(null), R = i?.routes.find((e) => e.node === o) || i?.routes[0], de = P.filter((e) => e.node === R?.node), pe = de.find((e) => e.id === te) || de.at(-1), me = C?.node === R?.node ? C : void 0, he = (e) => {
 		++ce.current, a(e), w(void 0), ++se.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
 	}, ge = (0, x.useCallback)(async () => {
 		let t = ++ce.current;
@@ -41135,7 +41376,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 			let n = await e({ operation: "list" });
 			ae.current && t === ce.current && (a(n), w(void 0), ++se.current, E(!1), h(""));
 		} catch (e) {
-			ae.current && t === ce.current && h(GS(e));
+			ae.current && t === ce.current && h(qS(e));
 		} finally {
 			ae.current && t === ce.current && _(!1);
 		}
@@ -41149,7 +41390,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 		c && ue.current?.focus();
 	}, [c]), (0, x.useEffect)(() => {
 		try {
-			sessionStorage.setItem(KS, JSON.stringify(P.map(({ node: e, id: t }) => ({
+			sessionStorage.setItem(JS, JSON.stringify(P.map(({ node: e, id: t }) => ({
 				node: e,
 				id: t
 			}))));
@@ -41169,7 +41410,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 					if (t) return;
 					F((e) => e.map((e) => e.id === i && e.node === a ? n : e)), re(""), n.outcome === "running" && (r = setTimeout(o, 1e3));
 				} catch (e) {
-					t || re(GS(e));
+					t || re(qS(e));
 				} finally {
 					n = !1;
 				}
@@ -41194,7 +41435,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 			try {
 				await e();
 			} catch (e) {
-				ae.current && h(GS(e));
+				ae.current && h(qS(e));
 			} finally {
 				oe.current = !1, ae.current && y(!1);
 			}
@@ -41208,7 +41449,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 				node: t,
 				url: u.url.trim()
 			});
-			ae.current && (he(n), s(t), l(!1), d(WS), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
+			ae.current && (he(n), s(t), l(!1), d(KS), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
 		});
 	}
 	async function ye() {
@@ -41229,7 +41470,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 		} catch (e) {
 			ae.current && n === se.current && w({
 				node: t,
-				error: GS(e),
+				error: qS(e),
 				checked: Date.now()
 			});
 		} finally {
@@ -41273,7 +41514,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 					}), /* @__PURE__ */ (0, z.jsxs)("button", {
 						disabled: v,
 						onClick: () => {
-							l(!0), p(!1), d(WS);
+							l(!0), p(!1), d(KS);
 						},
 						children: [/* @__PURE__ */ (0, z.jsx)(Qt, {
 							size: 16,
@@ -41310,7 +41551,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 					"aria-hidden": "true"
 				}), b]
 			}),
-			i?.node_id && /* @__PURE__ */ (0, z.jsx)(HS, {
+			i?.node_id && /* @__PURE__ */ (0, z.jsx)(WS, {
 				client: e,
 				catalog: i,
 				language: t,
@@ -41329,7 +41570,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 							disabled: v,
 							"aria-label": r("关闭连接表单", "Close connection form"),
 							onClick: () => {
-								l(!1), d(WS);
+								l(!1), d(KS);
 							},
 							children: /* @__PURE__ */ (0, z.jsx)(Vn, {
 								size: 16,
@@ -41415,7 +41656,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 						disabled: v,
 						"aria-pressed": R?.node === e.node,
 						onClick: () => {
-							s(e.node), ne(""), l(!1), d(WS), ++se.current, E(!1);
+							s(e.node), ne(""), l(!1), d(KS), ++se.current, E(!1);
 						},
 						children: [/* @__PURE__ */ (0, z.jsx)(le, {
 							size: 18,
@@ -41446,6 +41687,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 									me.peer?.exec ? r("允许执行命令", "Commands granted") : r("未授予命令权限", "Commands not granted"),
 									me.peer?.terminal_sessions ? r("允许终端会话", "Terminal sessions granted") : r("未授予终端权限", "Terminal sessions not granted"),
 									me.peer?.computer && r("允许 Agent 桌面操作", "Computer Use granted"),
+									me.peer?.browser && r("允许 Agent 浏览器操作", "Browser Use granted"),
 									me.peer?.projects ? r("允许项目目录", "Project catalog granted") : r("未授予项目目录权限", "Project catalog not granted")
 								].filter(Boolean).join(" · ")
 							}), /* @__PURE__ */ (0, z.jsxs)("small", { children: [r("上次检查：", "Last checked: "), new Date(me.checked).toLocaleTimeString()] })]
@@ -41494,7 +41736,12 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						/* @__PURE__ */ (0, z.jsx)(US, {
+						me?.peer?.browser && /* @__PURE__ */ (0, z.jsx)(zS, {
+							client: e,
+							node: R.node,
+							language: t
+						}, R.node),
+						/* @__PURE__ */ (0, z.jsx)(GS, {
 							route: R,
 							connection: me?.connection,
 							client: e,
@@ -41632,7 +41879,7 @@ function JS({ client: e, language: t = "en", onOpenTerminal: n }) {
 }
 //#endregion
 //#region src/devices/NodeIdentityDialog.tsx
-function YS({ source: e, onCancel: t, onMigrated: n }) {
+function ZS({ source: e, onCancel: t, onMigrated: n }) {
 	let [r, i] = (0, x.useState)(""), [a, o] = (0, x.useState)(""), [s, c] = (0, x.useState)(!1), l = (0, x.useRef)(null);
 	(0, x.useEffect)(() => {
 		l.current?.focus();
@@ -41725,7 +41972,7 @@ function YS({ source: e, onCancel: t, onMigrated: n }) {
 }
 //#endregion
 //#region src/devices/NetworkInvitations.tsx
-function XS({ busy: e, t, submit: n }) {
+function QS({ busy: e, t, submit: n }) {
 	let r = (0, x.useId)(), [i, a] = (0, x.useState)(""), [o, s] = (0, x.useState)("");
 	async function c(e) {
 		e.preventDefault(), await n(i.trim(), o.trim(), () => s(""));
@@ -41791,7 +42038,7 @@ function XS({ busy: e, t, submit: n }) {
 		]
 	});
 }
-function ZS({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
+function $S({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
 	let s = (0, x.useId)(), c = (0, x.useRef)(null), [l, u] = (0, x.useState)(() => {
 		if (e.length) return e.join("\n");
 		let n = window.location.hostname;
@@ -41933,7 +42180,7 @@ function ZS({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: 
 }
 //#endregion
 //#region src/devices/TailscaleDiscovery.tsx
-function QS({ device: e, disabled: t, t: n, onSelect: r }) {
+function eC({ device: e, disabled: t, t: n, onSelect: r }) {
 	let i = (0, x.useId)(), [a, o] = (0, x.useState)(""), s = e.paths?.length ? e.paths : [e], c = s.find((e) => e.url === a) ?? s[0];
 	return /* @__PURE__ */ (0, z.jsxs)("li", { children: [/* @__PURE__ */ (0, z.jsxs)("div", { children: [
 		/* @__PURE__ */ (0, z.jsx)("strong", { children: e.name || e.address }),
@@ -41964,7 +42211,7 @@ function QS({ device: e, disabled: t, t: n, onSelect: r }) {
 		children: n("接入节点", "Connect node")
 	})] });
 }
-function $S({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
+function tC({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
 	let o = (e.ports ?? (e.port ? [e.port] : [])).join(", "), [s, c] = (0, x.useState)(o), [l, u] = (0, x.useState)(!1), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), h = (0, x.useRef)(!0), g = (0, x.useRef)(!1), _ = (0, x.useRef)(!1), v = (0, x.useRef)(null), y = (0, x.useId)(), b = (0, x.useRef)(null), S = (0, x.useRef)(e.enabled);
 	(0, x.useEffect)(() => (h.current = !0, () => {
 		h.current = !1;
@@ -42118,7 +42365,7 @@ function $S({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 			}),
 			!!e.devices.length && /* @__PURE__ */ (0, z.jsx)("ul", {
 				"aria-label": r("自动发现的节点", "Automatically discovered nodes"),
-				children: e.devices.map((e) => /* @__PURE__ */ (0, z.jsx)(QS, {
+				children: e.devices.map((e) => /* @__PURE__ */ (0, z.jsx)(eC, {
 					device: e,
 					disabled: n || l,
 					t: r,
@@ -42130,7 +42377,7 @@ function $S({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 }
 //#endregion
 //#region src/devices/TailscaleNodes.tsx
-function eC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
+function nC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
 	let [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), C = (0, x.useRef)(!0), w = (0, x.useRef)(!1), T = (0, x.useRef)(null), E = (0, x.useRef)(null), D = (0, x.useRef)(null), O = e.find((e) => e.addresses.includes(c)), k = O?.online === !0;
 	(0, x.useEffect)(() => (C.current = !0, () => {
 		C.current = !1;
@@ -42173,7 +42420,7 @@ function eC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 		}
 	}
 	return /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
-		t && /* @__PURE__ */ (0, z.jsx)($S, {
+		t && /* @__PURE__ */ (0, z.jsx)(tC, {
 			status: t,
 			client: r,
 			disabled: i || v,
@@ -42325,7 +42572,7 @@ function eC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 }
 //#endregion
 //#region src/devices/TailscaleSetup.tsx
-function tC({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
+function rC({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
 	let [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(!1), [d, f] = (0, x.useState)(0), [p, m] = (0, x.useState)(Date.now()), h = (0, x.useRef)(null), g = (0, x.useRef)(null), _ = e?.phase === "running", v = !!s?.available && p >= d;
 	if ((0, x.useEffect)(() => {
 		s && h.current?.focus();
@@ -42459,13 +42706,13 @@ function tC({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, op
 }
 //#endregion
 //#region src/devices/NetworkProvidersView.tsx
-var nC = (e) => e instanceof Error ? e.message : String(e);
-function rC(e) {
+var iC = (e) => e instanceof Error ? e.message : String(e);
+function aC(e) {
 	let t = e;
 	if (!t?.easytier || !Array.isArray(t.easytier.devices) || !t.tailscale || !Array.isArray(t.tailscale.devices)) throw Error("Network management is unavailable. Upgrade the node backend and retry.");
 	return t;
 }
-function iC(e) {
+function oC(e) {
 	try {
 		let t = new URL(e || "");
 		return t.protocol === "https:" && t.hostname === "login.tailscale.com" && !t.port && !t.username && !t.password && !t.hash ? t.href : void 0;
@@ -42473,16 +42720,16 @@ function iC(e) {
 		return;
 	}
 }
-function aC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
+function sC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
 	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, P] = (0, x.useState)(""), F = (0, x.useId)(), te = (0, x.useRef)(null), [ne, I] = (0, x.useState)(""), [re, L] = (0, x.useState)(""), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useCallback)(async () => {
 		if (oe.current || ae.current || document.hidden) return;
 		oe.current = !0;
 		let t = ++se.current;
 		try {
-			let n = rC(await e({ operation: "status" }));
+			let n = aC(await e({ operation: "status" }));
 			ie.current && t === se.current && (o(n), f(""));
 		} catch (e) {
-			ie.current && t === se.current && f(nC(e));
+			ie.current && t === se.current && f(iC(e));
 		} finally {
 			oe.current = !1, ie.current && t === se.current && g(!1);
 		}
@@ -42508,9 +42755,9 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
-				].includes(t.operation) || o(rC(r)), n?.(r));
+				].includes(t.operation) || o(aC(r)), n?.(r));
 			} catch (e) {
-				ie.current && c(nC(e));
+				ie.current && c(iC(e));
 			} finally {
 				ae.current = !1, ie.current && (m(!1), g(!1));
 			}
@@ -42554,13 +42801,13 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			node: ne,
 			token: re
 		}, (e) => {
-			o(rC(e.network)), L(""), I(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
+			o(aC(e.network)), L(""), I(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let me = a?.easytier, he = a?.tailscale, ge = me?.phase === "running" ? i("后台运行中", "Running in background") : me?.phase === "installing" ? i("正在安装…", "Installing…") : me?.phase === "restarting" ? i("正在连接…", "Connecting…") : me?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), _e = iC(he?.login_url);
+	let me = a?.easytier, he = a?.tailscale, ge = me?.phase === "running" ? i("后台运行中", "Running in background") : me?.phase === "installing" ? i("正在安装…", "Installing…") : me?.phase === "restarting" ? i("正在连接…", "Connecting…") : me?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), _e = oC(he?.login_url);
 	function ve(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ie.current && c(nC(e));
+			ie.current && c(iC(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, z.jsxs)("section", {
@@ -42692,7 +42939,7 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								onClick: () => N("manual"),
 								children: i("手动填写地址", "Enter addresses manually")
 							})]
-						}), M === "invitation" ? /* @__PURE__ */ (0, z.jsx)(XS, {
+						}), M === "invitation" ? /* @__PURE__ */ (0, z.jsx)(QS, {
 							busy: p,
 							t: i,
 							submit: (e, t, n) => R({
@@ -42873,7 +43120,7 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								role: "alert",
 								children: me.invitation_error
 							}),
-							n === "server" && /* @__PURE__ */ (0, z.jsx)(ZS, {
+							n === "server" && /* @__PURE__ */ (0, z.jsx)($S, {
 								entries: me.peers ?? (me.peer ? [me.peer] : []),
 								listenPort: me.listen_port,
 								invitations: me.invitations,
@@ -42884,7 +43131,7 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									peers: e
 								}, (e) => {
 									let n = e;
-									o(rC(n.network)), t(n.invitation);
+									o(aC(n.network)), t(n.invitation);
 								}),
 								revoke: (e) => R({
 									operation: "easy_tier_revoke_invitation",
@@ -42958,7 +43205,7 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							role: "alert",
 							children: he.error
 						}),
-						/* @__PURE__ */ (0, z.jsx)(tC, {
+						/* @__PURE__ */ (0, z.jsx)(rC, {
 							setup: he?.setup,
 							systemState: he?.state || "Checking",
 							busy: p || !!he?.login_pending,
@@ -42996,11 +43243,11 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								})]
 							})]
 						}),
-						(he?.state === "Running" || he?.discovery?.enabled) && /* @__PURE__ */ (0, z.jsx)(eC, {
+						(he?.state === "Running" || he?.discovery?.enabled) && /* @__PURE__ */ (0, z.jsx)(nC, {
 							devices: he.devices,
 							discovery: he.discovery,
 							onDiscoveryChanged: (e) => {
-								++se.current, o(rC(e)), f("");
+								++se.current, o(aC(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
@@ -43018,7 +43265,7 @@ function aC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 }
 //#endregion
 //#region src/pages/Nodes.tsx
-function oC() {
+function cC() {
 	let { snapshot: e, refresh: t, notify: n } = co(), { openTerminal: r } = eo(), i = (0, x.useCallback)((e) => io("/api/peers", e), []), a = (0, x.useCallback)((e) => io("/api/network", e), []), o = e?.remote_nodes, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(null), [p, m] = (0, x.useState)(() => location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "ws://" + location.host : "wss://" + location.host), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)("[]"), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)("60"), [E, D] = (0, x.useState)({}), [O, k] = (0, x.useState)(null), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)("");
 	async function F(e, n, r) {
 		if (!M) {
@@ -43061,7 +43308,7 @@ function oC() {
 		...e.aliases || []
 	].join(" ").toLowerCase().includes(s.toLowerCase()));
 	return /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
-		O && /* @__PURE__ */ (0, z.jsx)(YS, {
+		O && /* @__PURE__ */ (0, z.jsx)(ZS, {
 			source: O,
 			onCancel: () => k(null),
 			onMigrated: (e) => {
@@ -43102,12 +43349,12 @@ function oC() {
 				children: B("浏览器通过这台设备访问工作空间。命令在这台设备执行；其他设备需获得授权后接入。", "Your browser accesses the workspace through this device. Commands run here; other devices need permission to connect.")
 			})]
 		}),
-		/* @__PURE__ */ (0, z.jsx)(aC, {
+		/* @__PURE__ */ (0, z.jsx)(sC, {
 			client: a,
 			language: window.workspaceWeb.language,
 			host: "server"
 		}),
-		/* @__PURE__ */ (0, z.jsx)(JS, {
+		/* @__PURE__ */ (0, z.jsx)(XS, {
 			client: i,
 			language: window.workspaceWeb.language,
 			onOpenTerminal: (e) => r({
@@ -43436,7 +43683,7 @@ function oC() {
 }
 //#endregion
 //#region src/pages/Performance.tsx
-function sC() {
+function lC() {
 	let { snapshot: e, state: t, refresh: n } = co(), r = e?.metrics;
 	return /* @__PURE__ */ (0, z.jsxs)(z.Fragment, { children: [
 		/* @__PURE__ */ (0, z.jsx)(mo, {
@@ -43506,7 +43753,7 @@ function sC() {
 }
 //#endregion
 //#region src/main.tsx
-var cC = [
+var uC = [
 	{
 		id: "overview",
 		label: B("总览", "Overview"),
@@ -43588,7 +43835,7 @@ var cC = [
 		icon: _n
 	}
 ];
-function lC() {
+function dC() {
 	let e = co(), { snapshot: t, state: n, error: r, notice: i } = e, a = bi(), o = Ci(), s = eo();
 	(0, x.useEffect)(() => {
 		if (a.pathname !== "/terminal") return;
@@ -43609,7 +43856,7 @@ function lC() {
 		} catch {
 			return "dark";
 		}
-	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = cC.find((e) => a.pathname === "/" + e.id) || cC[0];
+	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = uC.find((e) => a.pathname === "/" + e.id) || uC[0];
 	(0, x.useEffect)(() => {
 		document.documentElement.dataset.theme = c;
 		try {
@@ -43659,7 +43906,7 @@ function lC() {
 				children: [
 					/* @__PURE__ */ (0, z.jsxs)("div", {
 						className: "sidebar-brand",
-						children: [/* @__PURE__ */ (0, z.jsx)(uC, {}), /* @__PURE__ */ (0, z.jsx)("button", {
+						children: [/* @__PURE__ */ (0, z.jsx)(fC, {}), /* @__PURE__ */ (0, z.jsx)("button", {
 							className: "button secondary icon-button mobile-menu-close",
 							"aria-label": B("关闭导航", "Close navigation"),
 							onClick: () => {
@@ -43674,7 +43921,7 @@ function lC() {
 					}),
 					/* @__PURE__ */ (0, z.jsx)("nav", {
 						"aria-label": B("工作区导航", "Workspace navigation"),
-						children: cC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, z.jsxs)("button", {
+						children: uC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, z.jsxs)("button", {
 							className: "nav-link terminal-nav-button" + (s.mode === "open" ? " active" : ""),
 							"aria-label": e.label,
 							title: e.label,
@@ -43865,7 +44112,7 @@ function lC() {
 								}),
 								/* @__PURE__ */ (0, z.jsx)(qi, {
 									path: "/nodes",
-									element: /* @__PURE__ */ (0, z.jsx)(oC, {})
+									element: /* @__PURE__ */ (0, z.jsx)(cC, {})
 								}),
 								/* @__PURE__ */ (0, z.jsx)(qi, {
 									path: "/history",
@@ -43873,7 +44120,7 @@ function lC() {
 								}),
 								/* @__PURE__ */ (0, z.jsx)(qi, {
 									path: "/performance",
-									element: /* @__PURE__ */ (0, z.jsx)(sC, {})
+									element: /* @__PURE__ */ (0, z.jsx)(lC, {})
 								}),
 								/* @__PURE__ */ (0, z.jsx)(qi, {
 									path: "/overview",
@@ -43952,7 +44199,7 @@ function lC() {
 		]
 	});
 }
-function uC() {
+function fC() {
 	return /* @__PURE__ */ (0, z.jsxs)("a", {
 		className: "brand",
 		href: "#/overview",
@@ -43966,6 +44213,6 @@ function uC() {
 		}), /* @__PURE__ */ (0, z.jsxs)("span", { children: [/* @__PURE__ */ (0, z.jsx)("strong", { children: "Cranibox" }), /* @__PURE__ */ (0, z.jsx)("small", { children: "AGENT WORKSPACE" })] })]
 	});
 }
-var dC = location.hash.slice(1);
-cC.some((e) => e.id === dC) && history.replaceState(null, "", "#/" + dC), (0, Xa.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, z.jsx)(Fa, { children: /* @__PURE__ */ (0, z.jsx)(to, { children: /* @__PURE__ */ (0, z.jsx)(lo, { children: /* @__PURE__ */ (0, z.jsx)(RS, { children: /* @__PURE__ */ (0, z.jsx)(lC, {}) }) }) }) }));
+var pC = location.hash.slice(1);
+uC.some((e) => e.id === pC) && history.replaceState(null, "", "#/" + pC), (0, Xa.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, z.jsx)(Fa, { children: /* @__PURE__ */ (0, z.jsx)(to, { children: /* @__PURE__ */ (0, z.jsx)(lo, { children: /* @__PURE__ */ (0, z.jsx)(RS, { children: /* @__PURE__ */ (0, z.jsx)(dC, {}) }) }) }) }));
 //#endregion

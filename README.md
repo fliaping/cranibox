@@ -470,6 +470,11 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 会话重复确认。容器内配置过 Chrome DevTools MCP 的 Agent 可以读取和操作全部标签页、
 Cookie 与登录会话，因此该模式适用于可信 Agent 的单用户工作区。
 
+跨设备浏览器操作使用独立的 [Browser Use 授权](docs/browser-use.md)：目标明确共享本机 Chromium CDP，
+调用方运行目标绑定的官方 Chrome DevTools MCP。Web/Tauri 共用配置、状态和紧急停止界面；
+旧授权默认关闭，停止跨重启保留，只允许目标管理者恢复。它可经已有 EasyTier/Tailscale 直连路由使用，
+当前不走旧网关中继，也不自动安装或启动浏览器。
+
 原生桌面应用通过 `/config/bin/agent-desktop-mcp` 使用 Computer Use。该能力要求桌面运行在
 Wayland 模式（`PIXELFLUX_WAYLAND=true` 且 `PIXELFLUX_CU=8764`）：新镜像默认满足，
 已发布的 `ubuntu-xfce-1.0.35` 及更早镜像需在创建容器时显式设置这两个变量。可用 `workspacectl desktop status` 检查。安全 bridge 只监听 `127.0.0.1:8765`；上游 PixelFlux 当前会把内部端口 `8764` 绑定到容器

@@ -680,7 +680,7 @@ class WebDirectPeersTests(unittest.TestCase):
         self.h.start_web()
         self.h.login()
         view = self.api(operation='list')
-        self.assertEqual(view['grants'], [{'node': self.target, 'permissions': {'exec': True, 'terminals': False, 'projects': False, 'desktop': False, 'computer': False, 'messages': False, 'spaces': False}}])
+        self.assertEqual(view['grants'], [{'node': self.target, 'permissions': {'exec': True, 'terminals': False, 'projects': False, 'desktop': False, 'computer': False, 'browser': False, 'messages': False, 'spaces': False}}])
         self.assertNotIn(secret, json.dumps(view))
         self.assertNotIn(rotated['token'], json.dumps(view))
 

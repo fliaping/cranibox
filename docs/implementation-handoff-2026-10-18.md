@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能为下文的节点 Computer Use：独立授权、回环桥接适配、短期输入控制权、目标绑定 MCP，以及共用 Web/Tauri 管理界面。功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送；本轮 411 项不同自动化测试通过，3c1a38d 的 CI 矩阵最终 7/7 成功，初次失败与重跑边界见下文。此前功能提交 6396b93 修复 Linux AppImage 的 MCP 与登录启动项；Selkies 接入为 afaa137，Tailscale 安装引导为 b6ed81e。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
+最新功能为独立的跨节点 Browser Use：browser 单独授权、目标已有 Chromium 的回环 CDP、单控制连接、持久紧急停止、绑定目标的官方 MCP，以及共用 Web/Tauri 管理界面。操作与限制见 [Browser Use](browser-use.md)，最新回归及提交状态见下节。此前 Computer Use 功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送，对应 411 项自动化测试和 CI 矩阵最终 7/7 成功；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；3c1a38d 的最新 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -43,18 +43,41 @@
 | Agent 会话与后台执行 | 主动登记/续期、汇总授权会话、定向委托；Codex/Claude Code 非交互适配、启动检查、持久输出与停止；可选独立执行 MCP | 模型调用与 CLI 登录未实测；不支持运行中追加交互输入、模型检查点恢复或进程迁移 |
 | 多设备协作与自动接单 | 持久协作 Run、任务汇总、统一停止、核对归档、最多八项前置任务；接收端可明确启用按可信发送方和固定目录的后台 worker | 默认关闭；不是通用复杂编排平台；人核对模式与显式自动提案模式分开，退出码不直接等于任务成功 |
 | 各节点 Agent 共享 Computer Use | 本轮新增独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连。12 项后端专项使用动作夹具；3c1a38d Linux CI 包另通过真实 KDE 截图、输入、MCP、重启保留停止和两包原生 IPC。多物理设备、模型调用及 Windows/macOS 提供者待验收 |
-| 各节点 Agent 共享 Browser Use | 容器保留现有浏览器集成，也可通过授权命令使用目标已有工具 | 尚无独立的跨节点 Browser Use 协议、授权与提供者；不能以 Computer Use、VNC 或 Shell 代替 |
+| 各节点 Agent 共享 Browser Use | 独立 browser 授权、目标回环 Chromium CDP、鉴权 WebSocket、单远程控制者、跨重启保留停止；调用方经临时回环代理运行固定版本官方 MCP，Web/Tauri 共用管理 | 真实 Linux Chromium 的打开页面、快照、填表、提交、PNG 与停止通过；只走直连。授权覆盖共享浏览器全部标签页和会话；无自动安装/启动、域名隔离或旧网关转发。Windows/macOS、跨物理设备及真实模型待验收 |
 | agent-desktop-bridge 是否可删除 | 现有桥接继续保留，并作为本轮 Computer Use 的明确配置提供者；VNC 是桌面传输通道 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
 
 五项服务是 agent-desktop-bridge、deepseek-harness、openclaw-gateway、proxy-caddy、tailscaled-workspace。其监督方式迁移不代表业务健康：原记录中桌面桥接 health 为 503、Tailscale 为 NeedsLogin，均不能计作迁移修复。见 [Rust 服务与迁移记录](native-services-and-web.md)。
 
 ## 测试情况与可信范围
 
-### 最新收尾：Computer Use
+### 最新收尾：Browser Use
+
+本轮补齐上次交接中尚未实现的独立 Browser Use。旧授权默认不变，只有目标明确配置现有回环 Chromium 并单独授予 browser 才能连接；Computer Use、VNC、Shell 都不会自动取得浏览器能力。调用端的 browser-mcp 固定启动 chrome-devtools-mcp@1.11.0，远端凭据保留在 Rust 端，不传入 MCP 子进程参数。目标紧急停止、撤权、重配和监听停止会断开现有控制连接，不重放动作；恢复只允许目标管理者。
+
+测试全部在指定远端 cranibox-validation 容器执行；远端路径 /config/validation-artifacts/browser-use-20261018 保存私有日志。日常服务与浏览器 9222 不参与测试。
+
+| 验证 | 结果 | 可信范围 |
+| --- | --- | --- |
+| 全 Rust 工作区单元测试 | 176 通过、4 忽略 | 新增 2 项配置/停止测试；忽略资源测量、2 项真实 EasyTier 与 GIO，未把忽略算通过 |
+| 后端专项及相关回归 | 101 通过 | Browser Use 9、Computer Use 12，并回归节点直连、桌面、Web、MCP、节点身份迁移和设备网络；运行真实 Rust 节点，CDP/桌面提供者采用受控夹具 |
+| 真实 Chromium 与官方 MCP | 1 通过 | 临时用户目录、随机 CDP 端口、独立节点；打开页面、读取快照、填表提交、PNG、停止后拒绝动作、无重复提交、stdin 关闭后正常退出；没有调用模型 |
+| Web 全部界面 | 125 通过 | 含新增 Browser Use 3 项；真实 Rust 预览与部分模拟业务响应；中英文、小屏和明暗主题 |
+| Tauri 全部界面 | 46 通过 | 含新增 Browser Use 原生 IPC 交互 1 项；浏览器模拟 IPC，不能代替安装包验收 |
+| 构建与静态检查 | 通过 | Rust fmt、工作区所有 target 严格 Clippy、原生 desktop 严格 Clippy、完整单元测试；两端 TypeScript/生产构建与 desktop,custom-protocol 原生构建；发布 Web 资源已同步 |
+
+首轮完整 Web 123/125：空间目录测试在跳转设备页后因夹具缺少真实 API 必填的 route.url 崩溃，已补齐夹具字段并保留零页面错误断言；终端的两节点持久会话用例在并发整套中触及总计 30 秒时限。两项按仓库默认单 worker 复测均通过，终端 8.9 秒，没有修改产品终端逻辑、放宽时限或删除断言。首轮日志和 trace 保存在 web-ui.log、first-web-failures，复测为 web-focused.log。此前初次 Web 专项因遗漏更新 Rust 嵌入资源而失败，按正式资源脚本重新构建后通过；真实浏览器验收的前三次脚本失败分别为缺少 pageId、错误假设 structuredContent 和错误假设页面列表格式，修正测试以遵循固定版实际 MCP schema 后通过，原日志 real-browser-{first,second,third}.log 保留。
+
+最终共 449 项不同自动化测试通过（176 Rust + 101 后端 + 125 Web + 46 Tauri UI + 1 真实 Chromium/MCP），另有 4 项 Rust 忽略。专项重跑和此前轮次不重复累计；原生构建和静态检查单列。完整 Web 复测为 web-ui-final.log，125/125，用时 4.1 分钟。acceptance.json、source-snapshot.json 和 final-health.json 保存验收汇总、两端源码摘要与最终健康。
+
+最终检查确认没有残留测试节点、CDP 浏览器或官方 MCP 进程。日常 Web PID 538744、原生客户端 PID 767446、两者二进制摘要与客户端 NodeID 保持不变；容器 running / healthy，非 privileged、没有 Docker socket，3080/3031 两入口均为匿名 401、认证 200。测试没有部署到日常主服务，也没有覆盖日常客户端。
+
+新功能不等于所有需求已完成：浏览器共享没有域名/标签页隔离，不受桌面输入租约约束；系统依赖安装、提供者自动启动、跨物理设备、Windows/macOS、真实模型和新 Linux 安装包尚未验收。旧包的真实 Computer Use 及托盘证据仍只绑定下面各自提交。CI 状态待本次功能提交推送后按完整 headSha 核对。
+
+### 此前收尾：Computer Use
 
 目标用户配置已经运行的本机桥接，并独立授予 computer 权限；旧授权保持关闭。Agent 从明确绑定目标的 CLI/MCP 获取截图与 1–300 秒输入控制权。它和 VNC/Selkies 查看器共用一个控制名额，撤权、到期、重配、监听停止及节点重启使控制权失效。紧急停止先保存暂停再通知桥接，桥接离线时仍禁止重新取得输入控制权；恢复只允许目标管理者明确操作。
 
-当前只接入现有 bridge 的回环 HTTP 服务，使用直连路由；不是 Windows/macOS 原生驱动，也没有实现 Browser Use 或旧网关转发。未知字段、远端恢复、任意目的 URL、持续按住输入均拒绝，输入失败不自动重发。详细操作、边界和源码见 [Computer Use](computer-use.md)。
+Computer Use 只接入现有 bridge 的回环 HTTP 服务，使用直连路由；不是 Windows/macOS 原生驱动，没有旧网关转发。独立 Browser Use 已在上节另行实现。未知字段、远端恢复、任意目的 URL、持续按住输入均拒绝，输入失败不自动重发。详细操作、边界和源码见 [Computer Use](computer-use.md)。
 
 下表由本会话直接执行的构建与测试均在指定远端容器 cranibox-validation，使用隔离身份；后述 CI 在 GitHub 执行并单列。表内真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC。后续真实桌面和原生安装包验收另列，不计入自动化数量。
 
@@ -273,7 +296,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
-| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；Computer Use 已有 Linux 真实桌面证据，继续多物理设备、模型流程与 Windows/macOS 提供者，并独立实现 Browser Use |
+| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；Computer Use 和 Browser Use 已有 Linux 真实提供者证据，继续新包、多物理设备、模型流程及 Windows/macOS 提供者，完善依赖引导 |
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
 | P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位本轮 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
@@ -287,7 +310,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 1. 本文与 [远端验证记录](remote-workspace-validation-2026-10-18.md)：先了解完成与失败边界。
 2. [产品与分布式设计](distributed-agent-workspace-design.md)、[组网设计](decentralized-node-network-design.md)：目标架构，不将提案当成现有功能。
 3. [节点直连](direct-node-peers.md)、[设备网络](device-networks.md)、[客户端](node-desktop-and-device-mesh.md)。
-4. [远程桌面](remote-desktops.md)、[Computer Use](computer-use.md)、[虚拟空间](virtual-spaces.md)、[项目目录与复制](project-session-catalog.md)。
+4. [远程桌面](remote-desktops.md)、[Computer Use](computer-use.md)、[Browser Use](browser-use.md)、[虚拟空间](virtual-spaces.md)、[项目目录与复制](project-session-catalog.md)。
 5. [消息](device-messages.md)、[任务与自动接单](device-tasks.md)、[会话](agent-sessions.md)、[后台执行](agent-executions.md)。
 
 ### 源码入口
@@ -303,6 +326,8 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | crates/workspace-runtime/src/peers/desktop/selkies.rs；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
 | crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |
 | addons/control-center/ui/src/devices/ComputerSharingPanel.tsx；tests/test_computer_use.py | Web/Tauri 共用桥接管理；真实节点/桥接/Web 与可控原生动作夹具 |
+| crates/workspace-runtime/src/peers/browser.rs；crates/workspace-node/src/peer/{server/browser.rs,browser_proxy.rs} | Chromium CDP 提供者、独立授权、状态/停止、WebSocket 与调用端官方 MCP 进程生命周期 |
+| addons/control-center/ui/src/devices/Browser{Sharing,Target}Panel.tsx；tests/test_browser{_use,_real_chromium}.py | Web/Tauri 共用浏览器管理；真实节点/CDP 夹具以及显式启用的真实 Chromium/官方 MCP 验收 |
 | addons/control-center/ui/src | React 共用业务组件与浏览器适配器 |
 | apps/node-desktop | Tauri 原生宿主、IPC、托盘与客户端适配器 |
 | apps/node-desktop/src-tauri/src/launch.rs | 持久启动器、AppImage MCP 参数、Linux 自启动路径与转义；纯 Rust 库单元测试和真实 GIO 用例 |
@@ -314,6 +339,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - SSH：admin@192.168.217.6，端口 22022，容器 cranibox-validation；不得改用当前本机做运行验证。
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
+- 最新 Browser Use 的日志、初测失败与最终验收在 browser-use-20261018；真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 包与真实 Computer Use 证据在 /config/validation-artifacts/linux-installer-3c1a38d；较完整托盘/自启等流程在 linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
@@ -335,11 +361,12 @@ export PYTHONPATH=tests
 
 cargo fmt --all --check
 cargo clippy --locked -p agent-workspace-runtime -p cranibox-node --all-targets -- -D warnings
-python3 -m unittest test_computer_use test_node_peers test_remote_desktops test_desktop_relay test_desktop_service test_web_direct_peers test_agent_runs_mcp test_task_worker_mcp -v
+python3 -m unittest test_browser_use test_computer_use test_node_peers test_remote_desktops test_desktop_relay test_desktop_service test_web_direct_peers test_agent_runs_mcp test_task_worker_mcp test_node_identity test_device_networks -v
+CRANIBOX_TEST_REAL_BROWSER=1 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium python3 -m unittest test_browser_real_chromium -v
 ~~~
 
-完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。Web 最新完整 122 项及客户端完整 45 项已执行；新增专项位于 Web 的 computer-use.spec.ts 与客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
+完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新 Web 125 项、客户端 46 项，结果见本轮 Browser Use 表；新增专项位于 Web 的 browser-use.spec.ts 与客户端 client.spec.ts；Computer Use 保留 computer-use.spec.ts，真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；本轮 Computer Use 的提交与 CI 记录见最新专项。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；本轮 Browser Use 与此前 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。

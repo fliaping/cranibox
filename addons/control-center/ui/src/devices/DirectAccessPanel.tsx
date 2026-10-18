@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Plus, ShieldCheck, Trash2, X } from 'lucide-react';
 import type { DirectCatalog, DirectClient } from './DirectDevicesView';
 import { DirectListenerPanel } from './DirectListenerPanel';
+import { BrowserSharingPanel } from './BrowserSharingPanel';
 import { ComputerSharingPanel } from './ComputerSharingPanel';
 import { ProjectCopyRootPanel } from './ProjectCopyRootPanel';
 
@@ -14,7 +15,7 @@ export function DirectAccessPanel({ client, catalog, language, busy, run, onCata
   const [editor, setEditor] = useState(false), [node, setNode] = useState('');
   const [exec, setExec] = useState(false), [terminals, setTerminals] = useState(false);
   const [messages, setMessages] = useState(false), [spaces, setSpaces] = useState(false);
-  const [computer, setComputer] = useState(false);
+  const [computer, setComputer] = useState(false), [browser, setBrowser] = useState(false);
   const [projects, setProjects] = useState(false), [desktop, setDesktop] = useState(false);
   const [issued, setIssued] = useState<Issued>(), [copied, setCopied] = useState(false), [copyError, setCopyError] = useState('');
   const dialog = useRef<HTMLDialogElement>(null), tokenField = useRef<HTMLTextAreaElement>(null), firstField = useRef<HTMLInputElement>(null);
@@ -32,9 +33,9 @@ export function DirectAccessPanel({ client, catalog, language, busy, run, onCata
   async function grant(event: FormEvent) {
     event.preventDefault();
     await run(async () => {
-      const value = await client({ operation: 'grant', node: node.trim(), permissions: { exec, terminals, projects, desktop, computer, messages, spaces } }) as Issued & { catalog: DirectCatalog };
+      const value = await client({ operation: 'grant', node: node.trim(), permissions: { exec, terminals, projects, desktop, computer, browser, messages, spaces } }) as Issued & { catalog: DirectCatalog };
       if (!mounted.current) return;
-      onCatalog(value.catalog); setEditor(false); setNode(''); setExec(false); setTerminals(false); setProjects(false); setDesktop(false); setComputer(false); setMessages(false); setSpaces(false);
+      onCatalog(value.catalog); setEditor(false); setNode(''); setExec(false); setTerminals(false); setProjects(false); setDesktop(false); setComputer(false); setBrowser(false); setMessages(false); setSpaces(false);
       setCopied(false); setCopyError(''); issuance.current++; setIssued({ node: value.node, token: value.token });
     });
   }
@@ -52,10 +53,11 @@ export function DirectAccessPanel({ client, catalog, language, busy, run, onCata
     }
   }
   return <section className="direct-access" aria-label={t('入站授权', 'Incoming access')}>
-    <div className="direct-heading"><div><h3><ShieldCheck size={18} aria-hidden="true" />{t('入站授权', 'Incoming access')}</h3><p>{t('决定哪些设备可以访问此接入端。出站连接和入站授权分别管理。', 'Choose which devices may access this endpoint. Incoming grants are managed separately from outbound connections.')}</p></div><button ref={trigger} disabled={busy} onClick={() => { setEditor(value => !value); setNode(''); setExec(false); setTerminals(false); setProjects(false); setDesktop(false); setComputer(false); setMessages(false); setSpaces(false); }}>{editor ? <X size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{editor ? t('收起授权表单', 'Close grant form') : t('授权设备', 'Grant device access')}</button></div>
+    <div className="direct-heading"><div><h3><ShieldCheck size={18} aria-hidden="true" />{t('入站授权', 'Incoming access')}</h3><p>{t('决定哪些设备可以访问此接入端。出站连接和入站授权分别管理。', 'Choose which devices may access this endpoint. Incoming grants are managed separately from outbound connections.')}</p></div><button ref={trigger} disabled={busy} onClick={() => { setEditor(value => !value); setNode(''); setExec(false); setTerminals(false); setProjects(false); setDesktop(false); setComputer(false); setBrowser(false); setMessages(false); setSpaces(false); }}>{editor ? <X size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{editor ? t('收起授权表单', 'Close grant form') : t('授权设备', 'Grant device access')}</button></div>
     <DirectListenerPanel client={client} catalog={catalog} language={language} busy={busy} run={run} onCatalog={onCatalog} />
     <ProjectCopyRootPanel client={client} catalog={catalog} language={language} busy={busy} run={run} onCatalog={onCatalog} />
     <ComputerSharingPanel client={client} catalog={catalog} language={language} busy={busy} run={run} onCatalog={onCatalog} />
+    <BrowserSharingPanel client={client} catalog={catalog} language={language} busy={busy} run={run} onCatalog={onCatalog} />
     {editor && <form className="direct-grant-form" onSubmit={grant}>
       <label>{t('被授权设备 ID', 'Caller node ID')}<input ref={firstField} required pattern="[A-Za-z0-9_-]{1,64}" maxLength={64} value={node} disabled={busy} onChange={event => setNode(event.target.value)} /><span className="direct-note">{t('填写对方“当前接入端的直连身份”，不是 Workspace 中继别名。', 'Use the other device’s direct identity, rather than its Workspace relay alias.')}</span></label>
       <fieldset disabled={busy}><legend>{t('允许的能力', 'Allowed capabilities')}</legend><label className="direct-check"><input type="checkbox" checked={exec} onChange={event => setExec(event.target.checked)} />{t('执行命令', 'Execute commands')}</label><label className="direct-check"><input type="checkbox" checked={terminals} onChange={event => setTerminals(event.target.checked)} />{t('管理和接入终端会话', 'Manage and attach terminal sessions')}</label><p className="direct-note">{t('这些能力以节点进程的系统账户运行。终端权限可执行任意 Shell 命令，并访问该账户的所有终端会话。', 'These capabilities run as the node’s OS account. Terminal access permits arbitrary shell commands and access to all terminal sessions owned by that account.')}</p></fieldset>
@@ -63,11 +65,12 @@ export function DirectAccessPanel({ client, catalog, language, busy, run, onCata
       <label className="direct-check"><input type="checkbox" checked={spaces} disabled={busy} onChange={event => setSpaces(event.target.checked)} />{t('查看此设备管理的虚拟空间目录', 'View virtual spaces managed by this device')}</label><p className="direct-note">{t('只共享空间名称、节点 ID、运行环境和管理目录中的状态。启动、停止、登录凭据和空间节点访问仍由各自的授权控制。', 'Shares space names, node IDs, runtime and recorded status. Starting, stopping, login credentials and access to the space’s node remain separately controlled.')}</p>
       <label className="direct-check"><input type="checkbox" checked={desktop} disabled={busy} onChange={event => setDesktop(event.target.checked)} />{t('查看和控制此设备的桌面', 'View and control this device’s desktop')}</label><p className="direct-note">{t('可读取完整屏幕并发送键盘、鼠标输入。需要在“远程桌面”中开启本机 VNC 共享。', 'Allows screen capture, keyboard and mouse input. Enable local VNC sharing in Remote desktop first.')}</p>
       <label className="direct-check"><input type="checkbox" checked={computer} disabled={busy} onChange={event => setComputer(event.target.checked)} />{t('允许 Agent 桌面操作', 'Allow Agent Computer Use')}</label><p className="direct-note">{t('可截图、读取窗口及发送键鼠输入。需先配置上方的本机桥接；输入必须取得短期控制权。此授权独立于桌面查看器。', 'Allows screenshots, window inspection and keyboard/mouse input through the local bridge above. Input requires a short control lease. This grant is separate from desktop viewer access.')}</p>
+      <label className="direct-check"><input type="checkbox" checked={browser} disabled={busy} onChange={event => setBrowser(event.target.checked)} />{t('允许 Agent 浏览器操作', 'Allow Agent Browser Use')}</label><p className="direct-note">{t('可读取和操作共享浏览器的所有标签页、登录会话和网页数据，并执行页面脚本。需单独配置本机浏览器；不授予 Shell 或桌面权限。', 'Allows all tabs, signed-in sessions, page data and page scripts in the shared browser. Configure the local browser separately. This grants no shell or desktop access.')}</p>
       <label className="direct-check"><input type="checkbox" checked={messages} disabled={busy} onChange={event => setMessages(event.target.checked)} />{t('设备消息与协作任务', 'Device messages and collaboration tasks')}</label><p className="direct-note">{t('可查看本机 Agent 公开登记的名称、会话 ID 和状态，投递纯文本消息和任务请求，并查询自己投递的回执、进度与结果。目标 Agent 需主动领取任务；此权限不授予命令执行能力，也不能读取其他发送方的数据。', 'Allows reading public Agent session labels, IDs and reported status, sending plain text messages and tasks, and checking your own submissions. A target Agent must explicitly claim tasks. This grants no command execution or access to other senders’ data.')}</p>
-      <button className="direct-primary" type="submit" disabled={busy || !exec && !terminals && !projects && !desktop && !computer && !messages && !spaces}><KeyRound size={16} aria-hidden="true" />{busy ? t('正在创建…', 'Creating…') : t('创建授权 Token', 'Create access token')}</button>
+      <button className="direct-primary" type="submit" disabled={busy || !exec && !terminals && !projects && !desktop && !computer && !browser && !messages && !spaces}><KeyRound size={16} aria-hidden="true" />{busy ? t('正在创建…', 'Creating…') : t('创建授权 Token', 'Create access token')}</button>
     </form>}
     <div className="direct-grant-list" aria-label={t('已授权设备', 'Granted devices')}>
-      {(catalog.grants || []).map(grant => <div key={grant.node} className="direct-grant-row"><div><strong>{grant.node}</strong><p className="direct-note">{[grant.permissions.exec && t('执行命令', 'Execute commands'), grant.permissions.terminals && t('终端会话', 'Terminal sessions'), grant.permissions.spaces && t('空间目录', 'Space catalog'), grant.permissions.projects && t('项目目录', 'Project catalog'), grant.permissions.messages && t('设备消息与协作任务', 'Device messages and collaboration tasks'), grant.permissions.desktop && t('桌面控制', 'Desktop control'), grant.permissions.computer && t('Agent 桌面操作', 'Agent Computer Use')].filter(Boolean).join(' · ')}</p></div><button disabled={busy} aria-label={t('撤销授权 ', 'Revoke access ') + grant.node} onClick={() => {
+      {(catalog.grants || []).map(grant => <div key={grant.node} className="direct-grant-row"><div><strong>{grant.node}</strong><p className="direct-note">{[grant.permissions.exec && t('执行命令', 'Execute commands'), grant.permissions.terminals && t('终端会话', 'Terminal sessions'), grant.permissions.spaces && t('空间目录', 'Space catalog'), grant.permissions.projects && t('项目目录', 'Project catalog'), grant.permissions.messages && t('设备消息与协作任务', 'Device messages and collaboration tasks'), grant.permissions.browser && t('浏览器操作', 'Browser Use'), grant.permissions.desktop && t('桌面控制', 'Desktop control'), grant.permissions.computer && t('Agent 桌面操作', 'Agent Computer Use')].filter(Boolean).join(' · ')}</p></div><button disabled={busy} aria-label={t('撤销授权 ', 'Revoke access ') + grant.node} onClick={() => {
         if (confirm(t('撤销该设备的入站授权？其运行中的直连命令、终端和桌面连接会关闭，后台 Shell 会话仍保留。', 'Revoke this device’s incoming access? Its running direct commands, terminal and desktop attachments will close. Background shells remain running.'))) void run(async () => {
           const value = await client({ operation: 'revoke', node: grant.node }) as DirectCatalog;
           if (mounted.current) onCatalog(value);

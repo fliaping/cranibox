@@ -1,5 +1,6 @@
 //! Shared outbound routes for the node CLI, Web and Tauri.
 pub mod agent_sessions;
+pub mod browser;
 pub mod computer;
 pub mod config;
 mod copies;
@@ -99,6 +100,16 @@ pub enum Command {
     },
     ComputerSharing {
         computer: Option<computer::Provider>,
+    },
+    BrowserSharing {
+        browser: Option<browser::Provider>,
+    },
+    BrowserOwner {
+        command: browser::OwnerCommand,
+    },
+    Browser {
+        node: String,
+        command: browser::Request,
     },
     ComputerOwner {
         command: computer::OwnerCommand,
@@ -436,6 +447,23 @@ impl Store {
                 })
                 .await?
             }
+            Command::BrowserSharing { browser } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    Config::update(&path, |c| {
+                        c.browser = browser;
+                        c.browser_epoch = c
+                            .browser_epoch
+                            .checked_add(1)
+                            .context("browser generation exhausted")?;
+                        Ok(())
+                    })
+                    .map(|c| c.public_view())
+                })
+                .await?
+            }
+            Command::BrowserOwner { command } => browser::owner(&self.path, command).await,
+            Command::Browser { node, command } => self.browser(&node, command).await,
             Command::ComputerOwner { command } => computer::owner(&self.path, command).await,
             Command::Computer { node, command } => self.computer(&node, command).await,
             Command::Grant { node, permissions } => {
@@ -448,9 +476,10 @@ impl Store {
                             || permissions.projects
                             || permissions.desktop
                             || permissions.computer
+                            || permissions.browser
                             || permissions.messages
                             || permissions.spaces,
-                        "choose command, terminal, project, desktop, message and/or space catalog access"
+                        "choose command, terminal, project, desktop, computer, browser, message and/or space catalog access"
                     );
                     let token = crate::config::token();
                     let value = Config::update(&path, |value| {

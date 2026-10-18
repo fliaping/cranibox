@@ -1,6 +1,6 @@
 # 授权节点的 Computer Use
 
-2026-10-18：节点新增独立的 Computer Use 权限、直连 API、目标绑定 MCP，以及 Web/Tauri 共用的桥接配置和紧急停止。它复用目标上已经运行的 agent-desktop-bridge，不会安装驱动，也没有实现跨平台 Browser Use。
+2026-10-18：节点新增独立的 Computer Use 权限、直连 API、目标绑定 MCP，以及 Web/Tauri 共用的桥接配置和紧急停止。它复用目标上已经运行的 agent-desktop-bridge，不会安装驱动。浏览器操作另见独立授权的 [Browser Use](browser-use.md)。
 
 ## 范围与权限
 
@@ -85,6 +85,6 @@ cranibox-node peer call --node NODE_B computer-mcp
 - 目标绑定 MCP 返回真实 1440×1050 PNG；无控制权输入被拒绝。紧急停止后旧输入和新控制权均被拒绝，节点重启仍暂停，本机明确恢复后重新取得控制权；撤权后调用失败且 MCP 工具列表为空。
 - .deb 与无 FUSE 兼容模式 AppImage 的真实 Tauri 窗口均完成状态检查、紧急停止、取消恢复和确认恢复；核对持久暂停字段，没有模拟 IPC。AppImage 自身运行的 MCP 还从 AppImage GUI 所宿主的节点取得真实截图。
 
-为保留日常客户端运行，两个测试 GUI 使用独立配置和私有 D-Bus 会话，因此本轮不覆盖 KDE 托盘、自启动、完整旧业务流程或实际登录/休眠。两种身份位于同一远端容器，不构成多台物理设备或真实模型验收。Windows/macOS 驱动仍未验收；Browser Use、跨平台提供者安装、自动能力发现与公钥信任仍待实现。
+为保留日常客户端运行，两个测试 GUI 使用独立配置和私有 D-Bus 会话，因此本轮不覆盖 KDE 托盘、自启动、完整旧业务流程或实际登录/休眠。两种身份位于同一远端容器，不构成多台物理设备或真实模型验收。Windows/macOS 驱动仍未验收；跨平台提供者安装、自动能力发现与公钥信任仍待实现。Browser Use 已独立实现，验证范围见其专项文档。
 
 本次人工验收不增加自动化测试数量，包、摘要、原始尝试与清理记录见[最新 Linux 包及真实 Computer Use 补验](remote-workspace-validation-2026-10-18.md#3c1a38d-linux-包及真实-computer-use-补验)。交接入口见[功能与验证交接](implementation-handoff-2026-10-18.md)；自动化证据位于指定远端 /config/validation-artifacts/computer-use-20261018，真实包与桌面证据位于 /config/validation-artifacts/linux-installer-3c1a38d。私有桌面截图不提交 Git。

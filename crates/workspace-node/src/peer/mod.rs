@@ -1,4 +1,5 @@
 //! Opt-in target-authorized direct transport, independent of the Workspace gateway.
+mod browser_proxy;
 pub mod config;
 mod server;
 pub(crate) use server::start_with_catalog;
@@ -86,6 +87,9 @@ pub enum Command {
         /// Agent screenshot/input/window actions, with a short input lease.
         #[arg(long)]
         computer: bool,
+        /// Full control of all tabs in the target's explicitly shared Chromium browser.
+        #[arg(long)]
+        browser: bool,
         #[arg(long)]
         messages: bool,
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
@@ -120,6 +124,16 @@ pub enum Command {
     },
     /// Owner-only Computer Use status, emergency stop or resume as typed JSON.
     ComputerOwner {
+        #[arg(long)]
+        command: String,
+    },
+    /// Share an existing loopback Chromium CDP browser. Omit --address to disable.
+    Browser {
+        #[arg(long)]
+        address: Option<SocketAddr>,
+    },
+    /// Owner-only browser status, emergency stop or resume as typed JSON.
+    BrowserOwner {
         #[arg(long)]
         command: String,
     },
@@ -264,6 +278,15 @@ pub enum Action {
     },
     /// Computer Use MCP bound to this explicitly selected device.
     ComputerMcp,
+    /// Browser status or emergency stop as typed JSON; omitted means status.
+    Browser {
+        #[arg(long)]
+        command: Option<String>,
+    },
+    /// Official Chrome DevTools MCP bound to this explicitly selected device.
+    BrowserMcp,
+    /// Print an ephemeral loopback CDP WebSocket URL; keep running until Ctrl+C.
+    BrowserProxy,
     /// Read the target's explicitly shared virtual-space directory.
     Spaces,
     Exec {
@@ -485,13 +508,20 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             projects,
             desktop,
             computer,
+            browser,
             messages,
             spaces,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
             ensure!(
-                exec || terminals || projects || desktop || computer || messages || spaces,
-                "choose --exec, --terminals, --projects, --desktop, --computer, --messages and/or --spaces"
+                exec || terminals
+                    || projects
+                    || desktop
+                    || computer
+                    || browser
+                    || messages
+                    || spaces,
+                "choose --exec, --terminals, --projects, --desktop, --computer, --browser, --messages and/or --spaces"
             );
             let token = secrets::token();
             let value = Config::update(&path, |value| {
@@ -525,6 +555,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                             projects,
                             desktop,
                             computer,
+                            browser,
                             messages,
                             spaces,
                         },
@@ -558,6 +589,23 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 .manage(agent_workspace_runtime::peers::Command::ComputerOwner {
                     command: serde_json::from_str(&command)
                         .context("invalid Computer Use owner command")?,
+                })
+                .await?,
+        ),
+        Command::Browser { address } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::BrowserSharing {
+                    browser: address.map(|address| {
+                        agent_workspace_runtime::peers::browser::Provider { address }
+                    }),
+                })
+                .await?,
+        ),
+        Command::BrowserOwner { command } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::BrowserOwner {
+                    command: serde_json::from_str(&command)
+                        .context("invalid browser owner command")?,
                 })
                 .await?,
         ),
@@ -765,6 +813,23 @@ async fn call(path: &Path, node: &str, action: Action) -> Result<()> {
             client::computer_mcp(
                 agent_workspace_runtime::peers::Store::new(path.into()),
                 node.into(),
+            )
+            .await?;
+            return Ok(());
+        }
+        Action::Browser { command } => {
+            let request =
+                serde_json::from_str(command.as_deref().unwrap_or("{\"operation\":\"status\"}"))
+                    .context("invalid browser command")?;
+            agent_workspace_runtime::peers::Store::new(path.into())
+                .browser(node, request)
+                .await?
+        }
+        Action::BrowserMcp | Action::BrowserProxy => {
+            browser_proxy::run(
+                path.into(),
+                node.into(),
+                matches!(action, Action::BrowserMcp),
             )
             .await?;
             return Ok(());

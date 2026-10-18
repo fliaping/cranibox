@@ -50,6 +50,11 @@
 .direct-listener code { overflow-wrap: anywhere; user-select: all; }
 .direct-listener form { margin-top: 16px; }
 .direct-grant-form { margin-bottom: 16px !important; }
+.browser-sharing { border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0; }
+.browser-sharing > summary { cursor: pointer; min-height: 44px; font-weight: 600; line-height: 1.5; }
+.browser-sharing > summary svg { vertical-align: middle; margin-inline-end: 4px; }
+.browser-sharing > div { display: grid; gap: 14px; padding-top: 8px; min-width: 0; }
+.browser-command { display: block; padding: 12px; margin-block: 12px; background: var(--code-bg, #131d2d); border-radius: 8px; overflow-wrap: anywhere; user-select: all; font-size: 13px; line-height: 1.6; }
 .direct-grant-form > form { display: grid; gap: 12px; min-width: 0; }
 .direct-grant-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
 .direct-grant-form legend { font-size: 14px; padding: 0 6px; }

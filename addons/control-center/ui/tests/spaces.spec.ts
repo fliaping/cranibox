@@ -48,7 +48,7 @@ test('shared space directories retain ownership, require permission and recover 
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/peers', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
-    if (command.operation === 'list') return route.fulfill({ json: { node_id: 'local-manager', routes: [{ node: 'linux-manager' }, { node: 'mac-manager' }], grants: [] } });
+    if (command.operation === 'list') return route.fulfill({ json: { node_id: 'local-manager', routes: [{ node: 'linux-manager', url: 'http://linux-manager.test:9091', allow_private_http: true }, { node: 'mac-manager', url: 'http://mac-manager.test:9091', allow_private_http: true }], grants: [] } });
     if (command.operation === 'probe') return route.fulfill({ json: { nodes: [{ id: command.node, spaces: command.node === 'linux-manager' && granted }] } });
     if (command.operation === 'space_catalog' && unavailable) return route.fulfill({ status: 400, json: { error: 'Connection unavailable' } });
     if (command.operation === 'space_catalog') return route.fulfill({ json: { owner: command.node, spaces: [{ id: '11111111-1111-4111-8111-111111111111', name: '<Remote Agent lab>', node: 'remote-space-node', provider: 'docker', phase: 'pulling' }] } });

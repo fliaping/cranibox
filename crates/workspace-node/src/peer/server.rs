@@ -30,6 +30,7 @@ use std::{
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio_util::sync::CancellationToken;
 mod agent_sessions;
+mod browser;
 mod computer;
 mod copies;
 mod desktop;
@@ -82,6 +83,7 @@ struct App {
     slots: Arc<Semaphore>,
     streams: Arc<Semaphore>,
     desktops: Arc<Semaphore>,
+    browsers: Arc<Semaphore>,
     computer: Arc<Mutex<Option<computer::Lease>>>,
     computer_actions: Arc<Mutex<()>>,
     stop: CancellationToken,
@@ -182,6 +184,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,
         "projects":caller.grant.permissions.projects,"desktop":caller.grant.permissions.desktop && Config::read(&app.path).is_ok_and(|c| c.desktop.is_some()),
         "computer":caller.grant.permissions.computer && Config::read(&app.path).is_ok_and(|c| c.computer.is_some()),
+        "browser":caller.grant.permissions.browser && Config::read(&app.path).is_ok_and(|c| c.browser.is_some()),
         "messages":caller.grant.permissions.messages,
         "spaces":caller.grant.permissions.spaces,
         "tasks":caller.grant.permissions.messages,
@@ -663,6 +666,7 @@ pub(crate) async fn start_with_catalog(
         slots,
         streams: Arc::new(Semaphore::new(4)),
         desktops: Arc::new(Semaphore::new(1)),
+        browsers: Arc::new(Semaphore::new(1)),
         computer: Arc::default(),
         computer_actions: Arc::default(),
         connections: stop.child_token(),
@@ -715,6 +719,8 @@ fn transport(
         .route("/nodes/{node}/terminal/ws", get(attach))
         .route("/nodes/{node}/desktop/ws", get(desktop::upgrade))
         .route("/nodes/{node}/computer", post(computer::manage))
+        .route("/nodes/{node}/browser", post(browser::manage))
+        .route("/nodes/{node}/browser/ws", get(browser::upgrade))
         .route("/nodes/{node}/projects", post(projects::manage))
         .route("/nodes/{node}/projects/sync", post(projects::sync))
         .route("/nodes/{node}/messages", post(messages::receive))
