@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新收尾为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)，本轮结果见下一节。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
+最新功能提交 a8a97f5 为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)，本轮结果见下一节。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；此前 3c1a38d 的 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，本轮新包未实际安装，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -73,7 +73,11 @@
 
 真实 KDE 稳定性复测 real-selkies-repeat.log 再次完整通过，不增加测试数量。final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket，3080/3031 均匿名 401/认证 200；日常 Web PID 538744、原生客户端 PID 767446、两者二进制摘要及原 NodeID 保持，未残留测试节点、浏览器或 MCP 进程。
 
-最终 CI 结果待提交后补录。新版本尚未部署到日常主服务，未实际安装本轮的新安装包。Windows/macOS 实机、跨物理设备、真实 Tailnet、最新包登录/休眠等缺口保持，不以本轮夹具或原生编译替代。
+**功能提交 a8a97f5f5af91619c379e64fd2f2f9aeda45bc34 的最终矩阵 39128492641 为 completed / success，7/7 作业成功**。三平台原生检查、测试和发布构建，三平台 Tauri 安装包，以及独立真实 Sway/wayvnc 均通过；Linux 完整 Web、真实 Chromium/官方 MCP、后端回归、真实 X11 VNC、用户态 EasyTier、GIO 启动器与资源测量亦通过。Release 39128492600、Sync to GitCode 39128492640 均 completed / success，已逐一核对完整 headSha。main 分支 Release 没有发布完整产品镜像；CI 的重复用例不累加到远端 392 项。可用 gh run view 39128492641 --repo fliaping/cranibox 查看。
+
+该运行提供十项 Artifacts：三平台 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。在 GitHub Actions 打开运行 39128492641，选择 cranibox-node-desktop-ubuntu-latest（.deb/AppImage）、cranibox-node-desktop-windows-latest（NSIS）或 cranibox-node-desktop-macos-latest（.dmg）；相同的 0.1.0 文件名不能用于区分提交。新版本尚未部署到日常主服务，未实际安装本轮的新安装包。Windows/macOS 实机、跨物理设备、真实 Tailnet、最新包登录/休眠等缺口保持，不以本轮夹具或原生编译替代。
+
+本节私有证据目录中的 ci-final.json 保存三条运行、全部作业步骤与十项产物元数据；source-snapshot-final.json 记录功能及最终文档提交，并逐一核对本地与远端全部 18 个变更文件的摘要一致；acceptance-final.json 汇总 392 项不同测试和最终 CI。原始 acceptance.json、source-snapshot.json 和首轮失败日志保留，final-health.json 在交接前再次检查日常服务、身份与清理状态。
 
 ### 此前收尾：Browser Use
 
@@ -320,14 +324,14 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 此前 3c1a38d 的完整 CI 最终 7/7 通过，Linux .deb/AppImage 的真实 Computer Use、原生 IPC 与 MCP 已人工补验；较完整的托盘、自启与终端流程仍绑定此前 6396b93。当前 Browser Use 已完成源码构建、真实 Chromium/MCP 与模拟 IPC 验证，尚未实际安装本次新包。最新包的正常桌面集成、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- 此前 3c1a38d 的完整 CI 最终 7/7 通过，Linux .deb/AppImage 的真实 Computer Use、原生 IPC 与 MCP 已人工补验；较完整的托盘、自启与终端流程仍绑定此前 6396b93。Browser Use 已有真实 Chromium/MCP，桌面剪贴板已有真实 KDE 和模拟 IPC 验证，尚未实际安装这些新功能对应的包。最新包的正常桌面集成、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 当前 286ec94 的三平台 Tauri 安装包已由 CI 构建，但未实际安装。此前 3c1a38d 的 Linux 两包真实 Computer Use、原生 IPC/MCP 已补验，托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
+| P0 | 跨平台安装与产品镜像发布验收 | 当前 a8a97f5 的三平台 Tauri 安装包已由 CI 构建，但未实际安装。此前 3c1a38d 的 Linux 两包真实 Computer Use、原生 IPC/MCP 已补验，托盘/自启等较完整流程仍绑定 6396b93。继续 Windows/macOS、最新包正常桌面集成、普通 FUSE、实际登录/休眠及网关故障。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397，公开镜像发布/拉取待完成 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
@@ -335,6 +339,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
 | P2 | Wayland CI 认证超时诊断 | 保留 wayvnc/neatvnc 与客户端握手诊断，定位此前 3c1a38d 矩阵中的 5 秒等待超时；不跳过错误凭据测试或将重跑成功表述为时序问题已修复 |
+| P2 | KDE 实机输入超时诊断 | 剪贴板首轮真实测试在后续 kdialog 输入阶段超时，两次完整复测通过；现已增加失败截图。保留日志，若重现核对窗口焦点与真实输入，不放宽超时或把重跑通过称为修复 |
 
 暂不需要为了节点身份等同引入选主；目前数据由所属节点持有，界面连接任一运行入口。若未来要复制协作协调状态，先定义故障与冲突模型，再决定是否需要一致性协议。
 
@@ -359,6 +364,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/selkies.rs；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
+| addons/control-center/ui/src/desktop/{DesktopClipboard.tsx,clipboard.ts,VncViewer.tsx} | Web/Tauri 共用纯文本剪贴板面板、UTF-8 限制、明确复制及连接生命周期；Web desktops.spec.ts、原生 client.spec.ts 为夹具/模拟 IPC 回归 |
 | crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |
 | addons/control-center/ui/src/devices/ComputerSharingPanel.tsx；tests/test_computer_use.py | Web/Tauri 共用桥接管理；真实节点/桥接/Web 与可控原生动作夹具 |
 | crates/workspace-runtime/src/peers/browser.rs；crates/workspace-node/src/peer/{server/browser.rs,browser_proxy.rs} | Chromium CDP 提供者、独立授权、状态/停止、WebSocket 与调用端官方 MCP 进程生命周期 |
@@ -395,10 +401,22 @@ export CRANIBOX_HERDR_BIN=/config/bin/herdr
 export PYTHONPATH=tests
 
 cargo fmt --all --check
-cargo clippy --locked -p agent-workspace-runtime -p cranibox-node --all-targets -- -D warnings
-python3 -m unittest test_browser_use test_computer_use test_node_peers test_remote_desktops test_desktop_relay test_desktop_service test_web_direct_peers test_agent_runs_mcp test_task_worker_mcp test_node_identity test_device_networks -v
-CRANIBOX_TEST_REAL_BROWSER=1 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium python3 -m unittest test_browser_real_chromium -v
+cargo clippy --workspace --locked --all-targets -- -D warnings
+cargo test --workspace --locked
+cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
+python3 -m unittest test_remote_desktops test_desktop_relay test_desktop_service test_computer_use test_cranibox_terminal -v
 ~~~
+
+真实 KDE 剪贴板需先核对登录会话和纯文本剪贴板，再明确接管，当前指定容器的命令如下。它只适用于该现有图形会话，不是通用的显示器自动选择：
+
+~~~sh
+DISPLAY=:1 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/config/.XDG \
+CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium \
+CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082 CRANIBOX_TEST_SELKIES_CLIPBOARD=1 \
+python3 -m unittest test_desktop_real_selkies -v
+~~~
+
+此前 Browser Use 专项仍可用 python3 -m unittest test_browser_use -v；真实 Chromium 另设 CRANIBOX_TEST_REAL_BROWSER=1 和 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，运行 test_browser_real_chromium。它不访问日常浏览器 profile 或 9222。
 
 完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新 Web 126 项、客户端 46 项，结果见最新收尾表；剪贴板专项位于 Web 的 desktops.spec.ts 与客户端 client.spec.ts。此前 Browser Use 保留 browser-use.spec.ts，Computer Use 保留 computer-use.spec.ts；真实 KDE 测试的显式启用、剪贴板恢复和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
