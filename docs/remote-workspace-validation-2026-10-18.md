@@ -476,3 +476,62 @@ sudo -n docker buildx build \
 | ci-final.json | 功能提交三条 Actions 的最终元数据 |
 
 firstboot.env 与 firstboot-config 含私有凭据和运行状态，日志也可能包含敏感字段；保留在远端，不输出或纳入 Git。后续接手优先级与未验收需求以[交接记录](implementation-handoff-2026-10-18.md)为准。
+
+## Linux CI 安装包与原生交互验收
+
+本节补充实际安装包验证，功能源码仍为 71f239755f9a95f528151ddbebf8ec758a866087，没有修改生产代码。全部安装、原生窗口、托盘、套接字和浏览器运行均在 admin@192.168.217.6:22022 的 cranibox-validation 容器完成；本机只下载产物、校验摘要、同步文件及查看截图。环境为 Ubuntu 26.04 LTS、amd64、KDE Wayland，使用现有图形会话的 abc 用户。此项不是新的完整产品镜像首次启动验证。
+
+### 产物来源与实际安装
+
+从已通过的矩阵运行 39096427553 下载 cranibox-node-desktop-ubuntu-latest，Artifact ID 为 12125116753。ZIP 大小 95,334,337 字节，SHA-256 为 0401d3af4ebb9b2192c82def68defe8874317cfc28766ef5d4f5d7f7da7ca929，本机和远端摘要均与 GitHub 元数据的 digest 相同。只解出指定的 .deb 与 AppImage；本节实际运行的是 .deb，AppImage 仅保留待测。
+
+安装前用 dpkg-query 确认 cranibox-node 尚未安装，然后在验证容器内执行：
+
+~~~sh
+apt-get install -y --no-install-recommends \
+  '/config/validation-artifacts/linux-installer-71f2397/deb/Cranibox Node_0.1.0_amd64.deb'
+~~~
+
+安装退出码 0；dpkg-query 确认 install ok installed、版本 0.1.0、架构 amd64。包名是 cranibox-node，安装的 GUI 程序是 /usr/bin/cranibox-node-desktop，--version 返回 cranibox-node 0.1.0、退出码 0。包声明依赖 libayatana-appindicator3-1、libwebkit2gtk-4.1-0、libgtk-3-0；同时安装应用入口和图标。已安装二进制 SHA-256 为 14d38b70b3a84681bebb14b268dec3227dc0b526e59045643140b226bd7a1e10。
+
+临时停止原验证客户端前核对其 /proc 可执行文件与子进程，确认没有活动 Shell；仅停止已确认归属的进程。随后以 abc、真实图形会话的 Wayland/D-Bus 环境和独立 XDG 配置/数据目录启动已安装程序。检查 /proc/PID/exe 与安装文件一致，避免误把此前 debug 客户端的界面算作 release 验收。测试身份为 node-56633093fc67426db15d118245e5850c，与主服务和原客户端分离。
+
+### 真实原生交互结果
+
+通过已认证的 Selkies 3031 桌面画面操作实际 Tauri 窗口；鼠标操作由浏览器发送至桌面，使用真实 IPC，没有模拟 Tauri 响应。以下为人工集成验收，不累计到前文 34 项自动化测试，也不意味着所有客户端业务均已重测。
+
+| 检查 | 结果与边界 |
+| --- | --- |
+| 已安装 release 程序 | 原生界面实际可见，本机节点状态正常；进程可执行文件、文件摘要和安装包对应 |
+| Agent 接入与真实 IPC | 点击“复制配置”，解析剪贴板 JSON；cranibox-devices 与 cranibox-messages 均使用 /usr/bin/cranibox-node-desktop，并指向独立测试 settings.json，配置不含节点 Token |
+| 托盘归属与菜单 | 将注册的 D-Bus 托盘服务关联到 release PID；读取到打开、重新连接和明确退出菜单，实际触发打开与退出动作。重连菜单未测试 |
+| 关闭窗口与重新打开 | 点击原生窗口关闭按钮后窗口消失，原进程仍运行、托盘 Active；对该托盘的真实 D-Bus 菜单发送 Event，窗口重新出现 |
+| 自启动配置开关 | 通过真实设置界面启用，再禁用；检查实际 desktop 文件创建、Exec 参数及删除，并保留开/关截图。没有实际注销/登录系统 |
+| 退出确认 | 托盘退出动作打开确认对话框；“继续运行”保留原进程，之后再次打开并选择“退出并结束会话”，进程退出，无需发送终止信号 |
+| 后台启动与身份保留 | 手动用 --background 和相同隔离配置启动，进程及托盘存在、窗口隐藏，NodeID 与前次相同 |
+| 单实例唤回 | 再次启动已安装程序，第二个进程退出码 0，原后台进程仍运行，原窗口被唤回；最终再次通过确认界面退出 |
+
+自启动插件在本环境实际使用 HOME/.config/autostart，而不是独立 XDG_CONFIG_HOME。测试前该项禁用、文件不存在；启用后文件为 /config/.config/autostart/Cranibox Node.desktop，Exec 为 /usr/bin/cranibox-node-desktop --background。禁用后文件移除，最终再次确认不存在。后续隔离测试不能只设置 XDG_CONFIG_HOME 就假定自启项也被隔离。
+
+最初只给 agent-browser 配置 HTTP 认证时，页面 HTML 可加载，但 Selkies WebSocket 未连接，得到黑色预览。改用独立 Playwright Chromium、带 HTTP 认证的浏览器上下文和仅监听 127.0.0.1:9227 的 CDP 后，确认接收到 162 帧 WebSocket 数据并实际看见桌面，再由命名 agent-browser 会话接入。另修正临时 D-Bus 检查脚本，改用 org.freedesktop.DBus.GetConnectionUnixProcessID 关联进程。这两处都是验证辅助工具修正，没有改动产品；初始黑色截图 release-first-window.png 保留，不计作通过证据。
+
+### 环境恢复与证据
+
+测试后先通过真实退出确认结束临时 release 进程；确认包版本及二进制摘要属于本次安装后执行 dpkg --remove cranibox-node，退出码 0，安装包与 /usr/bin/cranibox-node-desktop 已移除，没有自动清除其他依赖，也没有在远端宿主系统安装该包。原 debug 客户端已恢复，PID 596906、可执行文件 /config/validation-build/target/debug/cranibox-node-desktop，NodeID 仍为 node-82bf96c6f15d4f00923656f7877b8609；托盘归属和原生界面已复核。
+
+测试前的剪贴板已恢复，临时备份文件已删除；测试自启项不存在，专用 agent-browser 会话、预览浏览器与辅助进程已关闭。主容器仍 running / healthy，镜像和 NodeID 与测试前一致；3080 Web 与 3031 桌面入口均为匿名 401、认证 200。产物、隔离数据和证据留在私有目录，未影响此前已停止的空间及镜像测试容器。
+
+最终 acceptance.json 为 passed: true。证据目录为宿主 /vol3/1000/cranibox-validation/data/validation-artifacts/linux-installer-71f2397，容器内 /config/validation-artifacts/linux-installer-71f2397。目录权限 0700，最终报告权限 0600；对文本证据的凭据检查未发现本次使用的环境密码。以下文件保留在远端，不将运行凭据、剪贴板或二进制产物提交 Git：
+
+| 文件 | 用途 |
+| --- | --- |
+| acceptance.json | 源码与产物绑定、最终通过项、限制、环境恢复、主服务状态及截图摘要 |
+| package-before.json、install.log、uninstall.log | 安装前状态、实际安装及卸载记录 |
+| release-launch.json、release-tray.json、release-menu.json、release-mcp.json | 已安装进程、托盘菜单归属与真实 IPC 配置检查 |
+| release-background-restart.json、release-single-instance.json | 后台启动、身份保留和第二次启动唤回检查 |
+| quit-restart-actions.json、final-exit-actions.json | 退出取消/确认、重启及最终退出记录 |
+| release-preview.png、release-tray-reopened.png、release-autostart-on.png、release-autostart-off.png | 实际可见窗口、托盘打开和自启动开关截图 |
+| release-quit-cancelled.png、release-background-hidden.png、release-single-instance-reopened.png、original-client-restored.png | 退出取消、后台隐藏、单实例窗口与原客户端恢复截图 |
+| preview-ready.json、preview.log、check.py、browser.py、preview.mjs | 真实桌面传输与临时验证工具，供复核而非生产实现 |
+
+范围仍限定为该远端 KDE 容器上的 Linux .deb。未执行 AppImage、实际 OS 注销/登录或休眠/恢复、Windows/macOS 原生安装、托盘重连及真实网络恢复；未在 release 包中重测 PTY/Shell 保留和每个业务流程。Selkies 画面不能证明 KDE VNC 捕获成功，前文 KDE Wayland VNC 失败结论不变。下一阶段仍按[交接优先级](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)推进。
