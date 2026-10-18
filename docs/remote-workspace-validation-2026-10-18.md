@@ -1158,3 +1158,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 私有证据根目录 /config/validation-artifacts/desktop-discovery-20261019：checks.json 与首轮日志；final 的 Rust 测试和构建；ui-final 的全量失败日志及 failure-contexts；verified 的全量成功日志、API 检查和初次真实服务检查；post-review 的最终构建、14/3 专项、real 的截图/操作/配置不变记录、source-binaries.json 和 final-health.json。凭据、截图、配置、原始正文与辅助脚本均不提交。
 
 本轮新检测功能没有做正式安装包的真实 GUI 验收；之前 Linux .deb/AppImage 的通过仍仅绑定 2c95dd4。正常登录/托盘/自启、跨物理设备、Windows/macOS、系统 Tailscale 安装、公开镜像拉取、完整同步及运行中 Agent 迁移仍有未完成项，已按 P0/P1/P2 列在[交接入口](implementation-handoff-2026-10-18.md)。本轮提交与 CI 状态在后续补记绑定，不能挪用旧矩阵的成功。
+
+### 提交与 CI 交接补记
+
+产品提交 84454e695d915157d245630c4ad3b8b77091c0b6 已推送 origin/main，功能、生成资源、回归与需求/验证文档均在此提交。GitHub 矩阵 39169225796、Release 39169225825、Sync to GitCode 39169225719 均核对完整 headSha，交接时为 in_progress，**尚未记为通过**。后续文档补记没有改变产品源码。下一位维护者继续核对运行结果，再下载该矩阵的新版安装包验收新检测流程；不要以 39162097500 的旧绿色矩阵替代。

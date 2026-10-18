@@ -76,9 +76,21 @@
 
 证据目录为远端 /config/validation-artifacts/desktop-discovery-20261019：首轮 checks.json 和日志、final 的 Rust 测试、ui-final 的失败日志与追踪、verified 的全量测试及 API 检查、post-review 的最终资源构建/专项/真实服务检查，以及 source-binaries.json 和 final-health.json。凭据、截图、原始配置与辅助脚本不提交。日常服务和此前安装包验收均有独立版本边界，下方历史结果不代替本轮检查。本轮 CI 与提交绑定信息见下方补记。
 
+### 本轮提交与 CI 交接
+
+已有服务检测的产品提交为 **84454e695d915157d245630c4ad3b8b77091c0b6**（feat: discover and review existing desktop services），已推送 origin/main。后续补记只改文档；以下运行全部绑定该完整产品提交：
+
+| 工作流 | 运行编号 | 交接时状态 |
+| --- | --- | --- |
+| Cranibox server and independent node client | 39169225796 | 已触发，运行中；尚未获得本轮三平台和安装包结果 |
+| Release | 39169225825 | 已触发，运行中 |
+| Sync to GitCode | 39169225719 | 已触发，运行中 |
+
+下一位维护者先核对这些运行的最终结果；下载包含新检测界面的安装包应使用本轮矩阵，并核对 headSha。下文 2c95dd4 的绿色 CI 和 Linux 包实测属于旧产品，不能当作 84454e6 已通过。可用 gh run view 39169225796 --repo fliaping/cranibox --json headSha,status,conclusion,jobs 继续检查。
+
 ### 上一轮 Selkies 修复的代码验证：2026-10-19
 
-全部运行验证位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation 容器；本机仅编辑、静态审阅和 Git 操作。以下是本次最终产品源码的结果，专项与全量中的重叠测试不累计。
+全部运行验证位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation 容器；本机仅编辑、静态审阅和 Git 操作。以下仅为上一轮 Selkies 修复源码的结果，专项与全量中的重叠测试不累计。
 
 | 验证 | 结果 | 范围与限制 |
 | --- | --- | --- |
@@ -230,6 +242,7 @@ cargo test --locked -p cranibox-node-desktop --features desktop,custom-protocol 
 cargo clippy --locked -p cranibox-node-desktop --features desktop,custom-protocol --all-targets -- -D warnings
 python3 -m unittest test_remote_desktops test_desktop_relay test_desktop_service -v
 npm test --prefix apps/node-desktop
+npm test --prefix addons/control-center/ui
 npm test --prefix addons/control-center/ui -- tests/desktops.spec.ts --workers=1
 ~~~
 
