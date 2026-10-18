@@ -66,6 +66,8 @@ AppImage 诊断使用只记录方向、消息类型、字节数及是否匹配�
 
 本轮所有运行仍在指定远端容器；证据根目录 /config/validation-artifacts/native-clipboard-debug-20261018，包含 native-errors-focused.log、native-ui-full.log、native-build.log、upstream.json、protocol.jsonl、截图及 patched 子目录。实际 AppImage 与 debug GUI、转发器和私有会话辅助进程均已停止，两次恢复剪贴板并逐字节核对，备份删除；日常服务、二进制和身份保持。此前 linux-installer-a8a97f5 的失败记录不改写。此次没有重跑完整 Rust/Web 测试，也未重新安装 Linux 包；新代码的 CI 单独按提交核对，不能沿用 a8a97f5 的绿色矩阵。
 
+代码及上述交接提交为 **84fdf88e01bf49487adf3ac297088c15cf0cef17**，已推送 origin/main。交接时核对矩阵 **39138324015 仍为 in_progress**：真实 Sway/wayvnc 作业成功，其余六项尚在构建/测试，不能写成 7/7 通过。对应 Release 39138324009、Sync to GitCode 39138324019 已 completed / success，逐一核对完整 headSha；Release 不代表完整产品镜像已发布。接手先运行 gh run view 39138324015 --repo fliaping/cranibox 确认最终结果及产物；本次不等待矩阵完成的状态明确保留，后续只更新文档的提交不重触发该矩阵。
+
 ### 最新收尾：桌面文字剪贴板
 
 在现有查看器工具栏展开“剪贴板”，可向目标发送纯文本、查看远端文字并明确复制到本机；Selkies 另可主动获取。使用 noVNC 公开接口及 Selkies 的 cw/cr 协议，没有增加依赖或复制第三方 UI。发送不会自动执行粘贴快捷键，只读禁止发送；文字不进入存储或日志，关闭面板清除草稿，断开、重连或切换目标清除暂存内容。
