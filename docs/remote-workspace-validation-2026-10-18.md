@@ -581,4 +581,18 @@ Debian/Ubuntu 图形主机使用 pkexec、内置 APT 脚本与官方稳定源，
 
 证据为 /config/validation-artifacts/tailscale-setup-20261018，目录 0700，报告和日志 0600：rust-final.json、desktop-final.json、web-final.json 记录命令与退出码；rust-tests.log、network-api.log、web-networks.log、native-ui.log 记录测试；web-networks-initial.log 保留初始失败；asset-digests.json 记录重复生成一致的资源摘要。手机明暗截图保留在该目录的 mobile-light.png、mobile-dark.png。
 
+功能提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442。source-digests.json 核对了本机提交源码与远端实际测试的 13 份代码、发布资源和测试文件，摘要全部一致；文档未计入该代码摘要清单。
+
+### 当前提交的 CI 最终结果
+
+以下三条运行均已结束，headSha 均核对为上述完整功能提交；最终工作流与步骤元数据保存在同目录的 ci-final.json。
+
+| 工作流 | 运行编号 | 结果 |
+| --- | --- | --- |
+| Cranibox server and independent node client | 39101805562 | completed / success，7/7 作业成功 |
+| Release | 39101805607 | completed / success |
+| Sync to GitCode | 39101805611 | completed / success |
+
+七项作业包括三平台原生检查、测试与发布构建，三平台 Tauri 安装包，以及真实 Sway/wayvnc 作业。Linux 原生作业还通过完整 Web、HTTP/CLI/MCP 回归、真实 X11 VNC 认证/画面/输入/重启、真实用户态 EasyTier 网络/重启/入口故障切换及资源基线检查。前述远端专项验证中忽略的两项 EasyTier 测试由 CI 的独立真实网络步骤执行，不将不同范围的结果合并计数。安装包生成不代表实际安装验收，Release 的 main 分支运行没有构建和发布产品镜像。后续交接提交仅更新文档，不再触发有路径过滤的三平台矩阵；该绿色结果绑定 b6ed81e 的功能代码。
+
 本轮未运行真实系统安装器，没有提升容器权限、安装 Tailscale、登录账号、修改 tailnet 或宿主路由，也未替换日常主服务和原生客户端；新代码只在隔离测试进程运行。Windows/macOS 实机、系统管理员授权、macOS 网络扩展、真实 Tailscale ACL/互访仍未验收。此前 KDE VNC 捕获失败结论不变，继续使用 Selkies。此前 71f2397 的 CI、完整镜像与 .deb 验收绑定旧提交，不应自动外推到此次安装引导。
