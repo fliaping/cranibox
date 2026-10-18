@@ -131,11 +131,13 @@
 
 在指定远端宿主 Docker 引擎使用既有独立构建器，完整构建源码 18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4 的 linux/amd64 XFCE 镜像；耗时 666.17 秒，大小 5,261,024,756 字节，镜像 ID 为 sha256:fa81e38cb9c42d7cfc3ea6b156b0ab2002b412dfffd7ae54830801e0ce4f08d0。构建器结束后恢复停止，未改变默认构建器。
 
-使用本轮实际待提交检查器，对全新普通卷与预置身份/授权的空间卷分别完成首次启动和重启，43/43 通过，耗时 86.73 秒。覆盖 Rust 入口、服务启用、静态资源、私有凭据、桌面登录、空间目标身份、令牌拒绝、真实命令执行，以及重启后的身份/凭据/文件保留。测试用容器和卷均已按归属标签清理。检查器 SHA-256 d18ea9d50f0ed89d8b36248dd1f242833aafa912cc709d4e5b059b47ca9f3b82 与本地提交内容一致。
+使用本轮实际检查器，对全新普通卷与预置身份/授权的空间卷分别完成首次启动和重启，43/43 通过，耗时 86.73 秒。覆盖 Rust 入口、服务启用、静态资源、私有凭据、桌面登录、空间目标身份、令牌拒绝、真实命令执行，以及重启后的身份/凭据/文件保留。测试用容器和卷均已按归属标签清理，另行清查无残留。检查器 SHA-256 d18ea9d50f0ed89d8b36248dd1f242833aafa912cc709d4e5b059b47ca9f3b82 与本地提交内容一致。
 
 日常容器仍 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200，Web/客户端 PID、程序摘要及 NodeID 保持。私有证据 /config/validation-artifacts/image-release-20261019 包含 build.json/build.log、startup.json/startup-summary.json/startup.log、检查器与工作流快照、gate-unit-final.log、actionlint.log、workflow-bash-syntax.json 和 final-health.json。
 
 这是远端完整源码镜像的真实验收，尚未执行新 GitHub 镜像工作流、公开镜像推送/拉取、arm64 运行、Aliyun 发布，或本镜像的浏览器桌面输入与完整空间生命周期。下一位维护者可按[发布说明](workspace-image-release.md)先运行 desktop=xfce、publish=false，再选择是否正式发布；公开默认标签仍保留上节所述阻塞。
+
+本轮 CI/检查器代码提交为 dff9ed957eb756fb82b32a5b9fe70f367f9b8cd7，已推送 origin/main。对应 Release 39173470993 和 Sync to GitCode 39173470952 均 completed/success，核对完整来源提交；Release 的新增门槛回归、安装脚本、Dockerfile 与 Compose 步骤通过。没有改动命中原生矩阵触发范围的产品文件，因此三平台产品/安装包结果仍绑定前述 84454e6，不能称本次又跑过 7/7。CI 原始 JSON 与 test-scripts 日志保存在上述私有证据目录；后续补记只改文档。
 
 ### 上一轮 Selkies 修复的代码验证：2026-10-19
 

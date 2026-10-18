@@ -1217,3 +1217,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 清理后日常容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、程序摘要和 NodeID 保持，无测试预览/MCP 进程或安装包残留。没有接管 KDE/Selkies 输入或剪贴板。
 
 私有证据 /config/validation-artifacts/image-release-20261019 保存构建与启动 JSON/日志、脚本/工作流快照、单元日志、actionlint.log、workflow-bash-syntax.json、final-health.json；不提交配置、密码、令牌、原始日志或辅助脚本。本轮不覆盖公开镜像拉取/发布、arm64 运行、Aliyun、新 GitHub 镜像工作流、浏览器桌面输入或完整空间生命周期。公开发布仍按[镜像发布说明](workspace-image-release.md)继续，不放宽协议保护。
+
+### 收尾提交与 CI
+
+代码提交 dff9ed957eb756fb82b32a5b9fe70f367f9b8cd7 已推送 origin/main。Release 39173470993 与 Sync to GitCode 39173470952 均 completed/success，核对完整 headSha。Release 中新增 Test image release gate 及安装脚本、Dockerfile、Compose 步骤均成功，原生七项矩阵未触发，产品矩阵仍绑定 84454e6。ci-dff9ed9.json 和 ci-dff9ed9-test-scripts.log 保存本次原始结果，cleanup-audit.json 另确认检查器容器/卷为空、独立构建器停止且默认构建器保持 default。此后仅补记文档。
