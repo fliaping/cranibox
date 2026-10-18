@@ -4,6 +4,9 @@ CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082 enables this test. It takes control of
 the current primary display and opens its own kdialog. Requires Node, Chromium,
 kdialog, the Web UI's npm dependencies, and access to the graphical session.
 No compositor restart, package installation, or persistent node configuration.
+CRANIBOX_TEST_SELKIES_CLIPBOARD=1 additionally checks the real Wayland text
+clipboard. It requires wl-copy/wl-paste and restores its original text on exit;
+non-text selections are refused before modifying them.
 """
 import json
 import os
@@ -36,10 +39,34 @@ class RealSelkiesTests(unittest.TestCase):
         self.assertEqual(code, 200)
         cli('desktop', '--protocol', 'selkies', '--address', os.environ['CRANIBOX_TEST_REAL_SELKIES'])
         cli('grant', '--node', identity['node_id'], '--desktop', '--output-token', str(h.root / 'desktop.token'))
+        clipboard = os.environ.get('CRANIBOX_TEST_SELKIES_CLIPBOARD') == '1'
+        if clipboard:
+            for tool in ('wl-copy', 'wl-paste'):
+                self.assertIsNotNone(shutil.which(tool), f'Missing clipboard tool: {tool}')
+            types = subprocess.run(['wl-paste', '--list-types'], capture_output=True, timeout=5)
+            original = None
+            if types.returncode == 0:
+                offered = types.stdout.decode().splitlines()
+                # KDE may republish a wl-copy selection with these X11 text aliases.
+                text_types = ('text/plain', 'text/plain;charset=utf-8', 'UTF8_STRING', 'TEXT', 'STRING')
+                self.assertTrue(offered and all(t in text_types for t in offered),
+                                'Clipboard check requires an empty or plain-text selection; original content left unchanged')
+                saved = subprocess.run(['wl-paste', '--no-newline'], capture_output=True, timeout=5, check=True)
+                original = saved.stdout
+
+            def restore_clipboard():
+                command = ['wl-copy', '--clear'] if original is None else ['wl-copy', '--type', 'text/plain']
+                subprocess.run(command, input=original, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=5, check=True)
+                if original is not None:
+                    restored = subprocess.run(['wl-paste', '--no-newline'], capture_output=True, timeout=5, check=True)
+                    self.assertTrue(restored.stdout == original, 'Original clipboard restoration failed')
+
+            self.addCleanup(restore_clipboard)
         # The browser owns the dialog process and closes only that process on failure.
         # Actual typed text must reach kdialog, not a fixture or browser DOM input.
         script = r'''
-const fs = require('node:fs'), {createRequire} = require('node:module'), {spawn} = require('node:child_process');
+const fs = require('node:fs'), {createRequire} = require('node:module'), {spawn, spawnSync} = require('node:child_process');
 const options = JSON.parse(fs.readFileSync(0, 'utf8'));
 const {chromium, expect} = createRequire(options.ui + '/package.json')('@playwright/test');
 (async () => {
@@ -63,6 +90,23 @@ const {chromium, expect} = createRequire(options.ui + '/package.json')('@playwri
     });
     expect(picture.width).toBeGreaterThanOrEqual(640); expect(picture.height).toBeGreaterThanOrEqual(480);
     expect(picture.colors).toBeGreaterThan(10);
+    if(options.clipboard) {
+      await section.getByRole('button',{name:'Clipboard',exact:true}).click();
+      const panel=section.getByRole('region',{name:'Desktop text clipboard',exact:true});
+      const remoteText='KDE clipboard → 浏览器 👋\nsecond line';
+      const write=spawnSync('wl-copy',['--type','text/plain'],{input:remoteText,stdio:['pipe','ignore','ignore'],timeout:5000});
+      expect(write.status).toBe(0);
+      await panel.getByRole('button',{name:'Fetch remote text',exact:true}).click();
+      await expect(panel.getByLabel('Remote clipboard',{exact:true})).toHaveValue(remoteText);
+      const sentText='浏览器 → KDE clipboard 👋\nno automatic paste';
+      await panel.getByLabel('Send to remote',{exact:true}).fill(sentText);
+      await panel.getByRole('button',{name:'Send text',exact:true}).click();
+      await expect.poll(()=>{
+        const result=spawnSync('wl-paste',['--no-newline'],{encoding:'utf8',timeout:3000});
+        return result.status===0 ? result.stdout : null;
+      }).toBe(sentText);
+      await section.getByRole('button',{name:'Clipboard',exact:true}).click();
+    }
     dialog=spawn('kdialog',['--title','Cranibox desktop validation','--inputbox','Cranibox remote input test'],{stdio:['ignore','pipe','pipe'],env:{...process.env,QT_QPA_PLATFORM:'xcb'}});
     let output=''; dialog.stdout.on('data', chunk => output+=chunk);
     const ended=new Promise((resolve,reject)=>{dialog.on('error',reject);dialog.on('exit',code=>code===0?resolve(output.trim()):reject(Error('Validation dialog exited '+code)));});
@@ -83,8 +127,9 @@ const {chromium, expect} = createRequire(options.ui + '/package.json')('@playwri
     await new Promise((resolve,reject)=>{revoke.on('error',reject);revoke.on('exit',code=>code===0?resolve():reject(Error('Revocation failed')));});
     await expect(status).toHaveText('Disconnected',{timeout:5000});
     expect(errors).toEqual([]);
-    console.log(JSON.stringify({picture,keyboard:true,reconnect:true,revocation:true,pageErrors:errors}));
+    console.log(JSON.stringify({picture,keyboard:true,clipboard:options.clipboard,reconnect:true,revocation:true,pageErrors:errors}));
   } catch(error) {
+    if(page && options.artifact) await page.screenshot({path:options.artifact.replace(/\.png$/,'.failed.png')}).catch(()=>{});
     if(page) console.error('Desktop error:',await page.locator('.remote-desktops [role="alert"]').allTextContents());
     throw error;
   } finally { if(dialog && dialog.exitCode===null) dialog.kill('SIGTERM'); await browser.close(); }
@@ -95,8 +140,11 @@ const {chromium, expect} = createRequire(options.ui + '/package.json')('@playwri
             'chromium': os.environ.get('CRANIBOX_TEST_CHROMIUM', '/usr/bin/chromium'),
             'artifact': os.environ.get('CRANIBOX_TEST_SELKIES_SCREENSHOT'),
             'node': str(NODE), 'config': str(config), 'caller': identity['node_id'],
+            'clipboard': clipboard,
         }), capture_output=True, text=True, timeout=100)
         self.assertEqual(result.returncode, 0, result.stderr)
         evidence = json.loads(result.stdout.strip())
         self.assertTrue(evidence['keyboard'] and evidence['reconnect'] and evidence['revocation'])
+        if clipboard:
+            self.assertTrue(evidence['clipboard'])
         print('Selkies evidence: ' + json.dumps(evidence), flush=True)

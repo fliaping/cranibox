@@ -34,7 +34,7 @@ cranibox-node peer desktop --protocol selkies --address 127.0.0.1:8082
 
 这条路径使用现有桌面授权、单控制者、本机/直连/中继及 Tauri IPC，不另外开放远端 Selkies 端口。连接时选择 primary 显示器、JPEG 编码、30 FPS 和质量 65，不请求修改桌面分辨率；支持画面、键鼠、移动端输入框、只读、重连和撤权断开。一次粘贴产生的键盘命令合并为不超过 64 KiB 的传输块，避免小消息挤满节点输入队列。
 
-当前只接入运行中的、支持 JPEG 和 `MODE websockets` 的 Selkies。服务须无额外 token 握手，并将内部接口限制在可信容器/回环网络；没有实现 Selkies token 认证、安装或进程托管。连接会接管上游主显示器并使原有 Selkies 查看器断开，其他 Selkies 客户端仍可反过来接管。Cranibox 的单控制者限制只覆盖自身通道。暂不支持音频、剪贴板、文件传输、视频编码或多显示器。没有复制 Selkies Web UI 或引入其运行时库。
+当前只接入运行中的、支持 JPEG 和 `MODE websockets` 的 Selkies。服务须无额外 token 握手，并将内部接口限制在可信容器/回环网络；没有实现 Selkies token 认证、安装或进程托管。连接会接管上游主显示器并使原有 Selkies 查看器断开，其他 Selkies 客户端仍可反过来接管。Cranibox 的单控制者限制只覆盖自身通道。支持下述纯文本剪贴板，暂不支持音频、文件传输、视频编码或多显示器。没有复制 Selkies Web UI 或引入其运行时库。
 
 ## Linux/X11 托管服务
 
@@ -66,11 +66,19 @@ wayvnc 需要 0.8 或以上版本。Ubuntu/Debian 桌面主机可先查看安装
 
 中继模式信任所配置的网关认证和断言调用方身份，目标仍需为该 NodeID 显式授予桌面权限；注册或同组成员身份不能代替此授权。中继不是端到端加密通道，网关可接触 RFB 数据，公网使用 WSS。旧式独立 gateway 若没有本机 NodeID，不能代替浏览器主机断言调用身份，需使用统一 Cranibox 服务或节点凭据。
 
+## 文字剪贴板
+
+Web 和 Tauri 查看器连接后可展开“剪贴板”。左侧输入文字并点击“发送文字”，只会更新目标剪贴板；请在远端应用中自行粘贴，不会模拟快捷键或执行命令。“仅查看”模式禁止发送。右侧显示远端复制的文字，检查后点击“复制到本机”，或在浏览器禁止复制时使用已选中的文本手动复制。Selkies 另有“获取远端文字”按钮；旧服务剪贴板为空或关闭时可能不回复，未更新不表示读取成功。
+
+每次最多 64 KiB，按 UTF-8 字节计算；支持多行、中文和 emoji。noVNC 使用公开的 `clipboardPasteFrom` / `clipboard` 接口；旧 VNC 的 Latin-1 回退可能把中文替换为问号，Unicode 需要服务端支持扩展剪贴板。Selkies 使用 `cw` / `cr` 与纯文本通知，兼容独立的 base64 分块；分块限 256 个、10 秒，按声明长度校验后统一解码 UTF-8。非法、超限、图片、文件或明确标记为 secret 的数据会被忽略并清除旧接收内容，桌面连接仍可使用。
+
+查看器不会自动读取或覆盖本机剪贴板，不保存历史、不写浏览器存储；关闭面板清除发送草稿，断开或切换目标清除暂存内容。网络可达不能代替桌面授权；剪贴板沿用当前桌面通道和控制者限制，不增加独立公开端口。VNC/Selkies 服务端仍需允许剪贴板。64 KiB 是本查看器的限制，不是服务端一定接受的保证；发送提示表示命令已提交，并非远端应用已粘贴。
+
 ## 协议
 
 目标提供 `GET /api/v1/mesh/nodes/{NodeID}/desktop/ws`，使用与其他直连 API 相同的 Bearer 凭据和 `X-Cranibox-Target` 头，拒绝浏览器 Origin。VNC 连接转发原始二进制 RFB 字节，旧配置省略 protocol 时仍按 VNC 处理；每个消息不超过 64 KiB，队列有界，超时或背压异常会断开连接。
 
-配置 `desktop: {address, protocol: "selkies"}` 时，Rust 仅连接该回环地址的 `/websockets`。授权流先发送 `CRANIBOX-SELKIES/1\n` 标记，后续记录为一个字节的类型（0 文本、1 二进制）、四字节大端长度及原始负载；记录可跨多个传输消息。单条输出记录最多 16 MiB，输入文本最多 16 KiB，输入仅允许 JPEG 设置、键鼠和帧确认等受限命令。查看器限制解码队列为 256 条/32 MiB、画面最大边长 8192 和总像素 32 Mi，超限显式断开；这些上限不是已做压力验收的性能承诺。
+配置 `desktop: {address, protocol: "selkies"}` 时，Rust 仅连接该回环地址的 `/websockets`。授权流先发送 `CRANIBOX-SELKIES/1\n` 标记，后续记录为一个字节的类型（0 文本、1 二进制）、四字节大端长度及原始负载；记录可跨多个传输消息。单条输出记录最多 16 MiB，普通输入文本最多 16 KiB；仅 `cw,BASE64` 可使用容纳 64 KiB UTF-8 的 87,387 字节记录上限，Rust 在转发前校验 base64、UTF-8 和解码长度。输入只允许 JPEG 设置、键鼠、帧确认及纯文本剪贴板等受限命令，仍拒绝文件和音频流。查看器限制解码队列为 256 条/32 MiB、画面最大边长 8192 和总像素 32 Mi，超限显式断开；这些上限不是已做压力验收的性能承诺。
 
 网关提供 `/api/v1/mesh/nodes/{NodeID}/desktop/ws` 接受节点凭据，并提供 `/api/v1/nodes/{NodeID}/desktop/ws` 接受控制凭据。目标通过控制 WebSocket 收到 `desktop_open` 后，用自身凭据及单次 `X-Cranibox-Desktop-Ticket` 头，主动连接 `/ws/desktops/{request-id}`；ticket 绑定目标和连接代次，不放在 URL。画面走独立二进制 WebSocket。网关最多保留 32 个待建立或活动中继，建立等待最多 15 秒。撤销调用凭据、设备组权限、轮换目标凭据或目标重新连接会使旧通道失效。升级响应头协商新增能力；旧节点显示升级提示，新节点连接旧网关时省略新增 Hello 字段。
 
@@ -91,3 +99,5 @@ Web 使用登录会话、Origin 和 CSRF 校验的 `POST /api/desktop/ticket`，
 浏览器测试使用实际 noVNC 与最小 RFB 服务验证画面、输入、密码及 ARD 用户名/密码认证、拒绝错误凭据和重连，另验证 Wayland 安装预览、表单恢复及明暗主题的移动布局；Tauri 前端测试使用模拟 IPC。隔离的 Sway 检查不能代替其他 Wayland 合成器、Windows/macOS 实机，或系统录屏/辅助功能权限、托盘及原生安装包的人工验收。noVNC 的归属和许可证见 [第三方声明](licenses/novnc.txt)。
 
 Selkies 的 Rust 单元与服务集成覆盖分片/合并、输入白名单、128 KiB 输出的分块、只探测不接管、慢查看器撤权和控制名额释放。Web 使用真实 Rust 通道与合成 JPEG 服务验证画面、连续文字、鼠标、只读及重连；Tauri 使用模拟 IPC 验证分片、逐帧确认、JPEG 和输入合并。`tests/test_desktop_real_selkies.py` 另需明确设置 `CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082`，通过出站节点中继访问现有 KDE 桌面、向自身 kdialog 输入完整文字、重连及撤权。它会接管正在使用的主显示器，要求已有 Chromium、Playwright、kdialog 与图形会话环境，不在普通 CI 自动执行。2026-10-18 在指定远端容器中通过；这不等于 KDE 的 VNC 捕获成功或完整产品镜像/安装包已重新验收。
+
+剪贴板回归覆盖 noVNC 的 Latin-1 往返与 64 KiB 上限、Selkies 的中文/emoji、UTF-8 字节限制、跨传输块的输入、跨字符的输出分块、坏数据及 secret 拒绝、只读、主动复制、HTTP 复制受阻、离开页面后迟到的复制结果，以及断开/重连清除暂存内容。Web 使用真实 Rust 通道与 RFB/JPEG 夹具；Tauri 为浏览器模拟 IPC。真实 KDE 剪贴板另加 `CRANIBOX_TEST_SELKIES_CLIPBOARD=1`，要求图形会话与 wl-copy/wl-paste；测试先拒绝非纯文本原内容，临时验证双向文字后恢复原剪贴板并核对字节，不输出原内容。这是主动接管现有桌面的可选检查，不在普通 CI 自动执行。

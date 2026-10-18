@@ -9,6 +9,78 @@ async function api(page: Page, command: Record<string, unknown>) {
 async function pixel(page: Page) {
   return page.locator('.vnc-screen canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3));
 }
+test('desktop text clipboard bounds Unicode, supports chunks and clears on reconnect', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    (window as any).clipboardWrites = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as any).clipboardWrites.push(text); } } });
+  });
+  await page.goto('/#/desktop');
+  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19118', protocol: 'selkies' } });
+  await page.reload();
+  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
+  const status = section.locator('.vnc-toolbar [role="status"]');
+  const push = async (messages: string[]) => { expect((await page.request.post('http://127.0.0.1:19118/clipboard', { data: { messages } })).ok()).toBe(true); };
+  try {
+    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    await expect(status).toHaveText('Connected');
+    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
+    const panel = section.getByRole('region', { name: 'Desktop text clipboard', exact: true });
+    const outgoing = panel.getByLabel('Send to remote', { exact: true }), incoming = panel.getByLabel('Remote clipboard', { exact: true });
+    await panel.getByRole('button', { name: 'Fetch remote text', exact: true }).click();
+    await expect(incoming).toHaveValue('Remote clipboard fixture');
+    expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([]);
+    const unicode = '中文 👋\nremote command';
+    await outgoing.fill(unicode); await panel.getByRole('button', { name: 'Send text', exact: true }).click();
+    await expect(incoming).toHaveValue(unicode);
+    await panel.getByRole('button', { name: 'Copy to this device', exact: true }).click();
+    expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([unicode]);
+    const limit = 'a'.repeat(65536);
+    await outgoing.fill(limit); await panel.getByRole('button', { name: 'Send text', exact: true }).click();
+    await expect(incoming).toHaveValue(limit);
+    await outgoing.fill('中'.repeat(21846));
+    await expect(outgoing).toHaveAttribute('aria-invalid', 'true');
+    await expect(panel.getByRole('button', { name: 'Send text', exact: true })).toBeDisabled();
+    await outgoing.fill('clipboard draft');
+    await section.getByRole('button', { name: 'Input enabled', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Send text', exact: true })).toBeDisabled();
+    await section.getByRole('button', { name: 'View only', exact: true }).click();
+    const bytes = Buffer.from(unicode);
+    // Split inside the first Chinese character: UTF-8 is decoded after assembly.
+    await push(['clipboard_start,text/plain,' + bytes.length, 'clipboard_data,' + bytes.subarray(0, 1).toString('base64'), 'clipboard_data,' + bytes.subarray(1).toString('base64'), 'clipboard_finish']);
+    await expect(incoming).toHaveValue(unicode);
+    for (const message of ['clipboard,%%%%', 'clipboard,/w==', 'clipboard_start,text/plain,65537', 'clipboard_binary,image/png,AAAA']) {
+      await push([message]); await expect(panel.getByRole('alert')).toContainText('ignored');
+      await expect(incoming).toHaveValue(''); await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeDisabled();
+      await expect(status).toHaveText('Connected');
+    }
+    await push(['clipboard_secret', 'clipboard,' + Buffer.from('secret fixture').toString('base64')]);
+    await expect(incoming).toHaveValue('');
+    await push(['clipboard,']); await expect(panel.getByRole('alert')).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeEnabled();
+    for (const width of [375, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await panel.screenshot({ path: '/tmp/cranibox-clipboard-' + width + '-' + theme + '.png' });
+      }
+    }
+    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(panel).toHaveCount(0);
+    await section.getByRole('button', { name: 'Reconnect', exact: true }).click(); await expect(status).toHaveText('Connected');
+    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
+    await expect(outgoing).toHaveValue(''); await expect(incoming).toHaveValue('');
+    await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeDisabled();
+    // An insecure origin still allows manual selection when copying is blocked.
+    await push(['clipboard,' + Buffer.from(unicode).toString('base64')]); await expect(incoming).toHaveValue(unicode);
+    await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw Error('Blocked'); }; document.execCommand = () => false; });
+    await panel.getByRole('button', { name: 'Copy to this device', exact: true }).click();
+    await expect(panel.getByRole('alert')).toContainText('text is selected');
+    expect(await incoming.evaluate((field: HTMLTextAreaElement) => field.selectionEnd - field.selectionStart)).toBe(unicode.length);
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
 test('Selkies shares a JPEG desktop with keyboard, pointer, view only and reconnect', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('/#/desktop');
@@ -134,6 +206,15 @@ test('a real VNC desktop renders, forwards input and reconnects without closing 
     await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
     await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
     await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
+    const clipboard = section.getByRole('region', { name: 'Desktop text clipboard', exact: true });
+    await clipboard.getByLabel('Send to remote', { exact: true }).fill('VNC clipboard\nLatin-1: café');
+    await clipboard.getByRole('button', { name: 'Send text', exact: true }).click();
+    await expect(clipboard.getByLabel('Remote clipboard', { exact: true })).toHaveValue('VNC clipboard\nLatin-1: café');
+    await expect(clipboard).toContainText('Older VNC servers');
+    await clipboard.getByLabel('Send to remote', { exact: true }).fill('v'.repeat(65536));
+    await clipboard.getByRole('button', { name: 'Send text', exact: true }).click();
+    await expect(clipboard.getByLabel('Remote clipboard', { exact: true })).toHaveValue('v'.repeat(65536));
     await section.getByRole('button', { name: 'Keyboard', exact: true }).click();
     await section.getByLabel('Remote keyboard input', { exact: true }).fill('a');
     await expect.poll(() => pixel(page)).toEqual([212, 100, 56]);

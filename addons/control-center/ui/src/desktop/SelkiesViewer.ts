@@ -3,6 +3,7 @@
 // @ts-expect-error noVNC publishes its keyboard helper without TypeScript definitions.
 import Keyboard from '@cranibox/novnc-keyboard';
 import type { DesktopChannel } from './transport';
+import { clipboardBytes, decodeClipboard, encodeClipboard, MAX_CLIPBOARD_BYTES } from './clipboard';
 
 const MAX_FRAME = 16 * 1024 * 1024;
 export class SelkiesViewer extends EventTarget {
@@ -30,6 +31,9 @@ export class SelkiesViewer extends EventTarget {
   private inputScheduled = false;
   private timer: ReturnType<typeof setTimeout>;
   private events = new AbortController();
+  private clipboardParts: { bytes: Uint8Array[]; size: number; expected: number } | null = null;
+  private clipboardTimer: ReturnType<typeof setTimeout> | undefined;
+  private clipboardSecret = false;
   constructor(private host: HTMLElement, private channel: DesktopChannel) {
     super();
     const context = this.canvas.getContext('2d', { alpha: false });
@@ -77,6 +81,11 @@ export class SelkiesViewer extends EventTarget {
     for (const key of [0xffff, 0xffe9, 0xffe3]) this.sendKey(key, undefined, false);
   }
   disconnect() { this.close(true); }
+  clipboardPasteFrom(text: string) {
+    if (this.closed || !this.connected || this.viewOnly) throw Error('Desktop input is unavailable');
+    this.send('cw,' + encodeClipboard(text));
+  }
+  requestClipboard() { if (!this.closed && this.connected) this.send('cr'); }
   private pointer(e: PointerEvent) {
     if (!this.connected || !this.canvas.width) return;
     const rect = this.canvas.getBoundingClientRect();
@@ -112,7 +121,7 @@ export class SelkiesViewer extends EventTarget {
     for (const part of this.pendingInput) { data.set(part, offset); offset += part.length; }
     this.pendingInput = []; this.pendingInputBytes = 0;
     if (this.closed || this.channel.readyState !== 1) return;
-    try { this.channel.send(data); }
+    try { for (let offset = 0; offset < data.length; offset += 64 * 1024) this.channel.send(data.subarray(offset, offset + 64 * 1024)); }
     catch (error) { this.fail(error instanceof Error ? error.message : 'Desktop input failed'); }
   }
   private receive(chunk: Uint8Array) {
@@ -157,6 +166,7 @@ export class SelkiesViewer extends EventTarget {
     finally { this.decoding = false; }
   }
   private message(text: string) {
+    if (text.startsWith('clipboard')) { this.clipboardMessage(text); return; }
     if (text === 'MODE websockets' && !this.settingsSent) {
       this.settingsSent = true; this.send('SETTINGS,' + JSON.stringify({ encoder: 'jpeg', displayId: 'primary', framerate: 30, jpeg_quality: 65 })); return;
     }
@@ -169,10 +179,52 @@ export class SelkiesViewer extends EventTarget {
       if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width!; this.canvas.height = height!; }
     }
   }
+  private clearClipboard() {
+    clearTimeout(this.clipboardTimer); this.clipboardTimer = undefined; this.clipboardParts = null;
+  }
+  private clipboardMessage(text: string) {
+    // Clipboard errors never tear down an otherwise usable desktop stream.
+    try {
+      if (text === 'clipboard_secret') { this.clearClipboard(); this.clipboardSecret = true; this.dispatchEvent(new Event('clipboarderror')); return; }
+      if (text.startsWith('clipboard_reply,')) return;
+      if (text.startsWith('clipboard_start,')) {
+        this.clearClipboard();
+        const fields = text.split(','), size = Number(fields[2]);
+        if (fields.length !== 3 || fields[1] !== 'text/plain' || !/^\d+$/.test(fields[2]) || !Number.isSafeInteger(size) || size > MAX_CLIPBOARD_BYTES || this.clipboardSecret) throw Error('Unsupported clipboard');
+        this.clipboardParts = { bytes: [], size: 0, expected: size };
+        this.clipboardTimer = setTimeout(() => { this.clearClipboard(); this.dispatchEvent(new Event('clipboarderror')); }, 10000);
+        return;
+      }
+      if (text.startsWith('clipboard_data,')) {
+        if (!this.clipboardParts) return;
+        const data = decodeClipboard(text.slice('clipboard_data,'.length)), parts = this.clipboardParts;
+        if (!data.length || parts.bytes.length >= 256 || parts.size + data.length > parts.expected) throw Error('Invalid clipboard chunks');
+        parts.bytes.push(data); parts.size += data.length; return;
+      }
+      if (text === 'clipboard_finish') {
+        const parts = this.clipboardParts; this.clearClipboard(); this.clipboardSecret = false;
+        if (!parts) return;
+        if (parts.size !== parts.expected) throw Error('Incomplete clipboard');
+        const data = new Uint8Array(parts.size); let offset = 0;
+        for (const chunk of parts.bytes) { data.set(chunk, offset); offset += chunk.length; }
+        this.emitClipboard(data); return;
+      }
+      const secret = this.clipboardSecret; this.clipboardSecret = false; this.clearClipboard();
+      if (secret) throw Error('Secret clipboard ignored');
+      if (text.startsWith('clipboard,')) this.emitClipboard(decodeClipboard(text.slice('clipboard,'.length)));
+      else if (text.startsWith('clipboard_binary,text/plain,')) this.emitClipboard(decodeClipboard(text.slice('clipboard_binary,text/plain,'.length)));
+      else throw Error('Unsupported clipboard');
+    } catch { this.clearClipboard(); this.clipboardSecret = false; this.dispatchEvent(new Event('clipboarderror')); }
+  }
+  private emitClipboard(data: Uint8Array) {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(data); clipboardBytes(text);
+    this.dispatchEvent(new CustomEvent('clipboard', { detail: { text } }));
+  }
   private fail(error: string) { if (!this.closed) { this.channel.error = error; this.close(false); } }
   private close(clean: boolean) {
     if (this.closed || this.closing) return; this.closing = true; this.release(); this.flushInput(); this.closed = true; clearTimeout(this.timer); this.events.abort(); this.keyboard.ungrab();
     this.queue = []; this.queuedBytes = 0; this.channel.close(); this.canvas.remove();
+    this.clearClipboard(); this.clipboardSecret = false;
     this.dispatchEvent(new CustomEvent('disconnect', { detail: { clean } }));
   }
 }

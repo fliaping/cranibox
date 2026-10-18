@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Keyboard, Maximize, Monitor, MousePointer2, RefreshCw, Unplug } from 'lucide-react';
+import { Clipboard, Keyboard, Maximize, Monitor, MousePointer2, RefreshCw, Unplug } from 'lucide-react';
 // @ts-expect-error noVNC publishes its documented JavaScript API without TypeScript definitions.
 import RFB from '@novnc/novnc';
 import type { DesktopConnector, DesktopTarget } from './transport';
 import { openDesktop } from './openDesktop';
 import { SelkiesViewer } from './SelkiesViewer';
+import { DesktopClipboard, type ClipboardViewer } from './DesktopClipboard';
+import { clipboardBytes } from './clipboard';
 
-interface Viewer extends EventTarget {
+interface Viewer extends EventTarget, ClipboardViewer {
   scaleViewport: boolean; resizeSession: boolean; viewOnly: boolean;
   focusOnClick: boolean; qualityLevel: number; compressionLevel: number;
   disconnect(): void; focus(): void; sendCtrlAltDel(): void;
@@ -19,6 +21,7 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
   const [attempt, setAttempt] = useState(0), [phase, setPhase] = useState<'connecting' | 'connected' | 'closed'>('connecting');
   const [error, setError] = useState(''), [types, setTypes] = useState<string[]>([]), [credentials, setCredentials] = useState<Record<string, string>>({});
   const [viewOnly, setViewOnly] = useState(false), [keyboard, setKeyboard] = useState(false);
+  const [clipboardOpen, setClipboardOpen] = useState(false), [clipboard, setClipboard] = useState<string | null>(null), [clipboardError, setClipboardError] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [text, setText] = useState(''), composing = useRef(false);
   useEffect(() => {
@@ -26,6 +29,7 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
     let disposed = false, viewer: Viewer | null = null, transport: Awaited<ReturnType<DesktopConnector>> | undefined;
     const cancellation = new AbortController();
     setPhase('connecting'); setError(''); setTypes([]); setCredentials({}); setKeyboard(false); setText(''); composing.current = false;
+    setClipboardOpen(false); setClipboard(null); setClipboardError('');
     async function open() {
       try {
         transport = await connect(target, cancellation.signal);
@@ -40,12 +44,22 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
         viewer.addEventListener('disconnect', event => {
           if (disposed) return;
           setPhase('closed'); setTypes([]); setCredentials({}); setKeyboard(false);
+          setClipboardOpen(false); setClipboard(null); setClipboardError('');
           if (!(event as CustomEvent<{ clean: boolean }>).detail.clean) setError(previous => (typeof transport === 'object' && transport.error) || previous || t('连接已断开。检查节点、桌面服务和授权后重新连接。', 'Connection lost. Check the node, desktop server and grant, then reconnect.'));
         });
         viewer.addEventListener('credentialsrequired', event => {
           if (!disposed) setTypes((event as CustomEvent<{ types: string[] }>).detail.types);
         });
         viewer.addEventListener('securityfailure', () => { if (!disposed) setError(t('VNC 身份验证失败，请检查凭据和服务端认证方式。', 'VNC authentication failed. Check credentials and the server’s authentication method.')); });
+        viewer.addEventListener('clipboard', event => {
+          if (disposed) return;
+          try {
+            const text = (event as CustomEvent<{ text: string }>).detail.text;
+            if (typeof text !== 'string') throw Error('Invalid clipboard text');
+            clipboardBytes(text); setClipboard(text); setClipboardError('');
+          } catch { setClipboard(null); setClipboardError('invalid'); }
+        });
+        viewer.addEventListener('clipboarderror', () => { if (!disposed) { setClipboard(null); setClipboardError('invalid'); } });
       } catch (error) {
         if (!disposed) { setError(error instanceof Error ? error.message : String(error)); setPhase('closed'); }
       }
@@ -69,11 +83,13 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
     <div className="vnc-toolbar"><p role="status"><span className={'vnc-dot ' + phase} />{phase === 'connected' ? t('已连接', 'Connected') : phase === 'connecting' ? t('正在连接…', 'Connecting…') : t('已断开', 'Disconnected')}</p><div className="direct-actions">
       <button disabled={phase !== 'connected'} aria-pressed={!viewOnly} onClick={() => { if (rfb.current) rfb.current.viewOnly = !viewOnly; setViewOnly(!viewOnly); }}><MousePointer2 size={16} aria-hidden="true" />{viewOnly ? t('仅查看', 'View only') : t('允许输入', 'Input enabled')}</button>
       <button disabled={phase !== 'connected' || viewOnly} aria-expanded={keyboard} onClick={() => setKeyboard(!keyboard)}><Keyboard size={16} aria-hidden="true" />{t('键盘', 'Keyboard')}</button>
+      <button disabled={phase !== 'connected'} aria-expanded={clipboardOpen} onClick={() => setClipboardOpen(!clipboardOpen)}><Clipboard size={16} aria-hidden="true" />{t('剪贴板', 'Clipboard')}</button>
       <button disabled={phase !== 'connected'} aria-label={t('全屏桌面', 'Fullscreen desktop')} onClick={() => void fullscreen()}><Maximize size={16} aria-hidden="true" /></button>
-      {phase === 'closed' ? <button onClick={() => { setEnabled(true); setAttempt(value => value + 1); }}><RefreshCw size={16} aria-hidden="true" />{t('重新连接', 'Reconnect')}</button> : <button onClick={() => { setEnabled(false); rfb.current?.disconnect(); setPhase('closed'); setTypes([]); setCredentials({}); }}><Unplug size={16} aria-hidden="true" />{t('断开', 'Disconnect')}</button>}
+      {phase === 'closed' ? <button onClick={() => { setEnabled(true); setAttempt(value => value + 1); }}><RefreshCw size={16} aria-hidden="true" />{t('重新连接', 'Reconnect')}</button> : <button onClick={() => { setEnabled(false); rfb.current?.disconnect(); setPhase('closed'); setTypes([]); setCredentials({}); setClipboardOpen(false); setClipboard(null); setClipboardError(''); }}><Unplug size={16} aria-hidden="true" />{t('断开', 'Disconnect')}</button>}
     </div></div>
     {keyboard && phase === 'connected' && !viewOnly && <div className="vnc-keyboard"><label>{t('输入文字', 'Type text')}<input autoComplete="off" autoCapitalize="off" spellCheck={false} aria-label={t('远程键盘输入', 'Remote keyboard input')} value={text} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={event => { composing.current = false; sendText(event.currentTarget.value); }} onChange={event => { setText(event.target.value); if (!composing.current) sendText(event.target.value); }} /></label><div className="direct-actions">{[['Esc', 0xff1b], ['Tab', 0xff09], ['Enter', 0xff0d], ['Backspace', 0xff08]] .map(([name, code]) => <button key={name} onClick={() => rfb.current?.sendKey(Number(code))}>{name}</button>)}<button onClick={() => rfb.current?.sendCtrlAltDel()}>Ctrl · Alt · Del</button></div></div>}
     {error && <p className="direct-error" role="alert">{error}</p>}
+    {clipboardOpen && phase === 'connected' && <DesktopClipboard viewer={rfb.current} received={clipboard} receiveError={clipboardError} viewOnly={viewOnly} language={language} />}
     {!!types.length && <form className="vnc-auth" onSubmit={authenticate}><h3>{t('VNC 身份验证', 'VNC authentication')}</h3><p className="direct-note">{t('凭据只用于本次连接，不会保存。', 'Credentials are used for this connection only and are never saved.')}</p>{types.filter(type => ['username', 'password', 'target'].includes(type)).map(type => <label key={type}>{type === 'password' ? t('VNC 密码', 'VNC password') : type === 'username' ? t('用户名', 'Username') : t('认证目标', 'Authentication target')}<input autoFocus={type === types[0]} type={type === 'password' ? 'password' : 'text'} required autoComplete={type === 'password' ? 'current-password' : 'username'} value={credentials[type] || ''} onChange={event => setCredentials({ ...credentials, [type]: event.target.value })} /></label>)}<button type="submit" className="direct-primary">{t('验证并连接', 'Authenticate')}</button></form>}
     <div className="vnc-screen" ref={host} aria-label={t('远程桌面画面', 'Remote desktop display')} />
     {phase !== 'connected' && !types.length && <div className="vnc-placeholder"><Monitor size={36} aria-hidden="true" /><p>{phase === 'connecting' ? t('正在建立桌面连接', 'Opening desktop connection') : t('桌面仍在目标设备运行', 'The desktop keeps running on the target')}</p></div>}

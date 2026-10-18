@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能为独立的跨节点 Browser Use：browser 单独授权、目标已有 Chromium 的回环 CDP、单控制连接、持久紧急停止、绑定目标的官方 MCP，以及共用 Web/Tauri 管理界面。功能提交 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送。操作与限制见 [Browser Use](browser-use.md)，最新回归及提交状态见下节。此前 Computer Use 功能提交 973f1c8、默认权限断言修复 3c1a38d 已推送，对应 411 项自动化测试和 CI 矩阵最终 7/7 成功；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
+最新收尾为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)，本轮结果见下一节。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通；此前 3c1a38d 的 Linux .deb 和无 FUSE 兼容模式 AppImage 已补验真实 Computer Use、原生管理界面与 MCP，旧版完整托盘/自启流程仍绑定 6396b93，本轮新包未实际安装，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，本轮未停止或升级日常客户端，原版本、原身份和配置保持；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -33,7 +33,7 @@
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
 | 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。最新 3c1a38d 仅补验私有 D-Bus 下的窗口与 Computer Use IPC，未重验托盘。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
-| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；目标桌面单独授权、单控制者、停止与撤权取消 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
+| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测屏幕捕获失败，Selkies 可用，见下文 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过，公开产品镜像拉取与各 OS 系统依赖安装仍未验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
@@ -50,7 +50,32 @@
 
 ## 测试情况与可信范围
 
-### 最新收尾：Browser Use
+### 最新收尾：桌面文字剪贴板
+
+在现有查看器工具栏展开“剪贴板”，可向目标发送纯文本、查看远端文字并明确复制到本机；Selkies 另可主动获取。使用 noVNC 公开接口及 Selkies 的 cw/cr 协议，没有增加依赖或复制第三方 UI。发送不会自动执行粘贴快捷键，只读禁止发送；文字不进入存储或日志，关闭面板清除草稿，断开、重连或切换目标清除暂存内容。
+
+两端按 UTF-8 限制 64 KiB。Rust 在转发 Selkies 输入前校验 base64、UTF-8 和长度，大记录拆为最多 64 KiB 传输块；普通输入仍限制 16 KiB。接收兼容独立和分块纯文本，限制分块数/总长/时限，拒绝坏数据、图片、文件和 secret 标记，错误不关闭桌面。旧 VNC 的 Latin-1 回退不保证中文，HTTP 浏览器复制受限时提供选中文字的手动操作。
+
+本轮构建、套接字、浏览器、原生程序及真实桌面检查均在指定远端容器执行，本机仅编辑与 Git 操作。私有证据位于 /config/validation-artifacts/desktop-clipboard-20261018，不将真实桌面截图或剪贴板内容提交 Git。
+
+| 验证 | 结果 | 可信范围 |
+| --- | --- | --- |
+| 全 Rust 工作区单元测试 | 177 通过、4 忽略 | 新增 Selkies 剪贴板编码、边界、跨块、非法内容拒绝；忽略资源测量、2 项真实 EasyTier 与 GIO |
+| 后端、桌面与终端回归 | 42 通过 | remote_desktops 7、desktop_relay 7、desktop_service 8、computer_use 12、cranibox_terminal 8；真实 Rust 节点与受控提供者，含大段 UTF-8 输入和原持久终端 |
+| Web 全部界面 | 126 通过 | 新增剪贴板用例，含实际 noVNC Latin-1/64 KiB 往返、Selkies Unicode/跨字符分块、只读、异常、明确复制、HTTP 回退、断开清理；画面/剪贴板提供者为夹具 |
+| Tauri 全部界面 | 46 通过 | 浏览器模拟 IPC；扩展原 Selkies 用例验证大段 Unicode 跨输入块、获取/复制、只读；最终专项另确认离开页面后迟到的复制拒绝不会执行回退或报错，同一用例不重复计数 |
+| 真实 KDE/Selkies | 1 通过 | 出站节点经中继，1024×768、113 种采样颜色；浏览器与真实 Wayland 剪贴板双向中文/emoji/多行往返，完整 kdialog 输入、重连、撤权、零页面异常；结束恢复原剪贴板并逐字节检查 |
+| 构建与静态检查 | 通过 | 全工作区 fmt/build/test、所有 target 严格 Clippy；原生 desktop Clippy 及 desktop,custom-protocol 构建；两端 TypeScript/生产构建，发布 Web 资源同步 |
+
+后端初测因测试 WebSocket 客户端只有 16 位长度编码，无法发送恰好 64 KiB 的传输块；补齐标准 64 位长度编码，保留产品和边界断言，42 项完整重测通过。初测为 backend-initial.log，最终为 backend.log。完整 Web 为 web-ui-final.log，126/126、3.7 分钟；Tauri 为 native-ui.log，46/46；最后扩展的卸载清理断言在 native-clipboard-final.log 单独通过。
+
+本轮合计 392 项不同测试通过（177 Rust + 42 后端 + 126 Web + 46 Tauri UI + 1 真实 KDE），4 项 Rust 忽略；不与此前 Browser Use 的 449 项累加，专项重跑不重复计数。真实 KDE 初测中剪贴板断言通过、后续 kdialog 输入超时，原日志 real-selkies-initial.log 保留；没有据此修改产品键盘逻辑或放宽时限。第二次检查在修改剪贴板前拒绝 KDE 重新发布的 X11 文字 MIME 别名，补齐 UTF8_STRING/TEXT/STRING 的纯文本识别后完整通过，日志 real-selkies.log；它没有放开图片或其他格式。首次键盘超时尚未定位，不因复测通过宣称已修复。
+
+真实 KDE 稳定性复测 real-selkies-repeat.log 再次完整通过，不增加测试数量。final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket，3080/3031 均匿名 401/认证 200；日常 Web PID 538744、原生客户端 PID 767446、两者二进制摘要及原 NodeID 保持，未残留测试节点、浏览器或 MCP 进程。
+
+最终 CI 结果待提交后补录。新版本尚未部署到日常主服务，未实际安装本轮的新安装包。Windows/macOS 实机、跨物理设备、真实 Tailnet、最新包登录/休眠等缺口保持，不以本轮夹具或原生编译替代。
+
+### 此前收尾：Browser Use
 
 本轮补齐上次交接中尚未实现的独立 Browser Use。旧授权默认不变，只有目标明确配置现有回环 Chromium 并单独授予 browser 才能连接；Computer Use、VNC、Shell 都不会自动取得浏览器能力。调用端的 browser-mcp 固定启动 chrome-devtools-mcp@1.11.0，远端凭据保留在 Rust 端，不传入 MCP 子进程参数。目标紧急停止、撤权、重配和监听停止会断开现有控制连接，不重放动作；恢复只允许目标管理者。
 
@@ -180,7 +205,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 
 接入地址在本镜像中是 127.0.0.1:8082；第一次误用 8081 的连接失败、连续输入修复前的真实断开，以及 Web 初始端口冲突/旧文案断言/预览二进制环境遗漏均保留在证据中。最终 11 项 Web 与真实 KDE 重测通过；取消连接用例单独复测及最终整套均通过，没有据此修改取消逻辑。
 
-证据目录为远端 /config/validation-artifacts/selkies-desktop-20261018，命令及日志见[专项记录](remote-workspace-validation-2026-10-18.md#selkies-节点桌面收尾)。Selkies 需要已运行的无 token 握手服务；连接会接管主显示器并断开其原查看器，外部 Selkies 查看器也能反向接管。当前不支持音频、剪贴板、文件传输、视频编码或自动托管 Selkies，详见[接入限制](remote-desktops.md#已有-selkies-服务)。
+证据目录为远端 /config/validation-artifacts/selkies-desktop-20261018，命令及日志见[专项记录](remote-workspace-validation-2026-10-18.md#selkies-节点桌面收尾)。Selkies 需要已运行的无 token 握手服务；连接会接管主显示器并断开其原查看器，外部 Selkies 查看器也能反向接管。当时不支持剪贴板，纯文本能力在本文最新收尾另行补齐；音频、文件传输、视频编码或自动托管 Selkies 仍不支持，详见[接入限制](remote-desktops.md#已有-selkies-服务)。
 
 上述 186 项验证不能代替 Windows/macOS 实机、完整镜像重新构建或真实多物理设备互访；afaa137 Linux 安装包的独立人工验收见下节，后续 6396b93 补验见前文。
 
@@ -349,7 +374,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - SSH：admin@192.168.217.6，端口 22022，容器 cranibox-validation；不得改用当前本机做运行验证。
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
-- 最新 Browser Use 的日志、初测失败与最终验收在 browser-use-20261018；真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
+- 最新剪贴板的构建/测试日志与真实 KDE 验收在 desktop-clipboard-20261018；此前 Browser Use 在 browser-use-20261018，真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 包与真实 Computer Use 证据在 /config/validation-artifacts/linux-installer-3c1a38d；较完整托盘/自启等流程在 linux-installer-6396b93；此前包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
@@ -375,8 +400,8 @@ python3 -m unittest test_browser_use test_computer_use test_node_peers test_remo
 CRANIBOX_TEST_REAL_BROWSER=1 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium python3 -m unittest test_browser_real_chromium -v
 ~~~
 
-完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新 Web 125 项、客户端 46 项，结果见本轮 Browser Use 表；新增专项位于 Web 的 browser-use.spec.ts 与客户端 client.spec.ts；Computer Use 保留 computer-use.spec.ts，真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
+完整界面回归为 npm test --prefix addons/control-center/ui 与 npm test --prefix apps/node-desktop。UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新 Web 126 项、客户端 46 项，结果见最新收尾表；剪贴板专项位于 Web 的 desktops.spec.ts 与客户端 client.spec.ts。此前 Browser Use 保留 browser-use.spec.ts，Computer Use 保留 computer-use.spec.ts；真实 KDE 测试的显式启用、剪贴板恢复和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；本轮 Browser Use 与此前 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；剪贴板、Browser Use 和 Computer Use 的证据分开保存。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。

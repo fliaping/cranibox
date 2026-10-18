@@ -97,7 +97,7 @@ class SelkiesServer(DesktopServer):
                     size = struct.unpack('!H', exact(2))[0]
                 elif size == 127:
                     size = struct.unpack('!Q', exact(8))[0]
-                if size > 65536:
+                if size > 128 * 1024:
                     return
                 mask = exact(4) if b & 128 else None
                 payload = exact(size)
@@ -210,6 +210,11 @@ class RemoteDesktopTests(unittest.TestCase):
         connection.send(data[:3], opcode=2)
         connection.send(data[3:], opcode=2)
         self.assertEqual(message(), (0, b'input:kd,97'))
+        for command in (b'cr', b'cw,' + base64.b64encode(('中文 👋\n' + 'a' * 65522).encode())):
+            data = b'\0' + struct.pack('!I', len(command)) + command
+            for offset in range(0, len(data), 65536):
+                connection.send(data[offset:offset + 65536], opcode=2)
+            self.assertEqual(message(), (0, b'input:' + command))
         self.assertEqual(self.h.post('/api/desktop/ticket', {'node':self.target})[0], 400)
         self.cli('revoke', '--node', self.caller)
         self.assertEqual(connection.recv()[0], 8)

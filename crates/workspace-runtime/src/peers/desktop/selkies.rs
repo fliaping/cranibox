@@ -2,6 +2,7 @@
 //! stream as RFB. The destination is always the owner's configured loopback port.
 use super::{Event, MAX_CHUNK, Stream};
 use anyhow::{Context, Result, ensure};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures_util::{SinkExt, StreamExt};
 use std::{
     net::SocketAddr,
@@ -15,7 +16,8 @@ use tokio_tungstenite::{
 
 pub const MAGIC: &[u8] = b"CRANIBOX-SELKIES/1\n";
 const MAX_FRAME: usize = 16 * 1024 * 1024;
-const MAX_INPUT: usize = 16 * 1024;
+const MAX_CLIPBOARD: usize = 64 * 1024;
+const MAX_INPUT: usize = 3 + 4 * MAX_CLIPBOARD.div_ceil(3);
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn socket(address: SocketAddr) -> Result<Socket> {
@@ -151,7 +153,16 @@ impl Decoder {
     }
 }
 fn allowed(text: &str) -> bool {
-    matches!(text, "START_VIDEO" | "kr")
+    if let Some(encoded) = text.strip_prefix("cw,") {
+        return encoded.len() <= MAX_INPUT - 3
+            && STANDARD.decode(encoded).is_ok_and(|bytes| {
+                bytes.len() <= MAX_CLIPBOARD && std::str::from_utf8(&bytes).is_ok()
+            });
+    }
+    if text.len() > 16 * 1024 {
+        return false;
+    }
+    matches!(text, "START_VIDEO" | "kr" | "cr")
         || ["kd,", "ku,", "m,", "CLIENT_FRAME_ACK ", "CLIENT_FPS "]
             .iter()
             .any(|prefix| {
@@ -193,7 +204,9 @@ mod tests {
         let bytes = [framed("kd,97"), framed("ku,97")].concat();
         assert!(decoder.push(&bytes[..3]).unwrap().is_empty());
         assert_eq!(decoder.push(&bytes[3..]).unwrap(), ["kd,97", "ku,97"]);
-        assert!(Decoder::default().push(&[0, 0, 1, 0, 0]).is_err());
+        let mut oversized = vec![0];
+        oversized.extend_from_slice(&((MAX_INPUT + 1) as u32).to_be_bytes());
+        assert!(Decoder::default().push(&oversized).is_err());
         assert!(
             Decoder::default()
                 .push(&framed("FILE_UPLOAD_START:secret"))
@@ -203,6 +216,32 @@ mod tests {
         assert!(allowed(
             "SETTINGS,{\"encoder\":\"jpeg\",\"displayId\":\"primary\",\"framerate\":30,\"jpeg_quality\":65}"
         ));
+    }
+    #[test]
+    fn clipboard_accepts_bounded_utf8_and_rejects_other_streams() {
+        assert!(allowed("cr"));
+        assert!(allowed("cw,"));
+        assert!(allowed(&format!(
+            "cw,{}",
+            STANDARD.encode("中文 👋\ncommand")
+        )));
+        let text = format!("cw,{}", STANDARD.encode(vec![b'a'; MAX_CLIPBOARD]));
+        let bytes = framed(&text);
+        let mut decoder = Decoder::default();
+        assert!(decoder.push(&bytes[..MAX_CHUNK]).unwrap().is_empty());
+        assert_eq!(decoder.push(&bytes[MAX_CHUNK..]).unwrap(), [text]);
+        for text in [
+            format!("cw,{}", STANDARD.encode(vec![b'a'; MAX_CLIPBOARD + 1])),
+            format!("cw,{}", STANDARD.encode([0xff, 0xfe])),
+            "cw,%%%".into(),
+            "cw,YQ".into(),
+            "cws,text/plain,100".into(),
+            "clipboard_binary,image/png,AAAA".into(),
+            "FILE_UPLOAD_START:secret".into(),
+        ] {
+            assert!(!allowed(&text));
+            assert!(Decoder::default().push(&framed(&text)).is_err());
+        }
     }
     #[tokio::test]
     async fn slow_consumers_cannot_prevent_revocation_or_keep_controller_lease() {

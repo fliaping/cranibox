@@ -43,9 +43,12 @@ class Socket:
         data = json.dumps(value).encode() if isinstance(value, dict) else value
         mask = os.urandom(4)
         size = len(data)
-        prefix = bytes([0x80 | opcode, 0x80 | (size if size < 126 else 126)])
-        if size >= 126:
+        length_code = size if size < 126 else 126 if size <= 65535 else 127
+        prefix = bytes([0x80 | opcode, 0x80 | length_code])
+        if length_code == 126:
             prefix += struct.pack('!H', size)
+        elif length_code == 127:
+            prefix += struct.pack('!Q', size)
         self.socket.sendall(prefix + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
 
     def recv(self):

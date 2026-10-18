@@ -1266,6 +1266,9 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
     const callbacks = new Map<number, Function>(); let next = 1, index = 0, sequence = 0, pending = false, typed = false;
     let callback: Function; const queue: Uint8Array[] = [];
+    let input = new Uint8Array(), clipboard = '';
+    (window as any).clipboardWrites = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { (window as any).clipboardWrites.push(value); } } });
     internals.transformCallback = (fn: Function) => { const id = next++; callbacks.set(id, fn); return id; };
     internals.unregisterCallback = (id: number) => callbacks.delete(id);
     function output(bytes: Uint8Array) { queue.push(bytes); flush(); }
@@ -1298,16 +1301,23 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
         pending = false; flush(); return;
       }
       if (command === 'desktop_input') {
-        const bytes = Uint8Array.from(atob(payload.data), char => char.charCodeAt(0)), view = new DataView(bytes.buffer);
+        const chunk = Uint8Array.from(atob(payload.data), char => char.charCodeAt(0)), bytes = new Uint8Array(input.length + chunk.length);
+        bytes.set(input); bytes.set(chunk, input.length); input = bytes;
+        const view = new DataView(bytes.buffer);
         const commands: string[] = [];
-        for (let offset = 0; offset < bytes.length;) {
-          const size = view.getUint32(offset + 1); if (bytes[offset] !== 0 || offset + 5 + size > bytes.length) throw Error('Invalid input frame');
+        let offset = 0;
+        while (offset + 5 <= bytes.length) {
+          const size = view.getUint32(offset + 1); if (bytes[offset] !== 0) throw Error('Invalid input frame');
+          if (offset + 5 + size > bytes.length) break;
           commands.push(new TextDecoder().decode(bytes.subarray(offset + 5, offset + 5 + size))); offset += 5 + size;
         }
+        input = bytes.slice(offset);
         (window as any).calls.push({ command, commands });
         for (const value of commands) {
           if (value.startsWith('SETTINGS,')) { text(JSON.stringify({ type: 'stream_resolution', width: 160, height: 100 })); picture(); }
           if (value === 'kd,97' && !typed) { typed = true; picture(); }
+          if (value.startsWith('cw,')) { clipboard = value.slice(3); text('clipboard,' + clipboard); }
+          if (value === 'cr') text('clipboard,' + clipboard);
         }
         return;
       }
@@ -1327,8 +1337,28 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
   const batches = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_input').map((call: any) => call.commands));
   expect(batches.flat().filter((command: string) => command.startsWith('kd,')).length).toBe('cranibox-selkies-input-20261018'.length);
   expect(batches.length).toBeLessThan(10);
+  await section.getByRole('button', { name: '剪贴板', exact: true }).click();
+  const panel = section.getByRole('region', { name: '桌面文字剪贴板', exact: true });
+  const unicode = '原生剪贴板 👋\n' + 'a'.repeat(65400);
+  await panel.getByLabel('发送到远端', { exact: true }).fill(unicode);
+  await panel.getByRole('button', { name: '发送文字', exact: true }).click();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([]);
+  await panel.getByRole('button', { name: '复制到本机', exact: true }).click();
+  expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([unicode]);
+  await section.getByRole('button', { name: '允许输入', exact: true }).click();
+  await expect(panel.getByRole('button', { name: '发送文字', exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: '获取远端文字', exact: true }).click();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () => new Promise((_resolve, reject) => { (window as any).rejectClipboardCopy = reject; });
+    document.execCommand = () => { (window as any).calls.push({ command: 'unexpectedClipboardFallback' }); return false; };
+  });
+  await panel.getByRole('button', { name: '复制到本机', exact: true }).click();
   await page.getByRole('button', { name: '设备网络', exact: true }).click();
+  await page.evaluate(() => (window as any).rejectClipboardCopy(Error('Copy cancelled after leaving')));
   await expect.poll(() => page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_close').length)).toBe(1);
+  expect(await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'unexpectedClipboardFallback'))).toEqual([]);
   expect(errors).toEqual([]);
 });
 

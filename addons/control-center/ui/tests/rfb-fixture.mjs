@@ -77,6 +77,10 @@ export async function rfbFixture(port, credentials) {
           if (type === 0) { red = buffer[14] / 8; green = buffer[15] / 8; blue = buffer[16] / 8; }
           if (type === 4 && buffer[1] === 1) { typed = true; dirty = true; frame(); }
           if (type === 3 && (dirty || buffer[1] === 0)) frame();
+          if (type === 6) {
+            const header = Buffer.alloc(8); header[0] = 3; header.writeUInt32BE(size - 8, 4);
+            socket.write(Buffer.concat([header, buffer.subarray(8, size)]));
+          }
           buffer = buffer.subarray(size);
         }
       }
