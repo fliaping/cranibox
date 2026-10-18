@@ -34,6 +34,7 @@ mod browser;
 mod computer;
 mod copies;
 mod desktop;
+mod e2e;
 mod executions;
 mod messages;
 mod projects;
@@ -88,6 +89,8 @@ struct App {
     stop: CancellationToken,
     connections: CancellationToken,
     tasks: Arc<Mutex<tokio::task::JoinSet<()>>>,
+    identity: Arc<agent_workspace_runtime::peers::identity::Identity>,
+    sessions: Arc<std::sync::Mutex<agent_workspace_runtime::peers::e2e::Sessions>>,
 }
 impl App {
     fn permitted(&self, caller: &Caller, terminal: bool) -> bool {
@@ -128,6 +131,24 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
     {
         return failure(StatusCode::CONFLICT, "expected target node ID required").into_response();
     }
+    if let Some(e2e::Sealed(caller)) = request.extensions_mut().remove::<e2e::Sealed>() {
+        // Decrypted by the end-to-end channel, which already re-checked the grant.
+        request.extensions_mut().insert(caller);
+        return next.run(request).await;
+    }
+    if let Some(proof) = request
+        .headers()
+        .get(agent_workspace_runtime::peers::e2e::STREAM_AUTH_HEADER)
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_owned)
+    {
+        let path = request.uri().path().to_owned();
+        let Some(caller) = e2e::stream_caller(&app, &proof, &path) else {
+            return failure(StatusCode::UNAUTHORIZED, "peer credential rejected").into_response();
+        };
+        request.extensions_mut().insert(caller);
+        return next.run(request).await;
+    }
     let Some(token) = request
         .headers()
         .get("authorization")
@@ -153,6 +174,21 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
     else {
         return failure(StatusCode::UNAUTHORIZED, "peer credential rejected").into_response();
     };
+    if grant.require_verified {
+        // Strict grants accept only the verified encrypted channel; a copied secret is not enough.
+        return failure(
+            StatusCode::UNAUTHORIZED,
+            "this grant is strict (--require-verified): only verified end-to-end sessions are accepted, plaintext bearer requests are refused",
+        )
+        .into_response();
+    }
+    if !grant.usable() {
+        return failure(
+            StatusCode::FORBIDDEN,
+            "pairing verification pending: compare the pairing code on both devices, then run peer verify",
+        )
+        .into_response();
+    }
     request.extensions_mut().insert(Caller { node, grant });
     next.run(request).await
 }
@@ -651,6 +687,7 @@ pub(crate) async fn start_with_catalog(
         Ok(value) if value.version == super::config::VERSION && value.identity.is_some() => value,
         _ => Config::update(&path, |_| Ok(()))?,
     };
+    let identity = Arc::new(Config::identity(&path)?);
     let (tcp, listener_error) = if let Some(listener) = &configuration.listener {
         match bind(listener).await {
             Ok(tcp) => (Some(tcp), None),
@@ -675,6 +712,8 @@ pub(crate) async fn start_with_catalog(
         connections: stop.child_token(),
         stop,
         tasks: Arc::new(Mutex::new(tokio::task::JoinSet::new())),
+        identity,
+        sessions: Arc::default(),
     };
     let listener = tcp
         .zip(configuration.listener)
@@ -751,14 +790,32 @@ fn transport(
             )),
         )
         .route_layer(middleware::from_fn_with_state(app.clone(), auth));
-    let mut router = Router::new()
+    let api: Router = Router::new()
         .nest("/api/v1/mesh", router)
-        .layer(DefaultBodyLimit::max(MAX_FRAME));
+        .layer(DefaultBodyLimit::max(MAX_FRAME))
+        .with_state(app.clone());
+    let sealed = Router::new()
+        .route("/api/v1/mesh/nodes/{node}/e2e/call", post(e2e::call))
+        .layer(DefaultBodyLimit::max(
+            agent_workspace_runtime::peers::e2e::MAX_FRAME + 1024 * 1024,
+        ))
+        .with_state(e2e::Dispatch {
+            app: app.clone(),
+            api: api.clone(),
+        });
+    let mut public = Router::new()
+        .route("/api/v1/mesh/keys", get(e2e::keys))
+        .route(
+            "/api/v1/mesh/nodes/{node}/e2e/handshake",
+            post(e2e::handshake).layer(DefaultBodyLimit::max(
+                agent_workspace_runtime::peers::e2e::MAX_HANDSHAKE,
+            )),
+        );
     // Identity alone is public inside the provider network; every capability remains authenticated.
     if network_discovery {
-        router = router.route("/api/v1/mesh/identity", get(network_identity));
+        public = public.route("/api/v1/mesh/identity", get(network_identity));
     }
-    let router = router.with_state(app.clone());
+    let router = api.merge(sealed).merge(public.with_state(app.clone()));
     let service_stop = app.connections.clone();
     let task = tokio::spawn(async move {
         let result = axum::serve(tcp, router)
@@ -782,6 +839,9 @@ async fn monitor(app: App) {
             .ok()
             .filter(|config| config.node_id == app.node);
         computer::prune(&app, grants.as_ref()).await;
+        if let Ok(mut sessions) = app.sessions.lock() {
+            sessions.retain(|session| e2e::session_valid(&app, session));
+        }
         let jobs = app.jobs.lock().await;
         for job in jobs.values().filter(|job| job.finished.is_none()) {
             if !grants

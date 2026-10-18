@@ -5,6 +5,7 @@ pub mod computer;
 pub mod config;
 mod copies;
 pub mod desktop;
+pub mod e2e;
 pub mod executions;
 pub mod identity;
 pub mod local_forward;
@@ -126,6 +127,11 @@ pub enum Command {
     Revoke {
         node: String,
     },
+    /// Confirm a pinned peer key after both owners compared the pairing code.
+    Verify {
+        node: String,
+        code: String,
+    },
     Connect {
         node: String,
         url: String,
@@ -178,6 +184,44 @@ pub enum Command {
     ProjectSync {
         command: project_sync::Command,
     },
+}
+
+/// Mark pinned keys for `node` as verified when `code` equals their pairing code.
+fn verify_pairing(path: &Path, node: &str, code: &str) -> Result<Value> {
+    ensure!(valid_node_id(node), "invalid node ID");
+    let code = identity::normalize_code(code);
+    ensure!(code.len() == 12, "enter the 12-digit pairing code");
+    let mut verified = vec![];
+    let value = Config::update(path, |config| {
+        let own = config
+            .identity
+            .clone()
+            .context("node identity unavailable")?;
+        let matches = |pinned: &config::Pinned| {
+            identity::normalize_code(&identity::pairing_code(&own, &pinned.identity)) == code
+        };
+        if let Some(pinned) = config.grants.get_mut(node).and_then(|g| g.peer.as_mut())
+            && matches(pinned)
+        {
+            pinned.verified = true;
+            verified.push("grant");
+        }
+        if let Some(pinned) = config
+            .routes
+            .get_mut(node)
+            .and_then(|r| r.target_identity.as_mut())
+            && matches(pinned)
+        {
+            pinned.verified = true;
+            verified.push("route");
+        }
+        ensure!(
+            !verified.is_empty(),
+            "pairing code does not match a key paired with this node; nothing was changed"
+        );
+        Ok(())
+    })?;
+    Ok(json!({"node":node,"verified":verified,"catalog":value.public_view()}))
 }
 
 #[derive(Clone)]
@@ -312,6 +356,8 @@ impl Store {
                             .then(|| existing.and_then(|route| route.local_forward_lock.clone()))
                             .flatten()
                     }),
+                    target_identity: None,
+                    config_path: None,
                 },
             );
             value.validate()?;
@@ -498,6 +544,10 @@ impl Store {
                     Ok(json!({"catalog":value.public_view(),"node":node,"token":token}))
                 })
                 .await?
+            }
+            Command::Verify { node, code } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || verify_pairing(&path, &node, &code)).await?
             }
             Command::Revoke { node } => {
                 let path = self.path.clone();
@@ -693,6 +743,8 @@ mod tests {
             config.routes.insert(
                 "remote".into(),
                 Route {
+                    target_identity: None,
+                    config_path: None,
                     alternatives: vec![],
                     url: "https://remote.example.com".into(),
                     token_file: credential.clone(),

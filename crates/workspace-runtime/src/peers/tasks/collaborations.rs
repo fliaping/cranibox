@@ -419,6 +419,8 @@ mod tests {
                     allow_insecure: false,
                     local_forward_lock: None,
                     alternatives: vec![],
+                    target_identity: None,
+                    config_path: None,
                 },
             );
         }

@@ -64,6 +64,8 @@ impl Store {
             allow_insecure: path.allow_insecure,
             local_forward_lock: None,
             alternatives: vec![],
+            target_identity: None,
+            config_path: None,
         };
         tokio::time::timeout(Duration::from_secs(3), candidate.api(&node)?.probe())
             .await

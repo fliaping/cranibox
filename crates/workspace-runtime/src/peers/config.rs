@@ -63,6 +63,33 @@ impl Desktop {
         Ok(())
     }
 }
+/// A peer key pinned by the first authenticated pairing and, optionally, confirmed by
+/// both owners comparing the pairing code.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Pinned {
+    pub identity: PublicIdentity,
+    #[serde(default)]
+    pub verified: bool,
+    pub pinned_at: u64,
+}
+impl Pinned {
+    pub fn new(identity: PublicIdentity) -> Self {
+        Self {
+            identity,
+            verified: false,
+            pinned_at: identity::now(),
+        }
+    }
+    fn view(&self, own: Option<&PublicIdentity>) -> serde_json::Value {
+        serde_json::json!({"fingerprint":self.identity.fingerprint(),"key_derived_id":self.identity.derived(),
+            "verified":self.verified,"pinned_at":self.pinned_at,
+            "pairing_code":own.map(|own| identity::pairing_code(own, &self.identity))})
+    }
+}
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 /// Target-issued capability grant. Only a digest of the bearer secret is stored.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -78,6 +105,12 @@ pub struct Grant {
     #[serde(default)]
     pub credential: String,
     pub permissions: Permissions,
+    /// Caller key pinned on first end-to-end pairing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer: Option<Pinned>,
+    /// Refuse capabilities until both owners verified the pairing code.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub require_verified: bool,
     /// Ed25519 signature by the issuing (target) node over this record.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -98,6 +131,8 @@ impl Grant {
             salt: identity::hex(&salt),
             credential: credential_digest(&salt, secret),
             permissions,
+            peer: None,
+            require_verified: false,
             signature: None,
         }
     }
@@ -144,6 +179,10 @@ impl Grant {
             &ed25519_dalek::Signature::from_bytes(&bytes),
         )
         .is_ok()
+    }
+    /// Whether capabilities may be used now (pairing verification when required).
+    pub fn usable(&self) -> bool {
+        !self.require_verified || self.peer.as_ref().is_some_and(|p| p.verified)
     }
 }
 fn decode_salt(salt: &str) -> Result<Vec<u8>> {
@@ -193,8 +232,22 @@ pub struct Route {
     pub local_forward_lock: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<Endpoint>,
+    /// Target identity pinned on first contact (trust on first use, then verified).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_identity: Option<Pinned>,
+    /// Peer configuration this route was read from; locates the local identity.
+    #[serde(skip)]
+    pub config_path: Option<PathBuf>,
 }
 impl Route {
+    /// Fields that describe where and with which secret to connect, excluding the
+    /// pinned identity, so pinning a key does not invalidate queued work.
+    pub fn binding_view(&self) -> Self {
+        let mut route = self.clone();
+        route.target_identity = None;
+        route.config_path = None;
+        route
+    }
     pub fn endpoints(&self) -> Vec<Endpoint> {
         let mut endpoints = vec![Endpoint {
             url: self.url.clone(),
@@ -212,7 +265,7 @@ impl Route {
         self.alternatives = endpoints;
     }
     pub fn api(&self, target: &str) -> Result<Api> {
-        Api::direct(
+        let api = Api::direct(
             ApiOptions {
                 url: self.url.clone(),
                 token_file: Some(self.token_file.clone()),
@@ -221,7 +274,11 @@ impl Route {
             },
             target.into(),
         )?
-        .with_paths(self.endpoints())
+        .with_paths(self.endpoints())?;
+        Ok(match &self.config_path {
+            Some(path) => api.with_identity(path.clone(), self.target_identity.clone()),
+            None => api,
+        })
     }
 }
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -343,6 +400,13 @@ impl Config {
                     "peer grant signature is invalid; existing data was preserved"
                 );
             }
+            if let Some(peer) = &grant.peer {
+                peer.identity.verify()?;
+                ensure!(
+                    peer.identity.node_id == *node,
+                    "pinned peer key belongs to another node"
+                );
+            }
             ensure!(
                 grant.permissions.exec
                     || grant.permissions.terminals
@@ -361,6 +425,13 @@ impl Config {
                 "invalid route node"
             );
             ensure!(route.token_file.is_absolute(), "invalid route token file");
+            if let Some(pinned) = &route.target_identity {
+                pinned.identity.verify()?;
+                ensure!(
+                    pinned.identity.node_id == *node,
+                    "pinned target key belongs to another node"
+                );
+            }
             ensure!(
                 route.alternatives.len() < MAX_PATHS,
                 "at most four paths per node"
@@ -407,6 +478,9 @@ impl Config {
             grant.migrate();
         }
         value.validate()?;
+        for route in value.routes.values_mut() {
+            route.config_path = Some(path.to_path_buf());
+        }
         Ok(value)
     }
     /// Sign unsigned grants with the node key and record the public identity. Grants
@@ -458,8 +532,10 @@ impl Config {
         serde_json::json!({"node_id":self.node_id, "listener":self.listener, "desktop":self.desktop, "computer":self.computer, "computer_paused":self.computer_paused, "browser":self.browser, "browser_paused":self.browser_paused, "copy_root":self.copy_root,
             "identity":self.identity.as_ref().map(|i| serde_json::json!({"fingerprint":i.fingerprint(),"key_derived_id":i.derived(),"public":i})),
             "grants":self.grants.iter().map(|(id, grant)| serde_json::json!({"node":id,"permissions":grant.permissions,
-                "signed":grant.signature.is_some()})).collect::<Vec<_>>(),
+                "require_verified":grant.require_verified,"signed":grant.signature.is_some(),
+                "peer":grant.peer.as_ref().map(|p| p.view(self.identity.as_ref()))})).collect::<Vec<_>>(),
             "routes":self.routes.iter().map(|(id, route)| serde_json::json!({"node":id,"url":route.url,"allow_private_http":route.allow_insecure,
+                "identity":route.target_identity.as_ref().map(|p| p.view(self.identity.as_ref())),
                 "paths":route.endpoints().iter().map(Endpoint::public_view).collect::<Vec<_>>()
             })).collect::<Vec<_>>()})
     }

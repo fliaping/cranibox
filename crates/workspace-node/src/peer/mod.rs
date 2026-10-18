@@ -95,6 +95,17 @@ pub enum Command {
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
+        /// Strict mode: accept only end-to-end sessions from the pinned key, and refuse every
+        /// capability until both owners compared the pairing code (peer verify).
+        #[arg(long)]
+        require_verified: bool,
+    },
+    /// Mark a paired key as verified after comparing the pairing code shown on both devices.
+    Verify {
+        #[arg(long)]
+        node: String,
+        #[arg(long)]
+        code: String,
     },
     /// Revoke a caller on THIS target; running direct commands and attachments are cancelled.
     Revoke {
@@ -511,6 +522,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             browser,
             messages,
             spaces,
+            require_verified,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
             ensure!(
@@ -545,7 +557,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 );
                 ensure!(value.grants.len() < 128, "peer limit reached");
                 secrets::write_private(&token_file, format!("{token}\n").as_bytes(), false)?;
-                let grant = Grant::issue(
+                let mut grant = Grant::issue(
                     &token,
                     Permissions {
                         exec,
@@ -558,11 +570,17 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         spaces,
                     },
                 );
+                grant.require_verified = require_verified;
                 value.grants.insert(node, grant);
                 Ok(())
             })?;
             client::print(value.public_view());
         }
+        Command::Verify { node, code } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::Verify { node, code })
+                .await?,
+        ),
         Command::Revoke { node } => client::print(
             Config::update(&path, |value| {
                 ensure!(
@@ -657,6 +675,8 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             ensure!(valid_node_id(&node), "invalid target node ID");
             secrets::read_token(&token_file)?;
             let route = Route {
+                target_identity: None,
+                config_path: None,
                 alternatives: vec![],
                 url,
                 token_file: std::fs::canonicalize(token_file)?,
@@ -666,7 +686,18 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             route.api(&node)?;
             client::print(
                 Config::update(&path, |value| {
-                    value.routes.insert(node, route);
+                    // Reconnecting keeps a pinned target key: a changed key must be re-paired.
+                    let pinned = value
+                        .routes
+                        .get(&node)
+                        .and_then(|old| old.target_identity.clone());
+                    value.routes.insert(
+                        node,
+                        Route {
+                            target_identity: pinned,
+                            ..route
+                        },
+                    );
                     Ok(())
                 })?
                 .public_view(),

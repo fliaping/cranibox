@@ -1001,6 +1001,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "tower",
  "url",
  "uuid",
  "windows-sys 0.61.2",

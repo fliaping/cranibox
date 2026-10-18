@@ -265,7 +265,7 @@ pub(super) fn binding(configuration: &Config, node: &str) -> Result<String> {
         Sha256::digest(serde_json::to_vec(&(
             &configuration.node_id,
             node,
-            route,
+            route.binding_view(),
             token
         ))?)
     ))
