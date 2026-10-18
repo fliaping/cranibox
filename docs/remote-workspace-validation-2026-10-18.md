@@ -873,3 +873,17 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 私有证据目录 /config/validation-artifacts/linux-installer-a8a97f5（0700）。关键文件为 artifact.json、install.log/uninstall.log、real-computer-acceptance.json、deb-browser-real.log、两包 *-native-start.json、deb-native-clipboard-send.json、**deb-native-clipboard-receive.json（passed=false）**、appimage-real-mcp.json、auxiliary-cleanup.json、restored.json、acceptance.json、final-health.json，以及实际桌面截图。acceptance 状态为 completed_with_documented_failure_and_limits。文件保持 0600、AppImage 0700，截图、环境、凭据和剪贴板不提交 Git。
 
 正常托盘/自启/完整终端仍参照 6396b93 的独立验收；本轮不覆盖普通 FUSE、实际系统登录/休眠、网关真实断网、Windows/macOS 原生安装与权限、真实 Tailnet、多物理设备、模型 Agent 工作流及公开产品镜像发布/拉取。接手入口与按优先级排列的验收条件见[交接文档](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)。
+
+## 原生断线原因保留与反向剪贴板排查
+
+2026-10-18 在同一指定远端容器继续诊断，使用隔离 XDG、私有 D-Bus 与测试身份，未更新日常服务。保留上节所有失败证据，不把后续成功片段改写成完整验收通过。
+
+1. 直接连接真实 Selkies WebSocket，cr 在发送前后分别取得新的 60/59 字节 Unicode 标记；cw 写入的 35 字节文字由 wl-paste 逐字节核对。原剪贴板恢复并删除备份。该诊断没有经过 Tauri IPC。
+2. a8a97f5 AppImage 经仅记录消息类型、方向、大小与自建标记匹配结果的透明转发器访问本机 Selkies。原生接收栏实际显示一次 54 字节 Unicode 多行标记；后续重连后接收栏为空，转发器观测到 cr 及匹配的 64 字节上游文字，随后原生查看器断线。没有证明每条上游消息均进入查看器，也未定位断线原因。
+3. 发现独立错误反馈缺陷：NativeDesktopChannel 在通知 onerror 前未保存原因，且 finish() 会清除解码器已有错误。现改为先保存、关闭时保留；新增两个模拟 IPC 用例验证节点/解码错误显示原原因，并且附件只释放一次。
+4. 指定远端运行错误提示专项 2/2、客户端完整界面 48/48（约 1.1 分钟），TypeScript/Vite 与 desktop,custom-protocol 原生 debug 构建通过。专项包含在 48 项中，不累计为 50，也未重跑此前完整 Rust/Web 测试。
+5. 实际运行修复后的 debug GUI：可连接且看到 KDE 画面，稍后仍断开并显示通用原因；没有取得稳定的原生反向剪贴板往返。该程序不是新的 CI 安装包，不覆盖 a8a97f5 .deb 的原失败。
+
+反向获取仍未解决。后续先给原生 ACK 等待、输入/输出结束及上游关闭增加有界、不含文字内容的诊断，核对两端时序；再对照正常图形登录 D-Bus 与另一台物理设备。未证明 WebKit、IPC、上游通知或测试会话是哪一项根因，不应据猜测调整超时或放宽背压。
+
+证据目录 /config/validation-artifacts/native-clipboard-debug-20261018：native-errors-focused.log、native-ui-full.log、native-build.log、upstream.json、protocol.jsonl、native-cleanup.json，以及 patched 下的独立 GUI 元数据、截图、清理记录。诊断转发器与 GUI、私有会话辅助进程均停止，两次原剪贴板逐字节恢复且备份删除。截图、真实文字与配置不提交 Git；源代码和文档独立提交。日常服务、身份和认证入口由 final-health.json 复核，不以测试进程存在代替健康检查。

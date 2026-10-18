@@ -1362,6 +1362,46 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
   expect(errors).toEqual([]);
 });
 
+for (const source of ['node', 'decoder']) test('native desktop failures retain the ' + source + ' reason when closing the viewer', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(source => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const callbacks = new Map<number, Function>(); let next = 1, index = 0;
+    let callback: Function;
+    internals.transformCallback = (fn: Function) => { const id = next++; callbacks.set(id, fn); return id; };
+    internals.unregisterCallback = (id: number) => callbacks.delete(id);
+    (window as any).failDesktop = () => {
+      if (source === 'node') callback({ index: index++, message: { type: 'error', message: 'Selkies provider read timed out' } });
+      else {
+        const frame = new Uint8Array(5); new DataView(frame.buffer).setUint32(1, 16 * 1024 * 1024 + 1);
+        callback({ index: index++, message: { type: 'data', data: btoa(String.fromCharCode(...frame)), sequence: 2 } });
+      }
+    };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: false, error: null, quit_requested: false };
+      if (command === 'direct_peers') return { node_id: 'own-device', routes: [], grants: [], desktop: { address: '127.0.0.1:8082', protocol: 'selkies' } };
+      if (command === 'desktop_open') {
+        callback = callbacks.get(payload.events.id)!;
+        callback({ index: index++, message: { type: 'ready' } });
+        callback({ index: index++, message: { type: 'data', data: btoa('CRANIBOX-SELKIES/1\n'), sequence: 1 } });
+        return 'failed-desktop-attachment';
+      }
+      if (command === 'desktop_ack') return;
+      if (command === 'desktop_close') { (window as any).calls.push({ command, payload }); return; }
+      return previous(command, payload);
+    };
+  }, source);
+  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
+  await section.getByRole('button', { name: '连接桌面', exact: true }).click();
+  await expect(section.locator('canvas.selkies-screen')).toHaveCount(1);
+  await page.evaluate(() => (window as any).failDesktop());
+  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已断开');
+  await expect(section.locator('.vnc-viewer [role="alert"]')).toHaveText(source === 'node' ? 'Selkies provider read timed out' : 'Invalid Selkies frame size or type');
+  await expect.poll(() => page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_close').map((call: any) => call.payload))).toEqual([{ id: 'failed-desktop-attachment' }]);
+  expect(errors).toEqual([]);
+});
+
 test('the native desktop channel completes RFB, acknowledges frames and releases the viewer', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {

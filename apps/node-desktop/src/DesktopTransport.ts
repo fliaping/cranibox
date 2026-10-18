@@ -24,11 +24,11 @@ class NativeDesktopChannel implements DesktopChannel {
       if (this.readyState >= 2) return;
       if (message.type === 'ready') { this.readyState = 1; this.onopen?.(new Event('open')); }
       else if (message.type === 'data') { this.pending = message; this.flush(); }
-      else if (message.type === 'error') { this.onerror?.(new Event('error')); this.finish(message.message); }
+      else if (message.type === 'error') { this.error = message.message || 'Desktop connection failed'; this.onerror?.(new Event('error')); this.finish(this.error); }
       else this.finish();
     };
     this.id = invoke<string>('desktop_open', { options: target, events });
-    void this.id.then(() => { if (this.readyState >= 2) this.release(); }).catch(error => { this.onerror?.(new Event('error')); this.finish(String(error)); });
+    void this.id.then(() => { if (this.readyState >= 2) this.release(); }).catch(error => { this.error = String(error); this.onerror?.(new Event('error')); this.finish(this.error); });
   }
   private flush() {
     if (!this.pending || !this.handler || this.readyState !== 1) return;
@@ -54,7 +54,7 @@ class NativeDesktopChannel implements DesktopChannel {
     }).catch(error => { this.finish(String(error)); this.close(); }).finally(() => { this.buffered -= bytes.length; });
   }
   async ready() { await this.id; return this; }
-  private finish(reason = '') { if (this.readyState >= 2) return; this.error = reason || undefined; this.readyState = 3; this.pending = null; queueMicrotask(() => this.onclose?.(new CloseEvent('close', { code: reason ? 1011 : 1000, reason, wasClean: !reason }))); }
+  private finish(reason = '') { if (this.readyState >= 2) return; this.error = reason || this.error; this.readyState = 3; this.pending = null; const failure = this.error || ''; queueMicrotask(() => this.onclose?.(new CloseEvent('close', { code: failure ? 1011 : 1000, reason: failure, wasClean: !failure }))); }
   private release() { if (this.released) return; this.released = true; void this.id.then(id => invoke('desktop_close', { id })).catch(() => {}); }
   close() { this.finish(); this.release(); }
 }
