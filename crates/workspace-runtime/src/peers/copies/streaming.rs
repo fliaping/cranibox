@@ -153,7 +153,7 @@ impl Store {
         self.save_copy(job)?;
         let cache = self.copy_cache(&job.id)?;
         if !cache.try_exists()? {
-            let mut builder = fs::DirBuilder::new();
+            let builder = &mut fs::DirBuilder::new();
             #[cfg(unix)]
             {
                 use std::os::unix::fs::DirBuilderExt;

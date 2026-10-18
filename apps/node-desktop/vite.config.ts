@@ -5,6 +5,6 @@ const notice = ['herdr-web-ui.txt', 'novnc.txt'].map(name => readFileSync(new UR
 
 export default defineConfig({
   build: { rolldownOptions: { output: { banner: '/*!\n' + notice + '\n*/' } } },
-  resolve: { dedupe: ['react', 'react-dom', 'lucide-react', '@xterm/xterm', '@xterm/addon-fit'] },
+  resolve: { dedupe: ['react', 'react-dom', 'lucide-react', '@xterm/xterm', '@xterm/addon-fit', '@novnc/novnc'] },
   server: { fs: { allow: ['.', '../../addons/control-center/ui/src', '../../addons/control-center/ui/node_modules'] } },
 });

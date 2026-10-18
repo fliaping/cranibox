@@ -412,7 +412,7 @@ pub fn root(path: &Path) -> Result<PathBuf> {
     Ok(root)
 }
 fn private_directory(path: &Path) -> Result<()> {
-    let mut builder = fs::DirBuilder::new();
+    let builder = &mut fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
@@ -641,6 +641,7 @@ mod tests {
     #[test]
     fn receipt_is_durable_private_idempotent_and_bound_to_credentials() {
         let temp = tempfile::tempdir().unwrap();
+        let directory = root(temp.path()).unwrap();
         let state = temp.path().join("peers.json");
         let store = Store::new(temp.path().join("projects.json"));
         let package = sample();
@@ -649,7 +650,7 @@ mod tests {
         let bytes = serde_json::to_vec(&package).unwrap();
         let request = || Import {
             id: id.clone(),
-            expected_root: temp.path().into(),
+            expected_root: directory.clone(),
             digest: digest(&bytes),
             package: serde_json::from_slice(&bytes).unwrap(),
         };
@@ -715,6 +716,7 @@ mod tests {
     #[test]
     fn conflicts_and_revocation_keep_partial_results_without_overwriting() {
         let temp = tempfile::tempdir().unwrap();
+        let directory = root(temp.path()).unwrap();
         let state = temp.path().join("peers.json");
         let store = Store::new(temp.path().join("projects.json"));
         let package = sample();
@@ -731,7 +733,7 @@ mod tests {
             "secret",
             Import {
                 id,
-                expected_root: temp.path().into(),
+                expected_root: directory.clone(),
                 digest: digest(&bytes),
                 package,
             },
@@ -752,7 +754,7 @@ mod tests {
             "secret",
             Import {
                 id,
-                expected_root: temp.path().into(),
+                expected_root: directory,
                 digest: digest(&serde_json::to_vec(&package).unwrap()),
                 package,
             },
