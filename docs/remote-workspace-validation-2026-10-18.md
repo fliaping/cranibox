@@ -907,8 +907,18 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 
 最终回归在指定远端执行：全工作区 Rust 178 通过/4 按条件忽略，原生 desktop 二进制四项全部通过，桌面后端 remote_desktops 7 + desktop_relay 7 + desktop_service 8 共 22 项全部通过（52.674 秒）。合计 204 项不同自动化测试，不重复累计早期专项与历史测试；原生四项不在工作区 178 项内。fmt、工作区与原生 desktop 所有 target 严格 Clippy、工作区构建、实际运行的 desktop,custom-protocol debug 构建通过。本轮没有改前端或重跑完整 Web/Tauri UI，旧界面结果保持原提交绑定。
 
-收尾代码 fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2 已推送 origin/main。矩阵 39141291171 在交接时仍 in_progress 且已有失败：Wayland 作业 117716093179 构建依赖时无法解析 index.crates.io，config.json 下载失败，真实 Wayland 步骤未执行；没有源码编译错误或桌面断言结论。请求单独重跑返回 job cannot be rerun，尚未完成复测。待整轮结束后需复核并重跑失败作业，不以远端 204 项或上一版绿色覆盖此失败。Release 39141291175、GitCode 39141291229 已成功，均核对完整 headSha；最终状态和原日志分别保存 final-ci.json、ci-wayland-first-failure.log。
+收尾代码 fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2 已推送 origin/main。矩阵 39141291171 第二次尝试最终 completed / success、7/7 作业成功，GitHub 更新时间为 2026-10-18 16:25:03 UTC，完整 headSha 已核对。三平台原生构建、三平台 Tauri 打包和真实 Sway/wayvnc 全部成功；三个 Tauri 作业均实际通过新增的原生传输与 ACK 测试步骤。Wayland 重跑作业 117726271297 执行真实桌面测试 1 项通过、4.411 秒。
+
+第一轮 Wayland 作业 117716093179 无法解析 index.crates.io，依赖下载失败，真实测试未执行；首次请求重跑时整轮尚未结束，返回 job cannot be rerun。整轮结束后重跑成功，不将依赖网络故障误记为产品断言失败，也不删除原日志。Release 39141291175、GitCode 39141291229 已成功，均核对完整 headSha。原结果和失败日志为 final-ci.json、ci-wayland-first-failure.log；最终重跑元数据和真实测试日志为 ci-final-retry.json、ci-wayland-retry.log。CI 全绿不覆盖原生剪贴板的人工失败记录。
 
 final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 不变；测试安装包仍已卸载。transport-cleanup-final.json 复核所有本轮隔离 GUI 目录无存活进程及剪贴板备份。未升级日常服务、未安装系统 Tailscale，也未重启合成器。
 
 私有证据根目录仍为 /config/validation-artifacts/native-clipboard-debug-20261018；新增 final-rust-regression.log、final-desktop-backend.log、source-snapshot-final.json、transport* 与 direct 的截图、GUI 元数据、协议生命周期、清理和 direct/result.json。原始截图、剪贴板、配置、凭据及环境不进入 Git。接手优先修复原生反向文字更新，并在实际安装包、正常图形会话及另一物理设备验证；不要用新增自动化测试替代真实验收。
+
+## 2026-10-19 补记：原生查看器有限诊断
+
+使用 fa1d401 的同一 debug GUI、隔离 XDG 与私有 D-Bus，原生直接连接真实 Selkies 8082。通过实际 WebKit Inspector 添加仅在本次运行中生效的计数，没有修改产品源码、二进制或上游。最终计数为 32,191 次 createImageBitmap 开始、32,191 次完成，并观测到至少一条剪贴板文字消息；此轮没有观察到永久挂起的 JPEG 解码。
+
+没有完成连续更换目标文字后的有效 UI 对照，不能将这些计数写为剪贴板稳定、排除间歇解码问题或定位根因。尝试统计 ACK/请求的临时包装未截获真实调用链，零计数不作结论；部分较长诊断命令被 GUI 输入工具改变，生成的语法错误仅属于操作失败，不是产品异常。这轮不增加自动化通过数，也不覆盖既有 .deb 和 direct 的反向更新失败。
+
+证据保存在 inspector/result.json、first-stats.png、diag-final.png、native-cleanup.json 与 cleanup-final.json。GUI、未使用的转发器及私有会话辅助进程均已停止；再次扫描隔离 XDG 无存活进程，原剪贴板逐字节恢复并删除备份。final-health.json 重新核对日常进程、二进制、NodeID 和 LAN 认证入口保持。所有截图和诊断文件仍仅存私有远端，不提交 Git。

@@ -1,6 +1,6 @@
 # Cranibox 功能、验证与后续交接
 
-整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
+整理日期：2026-10-18；2026-10-19 补记最终 CI 与有限诊断结果。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
 最新功能提交 a8a97f5 为 Web/Tauri 共用的桌面文字剪贴板：支持 VNC 与 Selkies、显式发送/复制、64 KiB UTF-8 上限、只读和断开清理。84fdf88 修复原生界面关闭时丢失错误，客户端完整界面回归为 48 项通过，对应 CI 最终 7/7 成功。本次收尾继续保留 Rust 传输失败原因，增加原生 ACK、关闭及队列回归，并纳入三平台 CI；实际原生反向剪贴板仍未验收通过，见下文最新收尾。操作与限制见[跨设备桌面](remote-desktops.md#文字剪贴板)。此前独立跨节点 Browser Use 功能 9b7c0ab、真实浏览器测试清理修复 286ec94 已推送，对应 CI 最终 7/7 成功；Computer Use 功能 973f1c8、默认权限断言修复 3c1a38d 已推送；6396b93 修复 AppImage 启动，afaa137 接入 Selkies，b6ed81e 实现 Tailscale 安装引导。各次测试和 CI 只覆盖对应源码，不能用旧绿色结果覆盖新代码。
 
@@ -74,7 +74,13 @@
 
 本轮共 204 项自动化测试通过（178 + 4 + 22），另 4 项 Rust 按条件忽略；不累计到此前轮次。本轮未改前端，48 项原生界面与 126 项 Web 界面沿用各自原提交证据，不写成本轮重跑。证据仍在 /config/validation-artifacts/native-clipboard-debug-20261018，新增 final-rust-regression.log、final-desktop-backend.log、transport-cleanup-final.json、transport、transport2、transport3、direct 子目录；direct/result.json 记录无代理对照，原始失败截图与协议元数据保留在私有远端，不提交 Git。源码核对见 source-snapshot-final.json，日常健康见 final-health.json。
 
-代码与上述文档已提交为 **fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2** 并推送 origin/main。新矩阵 **39141291171 尚在运行，已经出现一项失败，不能写为通过**：真实 Wayland 作业 117716093179 在 cargo build 获取依赖时无法解析 index.crates.io，下载 config.json 失败；真实 Wayland 测试步骤尚未执行，不是握手断言失败，也没有源码编译诊断。尝试单独重跑返回 job cannot be rerun，交接时尚未重跑成功。接手先运行 gh run view 39141291171 --repo fliaping/cranibox，待运行结束后可重跑失败作业，并核对新四项原生测试和三平台产物。Release 39141291175、Sync to GitCode 39141291229 已 completed / success，完整 headSha 已核对；它们不替代矩阵或产品镜像验收。CI 元数据与失败日志在 final-ci.json、ci-wayland-first-failure.log。后续文档提交不重触发该矩阵。
+代码与上述文档已提交为 **fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2** 并推送 origin/main。矩阵 **39141291171 最终 completed / success，第二次尝试 7/7 作业成功**，GitHub 记录的更新时间为 **2026-10-18 16:25:03 UTC**，完整 headSha 已核对。三平台原生构建、三平台 Tauri 打包及真实 Sway/wayvnc 均成功；三个 Tauri 作业的原生传输与 ACK 回归步骤均成功。Wayland 重跑作业 117726271297 的真实桌面用例实际执行通过（1 项、4.411 秒）。
+
+第一次尝试的 Wayland 作业 117716093179 因无法解析 index.crates.io 而在下载依赖时失败，测试步骤未执行；运行尚未结束时请求重跑曾被拒绝，整轮结束后重跑成功。保留原失败，不将其写为产品断言失败。Release 39141291175、Sync to GitCode 39141291229 同为 completed / success，均核对完整 headSha；这些结果不替代原生剪贴板或产品镜像验收。私有证据包含 final-ci.json、ci-wayland-first-failure.log、ci-final-retry.json、ci-wayland-retry.log。后续文档提交不重触发该矩阵。
+
+2026-10-19 补记一次真实 WebKit Inspector 有限诊断：同一新 debug 程序直接访问 Selkies 8082，通过实际原生 IPC 连接，未使用诊断转发器。仅在运行中临时统计 JPEG 解码及文字消息，最终观察到 32,191 次 createImageBitmap 开始并全部完成，另收到至少一条剪贴板消息。本轮没有观察到永久挂起的 JPEG 解码，但未完成连续更换新标记后的界面对照；不能据此排除间歇故障、定位丢失层或宣布反向剪贴板通过。临时 ACK 计数未成功接入真实调用链，不作为证据；部分 GUI 输入生成的无效诊断命令也不算产品异常。没有修改产品源码或上游。
+
+该轮证据在 inspector/result.json、diag-final.png 与 cleanup-final.json。测试 GUI、未使用的转发器及隔离会话辅助进程全部停止，隔离 XDG 无存活进程，原剪贴板逐字节恢复、备份删除；final-health.json 再次确认日常服务与身份保持。原生反向剪贴板继续列为下一阶段 P0。
 
 ### 最新排查：原生断线提示与反向剪贴板
 
@@ -443,7 +449,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。入口检查使用上述 LAN 地址，主机 127.0.0.1 的相同端口拒绝连接，不代表服务停止。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 最新剪贴板的构建/测试日志与真实 KDE 验收在 desktop-clipboard-20261018；此前 Browser Use 在 browser-use-20261018，真实 Chromium 使用独立临时目录与随机端口，不访问日常 9222。
-- 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 和 transport* 为各轮 debug 复查，direct 为绕过诊断转发器的对照，均不能当作 CI 安装包。原生反向剪贴板仍为 P0。
+- 最新原生错误提示修复的 48 项界面回归、原生构建、Selkies 协议诊断及真实 GUI 复查在 native-clipboard-debug-20261018；patched 和 transport* 为各轮 debug 复查，direct 为绕过诊断转发器的对照，inspector 为有限解码计数及其清理，均不能当作 CI 安装包。ci-final-retry.json 和 ci-wayland-retry.log 保存 fa1d401 的最终绿色 CI；原生反向剪贴板仍为 P0。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
 - 最新 Linux 包、真实 Computer Use/Chromium、原生 Selkies、剪贴板发送通过及获取未通过的证据在 /config/validation-artifacts/linux-installer-a8a97f5；此前管理面板 IPC 在 linux-installer-3c1a38d，较完整托盘/自启等流程在 linux-installer-6396b93；更早包在 linux-installer-afaa137 与 linux-installer-71f2397，启动修复专项在 linux-launcher-20261018（均位于同一证据根目录）。测试 .deb 已卸载，日常客户端仍为 /config/validation-client/bin/cranibox-node-desktop，PID 767446，原身份和配置不变。6396b93 已验证遵循 XDG_CONFIG_HOME，关闭后两处均无启动项；本轮未改变自启配置。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
