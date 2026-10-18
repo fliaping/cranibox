@@ -1081,3 +1081,9 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 私有证据位于 /config/validation-artifacts/native-desktop-correlated-20261019（临时追踪、旧实现失败与新实现通过）、native-desktop-coalescing-20261019（首轮真实失败与协议元数据）、native-desktop-coalescing-v2-20261019（最终源码摘要、构建、各测试 json/log、五轮操作、截图、清理和健康）。辅助脚本、剪贴板、截图、配置与凭据不随 Git 提交。
 
 **限制：当前新修复的真实原生验收是 debug 程序及隔离桌面会话，不是新版正式安装包或正常登录桌面，也未覆盖另一物理设备、Windows/macOS、系统权限和实际登录/休眠。**下一步从新 CI 安装包的连续双向剪贴板及跨设备桌面开始，完整需求和优先级见[交接入口](implementation-handoff-2026-10-18.md)。
+
+### 提交与最终 CI 核对
+
+产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a 已推送 origin/main；对应矩阵运行 39162097500 的七项作业全部成功，Release 39162097404 与 Sync GitCode 39162097385 也成功。Linux 日志确认 Web Playwright 126/126、原生模拟 IPC 48/48，真实 Chromium/官方 MCP、X11 VNC、独立 Sway/wayvnc、用户态 EasyTier 两项及 GIO 启动器均通过。三平台 Rust 与 Tauri 打包成功，共上传 10 项产物（三平台各一份服务端、节点与桌面客户端，以及 Linux 资源报告）；下载和后续验收须绑定该运行与提交。
+
+最终证据目录 native-desktop-coalescing-v2-20261019 增加 ci-final.json 与三份 Linux/Wayland 原始作业日志，保留提交、状态和产物元数据；acceptance.json 追加 Git 发布信息。最终补记提交只改文档，不重计测试。CI 结果与上述远端专项有重叠，不能累加，也不改变新版安装包、另一物理设备及 Windows/macOS 实机仍待验收的结论。

@@ -66,6 +66,8 @@
 | 真实 KDE Web 中继 | 1/1 通过 | 真实画面、完整键盘、双向文字剪贴板、重连和撤权；18.726 秒，不是原生包验收 |
 | 真实 KDE 原生窗口 | 五轮反向更新通过 | 无插桩、无代理、真实 Tauri IPC 与日常 Selkies；48/66/63/50/62 字节新标记逐字节匹配，重连后接收栏先清空 |
 
+工作区默认忽略的是离线传输测量、两项需真实 EasyTier 二进制/网络权限的检查，以及需 Linux GIO 的启动器检查。本次 CI 已显式运行后两类：真实 EasyTier 2/2、GIO 启动器 1/1 通过；不与上述默认测试重复累计。
+
 原生程序 SHA-256 为 372bb5eea65f5314a50d512d757d07de3c8a861e95e0e41702ded3757b7f4162。实际画面可见且非黑屏；两次 TCP 样本没有上游发送积压，但这不是受控性能基准。每轮管理脚本耗时包含 SSH 与辅助进程启动，不能写成协议响应延迟。
 
 最终清理核对原剪贴板逐字节恢复、测试 GUI/辅助进程停止；容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 均匿名 401/认证 200，日常 Web/客户端 PID、摘要和 NodeID 保持。
@@ -80,6 +82,22 @@
 - 前端回归先在旧实现上失败，再在修复后通过。没有通过扩大队列、延长超时、降低固定帧率或另建控制连接来绕开故障。
 
 私有证据目录位于远端 /config/validation-artifacts：native-desktop-correlated-20261019（关联追踪与前后回归）、native-desktop-coalescing-20261019（首次真实失败）、native-desktop-coalescing-v2-20261019（最终源码、构建、全部新测试、五轮 GUI 和清理）。剪贴板正文、截图、环境与凭据不提交 Git。详细时间线见[本次专项记录](remote-workspace-validation-2026-10-18.md#2026-10-19-selkies-慢查看器与原生剪贴板修复)。
+
+### 本次提交与 GitHub CI
+
+产品提交为 **2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a**（fix: keep Selkies clipboard responsive for slow viewers），已推送 origin/main。以下结果均核对该完整提交；最后补充 CI 结果的提交仅修改文档，不改变已验收的产品源码。
+
+| 工作流 | 运行编号 | 结果与范围 |
+| --- | --- | --- |
+| Cranibox server and independent node client | 39162097500 | 7/7 成功；Linux、Windows、macOS 的 Rust 服务端/节点构建及 Tauri 安装包，另有独立 Sway/wayvnc 作业 |
+| Release | 39162097404 | 成功，脚本验证及 README 下载入口检查 |
+| Sync GitCode | 39162097385 | 成功 |
+
+Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc、EasyTier 两项及 GIO 启动器均通过。三平台 Rust、原生传输与打包步骤也通过。它们与远端表中的重复范围不累计，不能替代 Windows/macOS 或新安装包的人工实机验收。
+
+矩阵共上传 10 项 Actions Artifacts：三平台各自的 cranibox、cranibox-node、cranibox-node-desktop，以及 resource-baseline-linux。客户端 Ubuntu 产物含 .deb/AppImage，Windows 为 NSIS .exe，macOS 为 .dmg；在 Actions 中打开运行 39162097500 下载。资源报告仅作为该 CI 环境的产物，不将旧版本的资源数字当成本次测量。
+
+私有证据目录 native-desktop-coalescing-v2-20261019 追加 ci-final.json 与 ci-native-linux.log、ci-desktop-linux.log、ci-wayland.log，保存完整提交、七项作业状态、产物元数据和上述原始日志。下一轮下载包时仍须核对提交，不直接使用其他运行的产物。
 
 ### 历史验证索引
 
