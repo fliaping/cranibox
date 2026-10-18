@@ -2,7 +2,7 @@
 
 > 中文在前，English summary below.
 
-Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent 是大脑，节点负责身份、授权、人工审批和节点之间的安全传输。本文记录节点身份、凭据存储与签名记录（阶段 1）的设计、迁移和威胁模型；端到端加密通道与配对码确认在后续 PR 中补充到本文。
+Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent 是大脑，节点负责身份、授权、人工审批和节点之间的安全传输。本文记录节点身份、凭据存储与签名记录（阶段 1），以及节点间端到端加密通道、密钥固定与配对码确认（阶段 2）的设计、迁移和威胁模型。
 
 ## 节点身份
 
@@ -39,11 +39,68 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 | 篡改 `peers.json` 提升权限 | Ed25519 签名校验失败，配置被拒绝 |
 | 身份文件被替换 | 不会被静默覆盖；已固定该密钥的对端会拒绝新密钥 |
 | 本机私钥泄露 | 不在防护范围内；需要撤销所有授权并重新配对 |
-| 网络窃听/中继查看内容 | 由阶段 2 的端到端加密处理 |
+| 网络窃听/中继查看内容 | 见下方阶段 2 |
+
+## 端到端加密通道（阶段 2）
+
+节点之间的 mesh API 调用（命令、作业、终端管理、消息、任务、项目目录与文件复制、Computer/Browser/Desktop 的 HTTP 调用、空间目录）都通过一条与传输层无关的加密通道发送。EasyTier、Tailscale、Workspace 网关或任何 TCP 中继只能看到密文和外层路由路径。
+
+- **协议**：`Noise_IK_25519_ChaChaPoly_BLAKE2s`，由经过审计的 `snow` crate 实现，不自制密码原语。调用方事先知道目标的 Noise 公钥（来自签名的 `PublicIdentity`），握手消息 1 携带调用方身份、目标颁发的 bearer 凭据和时间戳（±300 秒）。凭据只在加密握手内出现，不再以 `Authorization` 头明文传输。
+- **会话**：每次握手产生新的临时密钥，提供会话级前向保密。会话有效 1 小时、空闲 10 分钟过期，每节点最多 512 个；目标重启或会话失效时返回 410，客户端只重新握手一次（目标未解密，请求未执行）。
+- **帧**：`POST /api/v1/mesh/nodes/{node}/e2e/call`，显式 64 位 nonce，4096 条滑动重放窗口。大请求分块（每块最多 65000 字节明文，带结束标记）并绑定到请求 nonce，防止截断、重排和跨请求拼接。内部请求只能指向 `/api/v1/mesh/` 下的普通接口，不能嵌套 `/e2e/`。
+- **授权复查**：每个加密请求都重新读取授权，撤销或轮换后旧会话立即失效（410 后用当前凭据重新握手）。
+- **WebSocket**：终端、桌面、浏览器的升级请求使用 `x-cranibox-e2e-auth: <会话>.<证明>`，证明绑定请求路径、一次性、限时，不再发送 bearer。注意：**升级后的 WebSocket 数据帧目前仍只受下层传输保护**，尚未端到端加密。
+- **公开端点**：`GET /api/v1/mesh/keys`（需 `x-cranibox-target`）返回签名的公开身份；握手端点不需要 bearer。
+
+### 密钥固定与配对码
+
+- 首次连接时调用方把目标公钥固定到路由（`target_identity`），目标在首次握手时把调用方公钥固定到授权（`peer`），即 TOFU。之后对端密钥变化时连接失败并提示重新配对，不会静默接受新密钥，也不会降级为明文。
+- 两端执行 `cranibox-node peer identity` 都会显示同一个 12 位配对码（如 `1234-5678-9012`，由双方身份的 SHA-256 计算，约 40 位）。在两台设备上目视或语音核对一致后，各自执行：
+
+~~~sh
+cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
+~~~
+
+- `peer grant --require-verified` 创建严格授权：在双方完成 `peer verify` 之前拒绝所有能力，并且始终拒绝明文 bearer 请求。
+- 默认（非严格）授权为了兼容旧节点和直接 HTTP 工具，仍接受明文 bearer 请求；新版节点之间总是自动使用加密通道。
+
+### 兼容性
+
+- 旧目标没有 `/keys` 时，新调用方回退为原有的 bearer 请求（120 秒后重新探测）；一旦固定了密钥，就不再回退。
+- 旧调用方仍可使用非严格授权；严格授权会拒绝它们。
+- 固定密钥不改变已排队消息、空间目录等的连接绑定。
+
+## 威胁模型（阶段 2）
+
+| 威胁 | 处理 |
+| --- | --- |
+| 中继、网关、VPN 查看或修改请求 | 只能看到密文；篡改、重放、截断都会被拒绝，且不会执行 |
+| 中继截获 bearer 凭据 | 新版之间凭据只在加密握手内传输 |
+| 冒充目标节点 | 调用方使用固定的 Noise 公钥加密，冒充者无法完成握手 |
+| 首次连接即被中间人攻击 | TOFU 的固有风险；通过核对配对码发现，敏感授权使用 `--require-verified` |
+| 会话密钥泄露 | 每会话临时密钥，不影响其他会话 |
+| 目标长期 Noise 私钥泄露 | IK 握手消息 1 的载荷（包括 bearer 凭据）对此不具前向保密；需撤销授权、重新生成身份 |
+| 降级到明文 | 固定后不回退；严格授权在服务端拒绝明文 |
+| WebSocket 数据帧 | **未端到端加密**（只有升级鉴权受保护），后续工作 |
+| 元数据 | 中继仍可见目标 NodeID、请求大小和时序 |
 
 ## English summary
 
 - Every node has a persistent Ed25519 signing key plus an X25519 Noise key (`node-identity.json`, 0600, never overwritten). New NodeIDs are `node-` + the first 128 bits of SHA-256 over the public key, the same shape as legacy IDs. Legacy random IDs are kept and bound to the key by a self-signature.
 - `peers.json` stores only `SHA-256(salt ‖ token)`. Version 1 plaintext tokens are migrated on read with an empty salt, so the digest equals the `SHA-256(token)` binding existing ledgers already store. Re-grant to get a salted digest.
 - Grants are signed by the target node and the config moves to version 2. Unsigned or tampered grants are rejected. Downgrading to an older binary is not supported, so back up `peers.json` first.
-- Not covered: an attacker holding the local private key file, and transport confidentiality, which Phase 2 adds.
+- Not covered: an attacker holding the local private key file.
+- **Phase 2 E2E channel.** Every mesh API call is sealed with Noise IK (`snow`, `Noise_IK_25519_ChaChaPoly_BLAKE2s`), so relays, gateways, EasyTier and Tailscale see only ciphertext.
+  - The bearer secret travels inside the handshake.
+  - Each session gets fresh ephemeral keys, giving forward secrecy per session.
+  - Nonces are explicit, with a 4096-message replay window. Frames are chunked and bound to the request nonce. The grant is re-checked on every call.
+  - HTTP 410 makes the client handshake again once.
+- **Pinning.** Keys are pinned trust-on-first-use on both sides. A changed key fails closed and never downgrades.
+  - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified.
+  - `grant --require-verified` refuses capabilities until both sides are verified, and always refuses plaintext bearer requests.
+- **Known gaps:**
+  - WebSocket payload frames are not yet E2E; only the upgrade is authorized via a single-use proof.
+  - The first contact is TOFU.
+  - The IK message-1 payload is not forward-secret against compromise of the target's static key.
+  - Metadata (target NodeID, sizes, timing) stays visible.
+
