@@ -30,6 +30,7 @@ use std::{
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio_util::sync::CancellationToken;
 mod agent_sessions;
+mod computer;
 mod copies;
 mod desktop;
 mod executions;
@@ -81,6 +82,8 @@ struct App {
     slots: Arc<Semaphore>,
     streams: Arc<Semaphore>,
     desktops: Arc<Semaphore>,
+    computer: Arc<Mutex<Option<computer::Lease>>>,
+    computer_actions: Arc<Mutex<()>>,
     stop: CancellationToken,
     connections: CancellationToken,
     tasks: Arc<Mutex<tokio::task::JoinSet<()>>>,
@@ -178,6 +181,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "arch":std::env::consts::ARCH,"terminal":caller.grant.permissions.terminals,
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,
         "projects":caller.grant.permissions.projects,"desktop":caller.grant.permissions.desktop && Config::read(&app.path).is_ok_and(|c| c.desktop.is_some()),
+        "computer":caller.grant.permissions.computer && Config::read(&app.path).is_ok_and(|c| c.computer.is_some()),
         "messages":caller.grant.permissions.messages,
         "spaces":caller.grant.permissions.spaces,
         "tasks":caller.grant.permissions.messages,
@@ -491,6 +495,13 @@ impl Transport {
     }
 }
 impl Running {
+    pub(crate) fn computer_owner(
+        &self,
+        command: agent_workspace_runtime::peers::computer::OwnerCommand,
+    ) -> impl std::future::Future<Output = Result<Value>> + Send + use<> {
+        let app = self.app.clone();
+        async move { computer::owner(&app, command).await }
+    }
     pub(crate) fn network_endpoint(&self) -> NetworkEndpoint {
         NetworkEndpoint(self.app.clone())
     }
@@ -652,6 +663,8 @@ pub(crate) async fn start_with_catalog(
         slots,
         streams: Arc::new(Semaphore::new(4)),
         desktops: Arc::new(Semaphore::new(1)),
+        computer: Arc::default(),
+        computer_actions: Arc::default(),
         connections: stop.child_token(),
         stop,
         tasks: Arc::new(Mutex::new(tokio::task::JoinSet::new())),
@@ -701,6 +714,7 @@ fn transport(
         .route("/nodes/{node}/terminal/sessions", post(sessions))
         .route("/nodes/{node}/terminal/ws", get(attach))
         .route("/nodes/{node}/desktop/ws", get(desktop::upgrade))
+        .route("/nodes/{node}/computer", post(computer::manage))
         .route("/nodes/{node}/projects", post(projects::manage))
         .route("/nodes/{node}/projects/sync", post(projects::sync))
         .route("/nodes/{node}/messages", post(messages::receive))
@@ -758,6 +772,7 @@ async fn monitor(app: App) {
         let grants = Config::read(&app.path)
             .ok()
             .filter(|config| config.node_id == app.node);
+        computer::prune(&app, grants.as_ref()).await;
         let jobs = app.jobs.lock().await;
         for job in jobs.values().filter(|job| job.finished.is_none()) {
             if !grants
@@ -777,6 +792,7 @@ async fn monitor(app: App) {
     for job in app.jobs.lock().await.values() {
         job.cancel.cancel();
     }
+    *app.computer.lock().await = None;
     let mut tasks = app.tasks.lock().await;
     if tokio::time::timeout(Duration::from_secs(6), async {
         while tasks.join_next().await.is_some() {}

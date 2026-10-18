@@ -50,6 +50,7 @@
 .direct-listener code { overflow-wrap: anywhere; user-select: all; }
 .direct-listener form { margin-top: 16px; }
 .direct-grant-form { margin-bottom: 16px !important; }
+.direct-grant-form > form { display: grid; gap: 12px; min-width: 0; }
 .direct-grant-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
 .direct-grant-form legend { font-size: 14px; padding: 0 6px; }
 .direct-grant-list { display: grid; gap: 12px; }

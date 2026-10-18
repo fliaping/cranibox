@@ -17,6 +17,7 @@
 - `--exec`：启动普通命令，查询和取消该凭据自己创建的作业。
 - `--terminals`：管理、附着本节点的原生 Shell。此权限能执行任意 Shell 命令，也能接管本节点其他原生会话，不是只读权限或按项目隔离的权限。
 - `--projects`：读写本节点全部项目目录元数据，包括路径和会话关联，不授予文件访问或执行权限。关联已有会话还需要 `--terminals`。此权限默认关闭，已有 Token 不会自动升级。
+- `--computer`：通过目标明确配置的桌面桥接使用截图、短期输入控制权与窗口动作；默认关闭，不能远端恢复紧急停止。见 [Computer Use](computer-use.md)。
 - `--desktop`：访问目标已开启的本机 VNC 共享，可查看完整屏幕并发送鼠标和键盘输入；与其他能力分别授权，默认关闭。详见[跨设备桌面](remote-desktops.md)。
 
 命令与终端能力以节点进程的操作系统账户运行。仅在目标执行 `grant` 才获得权限；知道 NodeID、加入 VPN 或持有原网关令牌不会自动获得直连权限。输出的身份视图不包含凭据；Unix 上配置和新令牌文件使用 `0600`，Windows 上继承所在目录的 ACL，应使用本人的私有配置目录。
@@ -92,7 +93,7 @@ API 的 listener 操作由运行中的本机节点处理，不允许仅写配置
 
 Web 的“远程节点”页面、Tauri 的“设备网络”页面共用直连设备组件，支持创建当前接入端身份、创建/查看/撤销入站授权、保存/编辑/移除出站连接、检查目标及授权，以及提交命令、查看 stdout/stderr、取消任务。Tauri 尚未配置 Workspace 中继也可以使用此页面。浏览器访问的 Web 服务仍需运行；Workspace 中继可以离线。
 
-Web 与 Tauri 启动时会创建直连身份，页面可查看 NodeID。在目标设备的“入站授权”中填写调用方的直连 ID，按需勾选命令、终端、项目目录、只读空间目录、桌面或消息与协作任务权限，点击“创建授权 Token”。权限默认不勾选；命令和终端均以节点的系统账户运行，终端权限允许任意 Shell 命令及该账户所有终端会话。Token 仅在创建成功时展示，关闭弹窗后无法再次读取；丢失时撤销旧授权再创建。复制失败会选中 Token，支持手动复制。页面和浏览器存储不会保存已签发 Token。
+Web 与 Tauri 启动时会创建直连身份，页面可查看 NodeID。在目标设备的“入站授权”中填写调用方的直连 ID，按需勾选命令、终端、项目目录、只读空间目录、桌面、Agent 桌面操作或消息与协作任务权限，点击“创建授权 Token”。权限默认不勾选；命令和终端均以节点的系统账户运行，终端权限允许任意 Shell 命令及该账户所有终端会话。Token 仅在创建成功时展示，关闭弹窗后无法再次读取；丢失时撤销旧授权再创建。复制失败会选中 Token，支持手动复制。页面和浏览器存储不会保存已签发 Token。
 
 把 Token、目标设备 ID 和可达地址填入调用方的“添加直连设备”。出站连接与目标的入站授权分别管理；删除其中一个不会删除另一个。目标监听器可在目标的 Web/Tauri 页面配置并启用；保存授权不会自行开启端口或安装 VPN。页面显示实际监听状态，并区分尚未应用的配置。Web 上授权的是 Web 服务所在设备；Tauri 上授权的是客户端所在设备。
 
@@ -106,7 +107,7 @@ Token 经 HTTPS/受信本地访问提交后单独写入私有文件，不返回�
 
 命令采用“程序＋字符串 JSON 参数数组”，不会隐式经 Shell 执行。提交立即返回 JobID，页面只轮询已提交任务，不自动重试执行。刷新后可继续查询当前标签页最近 20 个任务；sessionStorage 只保留 NodeID/JobID，不保存输出或 Token。关闭页面不会取消命令，但超时、目标节点退出或授权撤销仍会结束普通命令。节点重启不保留作业，完成记录的保留规则见下文。
 
-统一管理入口：Web `POST /api/peers` 使用已有登录会话、Origin 和 CSRF 校验；Tauri `direct_peers` IPC 调用同一本机节点与共享 Store。支持 `list / identity / listener / grant / revoke / connect / add_path / prefer_path / remove_path / forget / probe / exec / job / cancel / sessions / projects` 及 `copy_root / copy_prepare / copy_commit / copy_status / copy_list / copy_discard` 操作，不需要 Workspace 网关转发。listener 由运行中的本机节点应用。grant 返回 {catalog, node, token}，其余配置变更返回不含秘密的目录视图；所有 Web 响应保留 no-store。目录来源、ProjectID、关联会话及经确认的工作文件复制见[项目与会话](project-session-catalog.md)。
+统一管理入口：Web `POST /api/peers` 使用已有登录会话、Origin 和 CSRF 校验；Tauri `direct_peers` IPC 调用同一本机节点与共享 Store。支持 `list / identity / listener / grant / revoke / connect / add_path / prefer_path / remove_path / forget / probe / exec / job / cancel / sessions / projects`、`computer_sharing / computer_owner / computer` 及 `copy_root / copy_prepare / copy_commit / copy_status / copy_list / copy_discard` 操作，不需要 Workspace 网关转发。listener 由运行中的本机节点应用。grant 返回 {catalog, node, token}，其他配置变更返回不含秘密的目录视图，computer_owner 与 computer 返回相应操作结果；所有 Web 响应保留 no-store。目录来源、ProjectID、关联会话及经确认的工作文件复制见[项目与会话](project-session-catalog.md)。
 
 浮动终端共用 React 会话管理与交互组件。浏览器通过 `POST /api/terminal/sessions`、终端 ticket 和同源 WebSocket 访问 Web 后端，使用物理 NodeID 与 `direct: true` 选择直连路由；目标令牌留在后端。Tauri 通过 `terminal_open/input/close` IPC 和 Channel 访问本机 Rust 适配器，`direct: true` 选择本机保存的直连配置，false 使用已配置网关。两个适配器共用 Rust 的目标绑定、输入校验、鉴权与 WebSocket 传输；界面里的 `direct:` 前缀仅用于区分目标，不会当作节点身份发给目标。连接成功以实际收到 ready 为准，断线只重新附着，不自动新建 Shell 或重复执行命令。
 
@@ -128,6 +129,10 @@ cranibox-node peer paths remove --node NODE_B --url http://100.64.0.2:9140
 实际命令和 WebSocket 握手只发送一次；响应丢失不换路径重发。主路径中断后可重新附着同一目标进程持有的 Shell，新附着重新选路；Shell 的存活依赖目标进程。主路径恢复后，新连接重新优先使用它。已有 TCP/WebSocket 不跨地址无缝迁移，正在运行的终端不会因调整顺序而主动断开。
 
 `probe` 与 CLI `nodes` 响应额外返回 `connection: {url, fallback, path_count}`。页面标记上次检查实际使用的地址；修改路径后清除旧检查结果，这不是持续在线监测。旧单地址配置继续读取；公开目录返回 `paths`，不返回 Token 文件或托管锁文件路径。
+
+## Agent 桌面操作
+
+节点可将已经运行的回环桌面桥接提供给明确授权的调用方，独立 computer 权限默认关闭。Web/Tauri 共用桥接配置、状态、授权、紧急停止及本机确认恢复；CLI/MCP 可截图、取得短期输入控制权和操作键鼠/窗口。它与桌面查看器共用一个控制名额，暂只走直连路由。具体操作及平台、测试边界见 [Computer Use](computer-use.md)。
 
 ## Agent 使用 MCP
 
@@ -157,6 +162,7 @@ X-Cranibox-Target: <目标持久 NodeID>
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
 | GET | `/api/v1/mesh/nodes` | 此目标及授予当前凭据的能力 |
+| POST | `/api/v1/mesh/nodes/{NodeID}/computer` | 独立 computer 授权；状态、短期控制权、桌面动作与紧急停止 |
 | POST | `/api/v1/mesh/nodes/{NodeID}/exec` | 提交命令；请求体沿用 ExecRequest |
 | POST | `/api/v1/mesh/nodes/{NodeID}/messages` | 保存授权发送方的消息，返回持久回执 |
 | GET | `/api/v1/mesh/nodes/{NodeID}/messages/{MessageID}` | 查询此发送方的收件/明确确认回执 |

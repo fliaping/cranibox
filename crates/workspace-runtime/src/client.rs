@@ -361,6 +361,18 @@ impl Api {
     pub async fn post(&self, path: &str, body: Value) -> Result<Value> {
         self.request(reqwest::Method::POST, path, Some(body)).await
     }
+    pub(crate) async fn computer_request(&self, path: &str, body: Value) -> Result<Value> {
+        let endpoint = self.select_endpoint().await?;
+        self.request_at(
+            reqwest::Method::POST,
+            path,
+            Some(body),
+            crate::peers::computer::MAX_RESPONSE,
+            endpoint,
+            Some(Duration::from_secs(15)),
+        )
+        .await
+    }
     /// Only the explicitly bounded code snapshot endpoints use the larger frame.
     pub(crate) async fn copy_request(&self, path: &str, body: Value) -> Result<Value> {
         self.request_bounded(
@@ -490,11 +502,19 @@ pub async fn executions_mcp(store: crate::peers::Store) -> Result<()> {
 pub async fn task_worker_mcp(worker: crate::peers::tasks::worker::Worker) -> Result<()> {
     mcp_service(McpBackend::TaskWorker(worker)).await
 }
+pub async fn computer_mcp(store: crate::peers::Store, node: String) -> Result<()> {
+    mcp_service(McpBackend::Computer(crate::peers::computer::Mcp {
+        store,
+        node,
+    }))
+    .await
+}
 enum McpBackend {
     Workspace(Api),
     Messages(crate::peers::Store),
     Executions(crate::peers::Store),
     TaskWorker(crate::peers::tasks::worker::Worker),
+    Computer(crate::peers::computer::Mcp),
 }
 impl McpBackend {
     fn name(&self) -> &'static str {
@@ -503,13 +523,15 @@ impl McpBackend {
             Self::Messages(_) => "cranibox-device-messages",
             Self::Executions(_) => "cranibox-device-runs",
             Self::TaskWorker(_) => "cranibox-task-worker",
+            Self::Computer(_) => "cranibox-device-computer",
         }
     }
-    fn tools(&self) -> Value {
+    async fn tools(&self) -> Value {
         match self {
             Self::Workspace(_) => tools(),
             Self::Executions(_) => crate::peers::executions::mcp::tools(),
             Self::TaskWorker(_) => crate::peers::tasks::worker::tools(),
+            Self::Computer(computer) => computer.tools().await,
             Self::Messages(_) => {
                 let mut tools = crate::peers::messages::tools().as_array().unwrap().clone();
                 tools.extend(
@@ -535,6 +557,7 @@ impl McpBackend {
             Self::Workspace(api) => call(api, parameters).await,
             Self::Executions(store) => store.execution_tool(parameters).await,
             Self::TaskWorker(worker) => worker.call(parameters).await,
+            Self::Computer(computer) => computer.call(parameters).await,
             Self::Messages(store) => match parameters["name"].as_str() {
                 Some("device_tasks") => store.task_tool(parameters).await,
                 Some("device_agent_sessions") => store.agent_session_tool(parameters).await,
@@ -602,11 +625,15 @@ async fn mcp_service(backend: McpBackend) -> Result<()> {
                     }
                     "ping" => json!({}),
                     "tools/list" => {
-                        json!({"tools":backend.tools()})
+                        json!({"tools":backend.tools().await})
                     }
                     "tools/call" => match backend.call(&req["params"]).await {
                         Ok(value) => {
-                            json!({"content":[{"type":"text","text":serde_json::to_string(&value)?}]})
+                            if matches!(backend, McpBackend::Computer(_)) {
+                                value
+                            } else {
+                                json!({"content":[{"type":"text","text":serde_json::to_string(&value)?}]})
+                            }
                         }
                         Err(error) => {
                             json!({"isError":true,"content":[{"type":"text","text":error.to_string()}]})

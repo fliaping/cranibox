@@ -3,6 +3,8 @@
 检查日期：2026-10-12。这里的 cua-driver 指 Cua 官方项目。当前容器没有找到
 本地 cua-driver 可执行文件；结论来自官方资料与现有 bridge 源码，尚未做实机替换实验。
 
+2026-10-18 更新：节点已提供目标绑定的 [Computer Use API/MCP](computer-use.md)，以现有 bridge 作为明确配置的回环提供者，添加独立授权、短期输入控制权与持久停止；这不代表已经完成 cua-driver 替换或跨平台驱动验收。下文的外部资料调研仍对应原检查日期。
+
 ## 结论
 
 当前 KDE/Wayland + Selkies 桌面继续保留 agent-desktop-bridge。
@@ -20,7 +22,7 @@ bridge 缩成驱动适配层，而不必保留第二套截图和输入实现。
 | 会话与权限 | Workspace 会话 TTL、状态和持久化 emergency pause | 官方有能力清单、会话期限、策略和 revoke；不应再造同类驱动权限系统 |
 | 紧急停止 | Workspace 持久化暂停，恢复入口统一 | revoke --all 暂停当前运行时，重启后需由 Workspace 重新施加持久化暂停策略 |
 | 浏览器控制 | 与 Workspace 托管浏览器流程集成 | 存在专门浏览器工具，但 KDE Wayland 通用路线有只读限制 |
-| 节点接入 | 当前只服务本机；远端应走 Workspace 节点协议 | 驱动/MCP 接入不自动完成 Workspace 节点注册、认证、重连和命令协议 |
+| 节点接入 | bridge 保持本机接口；Rust 节点现已提供直连授权、目标绑定 MCP 与停止管理 | 驱动/MCP 接入不自动完成 Workspace 节点注册、认证、重连和命令协议 |
 
 ## 当前阻碍
 

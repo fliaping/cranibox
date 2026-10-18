@@ -91,6 +91,7 @@ async fn real_two_node_network_authorization_and_restart() {
         terminals: true,
         projects: true,
         desktop: false,
+        computer: false,
         messages: false,
         spaces: false,
     };
@@ -273,6 +274,7 @@ async fn real_three_node_network_entry_failover() {
                 terminals: true,
                 projects: false,
                 desktop: false,
+                computer: false,
                 messages: false,
                 spaces: false,
             },

@@ -24,6 +24,8 @@ pub struct Permissions {
     #[serde(default)]
     pub desktop: bool,
     #[serde(default)]
+    pub computer: bool,
+    #[serde(default)]
     pub messages: bool,
     #[serde(default)]
     pub spaces: bool,
@@ -163,6 +165,12 @@ pub struct Config {
     #[serde(default)]
     pub desktop_epoch: u64,
     #[serde(default)]
+    pub computer: Option<super::computer::Provider>,
+    #[serde(default)]
+    pub computer_epoch: u64,
+    #[serde(default)]
+    pub computer_paused: bool,
+    #[serde(default)]
     pub copy_root: Option<PathBuf>,
     #[serde(default)]
     pub grants: BTreeMap<String, Grant>,
@@ -177,6 +185,9 @@ impl Config {
             listener: None,
             desktop: None,
             desktop_epoch: 0,
+            computer: None,
+            computer_epoch: 0,
+            computer_paused: false,
             copy_root: None,
             grants: BTreeMap::new(),
             routes: BTreeMap::new(),
@@ -208,6 +219,7 @@ impl Config {
                     || grant.permissions.terminals
                     || grant.permissions.projects
                     || grant.permissions.desktop
+                    || grant.permissions.computer
                     || grant.permissions.messages
                     || grant.permissions.spaces,
                 "grant has no capabilities"
@@ -237,6 +249,9 @@ impl Config {
         }
         if let Some(desktop) = &self.desktop {
             desktop.validate()?;
+        }
+        if let Some(computer) = &self.computer {
+            computer.validate()?;
         }
         if let Some(root) = &self.copy_root {
             ensure!(
@@ -271,7 +286,7 @@ impl Config {
         Ok(value)
     }
     pub fn public_view(&self) -> serde_json::Value {
-        serde_json::json!({"node_id":self.node_id, "listener":self.listener, "desktop":self.desktop, "copy_root":self.copy_root,
+        serde_json::json!({"node_id":self.node_id, "listener":self.listener, "desktop":self.desktop, "computer":self.computer, "computer_paused":self.computer_paused, "copy_root":self.copy_root,
             "grants":self.grants.iter().map(|(id, grant)| serde_json::json!({"node":id,"permissions":grant.permissions})).collect::<Vec<_>>(),
             "routes":self.routes.iter().map(|(id, route)| serde_json::json!({"node":id,"url":route.url,"allow_private_http":route.allow_insecure,
                 "paths":route.endpoints().iter().map(Endpoint::public_view).collect::<Vec<_>>()
@@ -327,8 +342,12 @@ mod tests {
         let legacy: Permissions =
             serde_json::from_value(serde_json::json!({"exec":true,"terminals":true})).unwrap();
         assert!(
-            !legacy.projects && !legacy.desktop && !legacy.messages && !legacy.spaces,
-            "old grants must not acquire project access"
+            !legacy.projects
+                && !legacy.desktop
+                && !legacy.computer
+                && !legacy.messages
+                && !legacy.spaces,
+            "old grants must not acquire new capabilities"
         );
         let mut value = Config::new();
         let token = config::token();

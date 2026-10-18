@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-最新功能提交为 6396b93ed53a2f6a820a67fb3af0f0f0d8188859，修复 Linux AppImage 的 MCP 与登录启动项：自动使用无 FUSE 兼容参数、转义可执行文件路径、遵循 XDG_CONFIG_HOME，并迁移旧启动项。此前 Selkies 节点桌面接入提交为 afaa137ce78c1847cb893e97d1527e3b06b23d6f，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证；Tailscale 安装引导为 b6ed81ef3c0b7551e14ed43094f156a222e97442。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
+最新功能为下文的节点 Computer Use：独立授权、回环桥接适配、短期输入控制权、目标绑定 MCP，以及共用 Web/Tauri 管理界面。新提交和对应 CI 结果在本节专项验收后记录。此前功能提交 6396b93 修复 Linux AppImage 的 MCP 与登录启动项；Selkies 接入为 afaa137，Tailscale 安装引导为 b6ed81e。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，最新 6396b93 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先完成 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -42,14 +42,35 @@
 | 多 Agent 通信与任务 | 持久消息、线程回复、确认、离线投递、任务委托/领取/进度/问题/回复/结果/合作取消，CLI/MCP 与共享界面 | 不能由普通消息自动启动进程；同一容器中的独立身份验证不等于多台物理设备验收 |
 | Agent 会话与后台执行 | 主动登记/续期、汇总授权会话、定向委托；Codex/Claude Code 非交互适配、启动检查、持久输出与停止；可选独立执行 MCP | 模型调用与 CLI 登录未实测；不支持运行中追加交互输入、模型检查点恢复或进程迁移 |
 | 多设备协作与自动接单 | 持久协作 Run、任务汇总、统一停止、核对归档、最多八项前置任务；接收端可明确启用按可信发送方和固定目录的后台 worker | 默认关闭；不是通用复杂编排平台；人核对模式与显式自动提案模式分开，退出码不直接等于任务成功 |
-| 各节点 Agent 共享 Computer Use / Browser Use | 可通过授权命令、终端与桌面使用远端能力，容器保留现有浏览器与桌面集成 | 尚无完整的跨平台能力提供者注册、统一 Browser/Computer Use API 与端到端验收；不能以 VNC 查看器代替此需求 |
-| agent-desktop-bridge 是否可删除 | 现有桥接继续保留；VNC 是桌面传输通道，不能证明已覆盖原自动化接口 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
+| 各节点 Agent 共享 Computer Use | 本轮新增独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连；12 项后端专项使用可控原生动作夹具，真实桌面与多设备模型调用待验收 |
+| 各节点 Agent 共享 Browser Use | 容器保留现有浏览器集成，也可通过授权命令使用目标已有工具 | 尚无独立的跨节点 Browser Use 协议、授权与提供者；不能以 Computer Use、VNC 或 Shell 代替 |
+| agent-desktop-bridge 是否可删除 | 现有桥接继续保留，并作为本轮 Computer Use 的明确配置提供者；VNC 是桌面传输通道 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
 
 五项服务是 agent-desktop-bridge、deepseek-harness、openclaw-gateway、proxy-caddy、tailscaled-workspace。其监督方式迁移不代表业务健康：原记录中桌面桥接 health 为 503、Tailscale 为 NeedsLogin，均不能计作迁移修复。见 [Rust 服务与迁移记录](native-services-and-web.md)。
 
 ## 测试情况与可信范围
 
-### 最新补验：6396b93 Linux CI 安装包
+### 最新收尾：Computer Use
+
+目标用户配置已经运行的本机桥接，并独立授予 computer 权限；旧授权保持关闭。Agent 从明确绑定目标的 CLI/MCP 获取截图与 1–300 秒输入控制权。它和 VNC/Selkies 查看器共用一个控制名额，撤权、到期、重配、监听停止及节点重启使控制权失效。紧急停止先保存暂停再通知桥接，桥接离线时仍禁止重新取得输入控制权；恢复只允许目标管理者明确操作。
+
+当前只接入现有 bridge 的回环 HTTP 服务，使用直连路由；不是 Windows/macOS 原生驱动，也没有实现 Browser Use 或旧网关转发。未知字段、远端恢复、任意目的 URL、持续按住输入均拒绝，输入失败不自动重发。详细操作、边界和源码见 [Computer Use](computer-use.md)。
+
+本轮执行仅在指定远端容器 cranibox-validation，使用隔离身份。真实 Rust 节点、Python 桥接、Web 后端参与测试；底层桌面动作是可控 HTTP 夹具，Tauri 界面使用模拟 IPC，没有操作日常桌面或更新日常服务。
+
+| 验证 | 结果 | 可信范围 |
+| --- | --- | --- |
+| 全 Rust 工作区单元测试 | 174 通过、4 忽略 | 忽略项为资源测量、2 项真实 EasyTier 与 GIO 图形用例；本轮没有重跑这些实机专项 |
+| 后端专项及相关回归 | 70 通过 | 包含 12 项 Computer Use：旧授权默认、租约/竞争/撤销、VNC 互斥、重启保留停止、桥接离线、输入不重放、PNG/MCP、慢状态期间停止；另含节点、桌面与现有 MCP 回归 |
+| Web 相关界面 | 20 通过 | Computer Use 2 项、直连设备 7 项、桌面 11 项；明暗、375px 与横屏无横向溢出，停止不被状态检查禁用；接口为模拟响应 |
+| Tauri 全部界面 | 45 通过 | 含新增 Computer Use IPC；属于浏览器模拟原生 IPC，不代替真实安装包验收 |
+| 构建与静态检查 | Rust 工作区 fmt/build/clippy、Web/Tauri TypeScript 与生产资源、原生 desktop Clippy 和 desktop,custom-protocol 构建通过 | 发布 Web 资源已更新，未部署至日常主服务 |
+
+初次较大后端回归 69 项中 1 项失败，原因是旧响应断言缺少新增的 computer:false。更新默认关闭断言后，12 项 Computer Use 和该回归共 13 项复测通过；随后加入新的 Web 并发用例，对相关 70 项完整复测，全部通过。新增的真实 Web 并发用例验证慢桥接状态不持有宿主锁阻碍紧急停止。原始初测、复测、Rust/UI 日志及隔离页面截图在 /config/validation-artifacts/computer-use-20261018；不与历史测试或重复运行相加。
+
+本轮共 309 项不同自动化测试通过，另有 4 项 Rust 测试忽略。原生构建与静态检查不计作测试数。本轮提交及 CI 待提交后补充，6396b93 的绿色结果不覆盖本轮代码。
+
+### 此前补验：6396b93 Linux CI 安装包
 
 已下载运行 39110808540 的 Linux 桌面 Artifact 12130851033，归档摘要与 GitHub 元数据一致，实际安装 .deb 并运行同一产物的 AppImage，使用独立 profile 和相同 NodeID。通过真实 KDE 原生窗口与 PID 对应的托盘操作，没有模拟 Tauri IPC。
 
@@ -230,7 +251,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
-| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与能力提供者协议；独立验收 Browser Use/Computer Use |
+| P1 | 设备信任与能力接入 | 定义公钥配对、签名身份、凭据轮换、加入/撤销与跨平台提供者协议；补验已实现的 Computer Use 真实桌面/模型流程，并独立实现 Browser Use |
 | P2 | 真正 Agent 会话接续与迁移 | 针对具体 harness 设计可恢复检查点、项目文件/上下文一致性与目标启动；源端停止和目标继续有明确状态，不能声称移动原进程 |
 | P2 | 交互和规模优化 | 在真实用户流程上检查导航、状态密度、长清单和错误恢复；评估大量设备与文件的资源消耗；复杂编排按日常需求推进 |
 
@@ -243,7 +264,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 1. 本文与 [远端验证记录](remote-workspace-validation-2026-10-18.md)：先了解完成与失败边界。
 2. [产品与分布式设计](distributed-agent-workspace-design.md)、[组网设计](decentralized-node-network-design.md)：目标架构，不将提案当成现有功能。
 3. [节点直连](direct-node-peers.md)、[设备网络](device-networks.md)、[客户端](node-desktop-and-device-mesh.md)。
-4. [远程桌面](remote-desktops.md)、[虚拟空间](virtual-spaces.md)、[项目目录与复制](project-session-catalog.md)。
+4. [远程桌面](remote-desktops.md)、[Computer Use](computer-use.md)、[虚拟空间](virtual-spaces.md)、[项目目录与复制](project-session-catalog.md)。
 5. [消息](device-messages.md)、[任务与自动接单](device-tasks.md)、[会话](agent-sessions.md)、[后台执行](agent-executions.md)。
 
 ### 源码入口
@@ -257,6 +278,8 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/selkies.rs；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
+| crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |
+| addons/control-center/ui/src/devices/ComputerSharingPanel.tsx；tests/test_computer_use.py | Web/Tauri 共用桥接管理；真实节点/桥接/Web 与可控原生动作夹具 |
 | addons/control-center/ui/src | React 共用业务组件与浏览器适配器 |
 | apps/node-desktop | Tauri 原生宿主、IPC、托盘与客户端适配器 |
 | apps/node-desktop/src-tauri/src/launch.rs | 持久启动器、AppImage MCP 参数、Linux 自启动路径与转义；纯 Rust 库单元测试和真实 GIO 用例 |
@@ -289,11 +312,11 @@ export PYTHONPATH=tests
 
 cargo fmt --all --check
 cargo clippy --locked -p agent-workspace-runtime -p cranibox-node --all-targets -- -D warnings
-python3 -m unittest test_background_project_sync test_project_catalog_sync -v
+python3 -m unittest test_computer_use test_node_peers test_remote_desktops test_desktop_relay test_desktop_service test_web_direct_peers test_agent_runs_mcp test_task_worker_mcp -v
 ~~~
 
-UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新专项用例为 Web 的 desktops.spec.ts、客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
+UI 使用仓库 Playwright 配置与安装好的 Chromium；本轮为复用远端系统 Chromium 临时指定 /usr/bin/chromium 和 --no-sandbox，临时配置不提交。CI 按工作流安装浏览器。最新专项用例为 Web 的 computer-use.spec.ts、direct-devices.spec.ts、desktops.spec.ts，以及客户端 client.spec.ts；真实 KDE 测试的显式启用和图形会话要求见[远程桌面](remote-desktops.md#验证范围)。此前目录相关用例为 Web 的 project-sync.spec.ts、federated-projects.spec.ts、projects.spec.ts。
 
 先构建两端前端，再构建嵌入静态资源的 Rust Web 与原生程序；直接 Cargo 运行原生客户端必须启用 desktop,custom-protocol，避免误连已经关闭的 Vite 开发服务。完整构建及 CI 命令以功能文档与工作流为准。
 
-后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；当前完整矩阵绑定 6396b93，随后仅更新交接文档的提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。
+后续模型应先阅读本文最新收尾结果、对应提交的 CI 与本表 P0；本轮 Computer Use 的提交与 CI 记录见最新专项。仅更新交接文档的后续提交不重新触发该路径过滤矩阵。如又修改代码，再按新提交复核。选择一个日常流程完成，不要继续无界扩展功能，也不要在没有新证据时把“模拟 IPC 通过”或“进程仍存在”升级为完整产品验收。

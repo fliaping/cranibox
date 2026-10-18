@@ -91,7 +91,16 @@ impl LocalNode {
     ) -> Result<Value> {
         use agent_workspace_runtime::peers::{Command, Store};
         let store = Store::new(self.path.clone()).with_local_projects(self.catalog.clone());
-        let mut value = if let Command::Listener { listener } = command {
+        let mut value = if let Command::ComputerOwner { command } = command {
+            let action = {
+                let peer = self.peer.lock().await;
+                peer.as_ref()
+                    .context("local node is stopping")?
+                    .computer_owner(command)
+            };
+            // A slow provider request must not hold the host lock and delay emergency stop.
+            action.await?
+        } else if let Command::Listener { listener } = command {
             let mut peer = self.peer.lock().await;
             peer.as_mut()
                 .context("local node is stopping")?

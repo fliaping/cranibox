@@ -1,5 +1,39 @@
 import { expect, test } from '@playwright/test';
 
+test('Computer Use bridge and local emergency controls use the shared native IPC', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog: any = { node_id: 'desktop-direct-id', routes: [], grants: [], computer: null, computer_paused: false };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command !== 'direct_peers') return previous(command, payload);
+      (window as any).calls.push(structuredClone({ command, payload }));
+      const action = payload.command;
+      if (action.operation === 'computer_sharing') catalog.computer = action.computer;
+      if (action.operation === 'computer_owner') {
+        if (action.command.action !== 'status') catalog.computer_paused = action.command.action === 'emergency_stop';
+        return { paused: catalog.computer_paused, backend_available: true };
+      }
+      return structuredClone(catalog);
+    };
+  });
+  await page.goto('/');
+  const panel = page.getByRole('region', { name: 'Agent 桌面操作', exact: true });
+  await panel.getByLabel('本机桥接地址', { exact: true }).fill('127.0.0.1:8765');
+  await panel.getByRole('button', { name: '保存桌面桥接', exact: true }).click();
+  await expect(panel).toContainText('桌面桥接已保存');
+  await panel.getByRole('button', { name: '紧急停止 Agent 输入', exact: true }).click();
+  await expect(panel).toContainText('已紧急停止');
+  page.once('dialog', dialog => dialog.accept());
+  await panel.getByRole('button', { name: '在此设备恢复', exact: true }).click();
+  await expect(panel).toContainText('桌面桥接就绪');
+  const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'direct_peers' && c.payload.command.operation.startsWith('computer')));
+  expect(calls.map((c: any) => c.payload.command)).toEqual([
+    { operation: 'computer_sharing', computer: { address: '127.0.0.1:8765' } },
+    { operation: 'computer_owner', command: { action: 'emergency_stop' } },
+    { operation: 'computer_owner', command: { action: 'resume' } },
+  ]);
+});
+
 test('native Tailscale setup uses the reviewed plan through IPC and survives navigation', async ({ page }) => {
   await page.addInitScript(() => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
@@ -1055,7 +1089,7 @@ test('shared incoming access uses native IPC with explicit terminal permission',
   await dialog.getByRole('button', { name: '已保存，关闭', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'direct_peers' && c.payload.command.operation === 'grant'));
-  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, messages: false, spaces: false } } } }]);
+  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, messages: false, spaces: false } } } }]);
   page.once('dialog', dialog => dialog.accept());
   await panel.getByRole('button', { name: '撤销授权 another-desktop', exact: true }).click();
   await expect(panel.getByLabel('已授权设备', { exact: true })).toContainText('尚未授权其他设备');

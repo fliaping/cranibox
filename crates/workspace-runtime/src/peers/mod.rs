@@ -1,5 +1,6 @@
 //! Shared outbound routes for the node CLI, Web and Tauri.
 pub mod agent_sessions;
+pub mod computer;
 pub mod config;
 mod copies;
 pub mod desktop;
@@ -95,6 +96,16 @@ pub enum Command {
     },
     Desktop {
         desktop: Option<config::Desktop>,
+    },
+    ComputerSharing {
+        computer: Option<computer::Provider>,
+    },
+    ComputerOwner {
+        command: computer::OwnerCommand,
+    },
+    Computer {
+        node: String,
+        command: computer::Request,
     },
     Grant {
         node: String,
@@ -410,6 +421,23 @@ impl Store {
                 })
                 .await?
             }
+            Command::ComputerSharing { computer } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    Config::update(&path, |config| {
+                        config.computer = computer;
+                        config.computer_epoch = config
+                            .computer_epoch
+                            .checked_add(1)
+                            .context("computer generation exhausted")?;
+                        Ok(())
+                    })
+                    .map(|config| config.public_view())
+                })
+                .await?
+            }
+            Command::ComputerOwner { command } => computer::owner(&self.path, command).await,
+            Command::Computer { node, command } => self.computer(&node, command).await,
             Command::Grant { node, permissions } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || {
@@ -419,6 +447,7 @@ impl Store {
                             || permissions.terminals
                             || permissions.projects
                             || permissions.desktop
+                            || permissions.computer
                             || permissions.messages
                             || permissions.spaces,
                         "choose command, terminal, project, desktop, message and/or space catalog access"

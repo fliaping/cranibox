@@ -83,6 +83,9 @@ pub enum Command {
         projects: bool,
         #[arg(long)]
         desktop: bool,
+        /// Agent screenshot/input/window actions, with a short input lease.
+        #[arg(long)]
+        computer: bool,
         #[arg(long)]
         messages: bool,
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
@@ -109,6 +112,16 @@ pub enum Command {
         address: Option<SocketAddr>,
         #[arg(long, default_value = "vnc", value_parser = ["vnc", "selkies"])]
         protocol: String,
+    },
+    /// Share an existing local desktop bridge. Omit --address to disable Computer Use.
+    Computer {
+        #[arg(long)]
+        address: Option<SocketAddr>,
+    },
+    /// Owner-only Computer Use status, emergency stop or resume as typed JSON.
+    ComputerOwner {
+        #[arg(long)]
+        command: String,
     },
     /// Register an outbound direct route using a token issued by that target.
     Connect {
@@ -244,6 +257,13 @@ pub enum Copies {
 #[derive(Debug, Subcommand)]
 pub enum Action {
     Nodes,
+    /// Typed Computer Use command; omitted means status. Input requires an acquired lease.
+    Computer {
+        #[arg(long)]
+        command: Option<String>,
+    },
+    /// Computer Use MCP bound to this explicitly selected device.
+    ComputerMcp,
     /// Read the target's explicitly shared virtual-space directory.
     Spaces,
     Exec {
@@ -464,13 +484,14 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             terminals,
             projects,
             desktop,
+            computer,
             messages,
             spaces,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
             ensure!(
-                exec || terminals || projects || desktop || messages || spaces,
-                "choose --exec, --terminals, --projects, --desktop, --messages and/or --spaces"
+                exec || terminals || projects || desktop || computer || messages || spaces,
+                "choose --exec, --terminals, --projects, --desktop, --computer, --messages and/or --spaces"
             );
             let token = secrets::token();
             let value = Config::update(&path, |value| {
@@ -503,6 +524,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                             terminals,
                             projects,
                             desktop,
+                            computer,
                             messages,
                             spaces,
                         },
@@ -521,6 +543,23 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 Ok(())
             })?
             .public_view(),
+        ),
+        Command::Computer { address } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::ComputerSharing {
+                    computer: address.map(|address| {
+                        agent_workspace_runtime::peers::computer::Provider { address }
+                    }),
+                })
+                .await?,
+        ),
+        Command::ComputerOwner { command } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::ComputerOwner {
+                    command: serde_json::from_str(&command)
+                        .context("invalid Computer Use owner command")?,
+                })
+                .await?,
         ),
         Command::Desktop { address, protocol } => client::print(
             Config::update(&path, |config| {
@@ -714,6 +753,22 @@ async fn call(path: &Path, node: &str, action: Action) -> Result<()> {
     let api = route.api(node)?;
     let value = match action {
         Action::Nodes => api.probe().await?,
+        Action::Computer { command } => {
+            let request =
+                serde_json::from_str(command.as_deref().unwrap_or("{\"operation\":\"status\"}"))
+                    .context("invalid Computer Use command")?;
+            agent_workspace_runtime::peers::Store::new(path.into())
+                .computer(node, request)
+                .await?
+        }
+        Action::ComputerMcp => {
+            client::computer_mcp(
+                agent_workspace_runtime::peers::Store::new(path.into()),
+                node.into(),
+            )
+            .await?;
+            return Ok(());
+        }
         Action::Spaces => {
             agent_workspace_runtime::peers::Store::new(path.into())
                 .space_catalog(node)
