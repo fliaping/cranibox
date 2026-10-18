@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from workspace_web_harness import Harness, CORE, NODE, ROOT, RUNTIME, WEB, free_port, sockets_allowed, until
 from test_cranibox_terminal import Socket
+from test_remote_desktops import DesktopServer, SelkiesServer
 
 
 @unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
@@ -155,6 +156,60 @@ class DesktopServiceTests(unittest.TestCase):
         for address in ('0.0.0.0:5900', '192.168.1.2:5900', '127.0.0.1:0'):
             self.assertEqual(self.h.post(endpoint, {'operation': 'check', 'address': address})[0], 400)
         self.assertFalse(self.service(operation='check', address=f'127.0.0.1:{free_port()}')['ready'])
+        self.assertEqual(self.h.post(endpoint, {'operation': 'discover', 'address': '192.168.1.2:5900'})[0], 400)
+
+    def test_discovery_reads_vnc_greetings_and_keeps_sharing_disabled(self):
+        # Fixed, conventional ports are intentional: discovery accepts no scan range.
+        try:
+            server = DesktopServer(port=5900)
+        except OSError as error:
+            self.skipTest(f'Loopback VNC discovery port is unavailable: {error}')
+        self.addCleanup(server.close)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 4)
+        self.assertIn({'address': server.address, 'protocol': 'vnc', 'configured': False}, found['services'])
+        until(lambda: server.active == 0)
+        self.assertEqual(server.received, [])  # No authentication or viewer bytes.
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertFalse(self.config.with_name('desktop-service.json').exists())
+        self.assertFalse(self.config.with_name('desktop-vnc.password').exists())
+        self.assertEqual(self.started(), [])
+        for banner in (b'HTTP/1.1 200 OK\r\n', b''):
+            server.banner = banner
+            started = time.monotonic()
+            found = self.service(operation='discover')
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertNotIn(server.address, [item['address'] for item in found['services']])
+            self.assertEqual(self.config.read_bytes(), before)
+        server.banner = DesktopServer.banner
+        self.assertIn(server.address, [item['address'] for item in self.service(operation='discover')['services']])
+
+    def test_discovery_includes_saved_custom_selkies_without_taking_control(self):
+        server = SelkiesServer()
+        self.addCleanup(server.close)
+        self.assertEqual(self.h.post('/api/peers', {'operation': 'desktop', 'desktop': {'address': server.address, 'protocol': 'selkies'}})[0], 200)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 5)
+        self.assertEqual(found['services'][0], {'address': server.address, 'protocol': 'selkies', 'configured': True})
+        until(lambda: server.active == 0)
+        self.assertEqual(server.received, [])  # In particular, no SETTINGS takeover.
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertEqual(self.started(), [])
+        self.assertFalse(self.config.with_name('desktop-service.json').exists())
+
+    def test_discovery_finds_ipv6_vnc_without_enabling_sharing(self):
+        try:
+            server = DesktopServer(host='::1', port=5900)
+        except OSError as error:
+            self.skipTest(f'IPv6 loopback discovery port is unavailable: {error}')
+        self.addCleanup(server.close)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 4)
+        self.assertIn({'address': server.address, 'protocol': 'vnc', 'configured': False}, found['services'])
+        self.assertEqual(self.config.read_bytes(), before)
 
     def test_selkies_background_service_does_not_offer_xwayland_as_an_x11_desktop(self):
         self.h.stop(self.h.web)

@@ -2,7 +2,9 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-本次修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段新文字通过后，进一步下载同一产品提交的 CI Linux .deb/AppImage，两包真实窗口的中文、emoji、多行双向剪贴板、等待后更新及断开重连均通过。此前 a8a97f5 的失败记录仍保留。**新包使用隔离 XDG、私有 D-Bus；正常登录桌面及另一物理设备尚待同等验收**。
+本轮补齐“已有桌面服务接入”：Web/Tauri 共用主动检测入口，Rust 只检查常用回环端口和已保存地址；选择结果后先核对协议、地址，再明确保存并开启共享。检测、核对和取消不改共享配置。补充空结果、错误重试、加载状态、离页清理、键盘焦点、窄屏及明暗主题，开启/停止共享同步更新列表标记。它简化已有 VNC/Selkies 的接入，不代表完成各系统的提供者自动安装。
+
+上一轮已修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段新文字通过后，进一步下载同一产品提交 2c95dd4 的 CI Linux .deb/AppImage，两包真实窗口的中文、emoji、多行双向剪贴板、等待后更新及断开重连均通过。此前 a8a97f5 的失败记录仍保留。**包验收绑定旧产品提交，使用隔离 XDG、私有 D-Bus；不能代替本轮新界面、正常登录桌面或另一物理设备的验收**。
 
 交接不代表全部产品需求完成。没有升级日常 Web/客户端、重启 KDE/Selkies 或安装系统 Tailscale；日常身份和配置保持。后续先完成安装包及跨平台日用流程，再推进更完整的数据同步与 Agent 接续。
 
@@ -33,7 +35,7 @@
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
 | 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。a8a97f5 两包补验私有 D-Bus 下的窗口和桌面 IPC，未重验正常托盘。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
-| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
+| 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；已有本机服务的 IPv4/IPv6 检测、配置核对及保存前复查；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用，见远程桌面文档 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过，公开产品镜像拉取与各 OS 系统依赖安装仍未验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
@@ -50,7 +52,31 @@
 
 ## 测试情况与可信范围
 
-### 本次代码验证：2026-10-19
+### 当前：已有桌面服务接入（2026-10-19）
+
+所有运行验证仍在指定远端容器。本轮新增 Rust `discover` 命令及 Web/Tauri 共用页面，保留已有手动配置、安装和托管入口；未新增依赖。协议探测最多六个回环地址并发，每项上限三秒；只读取握手，不认证、不发送 Selkies SETTINGS，不修改共享、凭据或进程配置。选择结果后填写表单，保存前再次检查。具体边界见[桌面文档](remote-desktops.md)。
+
+| 验证 | 最终结果 | 范围与限制 |
+| --- | --- | --- |
+| Rust 工作区 | 183 通过、4 忽略 | 20 个目标汇总；忽略项不计通过，内容见下方历史说明 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol；不代表原生 GUI 验收 |
+| 构建与静态检查 | 通过 | fmt、工作区及原生 all-targets 严格 Clippy、工作区构建、两端 TypeScript/Vite、实际嵌入最新资源的 Web 与原生 debug 程序 |
+| 桌面服务与传输集成 | 11/11、7/7 通过，无跳过 | 真实 Rust 与隔离提供者；三项新增用例覆盖 IPv4/IPv6、自定义 Selkies、错误/无响应服务、重试、不接管和配置不变 |
+| Web 全量 | 128/128 通过；215.26 秒 | 桌面 14 项已包含其中；检测响应可控，保存检查、配置与连接使用实际 Rust 服务 |
+| 客户端界面全量 | 49/49 通过；103.99 秒 | 浏览器模拟 Tauri IPC；新增检测、核对、取消、保存和停止后标记更新 |
+| Web API 检查 | 通过 | 访问保护、嵌入资源、快照缓存、表单、后台操作、刷新恢复和紧急停止 |
+
+全量通过后，最终截图检查只追加了平台指引文案和表单与托管说明之间的 20 像素间距；两端资源、实际 Web 和原生 debug 程序重新构建通过，受影响的 Web 桌面 14/14、客户端相关 3/3 通过，并重新运行真实 Selkies 检测、核对和取消流程。这些专项与全量范围重叠，不累加计数；最后两处调整后没有再次运行全部 128/49 项。
+
+首次客户端为 48 通过、1 失败：旧 MCP 加载用例依赖 250 毫秒延迟，断言执行时响应已完成，已改为明确释放响应的同步方式。首轮 Web 全量因辅助脚本漏配 CRANIBOX_HERDR_BIN，119 通过、9 个终端相关用例失败；补齐已安装 Herdr 的路径后，全量 128/128。构建过程中也修复了本轮 optional protocol 的 TypeScript 类型错误，并更正辅助脚本的 Cargo 包名和 API 检查工作目录。主要失败日志与辅助脚本修正记录保留，不记作通过，也没有为环境问题修改产品终端行为。
+
+真实 KDE 的浏览器流程检测到日常 Selkies 8082，选择后正确填写协议和地址并聚焦输入；核对与取消后配置逐字节不变，未开启共享或打开查看器。它验证已有服务接入，不是本轮新的桌面控制或原生安装包验收。首轮截图暴露移动端核对表单与结果距离过远，已将表单移到结果后并增加标题；最终布局重新检查明暗主题、375/1440 像素截图。自动化另覆盖 768/1024 像素及 812 像素横屏、减少动画、错误重试与离页迟到结果。
+
+最终核对 12 份产品源码及资源与远端构建快照一致，另记录五个程序摘要。测试清理后容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 均匿名 401、认证 200；日常 Web 与客户端的 PID、程序摘要和 NodeID 保持，测试预览/MCP 进程无残留。未升级日常程序，也未操作桌面输入或剪贴板。
+
+证据目录为远端 /config/validation-artifacts/desktop-discovery-20261019：首轮 checks.json 和日志、final 的 Rust 测试、ui-final 的失败日志与追踪、verified 的全量测试及 API 检查、post-review 的最终资源构建/专项/真实服务检查，以及 source-binaries.json 和 final-health.json。凭据、截图、原始配置与辅助脚本不提交。日常服务和此前安装包验收均有独立版本边界，下方历史结果不代替本轮检查。本轮 CI 与提交绑定信息见下方补记。
+
+### 上一轮 Selkies 修复的代码验证：2026-10-19
 
 全部运行验证位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation 容器；本机仅编辑、静态审阅和 Git 操作。以下是本次最终产品源码的结果，专项与全量中的重叠测试不累计。
 
@@ -96,7 +122,7 @@
 
 私有证据目录位于远端 /config/validation-artifacts：native-desktop-correlated-20261019（关联追踪与前后回归）、native-desktop-coalescing-20261019（首次真实失败）、native-desktop-coalescing-v2-20261019（最终源码、构建、全部新测试、五轮 GUI 和清理）。剪贴板正文、截图、环境与凭据不提交 Git。详细时间线见[本次专项记录](remote-workspace-validation-2026-10-18.md#2026-10-19-selkies-慢查看器与原生剪贴板修复)。
 
-### 本次提交与 GitHub CI
+### 上一轮 Selkies 修复的提交与 GitHub CI
 
 产品提交为 **2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a**（fix: keep Selkies clipboard responsive for slow viewers），已推送 origin/main。以下结果均核对该完整提交；最后补充 CI 结果的提交仅修改文档，不改变已验收的产品源码。
 
@@ -129,7 +155,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 正常登录及跨设备的持续桌面流程 | 本次 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；继续在正常桌面及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网。保留旧失败对照，不以私有 D-Bus、debug 或模拟 IPC 替代 |
+| P0 | 正常登录及跨设备的持续桌面流程 | 2c95dd4 的 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；继续在正常桌面及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网。新增服务检测仍需新版原生包验证，不以私有 D-Bus、debug 或模拟 IPC 替代 |
 | P0 | Windows/macOS 桌面互访与安装 | 原生安装、录屏/输入权限、VNC 提供者引导、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。WSL2 不是 Windows 原生验收 |
 | P0 | 公开产品镜像发布/拉取 | 核对最新构建的镜像来源、可拉取性、首次启动和重启；保留 71f2397 本地完整镜像验收的版本边界 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
@@ -156,6 +182,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/{selkies.rs,selkies/output.rs}；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、有界画面合并、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
+| crates/workspace-node/src/desktop_service/{discovery.rs,provider.rs}；addons/control-center/ui/src/desktop/{ExistingDesktopServices.tsx,RemoteDesktopsView.tsx} | 常用回环地址和已保存服务的有界检测、提供者兼容性；共用配置核对、取消与保存前协议检查 |
 | addons/control-center/ui/src/desktop/{DesktopClipboard.tsx,clipboard.ts,VncViewer.tsx} | Web/Tauri 共用纯文本剪贴板面板、UTF-8 限制、明确复制及连接生命周期；Web desktops.spec.ts、原生 client.spec.ts 为夹具/模拟 IPC 回归 |
 | crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |
 | addons/control-center/ui/src/devices/ComputerSharingPanel.tsx；tests/test_computer_use.py | Web/Tauri 共用桥接管理；真实节点/桥接/Web 与可控原生动作夹具 |

@@ -5,12 +5,16 @@ Web 的“远程桌面”和 Tauri 的“桌面”共用 React 查看器及本�
 ## 开启共享
 
 1. Linux/X11 可以在“本机 VNC 服务”启动托管的 x11vnc；兼容 wlroots 的 Wayland 登录会话可使用 wayvnc 0.8 或以上版本。Ubuntu/Debian 桌面主机还提供安装命令预览及系统认证后的包安装。Workspace 的 KDE/Selkies 容器可选择下文的 Selkies 接入；其他不兼容 wayvnc 的会话以及 Windows/macOS 可接入已有 VNC 服务，限制监听到 `127.0.0.1` 或 `::1`。这些环境的自动安装与进程托管尚未实现。
-2. 使用已有服务时，在该设备的“桌面 → 共享这台设备的桌面”填写 `127.0.0.1:5900` 或 `[::1]:5900`，保存并开启共享。页面先检查 VNC 握手，连接失败时不启用共享。这里只接受非零端口的回环地址，不能用它转发其他主机。托管服务启动成功时已完成此步骤。
+2. 使用已有服务时，在该设备的“桌面 → 共享这台设备的桌面”点击“检测已有服务”，选择结果后核对协议与地址，再点击“保存并开启共享”。也可使用“配置共享”手动填写 `127.0.0.1:5900` 或 `[::1]:5900`。保存时先检查所选协议的握手，失败时保留输入且不启用共享。这里只接受非零端口的回环地址，不能用它转发其他主机。托管服务启动成功时已完成此步骤。
 3. 在“设备网络 → 入站授权”为调用方 NodeID 单独勾选桌面权限。已有执行、终端或项目授权不会自动获得桌面权限。浏览器调用方是运行 Web 的设备，页面会显示需要授权的 NodeID；Tauri 调用方是客户端所在设备。
 4. 选择连接路径：两台设备接入同一 Workspace 时，桌面页会列出中继设备，无需开放目标入站端口；节点凭据调用还要求双方属于同一设备组。也可以配置目标入站监听，在调用方保存直连地址、NodeID 和目标签发的 Token；私网明文入口需明确允许可信私网 HTTP。
 5. 进入“桌面”，选择目标并点击“连接桌面”。同时有直连和中继时，同一设备只显示一次，可在“连接方式”切换；切换会断开查看器，下次连接重新检查授权。VNC 要求认证时，查看器提示输入凭据。
 
 Web 中“本机”指运行 Rust Web 服务的设备，包括 Docker 容器，不是浏览器所在电脑。Tauri 中“本机”指安装客户端的电脑。
+
+“检测已有服务”只在点击后运行，检查 `127.0.0.1` 和 `::1` 的 VNC 5900、Selkies 8082，以及当前共享地址和已保存的托管 VNC 地址；去重后最多六个地址并发，每个检查最多三秒。只读取 RFB 握手或 `MODE websockets`，不发送 VNC 身份验证或 Selkies SETTINGS。它不扫描局域网、不启动服务、不写配置、不获取控制权。检测不通过的地址不列出；不同端口仍可手动填写。
+
+选择结果只填写可编辑的核对表单；取消会关闭表单，保存时重新检查协议。空结果给出启动服务、重试及手动配置指引，错误可重试，离开页面后迟到的结果不会重新打开配置。开启或停止共享会同步更新结果中的“当前共享配置”标记。Web 和 Tauri 使用同一组件；Windows/macOS 的检测代码不表示已验证其 VNC 提供者安装与系统权限。
 
 CLI 使用相同配置：
 
@@ -26,7 +30,7 @@ cranibox-node peer desktop
 
 ## 已有 Selkies 服务
 
-KDE 容器不一定支持 x11vnc/wayvnc 的捕获方式。如果已有可用 Selkies，在“配置共享”选择 Selkies，填写该设备内部的 WebSocket 地址，然后保存。当前验证镜像的地址为 `127.0.0.1:8082`；它不是浏览器入口 3000/3001 或宿主映射的 3031。端口取决于部署配置，应先核对监听。检查只等待 `MODE websockets`，不发送 SETTINGS，因此不会接管现有桌面。
+KDE 容器不一定支持 x11vnc/wayvnc 的捕获方式。如果已有可用 Selkies，可先“检测已有服务”并选择 Selkies 核对，也可在“配置共享”选择 Selkies，填写该设备内部的 WebSocket 地址，然后保存。当前验证镜像的地址为 `127.0.0.1:8082`；它不是浏览器入口 3000/3001 或宿主映射的 3031。端口取决于部署配置，应先核对监听。检查只等待 `MODE websockets`，不发送 SETTINGS，因此不会接管现有桌面。
 
 ~~~sh
 cranibox-node peer desktop --protocol selkies --address 127.0.0.1:8082
@@ -50,7 +54,7 @@ Rust 节点负责保持 x11vnc 运行，关闭查看器、切换页面或断开�
 
 在已有的兼容 wlroots 图形会话中运行节点或 Tauri 客户端，例如 Sway。页面根据节点环境选择 wayvnc，填写本机 Wayland socket 名称（例如 `wayland-0`），可选指定输出名称（例如 `DP-1`，留空使用默认输出），再启动共享。节点继承有效的 `XDG_RUNTIME_DIR`，通过 `WAYLAND_DISPLAY` 连接所选会话，不创建新的图形登录。GNOME、KDE/Plasma 和 Weston 不支持这条路径，页面会说明原因，并保留接入已有 VNC 服务的入口。
 
-Selkies 镜像中的后台节点可能只继承 `DISPLAY` 和 `PIXELFLUX_WAYLAND=true`，没有登录会话的 Wayland 变量。节点会识别这一环境，避免把 XWayland 误判成可以使用 x11vnc 的 X11 桌面；未选择 Wayland 会话时也不提供无效的安装和启动操作。页面提示在下方选择 Selkies 或接入兼容 VNC 服务。显式选择的独立 X11 会话仍按 X11 处理。Workspace Web 的“打开桌面”按镜像运行时是否存在显示，不要求先安装编辑器扩展。
+Selkies 镜像中的后台节点可能只继承 `DISPLAY` 和 `PIXELFLUX_WAYLAND=true`，没有登录会话的 Wayland 变量。节点会识别这一环境，避免把 XWayland 误判成可以使用 x11vnc 的 X11 桌面；未选择 Wayland 会话时也不提供无效的安装和启动操作。页面提示检测已有服务，或通过“配置共享”选择 Selkies、接入兼容 VNC 服务。显式选择的独立 X11 会话仍按 X11 处理。Workspace Web 的“打开桌面”按镜像运行时是否存在显示，不要求先安装编辑器扩展。
 
 wayvnc 需要 0.8 或以上版本。Ubuntu/Debian 桌面主机可先查看安装命令，经系统认证安装 wayvnc 后单独启动；容器不提供宿主包安装。启动失败保留显示器、输出和端口输入，成功后再启用共享。异常重试、节点重启恢复、停止共享和退出清理沿用上述托管服务生命周期；节点恢复时仍需访问原 Wayland 会话。
 
@@ -90,19 +94,19 @@ Web 使用登录会话、Origin 和 CSRF 校验的 `POST /api/desktop/ticket`，
 
 原生通道在 10 秒未收到逐帧 ACK、收到无效 ACK 或提供者关闭时显示原因；主动关闭不报错。Rust 传输输入队列已满与提供者断开分别返回错误，若提供者已有失败原因则保留原原因。通用输出通道为 32 个位置；Selkies 适配器使用 3 个位置，避免提前排队过多旧画面；各自均预留一个位置给最终错误。慢查看器不会使失败被丢弃或阻塞控制名额释放，Selkies 连续 5 秒无法向查看器交付数据仍会报告原因。这些改动不自动重发输入，也不将断线后的连接状态视为桌面仍可用。
 
-服务管理通过同样需要登录和 CSRF 的 `POST /api/desktop/service` 或 Tauri `desktop_service` 调用，支持 `status`、`plan`、`install`、`start`、`stop`、`credentials` 及仅限回环地址的握手检查 `check`。`check` 可传 `protocol: "selkies"`，省略时检查 VNC。安装和启动是独立操作，查看安装计划不会执行命令。`start` 接受 `display`、`port`，Wayland 另传 `provider: "wayvnc"` 和可选 `output`；省略 `provider` 保持原有 x11vnc 请求兼容。`status` 返回所选提供者、兼容性说明和输出；只有显式 `credentials` 操作返回密码，wayvnc 同时返回用户名。
+服务管理通过同样需要登录和 CSRF 的 `POST /api/desktop/service` 或 Tauri `desktop_service` 调用，支持 `status`、`discover`、`plan`、`install`、`start`、`stop`、`credentials` 及仅限回环地址的握手检查 `check`。`discover` 不接受地址或范围参数，返回 `{services: [{address, protocol, configured}], checked}`；`configured` 表示检测时与当前共享配置一致，界面标记随当前配置变化。`check` 可传 `protocol: "selkies"`，省略时检查 VNC。安装和启动是独立操作，查看安装计划不会执行命令。`start` 接受 `display`、`port`，Wayland 另传 `provider: "wayvnc"` 和可选 `output`；省略 `provider` 保持原有 x11vnc 请求兼容。`status` 返回所选提供者、兼容性说明和输出；只有显式 `credentials` 操作返回密码，wayvnc 同时返回用户名。
 
 ## 验证范围
 
 `tests/test_desktop_relay.py` 使用真实出站节点和隔离 VNC 服务验证中继、重连、目标授权、调用身份、设备组与凭据撤销、跨路径单控制者、未消费 ticket 到期释放及登录会话绑定的显式取消。Rust 测试额外验证 rendezvous 的目标凭据、单次 ticket、连接代次绑定及取消清理。
 
-`tests/test_remote_desktops.py` 使用真实 Rust Web、节点和回环 TCP 服务，验证二进制转发、目标绑定、CSRF、ticket、停止共享、撤销和单控制者。`tests/test_desktop_service.py` 使用真实 Rust 节点与隔离的 x11vnc/wayvnc 替身验证进程守护、节点恢复、密码和配置权限、私有控制 socket、配置重新生成、输出恢复、版本与会话兼容性检查、启动失败及主动停止，不安装系统包或访问真实桌面。
+`tests/test_remote_desktops.py` 使用真实 Rust Web、节点和回环 TCP 服务，验证二进制转发、目标绑定、CSRF、ticket、停止共享、撤销和单控制者。`tests/test_desktop_service.py` 使用真实 Rust 节点与隔离的 x11vnc/wayvnc 替身验证进程守护、节点恢复、密码和配置权限、私有控制 socket、配置重新生成、输出恢复、版本与会话兼容性检查、启动失败及主动停止。检测另覆盖 IPv4/IPv6 常用端口、已保存的自定义 Selkies 地址、无效或无响应服务、重试，以及检测后配置字节和凭据文件保持不变；提供者记录证明没有发送认证或接管消息。这些用例不安装系统包或访问真实桌面。
 
 `tests/test_desktop_real_vnc.py` 另外运行真实 x11vnc 和独立 Xvfb 显示器，验证密码认证、错误密码拒绝、实际像素、X11 键鼠事件、Web 重启恢复，以及同一配置切换到无界面节点后的远程授权访问、撤销和退出清理。需要系统已有 x11vnc、Xvfb、xev、xsetroot、xdotool、Node 和 Web UI 的 npm 依赖；设置 `CRANIBOX_TEST_REAL_VNC=1` 后运行，Linux CI 已配置此检查。它不使用当前登录桌面，也不会自行安装系统软件。
 
 `tests/test_desktop_real_wayland.py` 使用真实 wayvnc 和独立的无显示器 Sway 会话，使用 noVNC 的认证实现验证 ARD 用户名/密码、错误用户名和密码拒绝、实际像素、键盘、崩溃重试，以及关闭 Workspace 后独立节点恢复同一桌面、直连授权访问、撤销和退出清理。需要 wayvnc 0.8 或以上、Sway、swaybg、Node 和 Web UI 的 npm 依赖；以普通用户设置 `CRANIBOX_TEST_REAL_WAYLAND=1` 运行。CI 为此单独使用 Ubuntu 26.04 容器，不依赖 runner 的已有桌面；本地验证使用 wayvnc 0.9.1、Sway 1.11，未安装系统包。
 
-浏览器测试使用实际 noVNC 与最小 RFB 服务验证画面、输入、密码及 ARD 用户名/密码认证、拒绝错误凭据和重连，另验证 Wayland 安装预览、表单恢复及明暗主题的移动布局；Tauri 前端测试使用模拟 IPC。隔离的 Sway 检查不能代替其他 Wayland 合成器、Windows/macOS 实机，或系统录屏/辅助功能权限、托盘及原生安装包的人工验收。noVNC 的归属和许可证见 [第三方声明](licenses/novnc.txt)。
+浏览器测试使用实际 noVNC 与最小 RFB 服务验证画面、输入、密码及 ARD 用户名/密码认证、拒绝错误凭据和重连，另验证 Wayland 安装预览、表单恢复及明暗主题的移动布局。已有服务核对覆盖检测失败/空结果/重试、键盘焦点、取消、保存前重新检查、窄屏和离页迟到结果；Web 检测响应可控，保存检查和连接仍走真实 Rust 服务；Tauri 前端测试使用模拟 IPC。隔离的 Sway 检查不能代替其他 Wayland 合成器、Windows/macOS 实机，或系统录屏/辅助功能权限、托盘及原生安装包的人工验收。noVNC 的归属和许可证见 [第三方声明](licenses/novnc.txt)。
 
 Selkies 的 Rust 单元与服务集成覆盖分片/合并、输入白名单、128 KiB 输出的分块、只探测不接管、慢查看器撤权和控制名额释放。Web 使用真实 Rust 通道与合成 JPEG 服务验证画面、连续文字、鼠标、只读及重连；Tauri 使用模拟 IPC 验证分片、逐帧确认、JPEG 和输入合并。`tests/test_desktop_real_selkies.py` 另需明确设置 `CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082`，通过出站节点中继访问现有 KDE 桌面、向自身 kdialog 输入完整文字、重连及撤权。它会接管正在使用的主显示器，要求已有 Chromium、Playwright、kdialog 与图形会话环境，不在普通 CI 自动执行。2026-10-18 在指定远端容器中通过；这不等于 KDE 的 VNC 捕获成功或完整产品镜像/安装包已重新验收。
 

@@ -627,7 +627,7 @@ test.beforeEach(async ({ page }) => {
       if (command === 'peers') return { nodes: [{ id: 'laptop', name: '我的笔记本', online: true, os: 'macos', mesh_group: 'personal', terminal_sessions: false }, { id: 'desktop', name: '开发主机', online: true, os: 'linux', mesh_group: 'personal', terminal_sessions: true }] };
       if (command === 'mcp_config') {
         if ((window as any).failMcp) throw Error('无法生成 MCP 配置，请重试');
-        if ((window as any).delayMcp) await new Promise(resolve => setTimeout(resolve, 250));
+        if ((window as any).delayMcp) await new Promise<void>(resolve => { (window as any).releaseMcp = resolve; });
         return { mcpServers: { 'cranibox-devices': { command: '/apps/cranibox-node-desktop', args: ['mcp', '--config', '/private/settings.json'] }, ...(payload?.includeRuns ? { 'cranibox-runs': { command: '/apps/cranibox-node-desktop', args: ['--config', '/private/settings.json', 'peer', 'runs', 'mcp'] } } : {}) } };
       }
       if (command === 'projects') {
@@ -1012,6 +1012,7 @@ test('Agent execution MCP is opt-in, clears stale config and fits small screens'
   await option.check();
   await expect(page.getByRole('button', { name: '复制配置', exact: true })).toBeDisabled();
   await expect(config).toHaveValue('');
+  await page.evaluate(() => { (window as any).releaseMcp(); });
   await expect(config).toHaveValue(/cranibox-runs/);
   const value = JSON.parse(await config.inputValue());
   expect(value.mcpServers['cranibox-runs'].args).toEqual(['--config', '/private/settings.json', 'peer', 'runs', 'mcp']);
@@ -1536,6 +1537,47 @@ test('the native desktop channel completes RFB, acknowledges frames and releases
   expect(await page.evaluate(() => (window as any).calls.find((call: any) => call.command === 'desktop_open').payload.options)).toEqual({ node: 'own-device', local: true });
   expect(await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_ack').length)).toBeGreaterThan(3);
   expect(errors).toEqual([]);
+});
+
+test('existing desktop discovery reviews and enables sharing through native IPC', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: null as any };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'desktop') catalog.desktop = payload.command.desktop;
+        return structuredClone(catalog);
+      }
+      if (command === 'desktop_service') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'discover') return { services: [{ address: '127.0.0.1:8082', protocol: 'selkies', configured: false }], checked: 4 };
+        if (payload.command.operation === 'check') return { ready: true };
+        return { platform: 'linux', provider: 'wayvnc', supported: false, wayland: true, selkies_wayland: true, installed: true, display: '', port: 5900 };
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const discovery = page.getByRole('region', { name: '已有桌面服务', exact: true });
+  await discovery.getByRole('button', { name: '检测已有服务', exact: true }).click();
+  await discovery.getByRole('button', { name: '核对 Selkies · 127.0.0.1:8082', exact: true }).click();
+  const form = page.getByRole('form', { name: '核对桌面共享配置', exact: true });
+  await expect(form.getByLabel('本机 Selkies 地址', { exact: true })).toHaveValue('127.0.0.1:8082');
+  await expect(form.getByLabel('本机 Selkies 地址', { exact: true })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop'))).toBe(false);
+  await form.getByRole('button', { name: '取消', exact: true }).click();
+  await discovery.getByRole('button', { name: '核对 Selkies · 127.0.0.1:8082', exact: true }).click();
+  await form.getByRole('button', { name: '保存并开启共享', exact: true }).click();
+  await expect(page.getByRole('region', { name: '本机桌面共享', exact: true })).toContainText('已开启 · Selkies · 127.0.0.1:8082');
+  await expect(discovery.getByText('当前共享配置', { exact: true })).toBeVisible();
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status').map((call: any) => call.payload.command)).toEqual([{ operation: 'discover' }, { operation: 'check', address: '127.0.0.1:8082', protocol: 'selkies' }]);
+  expect(calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop').map((call: any) => call.payload.command.desktop)).toEqual([{ address: '127.0.0.1:8082', protocol: 'selkies' }]);
+  await page.getByRole('button', { name: '停止共享', exact: true }).click();
+  await expect(discovery.getByText('当前共享配置', { exact: true })).toHaveCount(0);
 });
 
 for (const wayland of [false, true]) test('managed desktop service uses native IPC and stays enabled after navigating away' + (wayland ? ' on Wayland' : ' on X11'), async ({ page }) => {

@@ -1,4 +1,5 @@
 //! User-owned VNC process. Its lifetime follows the local node, not a viewer or relay.
+mod discovery;
 mod provider;
 pub use provider::Provider;
 
@@ -27,6 +28,7 @@ use tokio_util::sync::CancellationToken;
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     Status {},
+    Discover {},
     Check {
         address: SocketAddr,
         #[serde(default)]
@@ -204,6 +206,14 @@ impl Manager {
     async fn manage(&mut self, command: Command) -> Result<Value> {
         match command {
             Command::Status {} => {}
+            Command::Discover {} => {
+                let current = Config::read(&self.peers)?.desktop;
+                let managed = self.spec.as_ref().map(|spec| Desktop {
+                    address: spec.address(),
+                    protocol: DesktopProtocol::Vnc,
+                });
+                return discovery::discover(current, managed).await;
+            }
             Command::Check { address, protocol } => {
                 Desktop { address, protocol }.validate()?;
                 let result = match protocol {

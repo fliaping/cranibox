@@ -1116,3 +1116,45 @@ final-health.json 确认容器 running/healthy、非 privileged、无 Docker soc
 私有证据根目录 /config/validation-artifacts/linux-installer-2c95dd4 包含包元数据、安装/卸载日志、baseline/final-health.json、各包 GUI 元数据、操作/发送/截图/清理记录，以及最终 acceptance.json、final-health.json。正文、截图、凭据、配置与辅助工具不随 Git 提交。
 
 本轮补齐同提交 Linux 正式产物的隔离 KDE 双向剪贴板与重连；**仍未覆盖正常登录 D-Bus/托盘/自启、真实登录和休眠、普通 FUSE、另一物理设备、Windows/macOS，以及新包的超时/断网/撤权流程**。P0 已调整为这些未覆盖的日用流程，详见[交接入口](implementation-handoff-2026-10-18.md)。
+
+## 2026-10-19 已有桌面服务检测与配置核对
+
+本轮以 799eae3499a5933aa7423cc94f9e900667331682 为基线，补齐已有 VNC/Selkies 的接入引导。所有运行验证仍在 admin@192.168.217.6:22022 的 cranibox-validation，普通用户 abc；本机只编辑、静态核对、管理私有证据和 Git 操作。未增加依赖。
+
+### 实现与需求边界
+
+Rust 桌面服务新增显式 discover：检查当前共享和已保存的托管地址，以及 IPv4/IPv6 回环的 VNC 5900、Selkies 8082，去重后最多六项并发、每项最多三秒。只读取 RFB 握手或 MODE websockets；不扫描局域网、不认证、不发送 SETTINGS、不启动或保存服务，不接管桌面。接口不接受调用方指定的扫描范围。
+
+Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保存前重新检查所选协议，通过后才开启共享。取消恢复配置按钮焦点；开启或停止同步更新当前共享标记。补齐空结果、重试、加载、忙碌保护、离页迟到响应、键盘操作、明暗主题与窄屏；核对表单紧接结果，平台说明引用按钮名称。这是已有服务引导，Windows/macOS 的提供者安装、系统权限和进程托管仍未完成。
+
+### 构建与自动化
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区测试 | 183 通过、4 忽略，20 个测试目标 | 忽略项为离线测量、两项真实 EasyTier 和 GIO；本轮没有重跑这些忽略项 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol；不是 GUI 验收 |
+| 桌面服务集成 | 11/11 通过，无跳过 | 真实 Rust、隔离提供者；新增 IPv4/IPv6、无效/无响应及重试、已保存的自定义 Selkies、配置/凭据不变和不认证/不接管 |
+| 桌面传输集成 | 7/7 通过 | 真实 Rust 与隔离 VNC/Selkies 提供者 |
+| Web 全量 | 128/128 通过；命令耗时 215.26 秒 | 桌面 14 项已包括其中；检测响应可控，保存检查、配置及连接仍使用实际 Rust |
+| 客户端界面全量 | 49/49 通过；命令耗时 103.99 秒 | 浏览器模拟 Tauri IPC，不能当作原生包测试 |
+| Web API 检查 | 通过 | 访问保护、资源、缓存、表单、后台操作、刷新恢复和紧急停止 |
+| 静态检查及构建 | 通过 | fmt、工作区及原生 all-targets Clippy -D warnings、工作区构建、两端 TypeScript/Vite，以及嵌入资源的实际 Web/原生 debug 构建 |
+
+全量后仅调整平台说明文案及表单与说明的 20 像素间距，重新构建两端资源与实际 Web/原生 debug；Web 桌面 14/14、客户端相关 3/3 及下述真实服务流程再次通过。最后两处调整后没有重复全量 128/49；专项不与全量累计。
+
+### 首次失败与修正
+
+- 客户端首轮 48 通过、1 失败：已有 MCP 加载用例使用 250 毫秒延迟，断言前响应已完成；测试改为显式释放响应，最终 49/49。产品 MCP 行为没有为此修改。
+- 构建发现新增组件未接受可省略的 protocol 类型；改用共享目录类型，标记计算沿用缺省 VNC 规则，之后 TypeScript 与实际程序构建通过。
+- Web 全量首轮 119 通过、9 个终端用例失败：辅助脚本漏配 CRANIBOX_HERDR_BIN，界面显示需要安装 Herdr。补齐容器已有 /config/bin/herdr 后全量 128/128；没有改终端产品代码。九项失败上下文与 trace 均保留。
+- 辅助脚本曾误用 workspace-web 包名，正确 Cargo 包名为 agent-workspace-web；API 检查曾在容器根目录解析不到程序，随后使用源码工作目录和明确 WORKSPACE_WEB_BIN 通过。它们属于执行脚本修正，不计为产品测试通过。
+
+### 真实服务与清理
+
+实际 Rust Web 浏览器流程检测到日常 Selkies 127.0.0.1:8082，选择后协议与地址正确、焦点在地址输入；取消后回到配置按钮。记录的服务操作只有 status 与 discover，没有开启共享或打开查看器。测试前后共享配置逐字节不变，未生成托管配置或密码。最终重新检查 375/1440 像素明暗主题截图；自动化另覆盖 768/1024、812 横屏和减少动画。无页面异常。
+
+最终 source-binaries.json 核对 12 份产品源码与资源和本地待提交文件一致，并记录五个 Rust 程序摘要。全部测试清理后，容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、原生客户端 PID 767446、程序摘要与 NodeID 保持，无测试预览/MCP 进程残留，临时安装包不存在。未升级日常程序、重启 KDE/Selkies，未操作桌面输入或剪贴板。
+
+私有证据根目录 /config/validation-artifacts/desktop-discovery-20261019：checks.json 与首轮日志；final 的 Rust 测试和构建；ui-final 的全量失败日志及 failure-contexts；verified 的全量成功日志、API 检查和初次真实服务检查；post-review 的最终构建、14/3 专项、real 的截图/操作/配置不变记录、source-binaries.json 和 final-health.json。凭据、截图、配置、原始正文与辅助脚本均不提交。
+
+本轮新检测功能没有做正式安装包的真实 GUI 验收；之前 Linux .deb/AppImage 的通过仍仅绑定 2c95dd4。正常登录/托盘/自启、跨物理设备、Windows/macOS、系统 Tailscale 安装、公开镜像拉取、完整同步及运行中 Agent 迁移仍有未完成项，已按 P0/P1/P2 列在[交接入口](implementation-handoff-2026-10-18.md)。本轮提交与 CI 状态在后续补记绑定，不能挪用旧矩阵的成功。

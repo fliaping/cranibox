@@ -13,6 +13,8 @@
 .desktop-sharing { margin-top: 20px; border: 1px solid var(--border); background: var(--direct-surface); border-radius: 12px; padding: 20px; }
 .desktop-sharing > .direct-heading { margin: 0; } .desktop-sharing h3 { display: flex; align-items: center; gap: 8px; }
 .desktop-sharing form { margin-top: 20px; max-width: 620px; }
+.desktop-sharing > form + .desktop-service { margin-top: 20px; }
+.desktop-sharing form h4 { margin: 0 0 16px; font-size: 16px; }
 .desktop-sharing select { min-height: 44px; padding: 8px 12px; color: inherit; background: var(--card, var(--bg)); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
 .vnc-viewer { background: var(--direct-surface); min-width: 0; position: relative; }
 .vnc-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); align-items: center; }
@@ -52,3 +54,14 @@
 .desktop-route-options label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
 .desktop-route-options select { min-height: 44px; max-width: 100%; padding: 8px 12px; color: inherit; background: var(--card, var(--bg)); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
 .desktop-route-options code { overflow-wrap: anywhere; }
+
+.desktop-discovery { display: grid; gap: 12px; padding: 20px 0; min-width: 0; }
+.desktop-discovery .direct-heading { margin: 0; align-items: center; flex-wrap: wrap; }
+.desktop-discovery h4 { margin: 0 0 6px; font-size: 16px; }
+.desktop-discovery-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; padding: 0; margin: 0; list-style: none; }
+.desktop-discovery-results li { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-soft, var(--direct-surface)); min-width: 0; }
+.desktop-discovery-results li > svg { flex-shrink: 0; color: var(--muted); }
+.desktop-discovery-results li > div { display: grid; gap: 6px; min-width: 0; flex: 1 1 140px; }
+.desktop-discovery-results code { overflow-wrap: anywhere; font-size: 13px; }
+.desktop-discovery-results li span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.desktop-discovery-results button { flex-shrink: 0; }

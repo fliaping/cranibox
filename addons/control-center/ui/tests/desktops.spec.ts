@@ -260,6 +260,89 @@ test('sharing setup validates addresses and retains input for correction', async
   await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
 });
 
+test('existing desktop discovery retries, reviews without sharing and checks again before saving', async ({ page }) => {
+  const commands: Record<string, unknown>[] = [], errors: string[] = [];
+  let attempt = 0;
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation !== 'discover') { await route.continue(); return; }
+    if (++attempt === 1) { await route.fulfill({ status: 503, json: { error: 'Local node is reconnecting. Retry shortly.' } }); return; }
+    await route.fulfill({ json: { checked: 4, services: attempt === 2 ? [] : [
+      { address: '127.0.0.1:19110', protocol: 'vnc', configured: false },
+      { address: '127.0.0.1:19118', protocol: 'selkies', configured: false },
+      { address: '[::1]:5900', protocol: 'vnc', configured: false },
+    ] } });
+  });
+  await page.goto('/#/desktop');
+  const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
+  const discovery = sharing.getByRole('region', { name: 'Existing desktop services', exact: true });
+  const detect = discovery.getByRole('button', { name: 'Detect existing services', exact: true });
+  const review = discovery.getByRole('button', { name: 'Review Selkies · 127.0.0.1:19118', exact: true });
+  const form = sharing.getByRole('form', { name: 'Review desktop sharing', exact: true });
+  expect(commands.some(command => command.operation === 'discover')).toBe(false);
+  await detect.click(); await expect(discovery.getByRole('alert')).toContainText('reconnecting');
+  await detect.click(); await expect(discovery.getByRole('status')).toContainText('No ready services found');
+  await expect(discovery.getByRole('alert')).toHaveCount(0);
+  await detect.click(); await expect(discovery.getByRole('status')).toContainText('Found 3 services');
+  await review.focus(); await page.keyboard.press('Enter');
+  const address = form.getByLabel('Local Selkies address', { exact: true });
+  await expect(address).toHaveValue('127.0.0.1:19118'); await expect(address).toBeFocused();
+  await expect(form.getByLabel('Desktop protocol', { exact: true })).toHaveValue('selkies');
+  await expect(sharing.getByRole('button', { name: 'Stop sharing', exact: true })).toHaveCount(0);
+  expect(commands.some(command => command.operation === 'check')).toBe(false);
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(sharing.getByRole('button', { name: 'Configure sharing', exact: true })).toBeFocused();
+  await review.click();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const viewport of [{ width: 375, height: 1000 }, { width: 768, height: 1000 }, { width: 1024, height: 1000 }, { width: 1440, height: 1000 }, { width: 812, height: 375 }]) {
+    await page.setViewportSize(viewport);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if ([375, 1440].includes(viewport.width)) await sharing.screenshot({ path: '/tmp/cranibox-desktop-discovery-' + viewport.width + '-' + theme + '.png', animations: 'disabled' });
+    }
+  }
+  await address.fill('127.0.0.1:19111');
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  await expect(page.locator('.remote-desktops > [role="alert"]')).toContainText('unavailable');
+  await expect(address).toHaveValue('127.0.0.1:19111');
+  await expect(sharing.getByRole('button', { name: 'Stop sharing', exact: true })).toHaveCount(0);
+  await address.fill('127.0.0.1:19118');
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  await expect(page.locator('.remote-desktops > [role="status"]')).toContainText('Local sharing enabled');
+  try {
+    await page.getByRole('region', { name: 'Cross-device desktops', exact: true }).getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    await expect(page.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
+    expect(commands.filter(command => command.operation === 'check')).toEqual([
+      { operation: 'check', address: '127.0.0.1:19111', protocol: 'selkies' },
+      { operation: 'check', address: '127.0.0.1:19118', protocol: 'selkies' },
+    ]);
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('leaving discovery ignores its pending result and manual configuration stays available', async ({ page }) => {
+  let started!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const delayed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/desktop/service', async route => {
+    if (route.request().postDataJSON().operation !== 'discover') { await route.continue(); return; }
+    started(); await delayed;
+    await route.fulfill({ json: { services: [{ address: '127.0.0.1:5900', protocol: 'vnc', configured: false }], checked: 4 } });
+  });
+  await page.goto('/#/desktop');
+  const discovery = page.getByRole('region', { name: 'Existing desktop services', exact: true });
+  await discovery.getByRole('button', { name: 'Detect existing services', exact: true }).click();
+  await ready; await expect(discovery.getByRole('button', { name: 'Detecting…', exact: true })).toBeDisabled();
+  await page.getByRole('region', { name: 'Local desktop sharing', exact: true }).getByRole('button', { name: 'Configure sharing', exact: true }).click();
+  await expect(page.getByLabel('Local VNC address', { exact: true })).toBeVisible();
+  await page.goto('/#/nodes'); release();
+  await page.goto('/#/desktop');
+  await expect(discovery.getByRole('button', { name: 'Detect existing services', exact: true })).toBeEnabled();
+  await expect(discovery.locator('li')).toHaveCount(0);
+});
+
 test('username and password authentication rejects invalid credentials and reconnects privately', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/desktop');
@@ -386,7 +469,7 @@ test('Selkies Wayland guidance avoids VNC installation and keeps existing server
   });
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-  await expect(section).toContainText('Choose Selkies below');
+  await expect(section).toContainText('choose Selkies in Configure sharing');
   await expect(section.getByRole('button', { name: /installation|Start and share/ })).toHaveCount(0);
   await section.getByRole('button', { name: 'Check VNC environment', exact: true }).click();
   const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
