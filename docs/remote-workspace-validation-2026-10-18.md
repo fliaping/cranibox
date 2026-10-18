@@ -653,3 +653,48 @@ Web/Tauri 从首包识别 RFB 或 Selkies 标记，共享原有工具栏。JPEG 
 | Sync to GitCode | 39106262578 | completed / success | 本次提交同步 |
 
 元数据与十项 Artifacts 的清单存入私有证据目录 ci-final.json（0600）。安装包为 cranibox-node-desktop-{ubuntu,windows,macos}-latest；其余为三平台 cranibox/cranibox-node 及 resource-baseline-linux。这里的产物生成与自动化测试成功，不替代新包实际安装、Windows/macOS 图形权限、系统登录/休眠、Tailscale 实际登录或多台物理设备验收。收尾只读检查远端 cranibox-validation 仍为 running / healthy，privileged=false、未挂 Docker socket。
+
+## 最新 Linux CI 安装包与 Shell 重新附着验收
+
+本节是上述 CI 结束后补做的真实安装包验收，绑定功能提交 afaa137ce78c1847cb893e97d1527e3b06b23d6f、矩阵运行 39106262547。所有产品程序、套接字、浏览器及原生交互仍只在 admin@192.168.217.6:22022 的 cranibox-validation 容器执行，本机仅下载和校验产物、同步辅助脚本、查看截图及编辑/Git。
+
+### 产物校验与执行方式
+
+| Artifact | ID | 归档字节数 | SHA-256 | 使用情况 |
+| --- | --- | --- | --- | --- |
+| cranibox-node-desktop-ubuntu-latest | 12128354180 | 95,673,837 | 2999969618d43206a225553e6bc4d218828780018181c0843d3dd4fa6df6ad2a | 解出 .deb 与 AppImage，均实际运行 |
+| cranibox-ubuntu-latest | 12128832666 | 19,569,678 | f3ef7d6a49002c05a8a34ef3e9c355203d9fa59aa9aef9d5fb20096a3f97a0ec | 仅下载、校验和解包，未运行或部署 release 服务端 |
+
+两份归档摘要均与 GitHub 元数据及远端接收结果一致。环境为 Ubuntu 26.04 amd64 / KDE Wayland；测试 profile 独立，NodeID 为 node-708d42e4fa964fc49fd3c058d9a72e44。先备份原客户端可执行文件和启动环境、记录自启与剪贴板，再停止原客户端，避免同一身份多进程。通过既有认证 Selkies 页面观察并操作真正的原生窗口，托盘菜单通过 PID 对应的 D-Bus 服务触发；此处没有使用模拟 Tauri IPC。
+
+### .deb 与原生 PTY
+
+使用 dpkg -i 实际安装 Cranibox Node_0.1.0_amd64.deb，核对 cranibox-node 0.1.0 amd64；/usr/bin/cranibox-node-desktop 的 SHA-256 为 2e9850fead1de8a23f7c93e3ef93ddb6fe92be7181fa0ccdadf9b76a0649ce44，与运行进程对应。
+
+| 检查 | 结果 | 验证内容 |
+| --- | --- | --- |
+| 原生界面、IPC 与托盘 | 通过 | release 窗口可见，托盘服务属于实际 GUI PID；复制的 MCP 指向安装程序和隔离配置 |
+| 自启动开关 | 通过 | 实际创建/删除 HOME/.config/autostart/Cranibox Node.desktop，Exec 为安装程序和 --background；没有执行注销/登录 |
+| 窗口与退出 | 通过 | 关闭原生窗口后进程保留，托盘打开窗口；退出确认可取消，确认后进程退出 |
+| 后台与单实例 | 通过 | --background 重启后窗口隐藏，第二次启动退出码 0 并唤回原进程，NodeID 不变 |
+| 本机 Shell 重新附着 | 通过 | 在真实浮动终端创建 Shell、导出变量并记录 PID；关闭浮动终端和原生窗口，操作托盘重新连接及打开，重新附着后变量和 PID 均相同 |
+
+PTY 两次记录均为 afaa137-pty-persist 713970，证据为 pty-first.txt、pty-reconnected.txt 与 pty-acceptance.json。结束时在终端显式执行 exit，未保留测试 Shell。本次没有配置 Workspace 网关，也没有制造网络中断；托盘「重新连接（保留 Shell）」操作仅证明没有销毁该本机 Shell，不能据此宣称真实网关重连验收通过。
+
+### AppImage 的默认失败与兼容模式
+
+实际执行 Cranibox Node_0.1.0_amd64.AppImage --version，默认模式退出 127，日志报告 fuse: device not found / Cannot mount AppImage；容器没有 /dev/fuse。这是本环境的默认运行失败，保留原日志，不标为通过。
+
+设置 APPIMAGE_EXTRACT_AND_RUN=1 后，版本命令返回 cranibox-node 0.1.0、退出 0；实际 GUI、PID 对应托盘、复制 MCP、退出确认均通过，并复用了 .deb 的 NodeID。AppImage 解包后的内部程序 SHA-256 为 642eb7d6395b9f8e13196372d0cef23c92ee2aa1c8a8d220b2465de2ef9ed0a4，与 .deb 分别记录，不假定两个打包产物应当字节一致。
+
+从原生界面实际复制的 MCP command 指向持久 AppImage 路径，没有指向临时解包目录；GUI 退出后，以该命令、补充兼容环境变量，实际执行消息 MCP 的 initialize、notifications/initialized 与 tools/list，退出 0，返回三个工具。复制配置自身没有 APPIMAGE_EXTRACT_AND_RUN 环境字段，无 FUSE 的 Agent 环境仍需手动添加，已写入[客户端说明](node-desktop-and-device-mesh.md#linux-appimage-与-fuse)。没有测试普通 FUSE 桌面上的默认 GUI、AppImage 登录自启动或全部 MCP 入口，不能由本次兼容模式结果外推。
+
+### 清理恢复与证据
+
+测试 .deb 已用 dpkg -r 卸载，两个安装包进程、临时浏览器与测试 Shell 均已退出；自启恢复禁用，剪贴板恢复，私有剪贴板备份删除。原客户端先前运行的 debug inode 已因构建被替换，恢复时使用测试前备份的原字节，保存于 /config/validation-client/bin/cranibox-node-desktop，避免覆盖最新构建产物。恢复后 PID 为 719446，SHA-256 为 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510，原 NodeID node-82bf96c6f15d4f00923656f7877b8609 和 /config/validation-client/{config,data,state} 不变；已查看恢复后的真实窗口并核对托盘 PID。
+
+最终记录主 Web PID 538744 未变，容器 running / healthy，镜像仍为 sha256:a2077e4276f3e6a51e1fa5b3a92b6ef72a3336e303e955fa8034b0ae1724a81b，privileged=false、无 Docker socket；3080 和 3031 均为未认证 401、认证 200。本次没有替换主服务、修改宿主网络、安装 Tailscale 或重启合成器。
+
+远端证据在 /config/validation-artifacts/linux-installer-afaa137，目录 0700，日志/记录/截图 0600，需执行的产物 0700。acceptance.json 状态为 completed_with_documented_limits；同时保留 install.log、uninstall.log、release-tray.json、release-mcp.json、自启记录、PTY 三份记录、后台/单实例记录、AppImage 默认失败日志、兼容模式启动/MCP 日志、restored.json，以及 22 份带 SHA-256 的私有截图。真实桌面截图和含私有环境的备份不提交 Git。
+
+这是独立人工集成验收，不增加上文 186 项不同自动化测试的计数；未重跑安装包内的真实桌面查看器，不代替源码专项的 KDE/Selkies 测试，也没有构建新完整镜像或发布/拉取产品镜像。Windows/macOS 原生交互仍未验收：macOS fliaping@192.168.217.85 拒绝当前 SSH 公钥，Windows 原生登录入口尚未提供；已请求可用访问方式，不能用 WSL2 代替原生系统。

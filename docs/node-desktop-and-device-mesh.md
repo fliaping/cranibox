@@ -37,6 +37,22 @@ Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一
 
 登录自启动属于当前用户，会在用户登录后启动，不是登录前的系统守护服务。账户权限决定远程命令的权限。安装包目前未配置发布者签名和 macOS 公证。
 
+### Linux AppImage 与 FUSE
+
+没有 /dev/fuse 的容器中，AppImage 默认挂载启动会失败。Debian/Ubuntu 环境可使用 .deb；需要 AppImage 时，可使用已在远端 KDE 验证的解包运行模式：
+
+~~~bash
+APPIMAGE_EXTRACT_AND_RUN=1 "./Cranibox Node_0.1.0_amd64.AppImage"
+~~~
+
+当前「Agent 接入」复制的 MCP 配置会保留 AppImage 的持久路径，但不会自动添加这个环境变量。在没有 FUSE 的环境中，需给每个使用该 AppImage 的 MCP 条目补充或合并以下 env 字段，使 Agent 启动时也使用兼容模式：
+
+~~~json
+"env": { "APPIMAGE_EXTRACT_AND_RUN": "1" }
+~~~
+
+兼容模式已验证真实窗口、托盘和消息 MCP 初始化；普通 FUSE 模式及 AppImage 登录自启动尚未实测，不能假设登录进程会继承手动启动时的变量。具体包版本与证据见[交接记录](implementation-handoff-2026-10-18.md#最新-linux-ci-安装包与-shell-重新附着)。
+
 ## 会话保持
 
 节点引擎在窗口之外运行。关闭窗口或退出浏览器都不会结束 Shell。网络断开后客户端自动重连；「重新连接」只重建网络连接，保留现有 PTY 和 Shell。服务端恢复后可通过浏览器或客户端重新附着原会话，断线期间保留最近 256 KiB 输出。
