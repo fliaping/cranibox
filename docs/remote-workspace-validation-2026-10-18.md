@@ -1199,3 +1199,21 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 10 项未过期产物为 cranibox、cranibox-node、cranibox-node-desktop 各三平台，加 resource-baseline-linux。Windows 客户端为 NSIS .exe，macOS 为 .dmg；本轮只下载并在指定远端实际运行 Linux .deb/AppImage。Release 工作流只做脚本/Dockerfile/Compose 检查和脚本地址维护，ShellCheck 允许失败；它不发布镜像，默认公开镜像不兼容的问题仍未解决。
 
 远端 linux-installer-84454e6/ci-final.json 保存七项作业及步骤、两个其他工作流、完整来源与产物元数据；ci-native-linux.log、ci-desktop-linux.log、ci-wayland.log 保存原始日志。此后仅整理交接与验证文档，没有修改已经验收的产品代码。
+
+## 2026-10-19：镜像发布前门槛与完整 XFCE 镜像
+
+本轮只增加镜像发布流程、独立验收脚本、其回归和文档，Rust/React 产品代码仍绑定 84454e6。Build Multi-Arch Image 默认手动 publish=false，可选择桌面；正式发布先推送唯一候选，按摘要完成 amd64 启动验收后才提升公开标签，阿里云候选也独立验收。没有触发新 GitHub 镜像工作流或发布公开镜像；默认标签的已确认阻塞仍存在。
+
+检查器回归最终 14/14，通过缺少协议/来源错误的提前拒绝、实际就绪与容器健康的区分、授权/执行失败、私有报告、不泄漏子进程正文，以及资源归属/清理失败门槛。首轮 11 项中四项发现报告写入误用 Path.open(opener=...)；改用内置 open 并先 fchmod 后通过，之后补到 14 项。两个工作流的 actionlint v1.7.7 语法/表达式检查通过（关闭 ShellCheck），另有 14 段 run 的 bash -n 检查通过。上述均在指定远端容器 abc 下执行，不是产品全量重跑。
+
+完整 Git 源码快照为 18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4，归档 SHA-256 为 957510fd71eb72aa86b44657906f9ff6688e49afb37d9353efd43c7e94f530e0。指定远端宿主使用既有独立 buildx 构建器，限制 2 CPU、6 GiB、并发 2，未选为默认构建器；从拉取基础镜像开始完整构建默认 XFCE linux/amd64 镜像，没有运行本机 Docker。初始辅助脚本因宿主 Python 不支持 tarfile 的 filter 参数在 Docker 调用前中止，修正可信 Git 归档的解包方式后完成构建，不算产品失败或启动通过。
+
+构建耗时 666.17 秒，镜像 cranibox-image-release:18c3216-xfce，ID sha256:fa81e38cb9c42d7cfc3ea6b156b0ab2002b412dfffd7ae54830801e0ce4f08d0，大小 5,261,024,756 字节。协议标签为 1、来源标签匹配完整提交；构建器已停止，默认选择不变。该源码快照不含本轮新检查器/CI 文件，启动运行产品代码与当前产品相同，不能冒称新 CI 提交镜像已经发布。
+
+待提交检查器实际内容 SHA-256 d18ea9d50f0ed89d8b36248dd1f242833aafa912cc709d4e5b059b47ca9f3b82，与远端执行文件一致。对空普通卷与预置独立身份/授权的空间卷，各执行首次启动和重启，43/43 通过，耗时 86.73 秒：两端 Rust 健康、Web 静态资源与节点 API、内置程序及链接、默认服务、0600 凭据、桌面匿名 401/正确认证 200、应用根 404；空间身份保持、有效令牌列节点/执行真实命令、无效令牌 401；两类卷的身份、凭据摘要和测试文件重启保持。
+
+测试容器不发布端口、非 privileged、无宿主 Docker socket，使用独立命名卷并限制资源；初始化配置的辅助容器另设无网络及资源上限。两个主容器、两个卷与初始化容器均已按本轮标签清理，无资源被留作日常服务。新镜像保留在远端缓存中。旧日常镜像上的只读探针预检因缺少内置 cranibox-node 中止，记录 probe-read-only-failure.log，不计入本镜像通过，也未修改日常镜像。
+
+清理后日常容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、程序摘要和 NodeID 保持，无测试预览/MCP 进程或安装包残留。没有接管 KDE/Selkies 输入或剪贴板。
+
+私有证据 /config/validation-artifacts/image-release-20261019 保存构建与启动 JSON/日志、脚本/工作流快照、单元日志、actionlint.log、workflow-bash-syntax.json、final-health.json；不提交配置、密码、令牌、原始日志或辅助脚本。本轮不覆盖公开镜像拉取/发布、arm64 运行、Aliyun、新 GitHub 镜像工作流、浏览器桌面输入或完整空间生命周期。公开发布仍按[镜像发布说明](workspace-image-release.md)继续，不放宽协议保护。

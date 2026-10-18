@@ -2,6 +2,8 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
+收尾增加镜像发布前启动验收和默认只验证模式，检查器回归 14/14，通过当前完整 Dockerfile 构建的 XFCE 镜像运行验收 43/43。镜像源码为 18c3216（产品代码仍为 84454e6），没有发布或替换公开标签。默认公开镜像不兼容、Windows/macOS 实机及完整同步等未完成项继续保留，不能将交接整理解释为所有原始需求已完成。
+
 本轮补齐“已有桌面服务接入”：Web/Tauri 共用主动检测入口，Rust 只检查常用回环端口和已保存地址；选择结果后先核对协议、地址，再明确保存并开启共享。检测、核对和取消不改共享配置。补充空结果、错误重试、加载状态、离页清理、键盘焦点、窄屏及明暗主题，开启/停止共享同步更新列表标记。同产品提交 84454e6 的 CI Linux .deb/AppImage 已在隔离 KDE 真实窗口通过检测、核对、取消、保存与停止流程。它简化已有 VNC/Selkies 的接入，不代表完成各系统的提供者自动安装。
 
 上一轮已修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段新文字通过后，进一步下载同一产品提交 2c95dd4 的 CI Linux .deb/AppImage，两包真实窗口的中文、emoji、多行双向剪贴板、等待后更新及断开重连均通过。此前 a8a97f5 的失败记录仍保留。**上述剪贴板包验收绑定旧产品提交，使用隔离 XDG、私有 D-Bus；不能代替本轮新界面、正常登录桌面或另一物理设备的验收**。
@@ -119,7 +121,21 @@
 
 证据位于远端 /config/validation-artifacts/public-image-review-20261019/metadata.json，另校验了配置 blob 的 SHA-256。以上只覆盖该时点的 Linux amd64 公开版本，未检测 arm64、镜像站或运行期行为。后续需发布兼容镜像并完成真实拉取、首次启动及重启；本轮没有触发镜像发布或改变默认镜像引用，不能删除协议检查来兼容旧版。
 
-镜像发布入口是 .github/workflows/build-webtop.yml，由 v* 标签或手动 workflow_dispatch 触发，包含三个桌面变体和 amd64/arm64；手动指定 version 仍会更新 ubuntu-{desktop} 浮动标签。普通 main 提交触发的 Release 工作流只做脚本、Dockerfile、Compose 检查和脚本地址维护，不代表已经构建或发布产品镜像；其中 ShellCheck 允许失败，也不能当作全部警告已修复。
+镜像发布入口是 .github/workflows/build-webtop.yml，由 v* 标签或手动 workflow_dispatch 触发。当前流程提供 desktop 选择与默认 publish=false 的只验证模式；显式发布时先推送唯一候选，按摘要完成 amd64 首次启动、空间节点接入及重启验收，再提升为公开标签。阿里云重新构建自己的候选并独立验收。操作、非原子更新及 arm64 只构建的边界见[镜像发布说明](workspace-image-release.md)。流程变更不代表已经更新旧公开镜像。
+
+普通 main 提交触发的 Release 增加了发布检查器的单元回归，仍不发布产品镜像；其中 ShellCheck 允许失败，也不能当作全部警告已修复。
+
+### 收尾：镜像发布门槛与完整 XFCE 镜像验收
+
+只修改 CI、独立验收脚本、其回归及文档，没有变更 Rust/React 产品代码和日常运行程序。检查器标准库回归 14/14；actionlint v1.7.7 的两个工作流语法/表达式检查通过，另对 14 段 run 脚本执行 bash -n 通过。actionlint 本次关闭 ShellCheck，不能记为 ShellCheck 警告清零。
+
+在指定远端宿主 Docker 引擎使用既有独立构建器，完整构建源码 18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4 的 linux/amd64 XFCE 镜像；耗时 666.17 秒，大小 5,261,024,756 字节，镜像 ID 为 sha256:fa81e38cb9c42d7cfc3ea6b156b0ab2002b412dfffd7ae54830801e0ce4f08d0。构建器结束后恢复停止，未改变默认构建器。
+
+使用本轮实际待提交检查器，对全新普通卷与预置身份/授权的空间卷分别完成首次启动和重启，43/43 通过，耗时 86.73 秒。覆盖 Rust 入口、服务启用、静态资源、私有凭据、桌面登录、空间目标身份、令牌拒绝、真实命令执行，以及重启后的身份/凭据/文件保留。测试用容器和卷均已按归属标签清理。检查器 SHA-256 d18ea9d50f0ed89d8b36248dd1f242833aafa912cc709d4e5b059b47ca9f3b82 与本地提交内容一致。
+
+日常容器仍 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200，Web/客户端 PID、程序摘要及 NodeID 保持。私有证据 /config/validation-artifacts/image-release-20261019 包含 build.json/build.log、startup.json/startup-summary.json/startup.log、检查器与工作流快照、gate-unit-final.log、actionlint.log、workflow-bash-syntax.json 和 final-health.json。
+
+这是远端完整源码镜像的真实验收，尚未执行新 GitHub 镜像工作流、公开镜像推送/拉取、arm64 运行、Aliyun 发布，或本镜像的浏览器桌面输入与完整空间生命周期。下一位维护者可按[发布说明](workspace-image-release.md)先运行 desktop=xfce、publish=false，再选择是否正式发布；公开默认标签仍保留上节所述阻塞。
 
 ### 上一轮 Selkies 修复的代码验证：2026-10-19
 
@@ -202,7 +218,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | --- | --- | --- |
 | P0 | 正常登录及跨设备的持续桌面流程 | 2c95dd4 的 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；84454e6 的两包另通过真实检测/核对/取消/保存/停止。继续在正常桌面及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网，不以隔离 XDG/私有 D-Bus、debug 或模拟 IPC 替代正常登录验收 |
 | P0 | Windows/macOS 桌面互访与安装 | 原生安装、录屏/输入权限、VNC 提供者引导、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。WSL2 不是 Windows 原生验收 |
-| P0 | 发布兼容的公开产品镜像并验收 | 已确认默认公开标签的 Linux amd64 镜像来自旧提交且缺少空间协议标签，当前无法新建空间。发布包含当前代码及协议标签的镜像，核对来源、真实拉取、首次启动和重启；保留 71f2397 本地完整镜像验收的版本边界，不删除协议保护 |
+| P0 | 发布兼容的公开产品镜像并验收 | 默认公开标签仍缺少空间协议标记，无法新建空间。已补默认只验证与发布前门槛；18c3216 完整 XFCE 本地镜像 43/43 通过，但尚未公开发布。下一步运行新工作流、发布并完成真实拉取核对；保留各版本边界，不删除协议保护 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
 | P1 | Tailscale 系统安装/登录与 EasyTier 多设备 | 干净的三平台主机验证方案确认、管理员授权、取消/失败恢复、系统服务、Tailnet 互访与目标授权；不能以夹具代替系统安装 |
 | P1 | 完整统一视图与同步协议 | 明确设备/项目/Agent/任务的权威、版本、删除及冲突；其他入口看到同一授权范围，离线变更有处理规则，撤权有效 |
@@ -238,6 +254,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | apps/node-desktop/src-tauri/src/launch.rs | 持久启动器、AppImage MCP 参数、Linux 自启动路径与转义；纯 Rust 库单元测试和真实 GIO 用例 |
 | tests、两端 UI 的 tests | Python 真实服务集成和 Playwright；模拟与实机条件见各文件 |
 | .github/workflows/rust-runtime.yml | 三平台 Rust/安装包、Linux 服务与浏览器、独立 Wayland 验证 |
+| scripts/verify-workspace-image.py、.github/workflows/build-webtop.yml；tests/test_workspace_image_check.py | 候选镜像首次启动、预置节点接入、重启/数据保留及发布前门槛；普通 Release 运行检查器回归 |
 
 ### 远端环境
 
