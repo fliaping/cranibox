@@ -25,13 +25,26 @@ impl Service {
                         let configuration = path.clone();
                         // Invalid private policy/state fails closed; the operator
                         // sees the error when opening its settings. No secrets log.
-                        let Ok(Ok(pending)) = tokio::task::spawn_blocking(move || project_sync::pending(&configuration)).await else { continue; };
+                        let Ok(Ok(pending)) = tokio::task::spawn_blocking(move || {
+                                // Broken policy for one catalog must not stop the other.
+                                let projects = project_sync::pending(&configuration).unwrap_or_default();
+                                let agents = project_sync::pending_kind(&configuration, project_sync::Kind::Agents).unwrap_or_default();
+                                let mut pending = Vec::new();
+                                let mut projects = projects.into_iter();
+                                let mut agents = agents.into_iter();
+                                loop {
+                                    let project = projects.next(); let agent = agents.next();
+                                    if project.is_none() && agent.is_none() { break; }
+                                    pending.extend(project); pending.extend(agent);
+                                }
+                                Ok::<_, anyhow::Error>(pending)
+                            }).await else { continue; };
                         for job in pending {
                             if tasks.len() >= project_sync::MAX_PARALLEL { break; }
-                            if !active.insert(job.node.clone()) { continue; }
+                            if !active.insert((job.kind, job.node.clone())) { continue; }
                             let path = path.clone();
                             tasks.spawn(async move {
-                                let node = job.node.clone();
+                                let node = (job.kind, job.node.clone());
                                 let _ = project_sync::run(&path, job).await;
                                 node
                             });

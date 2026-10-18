@@ -44,6 +44,11 @@ pub enum Command {
         #[arg(long)]
         command: Option<String>,
     },
+    /// Configure background public Agent directory pulls; separate from project sync.
+    AgentSync {
+        #[arg(long)]
+        command: Option<String>,
+    },
     /// Explicit Agent session registrations; remote targets support list only.
     AgentSessions {
         #[arg(long)]
@@ -372,6 +377,15 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
             client::print(agent_workspace_runtime::peers::project_sync::manage(
                 &path, command,
+            )?);
+        }
+        Command::AgentSync { command } => {
+            let command =
+                serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
+            client::print(agent_workspace_runtime::peers::project_sync::manage_kind(
+                &path,
+                command,
+                agent_workspace_runtime::peers::project_sync::Kind::Agents,
             )?);
         }
         Command::AgentSessions { node, command } => {

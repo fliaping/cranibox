@@ -1731,6 +1731,62 @@ test('collaboration tasks share IPC and retain explicit reports without relay se
   expect(errors).toEqual([]);
 });
 
+test('Agent background sync and offline reports use shared native IPC without relay settings', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const now = Math.floor(Date.now() / 1000);
+    const state = { owner: 'own-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] as any[] };
+    (window as any).agentOffline = false;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: state.owner, online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        const action = payload.command;
+        if (action.operation === 'list') return { node_id: state.owner, routes: [{ node: 'remote-device', url: 'https://device.example.com', allow_private_http: false }], grants: [] };
+        if (action.operation === 'tasks') return { owner: state.owner, capacity: 128, used: 0, max_attempts: 8, incoming: [], outgoing: [] };
+        if (action.operation === 'agent_sync') {
+          if (action.command.operation === 'configure') {
+            state.revision++; state.enabled = true; state.interval_seconds = action.command.interval_seconds;
+            state.nodes = action.command.nodes.map((node: string) => ({ node, phase: 'online', connection_valid: true, session_count: 1 }));
+          }
+          if (action.command.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach(node => { node.phase = 'paused'; }); }
+          return structuredClone(state);
+        }
+        if (action.operation === 'agent_sessions') return { owner: action.node || state.owner, observed_at: now, lease_secs: 300, capacity: 64, sessions: [{ id: '44444444-4444-4444-8444-444444444444', name: '审查 Agent', harness: 'native-cli', status: 'ready', revision: 1, updated_at: now, expires_at: now + 300 }], ...(action.node && (window as any).agentOffline ? { sync: { state: 'offline', synced_at: now * 1000 } } : {}) };
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: '客户端页面' });
+  await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  const agents = page.getByRole('region', { name: '所有设备的 Agent', exact: true });
+  const settings = agents.locator('.project-sync');
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('后台同步已关闭');
+  await settings.getByRole('button', { name: '设置后台同步', exact: true }).click();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('button', { name: '启用后台同步', exact: true }).click();
+  await expect(settings).toContainText('后台同步已启用');
+  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('后台同步已启用');
+  await settings.getByRole('button', { name: '暂停同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('已暂停');
+  await page.evaluate(() => { (window as any).agentOffline = true; });
+  await agents.getByRole('button', { name: '刷新所有 Agent', exact: true }).click();
+  const remote = agents.getByRole('article', { name: '设备 remote-device', exact: true });
+  await expect(remote).toContainText('离线快照');
+  await expect(remote).toContainText('审查 Agent');
+  await expect(remote.getByRole('button', { name: '委托给此 Agent', exact: true })).toBeDisabled();
+  const commands = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers').map((call: any) => call.payload.command));
+  expect(commands.filter((command: any) => command.operation === 'agent_sync' && command.command.operation === 'configure')).toEqual([{ operation: 'agent_sync', command: { operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 60 } }]);
+  expect(commands.some((command: any) => command.operation === 'project_sync')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
 test('device messages use shared IPC without a relay and persist after leaving the view', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {

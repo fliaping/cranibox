@@ -1254,3 +1254,38 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 测试后两包 GUI/启动器和所属 XDG 辅助进程均退出，测试 .deb 已卸载，本次 AppImage 解压目录已移除，两份测试自启项均关闭，无测试进程残留。恢复原客户端，当前 PID **1403228**，程序 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、NodeID node-82bf96c6f15d4f00923656f7877b8609 及身份文件原始字节保持。日常 Web PID 538744 与原程序保持。最终容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。
 
 私有 normal-desktop-84454e6-20261019 保存 acceptance.json、各包启动/后台/托盘/关闭/单实例/退出/自启状态、events.jsonl、accessibility-recovery.json、automation-failures.json、安装日志、原程序备份与私有环境、恢复/清理记录、final-health.json。原环境与配置只留在 0700/0600 证据中，不提交。未操作剪贴板、重验桌面查看器/撤权、制造网络故障或休眠；未覆盖实际系统登录、第二物理设备和 Windows/macOS 原生 GUI。原客户端本次仅恢复，没有升级，不应将旧日常程序作为 84454e6 包使用。
+
+## 2026-10-19：公开 Agent 目录后台同步与离线快照
+
+本轮在指定远端容器 cranibox-validation、abc 下完成构建和运行测试；本地仅编辑、核对与 Git 操作。Rust 节点增加独立 agent-sync 策略与凭据绑定的公开目录快照，Web/Tauri 共用配置。默认不启用，1–32 个显式目标、15/30/60/300 秒间隔，与项目同步共用四路后台请求。关闭页面后继续，节点重启恢复；暂停不重放操作。沿用目标消息授权，未开放全设备任务/消息账本。
+
+在线读取严格检查目标身份和目录结构；远端不能注入本机 sync 标记。离线回退只适用于可重试网络错误，保留原 observed_at 和租期；页面标记历史记录并禁止以其选择当前 Agent。授权、身份和内容错误清除快照；连接变更需重新核对，请求完成后重读绑定，移除后的迟到响应不能恢复缓存。CLI/MCP 也返回 online/offline 标记。操作说明见[会话文档](agent-sessions.md#关闭页面后的同步与离线快照)。
+
+| 验证 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | 183 通过、4 忽略 | 20 个目标；忽略项不计通过 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol，不是实际 GUI |
+| 后端集成 | 42/42 通过，无跳过；312.406 秒 | Agent 后台同步 8、项目后台 9、项目目录 7、任务 12、worker MCP 6；独立 Rust 身份与真实 HTTP/CLI，部分受控服务器 |
+| Web 全量 | 130/130 通过；约 3.7 分钟 | 最终生成资源和实际 Rust Web；新增目录界面使用可控响应 |
+| 客户端全量 | 50/50 通过；约 4 分钟 | Playwright 模拟 Tauri IPC；无 relay 的共享设置、导航保留、暂停和离线禁用 |
+| 构建与静态检查 | 通过 | 两端 TypeScript/Vite、工作区与原生 debug 构建、fmt、两类 all-targets Clippy -D warnings；最终再次生成资源并重建嵌入 Web |
+| CI 文件 | 通过 | actionlint v1.7.7，关闭 ShellCheck；Linux CI 新增 Agent 后台集成 |
+
+新增八项后端用例覆盖无页面、独立节点无 Web/网关、重启、0600/敏感字段排除、离线租期不续期、恢复/撤权、暂停/重选、伪造 owner/sync 拒绝、移除后迟到响应、两类目录四路总并发与暂停队列、缺少授权、旧版本及损坏策略隔离。目录只保留按来源的公开登记；测试不等于多物理设备、完整数据复制、模型调用或运行会话迁移。
+
+### 失败与修正
+
+- 新增集成首轮 2 通过、6 失败：测试复用已被夹具创建的令牌输出文件名。改为本测试独立文件后通过，保留产品拒绝覆盖规则。
+- 首次 Web 专项在用例前因预览脚本缺少 Rust 程序路径中止。补齐后 17 通过、1 失败：option 本来已有 disabled 属性，Playwright 的 toBeDisabled 不适用；改为检查 DOM disabled 属性，仍单独检查提交按钮不可用、没有提交请求。
+- 首次 Web 全量 129 通过、1 失败：项目同步旧用例仍匹配 Unexpected project sync settings；共享组件现使用 Unexpected catalog sync settings。更新该断言后，重新运行最终全量 130/130。不是放宽身份校验或隐藏错误。
+- 首轮 TypeScript 构建发现共享命令类型缺少 agent_sync，已补齐并通过两端编译。Vite 的已有大包和依赖 use client 提示仍在，没有放宽 Rust 警告检查。
+
+失败日志与 trace 保留，不计作通过；不同轮次与专项重叠不累计。最终全量使用重新生成并嵌入的 Web 程序。客户端资源、原生 debug 与严格检查也已完成，但没有对本轮功能重新做真实安装包窗口或系统登录验收。
+
+### 源码与环境清理
+
+19 份本地待提交产品源码、测试、工作流与生成资源和远端实际快照逐项 SHA-256 一致，另保存五个 Rust 程序摘要。后台设置用例检查 375/768/1440 像素无横向溢出、设备选择行至少 44 像素，审阅 375/1440 截图；项目共用控件已有明暗主题回归。没有将浏览器模拟 IPC 当作原生实机。
+
+最终容器 running/healthy、privileged=false、无宿主 Docker socket，3080/3031 均匿名 401、认证 200。日常 Web PID 538744、原生客户端 PID 1403228、程序摘要及 node-82bf96c6f15d4f00923656f7877b8609 身份保持；KDE/Selkies 未重启，未操作桌面输入或剪贴板，无预览/MCP 进程或测试安装包残留。日常程序没有升级。
+
+私有证据 /config/validation-artifacts/agent-catalog-sync-20261019：integration-second.log、build-checks.log、final-assets-checks.{json,log}、client-full.log、web-final.log、首次失败日志及 web-second-failure/web-full-failure trace、source-binaries.json、final-health.json 与 375/1440 截图。配置、令牌、截图、原始正文与辅助脚本不提交。Windows/macOS 实机、三物理设备同步、系统登录、完整账本复制、公开兼容镜像发布及实际 Agent 接续仍按交接入口的 P0/P1/P2 继续。

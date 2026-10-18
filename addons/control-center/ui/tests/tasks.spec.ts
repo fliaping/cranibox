@@ -322,13 +322,13 @@ async function agents(page: Page) {
     { id: '55555555-5555-4555-8555-555555555555', name: '<img src=x onerror="window.unsafe=true">', harness: 'old-cli', status: 'busy', updated_at: now - 400, expires_at: now - 100, revision: 2 },
     { id: '66666666-6666-4666-8666-666666666666', name: 'Finished reviewer', harness: 'custom-cli', status: 'ended', updated_at: now, expires_at: now + 300, revision: 3 },
   ];
-  const state = { now, reports, fail: false, calls: [] as any[] };
+  const state = { now, reports, fail: false, offline: false, calls: [] as any[] };
   await page.route('**/api/peers', async route => {
     const command = route.request().postDataJSON();
     if (command.operation === 'agent_sessions') {
       state.calls.push(command);
       if (state.fail && command.node) { await route.fulfill({ status: 503, json: { error: 'Agent directory unavailable' } }); return; }
-      await route.fulfill({ json: { owner: command.node || fixture.state.owner, observed_at: state.now, lease_secs: 300, capacity: 64, sessions: state.reports } }); return;
+      await route.fulfill({ json: { owner: command.node || fixture.state.owner, observed_at: state.now, lease_secs: 300, capacity: 64, sessions: state.reports, ...(state.offline && command.node ? { sync: { state: 'offline', synced_at: state.now * 1000 } } : {}) } }); return;
     }
     if (command.operation === 'list') {
       await route.fulfill({ json: { node_id: fixture.state.owner, routes: [{ node: 'remote-device' }, { node: 'another-device' }], grants: [] } }); return;
@@ -518,4 +518,76 @@ test('a reply draft stays with its attempt when polling observes a retry already
   await expect(panel.locator('.task-history textarea')).toHaveCount(0);
   await expect(text).toHaveCount(1);
   expect(actions.some(action => action.operation === 'answer')).toBe(false);
+});
+
+
+test('offline Agent snapshots stay visible without allowing delegation and recover on refresh', async ({ page }) => {
+  const { directory, actions } = await agents(page);
+  await page.goto('/#/tasks');
+  const panel = page.getByRole('region', { name: 'Collaboration tasks', exact: true });
+  const overview = panel.getByRole('region', { name: 'Agents across devices', exact: true });
+  const remote = overview.getByRole('article', { name: 'Device remote-device', exact: true });
+  await panel.getByRole('combobox', { name: 'Target device', exact: true }).selectOption('remote-device');
+  const picker = panel.getByRole('combobox', { name: 'Target Agent', exact: true });
+  await picker.selectOption(session);
+  await panel.getByLabel('Task title', { exact: true }).fill('Wait for the owner');
+  await panel.getByRole('textbox', { name: 'Description and completion criteria', exact: true }).fill('Confirm the session before delegating.');
+  const save = panel.getByRole('button', { name: 'Save and delegate', exact: true });
+  await expect(save).toBeEnabled();
+  directory.offline = true;
+  await overview.getByRole('button', { name: 'Refresh all Agents', exact: true }).click();
+  await panel.getByRole('button', { name: 'Refresh Agents', exact: true }).click();
+  await expect(remote).toContainText('Offline snapshot');
+  await expect(remote).toContainText('Build reviewer');
+  await expect(remote).toContainText('Last synced:');
+  await expect(remote.locator('.agent-session-card').first().getByRole('button')).toBeDisabled();
+  await expect(picker).toHaveValue(session);
+  await expect(picker.locator('option[value="' + session + '"]')).toHaveJSProperty('disabled', true);
+  await expect(save).toBeDisabled();
+  expect(actions.some(action => action.operation === 'create')).toBe(false);
+  directory.offline = false;
+  await overview.getByRole('button', { name: 'Refresh all Agents', exact: true }).click();
+  await panel.getByRole('button', { name: 'Refresh Agents', exact: true }).click();
+  await expect(remote).not.toContainText('Offline snapshot');
+  await expect(save).toBeEnabled();
+});
+
+test('Agent background sync is opt-in, persists selection and fits narrow screens', async ({ page }) => {
+  await agents(page);
+  const actions: any[] = [];
+  const state = { owner: 'local-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device', 'another-device'], nodes: [] as any[] };
+  await page.route('**/api/peers', async route => {
+    const request = route.request().postDataJSON();
+    if (request.operation !== 'agent_sync') return route.fallback();
+    const command = request.command; actions.push(command);
+    if (command.operation === 'configure') {
+      state.revision++; state.enabled = true; state.interval_seconds = command.interval_seconds;
+      state.nodes = command.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', session_count: 2, last_success: Date.now() }));
+    }
+    if (command.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach(node => { node.phase = 'paused'; }); }
+    return route.fulfill({ json: state });
+  });
+  await page.goto('/#/tasks');
+  const panel = page.locator('.agent-federation .project-sync');
+  await expect(panel).toBeVisible(); expect(actions).toHaveLength(0);
+  await panel.locator(':scope > summary').click();
+  await expect(panel).toContainText('Target message access is required');
+  await panel.getByRole('button', { name: 'Set up background sync', exact: true }).click();
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await panel.getByRole('combobox', { name: 'Sync interval', exact: true }).selectOption('30');
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const row = await panel.locator('.project-sync-check').first().boundingBox();
+    expect(row!.height).toBeGreaterThanOrEqual(44);
+    if (width === 375 || width === 1440) await panel.screenshot({ path: '/tmp/cranibox-agent-background-sync-' + width + '.png' });
+  }
+  await panel.getByRole('button', { name: 'Enable background sync', exact: true }).click();
+  expect(actions.find(command => command.operation === 'configure')).toEqual({ operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 30 });
+  await expect(panel.getByRole('status')).toContainText('Saved.');
+  await expect(panel.getByLabel('Device sync status')).toContainText('2 registrations');
+  await page.reload(); await panel.locator(':scope > summary').click();
+  await expect(panel).toContainText('Background sync enabled');
+  await panel.getByRole('button', { name: 'Pause sync', exact: true }).click();
+  await expect(panel.getByLabel('Device sync status')).toContainText('Paused');
 });

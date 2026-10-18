@@ -1,5 +1,6 @@
 //! Shared outbound routes for the node CLI, Web and Tauri.
 pub mod agent_sessions;
+mod agent_snapshots;
 pub mod browser;
 pub mod computer;
 pub mod config;
@@ -174,6 +175,9 @@ pub enum Command {
         node: String,
         command: crate::projects::Command,
     },
+    AgentSync {
+        command: project_sync::Command,
+    },
     ProjectSync {
         command: project_sync::Command,
     },
@@ -293,6 +297,7 @@ impl Store {
                 .filter(|p| p != &token_file);
             if !token.is_empty() {
                 self.forget_project_snapshot(&node)?;
+                self.forget_agent_snapshot(&node)?;
             }
             value.routes.insert(
                 node.clone(),
@@ -354,6 +359,13 @@ impl Store {
     pub async fn manage(&self, command: Command) -> Result<Value> {
         match command {
             Command::List => self.list(),
+            Command::AgentSync { command } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    project_sync::manage_kind(&path, command, project_sync::Kind::Agents)
+                })
+                .await?
+            }
             Command::ProjectSync { command } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || project_sync::manage(&path, command)).await?
@@ -544,6 +556,7 @@ impl Store {
                     let mut removed = None;
                     let value = Config::update(&store.path, |value| {
                         store.forget_project_snapshot(&node)?;
+                        store.forget_agent_snapshot(&node)?;
                         removed = Some(
                             value
                                 .routes
