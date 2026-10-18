@@ -114,7 +114,25 @@ list 的可选 session 只返回 target_session 等于它的来信，以及 send
 | POST | `/api/v1/mesh/nodes/{NodeID}/messages` | 保存当前凭据对应发送方的消息，返回持久回执 |
 | GET | `/api/v1/mesh/nodes/{NodeID}/messages/{MessageID}` | 查询当前发送方的收件/确认回执 |
 
-Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`，沿用会话、CSRF 和同源检查；Tauri 通过本机 IPC 使用同一个 Rust 实现。授权身份目前仍为目标签发的 bearer 凭据，尚未实现公钥配对。
+Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`，沿用会话、CSRF 和同源检查；Tauri 通过本机 IPC 使用同一个 Rust 实现。节点身份、凭据摘要、端到端加密与配对码见[节点身份与端到端加密](node-identity-and-e2e.md)。
+
+## 入站策略与人工审批（阶段 3）
+
+每个授权有独立的入站策略 `inbound`：
+
+| 策略 | 行为 |
+| --- | --- |
+| `accept` | 直接进入收件箱，Agent 可见（旧授权缺省值，签名字节不变） |
+| `hold` | 保存为“待审批”，Agent 不可见，等待本机所有者放行（**新授权默认**） |
+| `refuse` | 目标返回 403，不保存 |
+
+- CLI：`cranibox-node peer grant --messages --inbound accept|hold|refuse`；`peer inbound --node <NodeID> --policy <...>` 修改已有授权；`peer messages held | release --message-id <ID> | reject --message-id <ID>` 管理审批队列。
+- Web 控制中心：`POST /api/peers` 的 `{"operation":"grant",...,"inbound":"accept"}`、`{"operation":"inbound","node":...,"policy":...}`，以及 `{"operation":"messages","command":{"operation":"held"|"release"|"reject",...}}`。
+- 审批操作只对本机所有者开放：MCP 工具拒绝 `held`/`release`/`reject`，Agent 不能自我放行。同一操作系统用户的本地 CLI 无法与 Agent 区分，这是已知边界。
+- 速率限制：每个发送方每分钟最多 **60** 条，超出返回错误。
+- 循环保护：同一发送方会话 10 分钟内超过 **12** 条时，后续消息转入待审批（原因 `loop guard`），防止两端 Agent 无限互相回复。
+- 不可信封装：交给 Agent 的正文包在 `<cranibox-message from=".." thread=".." trust="untrusted">…</cranibox-message>` 中，正文里的闭合标签（不区分大小写）被转义为 `<\/cranibox-message`，避免伪造边界进行提示注入。
+- `workspacectl` 暂未提供审批队列命令，使用 `cranibox-node peer messages` 或 Web。
 
 ## 验证与后续
 

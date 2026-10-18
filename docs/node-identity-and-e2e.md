@@ -84,6 +84,22 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 | WebSocket 数据帧 | **未端到端加密**（只有升级鉴权受保护），后续工作 |
 | 元数据 | 中继仍可见目标 NodeID、请求大小和时序 |
 
+## 入站策略与威胁模型（阶段 3）
+
+详见[设备消息](device-messages.md#入站策略与人工审批阶段-3)。新授权默认 `hold`，消息需本机所有者放行后 Agent 才可见；`refuse` 直接拒绝；旧授权保持 `accept`。
+
+| 威胁 | 处理 |
+| --- | --- |
+| 已授权对端通过消息对本机 Agent 做提示注入 | 默认待审批；正文以 `trust="untrusted"` 封装并转义闭合标签 |
+| Agent 自行放行待审批消息 | MCP 拒绝审批操作；仅本机 CLI/Web |
+| 消息洪泛 | 每发送方 60 条/分钟 |
+| 两端 Agent 互相回复形成循环 | 同一会话 10 分钟 12 条后转入待审批 |
+| 同一系统用户下的恶意本地进程 | **不覆盖**，可直接调用 CLI |
+
+## 阶段 4 提案（未实现）
+
+自动发现运行中的 Codex / Claude Code 会话（读取各自的会话目录与进程），并设计“投递到运行中会话”的适配器：已放行消息通过各工具的 hook/MCP 通知注入，仍保持不可信封装和人工审批。
+
 ## English summary
 
 - Every node has a persistent Ed25519 signing key plus an X25519 Noise key (`node-identity.json`, 0600, never overwritten). New NodeIDs are `node-` + the first 128 bits of SHA-256 over the public key, the same shape as legacy IDs. Legacy random IDs are kept and bound to the key by a self-signature.
@@ -103,4 +119,8 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - The first contact is TOFU.
   - The IK message-1 payload is not forward-secret against compromise of the target's static key.
   - Metadata (target NodeID, sizes, timing) stays visible.
-
+- **Phase 3 inbound policy.** Each grant has `inbound`: `accept` (legacy default, signed bytes unchanged), `hold` (default for new grants; stored but hidden from Agents until the owner runs `peer messages release`), or `refuse` (403, not stored).
+  - Approval commands are owner-only: MCP refuses them. A local process running as the same OS user is not distinguished.
+  - Rate limit: 60 messages per sender per minute. Loop guard: more than 12 messages from one sender session within 10 minutes are held.
+  - Agents receive text inside `<cranibox-message ... trust="untrusted">`, with closing tags escaped.
+- **Phase 4 (proposal only):** discover running Codex/Claude Code sessions and deliver released messages into them through hooks/MCP notifications.
