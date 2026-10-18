@@ -2,13 +2,13 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-收尾增加镜像发布前启动验收和默认只验证模式，检查器回归 14/14，通过当前完整 Dockerfile 构建的 XFCE 镜像运行验收 43/43。镜像源码为 18c3216（产品代码仍为 84454e6），没有发布或替换公开标签。默认公开镜像不兼容、Windows/macOS 实机及完整同步等未完成项继续保留，不能将交接整理解释为所有原始需求已完成。
+收尾增加镜像发布前启动验收和默认只验证模式，检查器回归 14/14。远端完整 XFCE 镜像与 GitHub 新工作流分别通过启动验收 43/43；后者绑定 b76aaba，运行 39173924368 已成功。84454e6 的 Linux .deb/AppImage 另通过正常 KDE 会话中的托盘、窗口关闭、单实例、退出确认及 GIO 自启动项验收，仍使用隔离 XDG。没有发布或替换公开镜像标签；默认公开镜像不兼容、Windows/macOS 实机及完整同步等未完成项继续保留，不能将交接整理解释为所有原始需求已完成。
 
 本轮补齐“已有桌面服务接入”：Web/Tauri 共用主动检测入口，Rust 只检查常用回环端口和已保存地址；选择结果后先核对协议、地址，再明确保存并开启共享。检测、核对和取消不改共享配置。补充空结果、错误重试、加载状态、离页清理、键盘焦点、窄屏及明暗主题，开启/停止共享同步更新列表标记。同产品提交 84454e6 的 CI Linux .deb/AppImage 已在隔离 KDE 真实窗口通过检测、核对、取消、保存与停止流程。它简化已有 VNC/Selkies 的接入，不代表完成各系统的提供者自动安装。
 
 上一轮已修复 Selkies 慢查看器阻塞控制消息的问题：Rust 持续读取上游，安全合并已被新画面完全覆盖的待发送 JPEG 区域，并优先发送文字剪贴板；前端完整收到文字后不再等待 JPEG 解码。实际 KDE/Tauri debug 窗口连续五段新文字通过后，进一步下载同一产品提交 2c95dd4 的 CI Linux .deb/AppImage，两包真实窗口的中文、emoji、多行双向剪贴板、等待后更新及断开重连均通过。此前 a8a97f5 的失败记录仍保留。**上述剪贴板包验收绑定旧产品提交，使用隔离 XDG、私有 D-Bus；不能代替本轮新界面、正常登录桌面或另一物理设备的验收**。
 
-交接不代表全部产品需求完成。没有升级日常 Web/客户端、重启 KDE/Selkies 或安装系统 Tailscale；日常身份和配置保持。后续先完成安装包及跨平台日用流程，再推进更完整的数据同步与 Agent 接续。
+交接不代表全部产品需求完成。没有升级日常 Web/客户端、重启 KDE/Selkies 或安装系统 Tailscale；正常桌面补验期间暂停无活动 Shell 的验证客户端，结束后恢复原程序与原身份，PID 已更新。后续先完成跨平台日用流程，再推进更完整的数据同步与 Agent 接续。
 
 ## 用户已经确定的方向
 
@@ -35,7 +35,7 @@
 | EasyTier 与 Tailscale 同时使用 | EasyTier 固定版本安装、用户态网络、节点发现、端口转发、多个入网地址、短期邀请与丢响应恢复；系统 Tailscale 安装/启动方案审阅与确认、后台进度、官方登录、持续发现与授权连接 | Tailscale 是系统服务，不由节点长期托管；自动安装有平台前置条件，容器转宿主/已有服务指引；真实系统安装与 Tailnet 跨设备验收未完成 |
 | 同一设备多条路径 | 保存并排序显式路径，新连接按可用性选择，认证/身份错误不继续回退 | 已建立连接不无缝迁移；桌面直连与网关通道仍显式选择 |
 | 浏览器和原生端统一体验 | 项目、设备、网络、消息、任务、终端、VNC 与空间共用 React 组件，分别适配 Web 和 Tauri IPC | 不是全部管理页面完全一致，也不是节点数据自动全量复制 |
-| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 6396b93 的 Linux .deb/AppImage 通过实际界面、托盘、XDG 自启开关、单实例；AppImage 生成启动项经 GIO 在无 FUSE、无手动兼容变量时静默启动并可唤回。a8a97f5 两包补验私有 D-Bus 下的窗口和桌面 IPC，未重验正常托盘。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
+| 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 84454e6 的 Linux .deb/AppImage 已通过正常 KDE D-Bus 的托盘注册/唤回、Wayland 窗口关闭到托盘、单实例、退出确认、自启开关及 GIO 启动项静默启动，重启身份保持；配置使用隔离 XDG，AppImage 使用无 FUSE 兼容模式。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
 | 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；已有本机服务的 IPv4/IPv6 检测、配置核对及保存前复查；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用，见远程桌面文档 |
@@ -135,9 +135,19 @@
 
 日常容器仍 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200，Web/客户端 PID、程序摘要及 NodeID 保持。私有证据 /config/validation-artifacts/image-release-20261019 包含 build.json/build.log、startup.json/startup-summary.json/startup.log、检查器与工作流快照、gate-unit-final.log、actionlint.log、workflow-bash-syntax.json 和 final-health.json。
 
-这是远端完整源码镜像的真实验收，尚未执行新 GitHub 镜像工作流、公开镜像推送/拉取、arm64 运行、Aliyun 发布，或本镜像的浏览器桌面输入与完整空间生命周期。下一位维护者可按[发布说明](workspace-image-release.md)先运行 desktop=xfce、publish=false，再选择是否正式发布；公开默认标签仍保留上节所述阻塞。
+这是远端完整源码镜像的真实验收；随后新 GitHub 工作流的只验证运行也已成功，见下节。公开镜像推送/拉取、arm64 运行、Aliyun 发布、本镜像的浏览器桌面输入与完整空间生命周期仍待验收。下一位维护者可按[发布说明](workspace-image-release.md)继续正式发布；公开默认标签仍保留上节所述阻塞。
 
 本轮 CI/检查器代码提交为 dff9ed957eb756fb82b32a5b9fe70f367f9b8cd7，已推送 origin/main。对应 Release 39173470993 和 Sync to GitCode 39173470952 均 completed/success，核对完整来源提交；Release 的新增门槛回归、安装脚本、Dockerfile 与 Compose 步骤通过。没有改动命中原生矩阵触发范围的产品文件，因此三平台产品/安装包结果仍绑定前述 84454e6，不能称本次又跑过 7/7。CI 原始 JSON 与 test-scripts 日志保存在上述私有证据目录；后续补记只改文档。
+
+### 补验：GitHub 镜像工作流与正常 KDE 托盘
+
+Build Multi-Arch Image 手动运行 **39173924368**，完整来源 **b76aaba2563af1869999228a664cf20cc7f93d4f**，参数 desktop=xfce、publish=false，最终 completed/success。完整构建约 13 分 29 秒，随后启动检查 **43/43**，约 68.44 秒，四项容器/卷清理全部成功。镜像为 linux/amd64，ID sha256:48212c54012c771d86e82a1933dc31fe8adb1e2a2255cdd0bddb870893e14fe9。产物 image-startup-xfce（12153698875）保存已核对的报告；Docker Hub 登录、公开标签提升与 Aliyun 均按参数跳过。只验证模式不构建 arm64，不存在可供用户拉取的新公开镜像。私有原始证据为 image-release-20261019/ci-b76aaba。
+
+同一产品提交 **84454e6** 的既有 CI Linux 包，另在指定远端的正常 KDE 会话总线上运行，使用独立 XDG 与新身份，未模拟 Tauri IPC。两包均通过实际托盘注册与唤回、KDE/Wayland 窗口关闭后进程存活、单实例唤回、托盘退出确认、自启开关及启动项路径/0600 权限；经 GIO 执行生成的启动项，窗口初始隐藏、托盘可唤回，NodeID 和程序摘要保持。AppImage 使用 --appimage-extract-and-run，不代表普通 FUSE 或实际系统登录验收。
+
+首轮遇到辅助功能总线进程存在而 socket 缺失，恢复该辅助服务后继续；KDE/Selkies 未重启。X11 工具无法定位实际 Wayland 窗口，以及 KWin 重载方法签名错误，均修正测试辅助脚本后完成实际状态断言，保留失败说明，未改产品代码。测试后关闭独立 GUI、卸载 .deb、移除本次 AppImage 解压目录与测试启动项，检查无测试进程残留。原客户端恢复为 PID **1403228**，原二进制、NodeID 和身份文件字节保持；Web PID 538744 不变。容器 healthy，3080/3031 匿名 401、认证 200。
+
+私有证据 normal-desktop-84454e6-20261019 包含 acceptance.json、各包状态、events.jsonl、accessibility-recovery.json、automation-failures.json、恢复/清理记录和 final-health.json。此次没有操作文字剪贴板或重验桌面查看器、撤权、休眠、网络故障与跨物理设备；这些范围仍按 P0 继续。
 
 ### 上一轮 Selkies 修复的代码验证：2026-10-19
 
@@ -218,9 +228,9 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
-| P0 | 正常登录及跨设备的持续桌面流程 | 2c95dd4 的 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；84454e6 的两包另通过真实检测/核对/取消/保存/停止。继续在正常桌面及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网，不以隔离 XDG/私有 D-Bus、debug 或模拟 IPC 替代正常登录验收 |
+| P0 | 正常登录及跨设备的持续桌面流程 | 2c95dd4 的 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；84454e6 两包另通过桌面服务配置及正常 KDE 总线托盘/窗口/启动项。继续在实际登录及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网，不以隔离 XDG、debug 或模拟 IPC 替代完整日用验收 |
 | P0 | Windows/macOS 桌面互访与安装 | 原生安装、录屏/输入权限、VNC 提供者引导、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。WSL2 不是 Windows 原生验收 |
-| P0 | 发布兼容的公开产品镜像并验收 | 默认公开标签仍缺少空间协议标记，无法新建空间。已补默认只验证与发布前门槛；18c3216 完整 XFCE 本地镜像 43/43 通过，但尚未公开发布。下一步运行新工作流、发布并完成真实拉取核对；保留各版本边界，不删除协议保护 |
+| P0 | 发布兼容的公开产品镜像并验收 | 默认公开标签仍缺少空间协议标记，无法新建空间。新工作流的 b76aaba 只验证运行 39173924368 已成功，amd64 启动 43/43；下一步正式发布并完成真实拉取核对，补验 arm64 运行；保留各版本边界，不删除协议保护 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
 | P1 | Tailscale 系统安装/登录与 EasyTier 多设备 | 干净的三平台主机验证方案确认、管理员授权、取消/失败恢复、系统服务、Tailnet 互访与目标授权；不能以夹具代替系统安装 |
 | P1 | 完整统一视图与同步协议 | 明确设备/项目/Agent/任务的权威、版本、删除及冲突；其他入口看到同一授权范围，离线变更有处理规则，撤权有效 |
@@ -263,7 +273,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 - SSH：admin@192.168.217.6，端口 22022，容器 cranibox-validation，用户 abc。运行验证继续使用这个环境，不改用当前本机。
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。核对入口使用 LAN 地址。凭据只保存在远端私有 container.env，不能输出或提交。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。远端源码为快照，不含本地 Git。
-- 日常 Web PID 538744、原生客户端 PID 767446；本轮均未升级。两者独立身份，客户端使用 /config/validation-client/{config,data,state}；不得使两个宿主进程共用 NodeID。测试 GUI 的隔离 XDG、私有 D-Bus 不代表正常桌面集成。
+- 日常 Web PID 538744、原生客户端当前 PID 1403228；均未升级。原客户端在正常桌面补验时暂停后恢复，原 NodeID 和身份文件字节保持；历史记录中的 767446 已退出。两者独立身份，客户端使用 /config/validation-client/{config,data,state}；不得使两个宿主进程共用 NodeID。最新托盘补验使用正常 KDE 总线与隔离 XDG，其他私有 D-Bus 记录保持各自边界。
 - 容器非 privileged、无宿主 Docker socket。虚拟空间曾用独立临时管理容器，两个测试空间与管理容器已停止且保留数据，不要误删。
 - Mac fliaping@192.168.217.85 拒绝现有 SSH 公钥；Windows 地址 192.168.217.226 是 WSL2，原生图形账号/入口尚缺。不能将 CI 或 WSL2 写成原生 GUI 已验收。
 - 既有 linux-installer-{a8a97f5,6396b93,3c1a38d} 等证据仍保留；测试 .deb 已卸载，日常自启配置未改变。

@@ -1221,3 +1221,36 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 ### 收尾提交与 CI
 
 代码提交 dff9ed957eb756fb82b32a5b9fe70f367f9b8cd7 已推送 origin/main。Release 39173470993 与 Sync to GitCode 39173470952 均 completed/success，核对完整 headSha。Release 中新增 Test image release gate 及安装脚本、Dockerfile、Compose 步骤均成功，原生七项矩阵未触发，产品矩阵仍绑定 84454e6。ci-dff9ed9.json 和 ci-dff9ed9-test-scripts.log 保存本次原始结果，cleanup-audit.json 另确认检查器容器/卷为空、独立构建器停止且默认构建器保持 default。此后仅补记文档。
+
+## 2026-10-19：GitHub 镜像工作流与正常 KDE 会话补验
+
+本轮没有修改 Rust/React、镜像或检查器源码。对最新 main 的 b76aaba2563af1869999228a664cf20cc7f93d4f 手动触发 Build Multi-Arch Image，desktop=xfce、publish=false；运行 **39173924368** 最终 completed/success，完整 headSha 已核对。GitHub 记录时间为 2026-10-18T22:49:57Z 至 23:06:00Z。
+
+完整候选构建从 22:51:00Z 到 23:04:29Z，约 13 分 29 秒；首次启动、空间接入与重启步骤成功，原始报告 **43/43**、68.44 秒，四项测试容器/卷清理均 removed=true。镜像为 linux/amd64，ID sha256:48212c54012c771d86e82a1933dc31fe8adb1e2a2255cdd0bddb870893e14fe9，来源标签为完整 b76aaba，空间协议为 1。覆盖范围与前节远端 43 项一致，不将两次运行累计为新的不同用例。
+
+工作流上传 artifact **12153698875**（image-startup-xfce），实际下载并逐项核对通过字段及清理结果。Docker Hub 登录、公开标签提升和 Aliyun 作业按只验证参数跳过，没有发布候选或公开镜像；此模式只构建 amd64。默认公开镜像不兼容的既有阻塞保持，不能将工作流成功写成公开发布或 arm64 验收。私有 image-release-20261019/ci-b76aaba 包含 run.json、artifacts.json、job.log 和原始启动报告。文档提交 b76aaba 的普通 Release 39173870697 与 GitCode 39173870757 也已核对 success；产品三平台矩阵仍是 84454e6 的 39169225796。
+
+### 同产品提交 Linux 包的正常 KDE 总线
+
+复用上节已下载并核对的 84454e695d915157d245630c4ad3b8b77091c0b6 CI 包，.deb SHA-256 b4cdd7157696f74fed8af6add38ccc7c5f9ec181cfe6877c58604718bf9147eb，AppImage SHA-256 26869e475df7538bc7211c8e598637089993a3982d63f758228adffe534a364a。仍在指定远端 cranibox-validation、abc 下操作；.deb 实际安装，AppImage 使用持久包路径及 --appimage-extract-and-run。
+
+先备份原客户端程序、启动环境和身份摘要，核对原 PID 767446 没有活动 Shell，仅有 WebKit 子进程后暂停。测试包分别使用隔离 XDG 和新身份，直接连接既有 plasmashell 的正常 D-Bus，不创建私有会话总线，未模拟 Tauri IPC。KDE、Selkies、日常 Web 持续运行。
+
+| 实际操作与断言 | .deb | AppImage |
+| --- | --- | --- |
+| 正常 KDE StatusNotifierWatcher 注册、实际托盘菜单 | 通过 | 通过 |
+| Wayland 窗口经 KWin 关闭，窗口隐藏而进程存活 | 通过 | 通过 |
+| 再次启动退出码为 0、原 PID 保持、窗口唤回 | 通过 | 通过 |
+| 托盘退出显示确认框，确认后 GUI/启动器退出 | 通过 | 通过 |
+| 实际界面开关登录自启动、启动项路径/后台参数/0600 权限 | 通过 | 通过 |
+| GIO 执行生成的启动项，初始窗口隐藏、托盘唤回 | 通过 | 通过 |
+| 前台启动与后台重启的 NodeID、二进制摘要保持 | 通过 | 通过 |
+| 界面关闭自启动后条目消失、清理无残留 | 通过 | 通过 |
+
+.deb 的“收起到系统托盘”按钮另通过真实界面与隐藏/唤回断言；两包的原生窗口关闭都通过实际合成器操作和 AT-SPI SHOWING 状态检查。GIO 使用生成的真实 Exec 行，AppImage 启动项包含兼容参数，不依赖临时解压路径或手动 APPIMAGE_EXTRACT_AND_RUN 环境变量。没有实际退出/重新登录系统，因此启动项验收不能记作系统登录验收，也不代表普通 FUSE。
+
+保留三类测试环境/辅助脚本失败：正常 org.a11y.Bus 进程存在但广告的 socket 已丢失，首轮 AT-SPI 中止；核对进程归属后只恢复辅助功能服务，socket 重建后实际窗口树可读，KDE/Selkies 未重启。其次 xdotool 无法按 PID 找到真实 Wayland 窗口，改用目标 PID 限定的临时 KWin 脚本；初次调用重载 loadScript 的推断签名不符，明确 ss 签名后通过窗口关闭断言。临时 KWin 脚本完成后卸载并删除。失败不计入产品通过，没有为此修改产品代码。
+
+测试后两包 GUI/启动器和所属 XDG 辅助进程均退出，测试 .deb 已卸载，本次 AppImage 解压目录已移除，两份测试自启项均关闭，无测试进程残留。恢复原客户端，当前 PID **1403228**，程序 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、NodeID node-82bf96c6f15d4f00923656f7877b8609 及身份文件原始字节保持。日常 Web PID 538744 与原程序保持。最终容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。
+
+私有 normal-desktop-84454e6-20261019 保存 acceptance.json、各包启动/后台/托盘/关闭/单实例/退出/自启状态、events.jsonl、accessibility-recovery.json、automation-failures.json、安装日志、原程序备份与私有环境、恢复/清理记录、final-health.json。原环境与配置只留在 0700/0600 证据中，不提交。未操作剪贴板、重验桌面查看器/撤权、制造网络故障或休眠；未覆盖实际系统登录、第二物理设备和 Windows/macOS 原生 GUI。原客户端本次仅恢复，没有升级，不应将旧日常程序作为 84454e6 包使用。
