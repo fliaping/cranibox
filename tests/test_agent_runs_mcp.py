@@ -171,7 +171,7 @@ class AgentRunsMcpTests(unittest.TestCase):
         self.state(run, {'running'})
         self.cli('revoke', '--node', self.caller)
         token_path = self.h.root / 'messages-only.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--messages')
+        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--messages', '--inbound', 'accept')
         self.api(operation='connect', node=self.target, url=self.url, token=token_path.read_text().strip())
         self.tool(arguments={'operation': 'list', 'node': self.target}, error=True)
         self.tool(arguments={'operation': 'start', 'node': self.target, **self.launch('pass')}, error=True)

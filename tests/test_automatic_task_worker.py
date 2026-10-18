@@ -213,7 +213,7 @@ class AutomaticTaskWorkerTests(unittest.TestCase):
         until(lambda: (self.project/'invocations').exists())
         self.cli('revoke', '--node', self.caller)
         self.assertEqual(self.settled(task)['execution']['state'], 'cancelled')
-        self.cli('grant', '--node', self.caller, '--output-token', self.h.root/'rotated.token', '--messages')
+        self.cli('grant', '--node', self.caller, '--output-token', self.h.root/'rotated.token', '--messages', '--inbound', 'accept')
         state = self.policy()
         self.assertFalse(state['senders'][0]['binding_active'])
         self.assertEqual(state['runs'][0]['phase'], 'grant_revoked')
@@ -303,7 +303,7 @@ class AutomaticTaskWorkerTests(unittest.TestCase):
         self.assertFalse((self.project/'invocations').exists())
 
     def test_targeted_sessions_and_other_senders_are_never_taken_over(self):
-        self.cli('grant', '--node', 'other-node', '--output-token', self.h.root/'other.token', '--messages')
+        self.cli('grant', '--node', 'other-node', '--output-token', self.h.root/'other.token', '--messages', '--inbound', 'accept')
         self.enable(senders=['other-node'])
         ordinary, _ = self.create()
         self.synced(ordinary, 'available')

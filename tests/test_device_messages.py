@@ -21,7 +21,7 @@ class DeviceMessagesTests(unittest.TestCase):
         self.config = self.h.root / 'target/settings.json'
         self.target = self.cli('identity')['node_id']
         self.token_file = self.h.root / 'messages.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--messages')
+        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--messages', '--inbound', 'accept')
         self.token = self.token_file.read_text().strip()
         self.port = free_port()
         self.url = f'http://127.0.0.1:{self.port}'
@@ -151,7 +151,7 @@ class DeviceMessagesTests(unittest.TestCase):
         self.assertFalse(self.config.with_name('device-messages.json').exists())
         self.assertEqual(self.direct('POST', path, message)[0], 200)
         other = self.h.root / 'other-sender.token'
-        self.cli('grant', '--node', 'other-sender', '--output-token', other, '--messages')
+        self.cli('grant', '--node', 'other-sender', '--output-token', other, '--messages', '--inbound', 'accept')
         self.assertEqual(self.direct('GET', path+'/'+message['id'], headers={'Authorization':'Bearer '+other.read_text().strip()})[0], 400)
 
     def test_changed_credentials_block_queued_messages_instead_of_sending_to_new_route(self):
@@ -172,7 +172,7 @@ class DeviceMessagesTests(unittest.TestCase):
         message_id, original = self.send('Can you review this?', sender_session=source_session, target_session=target_session)
         self.delivered(message_id)
         grant = self.api(operation='grant', node=self.target, permissions={
-            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True})
+            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True}, inbound='accept')
         listener = self.api(operation='listener', listener={'address':'127.0.0.1:0','allow_insecure':False})
         address = listener['listener_runtime']['address']
         reverse = self.h.root / 'reverse.token'
@@ -243,7 +243,7 @@ class DeviceMessagesTests(unittest.TestCase):
     def test_standalone_mcp_delivers_and_checks_acknowledgements_without_a_node_daemon(self):
         self.h.stop(self.h.server)
         grant = self.api(operation='grant', node=self.target, permissions={
-            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True})
+            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True}, inbound='accept')
         listener = self.api(operation='listener', listener={'address':'127.0.0.1:0','allow_insecure':False})
         reverse = self.h.root / 'mcp-reverse.token'
         reverse.write_text(grant['token'])
