@@ -58,11 +58,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: node-desktop
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config libglib2.0-bin python3
         if: runner.os == 'Linux'
       - run: npm ci --prefix apps/node-desktop
       - run: npm run build --prefix apps/node-desktop
       - run: cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
+      - name: Verify Linux login launcher with spaces and reserved path characters
+        if: runner.os == 'Linux'
+        run: cargo test --locked -p cranibox-node-desktop --lib gio_launches -- --ignored --nocapture
       - run: npx playwright install --with-deps chromium
         working-directory: apps/node-desktop
         if: runner.os == 'Linux'

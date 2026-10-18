@@ -8,18 +8,16 @@ use cranibox_node::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 use tauri::{
     Manager, State,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
+#[cfg(not(target_os = "linux"))]
 use tauri_plugin_autostart::ManagerExt;
 
 struct Running {
@@ -82,12 +80,33 @@ fn show(app: &tauri::AppHandle) {
 
 #[tauri::command]
 fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    if enabled {
-        app.autolaunch().enable()
-    } else {
-        app.autolaunch().disable()
+    update_autostart(&app, enabled).map_err(|error| format!("{error:#}"))
+}
+fn update_autostart(app: &tauri::AppHandle, enabled: bool) -> anyhow::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        cranibox_node_desktop::launch::Autostart::current()?.set_enabled(
+            &cranibox_node_desktop::launch::Launcher::current()?,
+            enabled,
+        )?;
     }
-    .map_err(|error| error.to_string())
+    #[cfg(not(target_os = "linux"))]
+    if enabled {
+        app.autolaunch().enable()?;
+    } else {
+        app.autolaunch().disable()?;
+    }
+    Ok(())
+}
+fn autostart_enabled(app: &tauri::AppHandle) -> anyhow::Result<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        cranibox_node_desktop::launch::Autostart::current()?.is_enabled()
+    }
+    #[cfg(not(target_os = "linux"))]
+    Ok(app.autolaunch().is_enabled()?)
 }
 #[tauri::command]
 async fn snapshot(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<Value, String> {
@@ -96,10 +115,7 @@ async fn snapshot(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Res
         .running
         .as_ref()
         .map(|running| running.control.status.borrow().clone());
-    let autostart = app
-        .autolaunch()
-        .is_enabled()
-        .map_err(|error| error.to_string())?;
+    let autostart = autostart_enabled(&app).map_err(|error| format!("{error:#}"))?;
     Ok(
         json!({"settings":service.settings,"status":status,"local":service.local.as_ref().map(|local| json!({"id":local.id,"online":true})),"error":service.error,"autostart":autostart,"quit_requested":state.quit_requested.load(Ordering::Relaxed)}),
     )
@@ -165,11 +181,7 @@ async fn configure_inner(
     if token.is_empty() {
         agent_workspace_runtime::config::read_token(&token_file)?;
     }
-    if input.autostart {
-        app.autolaunch().enable()?;
-    } else {
-        app.autolaunch().disable()?;
-    }
+    update_autostart(&app, input.autostart)?;
     let mut service = state.service.lock().await;
     let changed = service.settings.as_ref() != Some(&settings);
     if changed && let Some(running) = service.running.take() {
@@ -394,17 +406,9 @@ async fn terminal_sessions(
 }
 #[tauri::command]
 fn mcp_config(include_runs: Option<bool>) -> Result<Value, String> {
-    let executable: PathBuf = std::env::current_exe().map_err(|error| error.to_string())?;
-    // AppImage runs from a temporary mount; Agents need the persistent launcher.
-    #[cfg(target_os = "linux")]
-    let executable = std::env::var_os("APPIMAGE")
-        .map(PathBuf::from)
-        .unwrap_or(executable);
-    let mut configuration = json!({"mcpServers":{"cranibox-devices":{"command":executable,"args":["mcp","--config",settings::default_path()]},"cranibox-messages":{"command":executable,"args":["--config",settings::default_path(),"peer","messages","mcp"]}}});
-    if include_runs.unwrap_or(false) {
-        configuration["mcpServers"]["cranibox-runs"] = json!({"command":executable,"args":["--config",settings::default_path(),"peer","runs","mcp"]});
-    }
-    Ok(configuration)
+    Ok(cranibox_node_desktop::launch::Launcher::current()
+        .map_err(|error| format!("{error:#}"))?
+        .mcp_config(&settings::default_path(), include_runs.unwrap_or(false)))
 }
 #[tauri::command]
 async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -449,13 +453,15 @@ fn main() -> anyhow::Result<()> {
         quitting: AtomicBool::new(false),
     });
     let setup_state = state.clone();
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
-        .plugin(
-            tauri_plugin_autostart::Builder::new()
-                .args(["--background"])
-                .build(),
-        )
+    let app =
+        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)));
+    #[cfg(not(target_os = "linux"))]
+    let app = app.plugin(
+        tauri_plugin_autostart::Builder::new()
+            .args(["--background"])
+            .build(),
+    );
+    let app = app
         .manage(state.clone())
         .manage(Arc::new(terminals::Terminals::default()))
         .manage(Arc::new(desktops::Desktops::default()))

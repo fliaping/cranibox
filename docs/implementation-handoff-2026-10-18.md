@@ -2,7 +2,7 @@
 
 整理日期：2026-10-18。本文是下一位维护者的接手入口，汇总本次连续开发的最终状态。设计文档描述目标，专项验证记录按发生顺序保留历史；判断目前完成范围时优先看本文及对应功能文档。
 
-本次最新功能收尾是 Selkies 节点桌面接入，功能提交为 afaa137ce78c1847cb893e97d1527e3b06b23d6f，已推送 origin/main，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证。此前 Tailscale 安装引导提交为 b6ed81ef3c0b7551e14ed43094f156a222e97442，其 CI 结果只覆盖该历史提交；本次提交后的 CI 另行记录。
+最新收尾修复 Linux AppImage 的 MCP 与登录启动项：自动使用无 FUSE 兼容参数、转义可执行文件路径、遵循 XDG_CONFIG_HOME，并迁移旧启动项。此前 Selkies 节点桌面接入提交为 afaa137ce78c1847cb893e97d1527e3b06b23d6f，包含 Rust 适配器、Web/Tauri 共用查看器、连续输入修复、发布前端资源和真实 KDE 验证；Tailscale 安装引导为 b6ed81ef3c0b7551e14ed43094f156a222e97442。各次 CI 只覆盖对应提交，不能用旧绿色结果覆盖新代码。
 
 交接范围：收尾现有实现、记录需求与验证、提交仓库；没有把所有产品需求标为完成。真实 Linux/KDE 桌面已通过 Selkies 经节点中继接通，最新 afaa137 的 Linux .deb 及无 FUSE 兼容模式 AppImage 也已实际验收，下一阶段优先验收 Windows/macOS 桌面与安装。远端日常 Web 仍运行 71f2397，原生客户端在新包测试后已恢复原版本、原身份和配置；没有把新功能部署到日常主服务，也未安装系统 Tailscale 或重启合成器。
 
@@ -49,7 +49,28 @@
 
 ## 测试情况与可信范围
 
-### 最新收尾：Selkies 节点桌面接入
+### 最新收尾：Linux 启动可靠性
+
+针对此前真实 AppImage 验收发现的缺陷，抽出可独立测试的启动模块；仅 Linux 替换原自启动插件的路径写入逻辑，Windows/macOS 仍使用原插件。未新增前端交互。AppImage MCP 与自启自动加入 --appimage-extract-and-run；该参数由运行时移除，不传入业务 CLI。普通安装程序不加此参数，后台运行工具仍需用户明确选择。
+
+所有执行仍在指定远端 Linux 容器，本轮结果单列，不累加到此前 186 项：
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| 启动模块单元测试 | 5 通过 | MCP 默认/可选入口、持久路径与参数、无效路径拒绝、XDG 与旧目录迁移、关闭清理及隐藏条目 |
+| 真实 GIO 启动器 | 1 通过 | 包含空格、引号、反斜杠、美元符号、反引号和 %f 的实际文件名，接收的参数完整且准确；显式执行忽略用例，已加入 Linux CI |
+| Rust 检查和原生构建 | 通过 | 工作区格式；客户端 desktop 所有 target 严格 Clippy；desktop,custom-protocol 构建 |
+| 新源码的真实原生 IPC | 通过 | 独立 profile；实际打开/关闭自启，确认写入/删除 XDG 目录且 HOME 未新增条目；复制默认两个入口及明确启用后的三个入口 |
+| 三个 AppImage MCP 入口 | 通过 | GUI 退出后，实际执行所复制命令；无 APPIMAGE_EXTRACT_AND_RUN 环境变量；initialize 与 tools/list 分别返回 5/3/2 个工具 |
+| 新启动项运行已有 AppImage | 通过 | GIO 真实启动含空格的 afaa137 AppImage；无 /dev/fuse、无手动兼容变量；静默进入托盘，托盘可打开窗口，NodeID 保持 |
+
+后两项执行的 AppImage 仍是已校验的 afaa137 CI 产物；新源码使用实际构建的原生程序，并指定该持久 AppImage 作为启动器，以分别验证新 IPC 输出和已发布运行时。设备 MCP 使用隔离的测试设置，只做协议初始化和工具枚举，不声称访问了真实网关。没有把这项组合验证称为新安装包验收，也没有真实注销/登录或休眠。
+
+首次 GIO 测试真实失败：GIO 在展开 %% 字段码之前检查可执行文件存在，导致文件名含百分号时无法加载。修复为仅此类路径经 /usr/bin/env -- 传入，保留正确参数转义；最终真实用例通过，初次失败日志保留。代码与证据在远端 /config/validation-artifacts/linux-launcher-20261018，包含单元/真实启动器/Clippy/构建日志、复制配置、MCP 原始输出、自启项与恢复记录、私有截图。自启恢复禁用、剪贴板恢复、测试 GUI 和浏览器退出，日常原生程序恢复原字节和 NodeID；主 Web 未替换。
+
+本次提交后的 CI 与新包状态另行补录；afaa137 的 7/7 不能代替新提交验证。
+
+### 此前收尾：Selkies 节点桌面接入
 
 KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径连接已运行 Selkies 的内部 WebSocket，走既有目标签发授权、单控制者、直连/中继和 Tauri IPC；Web/Tauri 按首包选择 noVNC 或 JPEG 查看器。配置和 CLI 显式选择 protocol，旧 VNC 配置保持兼容；只探测 MODE，不主动接管桌面。连续文字产生的键盘事件按批传输，修复真实输入时挤满节点有界队列的断开。
 
@@ -172,7 +193,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | 实际空间 | 真实 Docker 创建、停止、归档、恢复、身份/文件保留；页面终端及 Selkies/code-server HTTPS 和 WebSocket | 该专项使用远端主机上的旧镜像叠加；完整 Dockerfile 构建另见下一行 |
 | 完整产品镜像 | 71f2397 的完整 Dockerfile 构建成功；空配置首次启动、默认服务、认证 API、容器重启与数据保留通过 | Linux amd64 / KDE / 国际源；未发布产品镜像，未验证新实例的实际桌面画面与输入 |
 | 实际桌面 | 真实 X11/Xvfb+x11vnc、隔离 Sway+wayvnc，以及本轮 KDE/Selkies 节点中继的画面、完整输入、重连和撤权 | KDE 的 VNC 捕获仍失败；Windows/macOS 原生桌面未验收 |
-| 原生壳 | 最新 afaa137 Linux .deb 实际安装及原生 PTY 重新附着；AppImage 无 FUSE 兼容模式的真实界面、托盘、MCP；后台启动、单实例与身份保留 | AppImage 默认模式因无 FUSE 失败，复制 MCP 需手动补充兼容变量；实际系统登录/休眠及 Windows/macOS 仍待实测 |
+| 原生壳 | afaa137 Linux .deb 实际安装及 PTY 重新附着；AppImage 兼容模式；最新源码复制配置及新启动项与已有 AppImage 的实际协议/启动验证 | 旧配置缺少兼容参数的问题已修复；新包、普通 FUSE、实际系统登录/休眠及 Windows/macOS 仍待实测 |
 
 ### 明确未通过或尚未验证
 
@@ -183,14 +204,14 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - 完整 Linux amd64 KDE 镜像构建及新实例首次启动、重启已通过；公开产品镜像发布/拉取、其他桌面/架构/镜像源，以及该新实例的实际桌面画面与输入尚未验证。
 - 未调用真实 Codex/Claude 模型，未验证订阅登录；后台执行适配器仍需端到端实际工作任务验收。
 - 浏览器与 IPC 测试中的模拟响应、进程替身和独立 RFB 服务，均在各专项记录中注明，不能提升为实机验收。
-- 本次 afaa137 的完整 CI 已 7/7 通过，最新 Linux .deb 原生交互与 PTY 重新附着通过；AppImage 默认模式因容器无 FUSE 失败，兼容模式 GUI/MCP 通过，但复制的 MCP 未带兼容环境变量。普通 FUSE 模式、AppImage 自启、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
+- afaa137 的完整 CI 已 7/7 通过，Linux .deb 原生交互与 PTY 重新附着通过。最新源码已修复 AppImage 生成配置缺少兼容启动参数的问题，真实 GIO 与已有 AppImage 启动通过；新安装包、普通 FUSE、Linux 实际系统登录/休眠、真实网关网络故障及 Windows/macOS 安装与交互仍未验收。
 
 ## 下一阶段优先级与验收条件
 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 桌面互访可日用 | KDE/Selkies 已通过节点中继验收；继续完成 Windows/macOS 的安装、录屏/输入权限、启停、退出清理，并从另一个物理设备真正看见画面、输入及撤权断开 |
-| P0 | 跨平台安装与产品镜像发布验收 | 最新 afaa137 的 7 项 CI、Linux .deb 原生交互/PTY 及 AppImage 无 FUSE 兼容模式通过；完整 KDE 镜像与新实例启动/重启仍绑定 71f2397。继续验证 Windows/macOS、普通 FUSE 模式、AppImage 自启、Linux 登录/休眠及公开产品镜像发布/拉取；处理无 FUSE 环境复制 MCP 缺少兼容变量的问题 |
+| P0 | 跨平台安装与产品镜像发布验收 | afaa137 的 7 项 CI、Linux .deb 原生交互/PTY 及 AppImage 兼容模式通过；最新源码修复已独立验证，继续核对新提交 CI 和新安装包。完整 KDE 镜像与新实例启动/重启仍绑定 71f2397；继续 Windows/macOS、普通 FUSE、实际登录/休眠及公开镜像发布/拉取 |
 | P1 | 维护者的真实三设备流程 | Mac 委托 Linux/Windows Agent，浏览器关闭后继续，换入口回复并核对结果；覆盖断网、休眠、重启，不依赖同容器替身或人工改账本 |
 | P1 | Tailscale 安装与登录实机验收 | 在干净的 Windows、macOS、Debian/Ubuntu 图形主机上审阅方案，检查管理员授权、取消/失败恢复、系统服务启动、独立登录及真实 Tailnet 互访；不以单元夹具和模拟 IPC 代替 |
 | P1 | 完整统一视图与数据同步 | 明确设备/项目/Agent/任务各数据的权威、版本、删除与冲突协议；另一入口无需逐一手配才能看同一授权范围；保留设备撤权语义 |
@@ -223,6 +244,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 | crates/workspace-runtime/src/peers/desktop/selkies.rs；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
 | addons/control-center/ui/src | React 共用业务组件与浏览器适配器 |
 | apps/node-desktop | Tauri 原生宿主、IPC、托盘与客户端适配器 |
+| apps/node-desktop/src-tauri/src/launch.rs | 持久启动器、AppImage MCP 参数、Linux 自启动路径与转义；纯 Rust 库单元测试和真实 GIO 用例 |
 | tests、两端 UI 的 tests | Python 真实服务集成和 Playwright；模拟与实机条件见各文件 |
 | .github/workflows/rust-runtime.yml | 三平台 Rust/安装包、Linux 服务与浏览器、独立 Wayland 验证 |
 
@@ -232,7 +254,7 @@ KDE 容器原有 VNC 捕获失败没有被绕过或标为成功。新增路径�
 - Web：https://192.168.217.6:3080；KDE/Selkies：https://192.168.217.6:3031。凭据只在远端私有 container.env，不写入 Git、测试报告或命令行。
 - 容器源码 /config/agent-workspace-manager/source；Cargo 目标 /config/validation-build/target；证据 /config/validation-artifacts。源码和验证数据均在远端持久卷。
 - 主 Web 与原生客户端是两份独立身份；原生使用 /config/validation-client/{config,data,state}。保持分离，避免两个进程共用 NodeID。
-- 最新 Linux 安装包证据在 /config/validation-artifacts/linux-installer-afaa137，旧包证据在 /config/validation-artifacts/linux-installer-71f2397。测试 .deb 已卸载，原客户端从备份恢复至 /config/validation-client/bin/cranibox-node-desktop，原身份和配置不变。自启插件实际写入 HOME/.config/autostart，不能仅靠独立 XDG_CONFIG_HOME 隔离该项；结束时已恢复禁用。
+- Linux 安装包证据在 /config/validation-artifacts/linux-installer-afaa137，旧包证据在 /config/validation-artifacts/linux-installer-71f2397；最新启动修复在 /config/validation-artifacts/linux-launcher-20261018。测试 .deb 已卸载，原客户端恢复至 /config/validation-client/bin/cranibox-node-desktop，原身份和配置不变。旧包自启插件写入 HOME/.config；最新源码已遵循 XDG_CONFIG_HOME，测试关闭后两处均无启动项。
 - 主容器不挂宿主 Docker socket，也不是 privileged。虚拟空间用过独立临时管理容器；它和两个测试空间目前停止，保留数据供复核，不要误删。
 - 完整镜像验证另留 cranibox-full-validation:71f2397 镜像、已停止的 cranibox-full-firstboot-71f2397 容器与 cranibox-validation-full-build-20261018 构建器缓存。证据在 /config/validation-artifacts/full-image-71f2397；首次启动环境文件含私有凭据，不要输出或提交。停止后的容器可能仍显示 unhealthy，应以 firstboot.json 中停止前健康检查及重启结果判断本次验收。
 - 其余候选设备：Windows/WSL2 192.168.217.226；macOS fliaping@192.168.217.85。macOS 当前拒绝现有 SSH 公钥，Windows 原生登录入口尚未提供；已请求可用账号、端口和密钥文件路径，尚未取得。不得把 WSL2 或 CI 代替原生交互验收，接手时先核对访问与图形登录环境。

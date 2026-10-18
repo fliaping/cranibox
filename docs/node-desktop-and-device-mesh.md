@@ -42,16 +42,14 @@ Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一
 没有 /dev/fuse 的容器中，AppImage 默认挂载启动会失败。Debian/Ubuntu 环境可使用 .deb；需要 AppImage 时，可使用已在远端 KDE 验证的解包运行模式：
 
 ~~~bash
-APPIMAGE_EXTRACT_AND_RUN=1 "./Cranibox Node_0.1.0_amd64.AppImage"
+"./Cranibox Node_0.1.0_amd64.AppImage" --appimage-extract-and-run
 ~~~
 
-当前「Agent 接入」复制的 MCP 配置会保留 AppImage 的持久路径，但不会自动添加这个环境变量。在没有 FUSE 的环境中，需给每个使用该 AppImage 的 MCP 条目补充或合并以下 env 字段，使 Agent 启动时也使用兼容模式：
+本次启动可靠性修复后的构建会在复制的三个 AppImage MCP 入口和 Linux 登录启动项中自动加入 --appimage-extract-and-run，并使用持久 AppImage 路径。该参数由 AppImage 运行时消费，不依赖 Agent 或登录进程继承环境变量；普通安装程序不添加这个参数。默认 MCP 仍仅包含设备与消息入口，后台运行入口需要明确勾选。
 
-~~~json
-"env": { "APPIMAGE_EXTRACT_AND_RUN": "1" }
-~~~
+Linux 自启动使用绝对 XDG_CONFIG_HOME/autostart；未设置或为相对路径时使用 HOME/.config/autostart。启用时会迁移原插件留在 HOME/.config 的同名条目，关闭时同时清理两处，避免重复启动。启动项正确转义空格和特殊字符。移动 AppImage 后应重新开启自启动、重新复制 MCP 配置。
 
-兼容模式已验证真实窗口、托盘和消息 MCP 初始化；普通 FUSE 模式及 AppImage 登录自启动尚未实测，不能假设登录进程会继承手动启动时的变量。具体包版本与证据见[交接记录](implementation-handoff-2026-10-18.md#最新-linux-ci-安装包与-shell-重新附着)。
+远端 KDE 已验证新源码的实际自启动开关与复制配置，三个入口在 GUI 退出、无兼容环境变量时均完成 MCP 初始化和工具枚举；新启动项还实际通过 GIO 拉起已有 afaa137 AppImage，静默进入托盘并保留身份。这分别验证新配置生成逻辑和已发布运行时，不等于新安装包实测。普通 FUSE 模式、真实注销/登录与休眠仍待验证，详见[交接记录](implementation-handoff-2026-10-18.md#最新收尾linux-启动可靠性)。旧 afaa137 及更早构建生成的配置仍需自行添加运行时参数或设置 APPIMAGE_EXTRACT_AND_RUN=1。
 
 ## 会话保持
 

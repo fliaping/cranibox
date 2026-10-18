@@ -698,3 +698,27 @@ PTY 两次记录均为 afaa137-pty-persist 713970，证据为 pty-first.txt、pt
 远端证据在 /config/validation-artifacts/linux-installer-afaa137，目录 0700，日志/记录/截图 0600，需执行的产物 0700。acceptance.json 状态为 completed_with_documented_limits；同时保留 install.log、uninstall.log、release-tray.json、release-mcp.json、自启记录、PTY 三份记录、后台/单实例记录、AppImage 默认失败日志、兼容模式启动/MCP 日志、restored.json，以及 22 份带 SHA-256 的私有截图。真实桌面截图和含私有环境的备份不提交 Git。
 
 这是独立人工集成验收，不增加上文 186 项不同自动化测试的计数；未重跑安装包内的真实桌面查看器，不代替源码专项的 KDE/Selkies 测试，也没有构建新完整镜像或发布/拉取产品镜像。Windows/macOS 原生交互仍未验收：macOS fliaping@192.168.217.85 拒绝当前 SSH 公钥，Windows 原生登录入口尚未提供；已请求可用访问方式，不能用 WSL2 代替原生系统。
+
+## Linux AppImage MCP 与登录启动修复
+
+本节继续处理上一节已确认的启动缺陷。代码新增 apps/node-desktop/src-tauri/src/launch.rs 与纯 Rust 库入口，将持久启动路径和 MCP 参数统一；Linux 自启改用遵循 XDG_CONFIG_HOME 的原子私有文件写入，开启时迁移旧 HOME/.config 条目，关闭时清理两处。Windows/macOS 自启插件保留。AppImage 的 MCP 和自启自动添加 --appimage-extract-and-run，普通安装程序不添加；后台运行工具仍默认关闭。
+
+只在同一指定远端容器运行，证据目录 /config/validation-artifacts/linux-launcher-20261018（0700，记录/截图 0600）。复现命令在远端源码目录执行，Cargo 环境沿用前文：
+
+~~~sh
+cargo fmt --all --check
+cargo test --locked -p cranibox-node-desktop --lib
+cargo test --locked -p cranibox-node-desktop --lib gio_launches -- --ignored --nocapture
+cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
+cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
+~~~
+
+五项常规单元测试通过；需要 GIO 的一项默认忽略，另显式执行通过，合计六项不同测试，不与历史轮次累加。格式、严格 Clippy、原生构建通过。真实 GIO 用例实际执行含空格、引号、反斜杠、美元符号、反引号和 %f 的脚本，核对最终参数。第一次用例失败，发现 GIO 在展开 %% 之前检查可执行文件存在；仅百分号路径改经 /usr/bin/env -- 传入后通过，gio-test.log 保留失败，gio-test-final.log 为最终结果。Linux 桌面 CI 已增加该显式真实启动用例及 GIO 依赖。
+
+新构建原生程序使用独立 profile 和 NodeID node-49d60097514d4257a28173d306c759ec，指定已校验 afaa137 AppImage 的持久路径作为 APPIMAGE 启动器。通过真实 KDE 窗口操作，开启/关闭/再开启登录自启：启动项实际出现在独立 config/autostart/Cranibox Node.desktop，权限 0600，HOME/.config 未新增条目；Exec 正确引用含空格路径并包含兼容参数和 --background。再实际复制默认两个 MCP 入口、勾选后复制三个入口，均指向持久 AppImage 和独立设置文件。
+
+退出测试 GUI 后，未设置 APPIMAGE_EXTRACT_AND_RUN，按三个所复制命令完成 initialize、notifications/initialized 和 tools/list，退出码均 0：cranibox-devices 返回五个工具、cranibox-messages 三个、cranibox-runs 两个。设备入口使用隔离测试设置与凭据，仅做协议初始化和工具枚举，没有连接真实网关或执行远程命令；测试设置随后删除。
+
+再由 GIO 实际执行上述新启动项，当前容器无 /dev/fuse，启动环境未设置 APPIMAGE 或 APPIMAGE_EXTRACT_AND_RUN；AppImage runtime 成功解包并启动 GUI PID 736005，业务程序只收到 --background，未收到运行时参数。窗口保持隐藏、同 PID 托盘存在；通过其 D-Bus 托盘打开实际窗口，NodeID 与新源码测试保持相同。此处运行的 AppImage 仍是 afaa137 包，因此组合验证证明新配置逻辑与已有运行时兼容，不能称为新安装包实测。没有真实系统注销/登录、普通 FUSE 模式或休眠验证。
+
+完成后清理测试启动项、退出测试 GUI 与预览浏览器、恢复剪贴板，日常客户端从原持久路径以原环境恢复，PID 737018、二进制 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、原 NodeID 不变。主 Web PID 538744 未替换；容器 running / healthy，privileged=false。证据包括 acceptance.json、mcp-acceptance.json、三份 MCP 原始输出、native-autostart.json、gio-appimage-acceptance.json、restored.json、source-digests.json 和私有截图；没有将私有环境、剪贴板或截图提交 Git。新提交 CI 与产物状态在交接文档单列。
