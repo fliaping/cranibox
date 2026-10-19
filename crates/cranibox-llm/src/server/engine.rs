@@ -152,27 +152,31 @@ impl Engine {
                         Ok(refreshed) => {
                             // Preserve concurrent vault metadata; never recreate a deleted record.
                             let current = this.store.get(&id).ok_or(UpstreamError::Auth)?;
-                            if this
+                            let committed = this
                                 .store
                                 .get_secret(&id)
-                                .map_err(|_| UpstreamError::Auth)?
-                                != cx.secret
-                            {
+                                .map_err(|_| UpstreamError::Auth)?;
+                            if committed != cx.secret && committed != refreshed.secret {
                                 return Err(UpstreamError::Network(
                                     "credential changed during refresh; retry request".into(),
                                 ));
                             }
-                            this.pending
-                                .lock()
-                                .await
-                                .insert(id.clone(), (cx.secret.clone(), refreshed.secret.clone()));
-                            this.store
-                                .put(current.clone(), Some(refreshed.secret.clone()))
-                                .map_err(|_| {
-                                    UpstreamError::Network(
-                                        "could not persist refreshed credential".into(),
-                                    )
-                                })?;
+                            // The multi-node coordinator may already have committed this generation.
+                            // Writing it again would advance the vault version twice and can fail
+                            // after a refresh which has already been durably saved.
+                            if committed != refreshed.secret {
+                                this.pending.lock().await.insert(
+                                    id.clone(),
+                                    (cx.secret.clone(), refreshed.secret.clone()),
+                                );
+                                this.store
+                                    .put(current.clone(), Some(refreshed.secret.clone()))
+                                    .map_err(|_| {
+                                        UpstreamError::Network(
+                                            "could not persist refreshed credential".into(),
+                                        )
+                                    })?;
+                            }
                             this.pending.lock().await.remove(&id);
                             cx.account = current;
                             cx.secret = refreshed.secret;

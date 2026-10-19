@@ -567,6 +567,131 @@ async fn rotated_token_survives_transient_vault_write_failure() {
     );
     handle.shutdown().await;
 }
+// A refresh coordinator may commit the new generation before returning it to the proxy.
+// Reject a second write so a redundant persistence step cannot hide behind an in-memory store.
+struct CommittedStore {
+    inner: MemoryAccountStore,
+    rotated_writes: AtomicUsize,
+}
+impl AccountStore for CommittedStore {
+    fn list(&self) -> Vec<AccountSummary> {
+        self.inner.list()
+    }
+    fn get(&self, id: &str) -> Option<AccountSummary> {
+        self.inner.get(id)
+    }
+    fn get_secret(&self, id: &str) -> Result<SecretBox, cranibox_contracts::vault::StoreError> {
+        self.inner.get_secret(id)
+    }
+    fn put(
+        &self,
+        account: AccountSummary,
+        secret: Option<SecretBox>,
+    ) -> Result<(), cranibox_contracts::vault::StoreError> {
+        if secret
+            .as_ref()
+            .is_some_and(|s| Credential::decode(s).is_ok_and(|c| c.access_token == "rotated-fake"))
+            && self.rotated_writes.fetch_add(1, Ordering::SeqCst) > 0
+        {
+            return Err(cranibox_contracts::vault::StoreError::Other(
+                "duplicate generation write".into(),
+            ));
+        }
+        self.inner.put(account, secret)
+    }
+    fn remove(&self, id: &str) -> Result<(), cranibox_contracts::vault::StoreError> {
+        self.inner.remove(id)
+    }
+}
+struct CommittingRefresh {
+    inner: Arc<Fake>,
+    store: Arc<CommittedStore>,
+    supersede: bool,
+}
+#[async_trait::async_trait]
+impl Upstream for CommittingRefresh {
+    fn provider(&self) -> &'static str {
+        "test"
+    }
+    fn wires(&self) -> &[Wire] {
+        &[Wire::Chat]
+    }
+    async fn send(
+        &self,
+        cx: &UpstreamCx,
+        request: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        assert_eq!(Credential::decode(&cx.secret)?.access_token, "rotated-fake");
+        self.inner.send(cx, request).await
+    }
+    async fn refresh(
+        &self,
+        cx: &UpstreamCx,
+        secret: &SecretBox,
+    ) -> Result<Refreshed, UpstreamError> {
+        let refreshed = self.inner.refresh(cx, secret).await?;
+        let mut account = self.store.get(&cx.account.id).unwrap();
+        account.label = "updated by coordinator".into();
+        let committed = if self.supersede {
+            let mut newer = Credential::decode(&refreshed.secret)?;
+            newer.access_token = "newer-generation".into();
+            newer.secret()
+        } else {
+            refreshed.secret.clone()
+        };
+        self.store.put(account, Some(committed)).unwrap();
+        Ok(refreshed)
+    }
+    async fn models(&self, cx: &UpstreamCx) -> Result<Vec<ModelEntry>, UpstreamError> {
+        self.inner.models(cx).await
+    }
+}
+async fn committed_refresh(supersede: bool) {
+    let store = Arc::new(CommittedStore {
+        inner: MemoryAccountStore::default(),
+        rotated_writes: AtomicUsize::new(0),
+    });
+    insert(&store.inner, "a", Some(0));
+    let fake = Fake::new();
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = Config::new("local".into(), dir.path().join("run"), store.clone());
+    config.listen = vec!["127.0.0.1:0".parse().unwrap()];
+    config.upstreams = vec![Arc::new(CommittingRefresh {
+        inner: fake.clone(),
+        store: store.clone(),
+        supersede,
+    })];
+    let handle = cranibox_llm::spawn(config).await.unwrap();
+    let response = request(handle.addresses[0]).await;
+    assert_eq!(response.status(), if supersede { 503 } else { 200 });
+    assert_eq!(fake.refreshes.load(Ordering::SeqCst), 1);
+    assert_eq!(fake.calls.lock().unwrap().len(), usize::from(!supersede));
+    assert_eq!(
+        store.rotated_writes.load(Ordering::SeqCst),
+        usize::from(!supersede)
+    );
+    assert_eq!(store.get("a").unwrap().label, "updated by coordinator");
+    assert_eq!(
+        Credential::decode(&store.get_secret("a").unwrap())
+            .unwrap()
+            .access_token,
+        if supersede {
+            "newer-generation"
+        } else {
+            "rotated-fake"
+        }
+    );
+    handle.shutdown().await;
+}
+#[tokio::test]
+async fn coordinated_refresh_is_persisted_once() {
+    committed_refresh(false).await;
+}
+#[tokio::test]
+async fn superseded_refresh_does_not_overwrite_newer_credential() {
+    committed_refresh(true).await;
+}
+
 struct RemoteOnly;
 #[async_trait::async_trait]
 impl cranibox_llm::route::Router for RemoteOnly {
