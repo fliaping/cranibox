@@ -1,3 +1,311 @@
-# Built-in provider presets (schema: cranibox_contracts::llm::PresetFile).
-# Owned by WS2; Chinese rows are proposed by WS3 and reviewed by WS2.
-# Example of the schema: crates/cranibox-contracts/fixtures/presets.example.toml
+# Endpoint table adapted from yetone/magpie internal/provider/presets.go@865b61808690bc9fd716257949414ec97618a5a5 (MIT).
+# Base URLs: append wire paths exactly once; never append another /v1.
+
+[[preset]]
+id = "openai"
+label = "OpenAI"
+region = ["global"]
+default_wire = "responses"
+models = ["gpt-5.4", "gpt-5.4-mini"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.openai.com/v1"
+responses = "https://api.openai.com/v1"
+
+[[preset]]
+id = "anthropic"
+label = "Anthropic"
+region = ["global"]
+default_wire = "messages"
+models = ["claude-sonnet-4-6", "claude-opus-4-6"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+anthropic = "https://api.anthropic.com"
+
+[[preset]]
+id = "xai"
+label = "xAI"
+region = ["global"]
+default_wire = "responses"
+models = ["grok-4"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.x.ai/v1"
+responses = "https://api.x.ai/v1"
+
+[[preset]]
+id = "openrouter"
+label = "OpenRouter"
+region = ["global"]
+default_wire = "chat"
+models = ["openai/gpt-5.4"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://openrouter.ai/api/v1"
+
+[[preset]]
+id = "deepseek"
+label = "DeepSeek 深度求索"
+region = ["cn", "global"]
+default_wire = "messages"
+models = ["deepseek-chat", "deepseek-reasoner"]
+no_list = false
+quirks = ["deepseek_schema"]
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.deepseek.com/v1"
+anthropic = "https://api.deepseek.com/anthropic"
+
+[[preset]]
+id = "zhipu-coding"
+label = "智谱 GLM Coding Plan"
+region = ["cn"]
+default_wire = "messages"
+models = ["glm-5", "glm-4.7"]
+no_list = true
+quirks = ["zhipu_envelope", "zhipu_coding"]
+key_hint = "使用 Coding Plan 专属 key"
+chat = "https://open.bigmodel.cn/api/coding/paas/v4"
+responses = "https://open.bigmodel.cn/api/v1"
+anthropic = "https://open.bigmodel.cn/api/anthropic"
+
+[[preset]]
+id = "zai-coding"
+label = "Z.ai GLM Coding Plan"
+region = ["global"]
+default_wire = "messages"
+models = ["glm-5", "glm-4.7"]
+no_list = true
+quirks = ["zhipu_envelope", "zhipu_coding"]
+key_hint = "使用 Coding Plan 专属 key"
+chat = "https://api.z.ai/api/coding/paas/v4"
+responses = "https://api.z.ai/api/v1"
+anthropic = "https://api.z.ai/api/anthropic"
+
+[[preset]]
+id = "bailian-coding"
+label = "百炼 Coding Plan（北京）"
+region = ["cn"]
+default_wire = "messages"
+models = ["qwen3.5-plus", "qwen3-coder-plus", "glm-4.7", "kimi-k2.5"]
+no_list = true
+quirks = []
+key_hint = "使用对应区域 Coding Plan 控制台的 key；不能按 key 前缀判断区域"
+chat = "https://coding.dashscope.aliyuncs.com/v1"
+anthropic = "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+
+[[preset]]
+id = "bailian-coding-global"
+label = "百炼 Coding Plan（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["qwen3.5-plus", "qwen3-coder-plus", "glm-4.7", "kimi-k2.5"]
+no_list = true
+quirks = []
+key_hint = "使用对应区域 Coding Plan 控制台的 key；不能按 key 前缀判断区域"
+chat = "https://coding-intl.dashscope.aliyuncs.com/v1"
+anthropic = "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+
+[[preset]]
+id = "bailian-token"
+label = "百炼 Token Plan"
+region = ["cn"]
+default_wire = "messages"
+models = ["qwen-plus", "qwen3-coder-plus"]
+no_list = true
+quirks = []
+key_hint = "使用 Token Plan 对应区域 API key"
+chat = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+anthropic = "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic"
+
+[[preset]]
+id = "dashscope"
+label = "百炼 / DashScope 按量"
+region = ["cn"]
+default_wire = "chat"
+models = ["qwen-plus", "qwen3-coder-plus"]
+no_list = true
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+[[preset]]
+id = "dashscope-global"
+label = "DashScope 国际按量"
+region = ["global"]
+default_wire = "chat"
+models = ["qwen-plus", "qwen3-coder-plus"]
+no_list = true
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+[[preset]]
+id = "volc-coding"
+label = "火山方舟 Coding Plan"
+region = ["cn"]
+default_wire = "messages"
+models = ["ark-code-latest", "doubao-seed-2.1-pro"]
+no_list = true
+quirks = []
+key_hint = "使用对应套餐 key；按量模型请使用专属 endpoint id"
+chat = "https://ark.cn-beijing.volces.com/api/coding/v3"
+responses = "https://ark.cn-beijing.volces.com/api/coding/v3"
+anthropic = "https://ark.cn-beijing.volces.com/api/coding"
+
+[[preset]]
+id = "volc-agent"
+label = "火山方舟 Agent Plan"
+region = ["cn"]
+default_wire = "messages"
+models = ["ark-code-latest", "doubao-seed-2.1-pro"]
+no_list = true
+quirks = []
+key_hint = "使用对应套餐 key；按量模型请使用专属 endpoint id"
+chat = "https://ark.cn-beijing.volces.com/api/plan/v3"
+responses = "https://ark.cn-beijing.volces.com/api/plan/v3"
+anthropic = "https://ark.cn-beijing.volces.com/api/plan"
+
+[[preset]]
+id = "minimax-coding"
+label = "MiniMax Coding Plan（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["MiniMax-M2.7"]
+no_list = true
+quirks = ["minimax_plan"]
+key_hint = "套餐使用 sk-cp-；sk-api- 是按量 key，请选择按量预设"
+chat = "https://api.minimax.io/v1"
+anthropic = "https://api.minimax.io/anthropic"
+
+[[preset]]
+id = "minimax-api"
+label = "MiniMax 按量（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["MiniMax-M2.7"]
+no_list = true
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.minimax.io/v1"
+anthropic = "https://api.minimax.io/anthropic"
+
+[[preset]]
+id = "minimax-coding-cn"
+label = "MiniMax Coding Plan（国内）"
+region = ["cn"]
+default_wire = "messages"
+models = ["MiniMax-M2.7"]
+no_list = true
+quirks = ["minimax_plan"]
+key_hint = "套餐使用 sk-cp-；sk-api- 是按量 key，请选择按量预设"
+chat = "https://api.minimaxi.com/v1"
+anthropic = "https://api.minimaxi.com/anthropic"
+
+[[preset]]
+id = "minimax-api-cn"
+label = "MiniMax 按量（国内）"
+region = ["cn"]
+default_wire = "messages"
+models = ["MiniMax-M2.7"]
+no_list = true
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.minimaxi.com/v1"
+anthropic = "https://api.minimaxi.com/anthropic"
+
+[[preset]]
+id = "moonshot"
+label = "Moonshot 开放平台（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["kimi-k2.5"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.moonshot.ai/v1"
+anthropic = "https://api.moonshot.ai/anthropic"
+
+[[preset]]
+id = "moonshot-cn"
+label = "Moonshot 开放平台（国内）"
+region = ["cn"]
+default_wire = "messages"
+models = ["kimi-k2.5"]
+no_list = false
+quirks = []
+key_hint = "在厂商控制台创建 API key"
+chat = "https://api.moonshot.cn/v1"
+anthropic = "https://api.moonshot.cn/anthropic"
+
+[[preset]]
+id = "kimi-code"
+label = "Kimi Code 套餐 key（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["kimi-for-coding"]
+no_list = true
+quirks = ["kimi_msh", "kimi_schema"]
+key_hint = "使用 Kimi Code 控制台 key，或选择订阅登录"
+chat = "https://api.kimi.ai/coding/v1"
+anthropic = "https://api.kimi.ai/coding"
+
+[[preset]]
+id = "kimi-code-cn"
+label = "Kimi Code 套餐 key（国内）"
+region = ["cn"]
+default_wire = "messages"
+models = ["kimi-for-coding"]
+no_list = true
+quirks = ["kimi_msh", "kimi_schema"]
+key_hint = "使用 Kimi Code 控制台 key，或选择订阅登录"
+chat = "https://api.kimi.com/coding/v1"
+anthropic = "https://api.kimi.com/coding"
+
+[[preset]]
+id = "zhipu"
+label = "智谱 GLM 按量 / 自动识别 Coding Plan"
+region = ["cn"]
+default_wire = "chat"
+models = ["glm-5", "glm-4.7"]
+no_list = true
+quirks = ["zhipu_envelope", "zhipu_coding"]
+key_hint = "1113 余额错误时自动尝试同厂商 Coding Plan 地址"
+chat = "https://open.bigmodel.cn/api/paas/v4"
+
+[[preset]]
+id = "zai"
+label = "Z.ai GLM 按量 / 自动识别 Coding Plan"
+region = ["global"]
+default_wire = "chat"
+models = ["glm-5", "glm-4.7"]
+no_list = true
+quirks = ["zhipu_envelope", "zhipu_coding"]
+key_hint = "1113 余额错误时自动尝试同厂商 Coding Plan 地址"
+chat = "https://api.z.ai/api/paas/v4"
+
+[[preset]]
+id = "qwen-token"
+label = "千问 Token Plan"
+region = ["cn"]
+default_wire = "messages"
+models = ["qwen-plus", "qwen3-coder-plus"]
+no_list = true
+quirks = []
+key_hint = "使用千问平台 Token Plan 专属 sk-sp- key，不与百炼混用"
+chat = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1"
+anthropic = "https://token-plan.maas.qianwenaiapi.com/apps/anthropic"
+
+[[preset]]
+id = "minimax-coding-backup"
+label = "MiniMax Coding Plan（国内备用）"
+region = ["cn"]
+default_wire = "messages"
+models = ["MiniMax-M2.7"]
+no_list = true
+quirks = ["minimax_plan"]
+key_hint = "套餐使用 sk-cp-；备用域名，请先测试连接"
+anthropic = "https://api.minimax.cn/anthropic"

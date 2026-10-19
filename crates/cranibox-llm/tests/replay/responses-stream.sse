@@ -1,0 +1,45 @@
+event: response.created
+data: {"type": "response.created", "response": {"id": "resp_fake", "object": "response", "model": "test-model", "status": "in_progress", "output": [], "usage": {"input_tokens": 7, "output_tokens": 11, "total_tokens": 18}}}
+
+event: response.output_item.added
+data: {"type": "response.output_item.added", "output_index": 0, "item": {"id": "rs_fake", "type": "reasoning", "summary": [], "encrypted_content": "fake-encrypted"}}
+
+event: response.reasoning_summary_text.delta
+data: {"type": "response.reasoning_summary_text.delta", "item_id": "rs_fake", "output_index": 0, "summary_index": 0, "delta": "先分析"}
+
+event: response.output_item.done
+data: {"type": "response.output_item.done", "output_index": 0, "item": {"id": "rs_fake", "type": "reasoning", "summary": [{"type": "summary_text", "text": "先分析"}], "encrypted_content": "fake-encrypted"}}
+
+event: response.output_item.added
+data: {"type": "response.output_item.added", "output_index": 1, "item": {"id": "msg_fake", "type": "message", "role": "assistant", "status": "completed", "content": []}}
+
+event: response.content_part.added
+data: {"type": "response.content_part.added", "item_id": "msg_fake", "output_index": 1, "content_index": 0, "part": {"type": "output_text", "text": "", "annotations": []}}
+
+event: response.output_text.delta
+data: {"type": "response.output_text.delta", "item_id": "msg_fake", "output_index": 1, "content_index": 0, "delta": "完成 🦀"}
+
+event: response.output_item.done
+data: {"type": "response.output_item.done", "output_index": 1, "item": {"id": "msg_fake", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "完成 🦀", "annotations": []}]}}
+
+event: response.output_item.added
+data: {"type": "response.output_item.added", "output_index": 2, "item": {"id": "fc_call_weather", "type": "function_call", "call_id": "call_weather", "name": "weather", "arguments": "", "status": "completed"}}
+
+event: response.function_call_arguments.delta
+data: {"type": "response.function_call_arguments.delta", "item_id": "fc_call_weather", "output_index": 2, "delta": "{\"city\": \"北京\"}"}
+
+event: response.output_item.done
+data: {"type": "response.output_item.done", "output_index": 2, "item": {"id": "fc_call_weather", "type": "function_call", "call_id": "call_weather", "name": "weather", "arguments": "{\"city\": \"北京\"}", "status": "completed"}}
+
+event: response.output_item.added
+data: {"type": "response.output_item.added", "output_index": 3, "item": {"id": "fc_call_clock", "type": "function_call", "call_id": "call_clock", "name": "clock", "arguments": "", "status": "completed"}}
+
+event: response.function_call_arguments.delta
+data: {"type": "response.function_call_arguments.delta", "item_id": "fc_call_clock", "output_index": 3, "delta": "{\"zone\": \"UTC\"}"}
+
+event: response.output_item.done
+data: {"type": "response.output_item.done", "output_index": 3, "item": {"id": "fc_call_clock", "type": "function_call", "call_id": "call_clock", "name": "clock", "arguments": "{\"zone\": \"UTC\"}", "status": "completed"}}
+
+event: response.completed
+data: {"type": "response.completed", "response": {"id": "resp_fake", "object": "response", "model": "test-model", "status": "completed", "output": [{"id": "rs_fake", "type": "reasoning", "summary": [{"type": "summary_text", "text": "先分析"}], "encrypted_content": "fake-encrypted"}, {"id": "msg_fake", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "完成 🦀", "annotations": []}]}, {"id": "fc_call_weather", "type": "function_call", "call_id": "call_weather", "name": "weather", "arguments": "{\"city\": \"北京\"}", "status": "completed"}, {"id": "fc_call_clock", "type": "function_call", "call_id": "call_clock", "name": "clock", "arguments": "{\"zone\": \"UTC\"}", "status": "completed"}], "usage": {"input_tokens": 7, "output_tokens": 11, "total_tokens": 18}}}
+

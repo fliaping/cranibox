@@ -13,8 +13,13 @@ pub mod kimi;
 
 /// Every compiled-in upstream, in lookup order.
 pub fn registry() -> Vec<Arc<dyn Upstream>> {
-    #[allow(unused_mut)]
-    let mut upstreams: Vec<Arc<dyn Upstream>> = Vec::new();
+    let upstreams: Vec<Arc<dyn Upstream>> = vec![
+        Arc::new(apikey::ApiKey),
+        Arc::new(codex::Codex::default()),
+        Arc::new(kimi::Kimi::default()),
+        Arc::new(gemini::Gemini::default()),
+        Arc::new(copilot::Copilot::default()),
+    ];
     // --- WS2: API key and custom providers ---
 
     // --- WS3: codex, kimi, gemini, copilot, cn ---
