@@ -23,7 +23,7 @@ class BackgroundAgentSyncTests(unittest.TestCase):
     def grant_messages(self):
         self.cli('revoke', '--node', self.caller)
         self.token_path = self.h.root / 'messages.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_path, '--messages')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--messages')
         self.token = self.token_path.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 

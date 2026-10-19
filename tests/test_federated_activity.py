@@ -30,7 +30,7 @@ class ActivityTests(unittest.TestCase):
     def enable(self, *permissions):
         path = self.h.root / (str(uuid.uuid4()) + '.token')
         self.cli('revoke', '--node', self.caller)
-        self.cli('grant', '--node', self.caller, '--output-token', path, *permissions)
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', path, *permissions)
         self.token = path.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 
@@ -51,7 +51,7 @@ class ActivityTests(unittest.TestCase):
         result = subprocess.run([str(NODE), '--config', str(other_settings), 'peer', 'identity'], capture_output=True, text=True, check=True, timeout=10)
         other = json.loads(result.stdout)['node_id']
         token_path = self.h.root/'third.token'
-        self.cli('grant', '--node', other, '--messages', '--output-token', token_path)
+        self.cli('grant', '--allow-unverified', '--node', other, '--messages', '--output-token', token_path)
         other_token = token_path.read_text().strip()
         message = self.envelope(other)
         self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', message, {'Authorization':'Bearer '+other_token})[0], 200)
