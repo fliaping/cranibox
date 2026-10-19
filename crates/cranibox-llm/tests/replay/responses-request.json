@@ -1,0 +1,65 @@
+{
+  "model": "test-model",
+  "max_output_tokens": 256,
+  "instructions": "Be helpful",
+  "input": [
+    {
+      "role": "user",
+      "content": "查询天气和时间"
+    },
+    {
+      "id": "fc_call_weather",
+      "type": "function_call",
+      "call_id": "call_weather",
+      "name": "weather",
+      "arguments": "{\"city\": \"北京\"}",
+      "status": "completed"
+    },
+    {
+      "id": "fc_call_clock",
+      "type": "function_call",
+      "call_id": "call_clock",
+      "name": "clock",
+      "arguments": "{\"zone\": \"UTC\"}",
+      "status": "completed"
+    },
+    {
+      "type": "function_call_output",
+      "call_id": "call_weather",
+      "output": "晴天"
+    },
+    {
+      "type": "function_call_output",
+      "call_id": "call_clock",
+      "output": "12:00"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "weather",
+      "description": "weather",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "name": "clock",
+      "description": "clock",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "zone": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

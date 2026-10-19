@@ -1,0 +1,20 @@
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"reasoning_content": "先分析"}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"content": "完成 🦀"}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "call_weather", "type": "function", "function": {"name": "weather", "arguments": ""}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{\"city\": \"北京\"}"}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 1, "id": "call_clock", "type": "function", "function": {"name": "clock", "arguments": ""}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 1, "function": {"arguments": "{\"zone\": \"UTC\"}"}}]}, "finish_reason": null}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "created": 1, "model": "test-model", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+
+data: {"id": "chatcmpl_fake", "object": "chat.completion.chunk", "choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": 11, "total_tokens": 18}}
+
+data: [DONE]
+

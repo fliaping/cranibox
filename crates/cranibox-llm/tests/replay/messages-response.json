@@ -1,0 +1,39 @@
+{
+  "id": "msg_fake",
+  "type": "message",
+  "role": "assistant",
+  "model": "test-model",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "先分析",
+      "signature": "fake-signature"
+    },
+    {
+      "type": "text",
+      "text": "完成 🦀"
+    },
+    {
+      "type": "tool_use",
+      "id": "call_weather",
+      "name": "weather",
+      "input": {
+        "city": "北京"
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "call_clock",
+      "name": "clock",
+      "input": {
+        "zone": "UTC"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 7,
+    "output_tokens": 11
+  }
+}

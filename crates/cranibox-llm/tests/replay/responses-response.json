@@ -1,0 +1,53 @@
+{
+  "id": "resp_fake",
+  "object": "response",
+  "model": "test-model",
+  "status": "completed",
+  "output": [
+    {
+      "id": "rs_fake",
+      "type": "reasoning",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "先分析"
+        }
+      ],
+      "encrypted_content": "fake-encrypted"
+    },
+    {
+      "id": "msg_fake",
+      "type": "message",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "完成 🦀",
+          "annotations": []
+        }
+      ]
+    },
+    {
+      "id": "fc_call_weather",
+      "type": "function_call",
+      "call_id": "call_weather",
+      "name": "weather",
+      "arguments": "{\"city\": \"北京\"}",
+      "status": "completed"
+    },
+    {
+      "id": "fc_call_clock",
+      "type": "function_call",
+      "call_id": "call_clock",
+      "name": "clock",
+      "arguments": "{\"zone\": \"UTC\"}",
+      "status": "completed"
+    }
+  ],
+  "usage": {
+    "input_tokens": 7,
+    "output_tokens": 11,
+    "total_tokens": 18
+  }
+}

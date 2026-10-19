@@ -1,0 +1,40 @@
+{
+  "id": "chatcmpl_fake",
+  "object": "chat.completion",
+  "created": 1,
+  "model": "test-model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "完成 🦀",
+        "reasoning_content": "先分析",
+        "tool_calls": [
+          {
+            "id": "call_weather",
+            "type": "function",
+            "function": {
+              "name": "weather",
+              "arguments": "{\"city\": \"北京\"}"
+            }
+          },
+          {
+            "id": "call_clock",
+            "type": "function",
+            "function": {
+              "name": "clock",
+              "arguments": "{\"zone\": \"UTC\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 7,
+    "completion_tokens": 11,
+    "total_tokens": 18
+  }
+}
