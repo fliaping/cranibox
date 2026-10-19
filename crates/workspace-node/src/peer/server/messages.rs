@@ -23,7 +23,11 @@ async fn access(
             Some(message) => store.receive(&caller.node, message, policy),
             None => store.received(&caller.node, id.expect("receipt route supplies ID")),
         };
-        result.map(Json).map_err(|_| failure(StatusCode::BAD_REQUEST, "Message or receipt unavailable. Check its identity, content, lifetime and mailbox capacity."))
+        result.map(Json).map_err(|error| if error.is::<agent_workspace_runtime::peers::messages::RateLimited>() {
+            failure(StatusCode::TOO_MANY_REQUESTS, "sender rate limit reached; retry later")
+        } else {
+            failure(StatusCode::BAD_REQUEST, "Message or receipt unavailable. Check its identity, content, lifetime and mailbox capacity.")
+        })
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE, "device mailbox unavailable"))?
 }
 pub(super) async fn receive(
