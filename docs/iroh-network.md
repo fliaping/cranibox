@@ -97,7 +97,7 @@ cranibox-node peer pair status                               # EndpointId、rela
 - 两边显示的配对码（SAS）由双方身份派生（复用 #7/#13 的 `pairing_code`），一致才确认；不一致或拒绝时什么都不写。
 - `OwnerDevice`（默认）：双方互相发 grant（全部能力，含 llm/vault），入站消息直接接受；`Guest`：只给对方 messages，入站消息待审。名册（roster）加入由 WS6 接手。
 - 确认后：grant 固定对方身份并标记已核对；route 指向本机回环转发 `http://127.0.0.1:<port>`（带 lease 锁），旧路径保留为备用；Hub 的 relay 记入 `iroh-peers.json` 并立刻开始使用。
-- 已有直连路由的对端（已固定公钥）：服务每 10 分钟探测一次，对端能用 iroh 时把 iroh 回环转发插到路由最前面。
+- 已有直连路由的对端（已固定公钥）：设置 `CRANIBOX_IROH_MIGRATE=1` 后，服务每 10 分钟探测一次，对端能用 iroh 时把 iroh 回环转发插到路由最前面。默认关闭：改路由会改变路由 binding，排队中的消息和任务会因此作废（重新配对则直接走 iroh）。
 
 ## 4. 高级覆盖（不在 UI 中）/ Advanced overrides
 
@@ -117,6 +117,7 @@ cranibox-node peer pair status                               # EndpointId、rela
 | `CRANIBOX_IROH_EXTRA_ROOT=/path/ca.der` | 额外信任一个 CA（DER），用于自签证书的 relay；自检也会使用 |
 | `CRANIBOX_IROH_RELAY_ONLY=1` | 不开 UDP，只走 relay |
 | `CRANIBOX_IROH_NO_LOOKUP=1` | 关闭 DNS/pkarr 地址发现（离线环境） |
+| `CRANIBOX_IROH_MIGRATE=1` | 已固定公钥的直连路由自动改为 iroh 优先 |
 
 ## 5. 排障 / Troubleshooting
 

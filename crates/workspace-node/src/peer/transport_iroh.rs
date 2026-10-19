@@ -261,8 +261,11 @@ impl Shared {
                 Err(error) => eprintln!("iroh forward for {node}: {error:#}"),
             }
         }
-        // Migration: a route with a pinned key whose peer answers on iroh gets iroh first.
-        for (node, route) in &config.routes {
+        // Migration (opt-in, CRANIBOX_IROH_MIGRATE=1): a route with a pinned key whose
+        // peer answers on iroh gets iroh first. Off by default because changing a
+        // route changes its binding, which cancels queued messages and tasks to it.
+        let migrate = std::env::var_os("CRANIBOX_IROH_MIGRATE").is_some();
+        for (node, route) in config.routes.iter().filter(|_| migrate) {
             if learned.peers.contains_key(node) {
                 continue;
             }
