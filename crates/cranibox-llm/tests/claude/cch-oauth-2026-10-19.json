@@ -1,0 +1,53 @@
+{
+  "at": "2026-10-19T10:00:17Z",
+  "scope": "official CLI to isolated loopback mock; no real upstream or account",
+  "package": "@anthropic-ai/claude-code-linux-x64",
+  "version": "2.1.303",
+  "archive_sha256": "2b073f9f6c68882f94a31dbd1b625fa5b8df078715e487aa68e3b0530d0b43f3",
+  "runs": [
+    {
+      "prompt": "Reply OK only.",
+      "exit_code": 0,
+      "requests": [
+        {
+          "path": "/v1/messages?beta=true",
+          "model": "claude-sonnet-4-5",
+          "billing": [
+            "x-anthropic-billing-header: cc_version=2.1.303.41b; cc_entrypoint=sdk-cli;"
+          ],
+          "auth_scheme": "Bearer",
+          "api_key_header": false,
+          "cch_header_names": [],
+          "cch_json_keys": [],
+          "cch": [],
+          "body_sha256": "83321276bb3614dad406d7012a65959157d6e3cbadbaad9aa70d492d52a40a96",
+          "stream": true
+        }
+      ],
+      "stdout_is_json": true,
+      "stderr_tail": ""
+    },
+    {
+      "prompt": "Reply HELLO only.",
+      "exit_code": 0,
+      "requests": [
+        {
+          "path": "/v1/messages?beta=true",
+          "model": "claude-sonnet-4-5",
+          "billing": [
+            "x-anthropic-billing-header: cc_version=2.1.303.eeb; cc_entrypoint=sdk-cli;"
+          ],
+          "auth_scheme": "Bearer",
+          "api_key_header": false,
+          "cch_header_names": [],
+          "cch_json_keys": [],
+          "cch": [],
+          "body_sha256": "efb99e2be37a730e44c8ae77a01beffb6c5ada172ea846c37284168582426474",
+          "stream": true
+        }
+      ],
+      "stdout_is_json": true,
+      "stderr_tail": ""
+    }
+  ]
+}
