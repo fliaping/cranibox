@@ -1,6 +1,7 @@
 //! Opt-in target-authorized direct transport, independent of the Workspace gateway.
 mod browser_proxy;
 pub mod config;
+pub(crate) mod hook;
 pub(crate) mod secure_ws;
 mod server;
 pub(crate) use server::start_with_catalog;
@@ -225,6 +226,11 @@ pub enum Paths {
         url: String,
     },
 }
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum Harness {
+    Claude,
+    Codex,
+}
 #[derive(Debug, Subcommand)]
 pub enum Messages {
     /// Owner approval queue: messages held by inbound policy or the Agent loop guard.
@@ -246,6 +252,18 @@ pub enum Messages {
     },
     /// MCP stdio server for this device's mailbox; no Workspace relay required.
     Mcp,
+    /// Claude Code / Codex hook: reads the hook event JSON on stdin and injects released,
+    /// unread messages addressed to that session as untrusted context. Never fails the turn.
+    Hook,
+    /// Print hook configuration that runs `messages hook` for Claude Code or Codex.
+    HookConfig {
+        #[arg(long, value_enum)]
+        harness: Harness,
+        /// Also continue a session that is stopping when a message is waiting. The message
+        /// then arrives as the next prompt of an unattended turn; off by default.
+        #[arg(long)]
+        wake_on_stop: bool,
+    },
     Send {
         /// Reuse this UUID when retrying an ambiguous local submission.
         #[arg(long = "message-id")]
@@ -449,6 +467,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
         Command::Messages { action } => {
             use agent_workspace_runtime::peers::{Store, messages::Command as Message};
             let store = Store::new(path.clone());
+            if matches!(action, Messages::Hook) {
+                return crate::peer::hook::run(&store).await;
+            }
             if matches!(action, Messages::Mcp) {
                 Config::read(&path)?;
                 let stop = CancellationToken::new();
@@ -459,7 +480,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 return result;
             }
             let command = match action {
-                Messages::Mcp => unreachable!("handled MCP"),
+                Messages::Mcp | Messages::Hook | Messages::HookConfig { .. } => {
+                    unreachable!("handled above")
+                }
                 Messages::List { session } => Message::List { session },
                 Messages::Send {
                     message_id,
