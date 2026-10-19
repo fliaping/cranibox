@@ -42,6 +42,12 @@ pub(crate) fn not_found(error: &anyhow::Error) -> bool {
 
 /// Only transport outages and explicit upstream outages may use an offline
 /// catalog. Authorization, identity and protocol failures must remain failures.
+/// The target asked us to slow down (HTTP 429); the same request may be retried later.
+pub(crate) fn rate_limited(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<HttpError>()
+        .is_some_and(|e| e.status == 429)
+}
 pub(crate) fn unavailable(error: &anyhow::Error) -> bool {
     error.is::<PathsUnavailable>()
         || error.is::<crate::peers::local_forward::Unavailable>()
