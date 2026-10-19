@@ -55,3 +55,32 @@ test('grants are strict by default, opting out is explicit and pairing codes mus
   const grants = actions.filter(a => a.operation === 'grant');
   expect(grants.map(a => [a.node, a.require_verified])).toEqual([['strict-caller', true], ['older-node', false]]);
 });
+
+test('the caller shows the pairing code the target asks for and can verify the target', async ({ page }) => {
+  const actions: any[] = [];
+  const catalog: any = { node_id: 'caller-id', grants: [], listener: null, listener_runtime: { active: false, address: null, applied: true }, routes: [
+    { node: 'target-node', url: 'http://10.0.0.2:7700', allow_private_http: true, identity: { fingerprint: 'cd34', verified: false, pairing_code: '2713-7394-7426' }, paths: [{ url: 'http://10.0.0.2:7700', allow_private_http: true }] },
+  ] };
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON(); actions.push(command);
+    if (command.operation === 'verify') {
+      const target = catalog.routes.find((r: any) => r.node === command.node);
+      if (command.code.replace(/\D/g, '') !== target.identity.pairing_code.replace(/\D/g, '')) { await route.fulfill({ status: 400, json: { error: 'pairing code does not match; compare both devices again' } }); return; }
+      target.identity.verified = true; await route.fulfill({ json: { node: command.node, verified: ['route'], catalog } }); return;
+    }
+    await route.fulfill({ json: catalog });
+  });
+  await page.goto('/#/nodes');
+  const form = page.getByRole('form', { name: 'Verify pairing code target-node' });
+  await expect(form).toContainText('Not verified: enter this code on the target device');
+  await expect(form).toContainText('2713-7394-7426');
+  expect(actions.some(a => a.operation === 'verify')).toBe(false);
+  const input = form.getByLabel('Enter the code shown on the other device');
+  await input.fill('0000-0000-0000');
+  await form.getByRole('button', { name: 'Verify and trust' }).click();
+  await expect(form.getByRole('alert')).toContainText('does not match');
+  await input.fill('2713 7394 7426');
+  await form.getByRole('button', { name: 'Verify and trust' }).click();
+  await expect(page.getByText('Pairing code verified')).toBeVisible();
+  expect(actions.filter(a => a.operation === 'verify').map(a => [a.node, a.code])).toEqual([['target-node', '0000-0000-0000'], ['target-node', '2713 7394 7426']]);
+});

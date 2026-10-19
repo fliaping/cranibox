@@ -1,687 +1,3 @@
-/*!
-herdr-web-ui: https://github.com/devswha/herdr-web-ui
-Reference revision: b76aebefded791d3416d1df64337e2b76543b217
-
-Cranibox adapts workspace navigation, pane tools, and IME-aware terminal input.
-Transport and session management use the Cranibox Rust API.
-
-MIT License
-
-Copyright (c) 2026 devswha
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-noVNC 1.7.0 — HTML5 VNC client
-Copyright (C) 2020 The noVNC authors and individual contributors.
-Source and upstream notices: https://github.com/novnc/noVNC/tree/v1.7.0
-The noVNC source distributed by npm is used without source modifications.
-Cranibox supplies transport adapters outside the noVNC source files.
-Most noVNC files use MPL-2.0; individual notices and vendor licenses follow.
-
-maintainers:
-- Samuel Mannehed for Cendio AB (@samhed)
-- Pierre Ossman for Cendio AB (@CendioOssman)
-maintainersEmeritus:
-- Joel Martin (@kanaka)
-- Solly Ross (@directxman12)
-- @astrand
-contributors:
-# There are a bunch of people that should be here.
-# If you want to be on this list, feel free send a PR
-# to add yourself.
-- jalf <git@jalf.dk>
-- NTT corp.
-
-
-
-LICENSE.MPL-2.0
-
-Mozilla Public License Version 2.0
-==================================
-
-1. Definitions
---------------
-
-1.1. "Contributor"
-    means each individual or legal entity that creates, contributes to
-    the creation of, or owns Covered Software.
-
-1.2. "Contributor Version"
-    means the combination of the Contributions of others (if any) used
-    by a Contributor and that particular Contributor's Contribution.
-
-1.3. "Contribution"
-    means Covered Software of a particular Contributor.
-
-1.4. "Covered Software"
-    means Source Code Form to which the initial Contributor has attached
-    the notice in Exhibit A, the Executable Form of such Source Code
-    Form, and Modifications of such Source Code Form, in each case
-    including portions thereof.
-
-1.5. "Incompatible With Secondary Licenses"
-    means
-
-    (a) that the initial Contributor has attached the notice described
-        in Exhibit B to the Covered Software; or
-
-    (b) that the Covered Software was made available under the terms of
-        version 1.1 or earlier of the License, but not also under the
-        terms of a Secondary License.
-
-1.6. "Executable Form"
-    means any form of the work other than Source Code Form.
-
-1.7. "Larger Work"
-    means a work that combines Covered Software with other material, in
-    a separate file or files, that is not Covered Software.
-
-1.8. "License"
-    means this document.
-
-1.9. "Licensable"
-    means having the right to grant, to the maximum extent possible,
-    whether at the time of the initial grant or subsequently, any and
-    all of the rights conveyed by this License.
-
-1.10. "Modifications"
-    means any of the following:
-
-    (a) any file in Source Code Form that results from an addition to,
-        deletion from, or modification of the contents of Covered
-        Software; or
-
-    (b) any new file in Source Code Form that contains any Covered
-        Software.
-
-1.11. "Patent Claims" of a Contributor
-    means any patent claim(s), including without limitation, method,
-    process, and apparatus claims, in any patent Licensable by such
-    Contributor that would be infringed, but for the grant of the
-    License, by the making, using, selling, offering for sale, having
-    made, import, or transfer of either its Contributions or its
-    Contributor Version.
-
-1.12. "Secondary License"
-    means either the GNU General Public License, Version 2.0, the GNU
-    Lesser General Public License, Version 2.1, the GNU Affero General
-    Public License, Version 3.0, or any later versions of those
-    licenses.
-
-1.13. "Source Code Form"
-    means the form of the work preferred for making modifications.
-
-1.14. "You" (or "Your")
-    means an individual or a legal entity exercising rights under this
-    License. For legal entities, "You" includes any entity that
-    controls, is controlled by, or is under common control with You. For
-    purposes of this definition, "control" means (a) the power, direct
-    or indirect, to cause the direction or management of such entity,
-    whether by contract or otherwise, or (b) ownership of more than
-    fifty percent (50%) of the outstanding shares or beneficial
-    ownership of such entity.
-
-2. License Grants and Conditions
---------------------------------
-
-2.1. Grants
-
-Each Contributor hereby grants You a world-wide, royalty-free,
-non-exclusive license:
-
-(a) under intellectual property rights (other than patent or trademark)
-    Licensable by such Contributor to use, reproduce, make available,
-    modify, display, perform, distribute, and otherwise exploit its
-    Contributions, either on an unmodified basis, with Modifications, or
-    as part of a Larger Work; and
-
-(b) under Patent Claims of such Contributor to make, use, sell, offer
-    for sale, have made, import, and otherwise transfer either its
-    Contributions or its Contributor Version.
-
-2.2. Effective Date
-
-The licenses granted in Section 2.1 with respect to any Contribution
-become effective for each Contribution on the date the Contributor first
-distributes such Contribution.
-
-2.3. Limitations on Grant Scope
-
-The licenses granted in this Section 2 are the only rights granted under
-this License. No additional rights or licenses will be implied from the
-distribution or licensing of Covered Software under this License.
-Notwithstanding Section 2.1(b) above, no patent license is granted by a
-Contributor:
-
-(a) for any code that a Contributor has removed from Covered Software;
-    or
-
-(b) for infringements caused by: (i) Your and any other third party's
-    modifications of Covered Software, or (ii) the combination of its
-    Contributions with other software (except as part of its Contributor
-    Version); or
-
-(c) under Patent Claims infringed by Covered Software in the absence of
-    its Contributions.
-
-This License does not grant any rights in the trademarks, service marks,
-or logos of any Contributor (except as may be necessary to comply with
-the notice requirements in Section 3.4).
-
-2.4. Subsequent Licenses
-
-No Contributor makes additional grants as a result of Your choice to
-distribute the Covered Software under a subsequent version of this
-License (see Section 10.2) or under the terms of a Secondary License (if
-permitted under the terms of Section 3.3).
-
-2.5. Representation
-
-Each Contributor represents that the Contributor believes its
-Contributions are its original creation(s) or it has sufficient rights
-to grant the rights to its Contributions conveyed by this License.
-
-2.6. Fair Use
-
-This License is not intended to limit any rights You have under
-applicable copyright doctrines of fair use, fair dealing, or other
-equivalents.
-
-2.7. Conditions
-
-Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
-in Section 2.1.
-
-3. Responsibilities
--------------------
-
-3.1. Distribution of Source Form
-
-All distribution of Covered Software in Source Code Form, including any
-Modifications that You create or to which You contribute, must be under
-the terms of this License. You must inform recipients that the Source
-Code Form of the Covered Software is governed by the terms of this
-License, and how they can obtain a copy of this License. You may not
-attempt to alter or restrict the recipients' rights in the Source Code
-Form.
-
-3.2. Distribution of Executable Form
-
-If You distribute Covered Software in Executable Form then:
-
-(a) such Covered Software must also be made available in Source Code
-    Form, as described in Section 3.1, and You must inform recipients of
-    the Executable Form how they can obtain a copy of such Source Code
-    Form by reasonable means in a timely manner, at a charge no more
-    than the cost of distribution to the recipient; and
-
-(b) You may distribute such Executable Form under the terms of this
-    License, or sublicense it under different terms, provided that the
-    license for the Executable Form does not attempt to limit or alter
-    the recipients' rights in the Source Code Form under this License.
-
-3.3. Distribution of a Larger Work
-
-You may create and distribute a Larger Work under terms of Your choice,
-provided that You also comply with the requirements of this License for
-the Covered Software. If the Larger Work is a combination of Covered
-Software with a work governed by one or more Secondary Licenses, and the
-Covered Software is not Incompatible With Secondary Licenses, this
-License permits You to additionally distribute such Covered Software
-under the terms of such Secondary License(s), so that the recipient of
-the Larger Work may, at their option, further distribute the Covered
-Software under the terms of either this License or such Secondary
-License(s).
-
-3.4. Notices
-
-You may not remove or alter the substance of any license notices
-(including copyright notices, patent notices, disclaimers of warranty,
-or limitations of liability) contained within the Source Code Form of
-the Covered Software, except that You may alter any license notices to
-the extent required to remedy known factual inaccuracies.
-
-3.5. Application of Additional Terms
-
-You may choose to offer, and to charge a fee for, warranty, support,
-indemnity or liability obligations to one or more recipients of Covered
-Software. However, You may do so only on Your own behalf, and not on
-behalf of any Contributor. You must make it absolutely clear that any
-such warranty, support, indemnity, or liability obligation is offered by
-You alone, and You hereby agree to indemnify every Contributor for any
-liability incurred by such Contributor as a result of warranty, support,
-indemnity or liability terms You offer. You may include additional
-disclaimers of warranty and limitations of liability specific to any
-jurisdiction.
-
-4. Inability to Comply Due to Statute or Regulation
----------------------------------------------------
-
-If it is impossible for You to comply with any of the terms of this
-License with respect to some or all of the Covered Software due to
-statute, judicial order, or regulation then You must: (a) comply with
-the terms of this License to the maximum extent possible; and (b)
-describe the limitations and the code they affect. Such description must
-be placed in a text file included with all distributions of the Covered
-Software under this License. Except to the extent prohibited by statute
-or regulation, such description must be sufficiently detailed for a
-recipient of ordinary skill to be able to understand it.
-
-5. Termination
---------------
-
-5.1. The rights granted under this License will terminate automatically
-if You fail to comply with any of its terms. However, if You become
-compliant, then the rights granted under this License from a particular
-Contributor are reinstated (a) provisionally, unless and until such
-Contributor explicitly and finally terminates Your grants, and (b) on an
-ongoing basis, if such Contributor fails to notify You of the
-non-compliance by some reasonable means prior to 60 days after You have
-come back into compliance. Moreover, Your grants from a particular
-Contributor are reinstated on an ongoing basis if such Contributor
-notifies You of the non-compliance by some reasonable means, this is the
-first time You have received notice of non-compliance with this License
-from such Contributor, and You become compliant prior to 30 days after
-Your receipt of the notice.
-
-5.2. If You initiate litigation against any entity by asserting a patent
-infringement claim (excluding declaratory judgment actions,
-counter-claims, and cross-claims) alleging that a Contributor Version
-directly or indirectly infringes any patent, then the rights granted to
-You by any and all Contributors for the Covered Software under Section
-2.1 of this License shall terminate.
-
-5.3. In the event of termination under Sections 5.1 or 5.2 above, all
-end user license agreements (excluding distributors and resellers) which
-have been validly granted by You or Your distributors under this License
-prior to termination shall survive termination.
-
-************************************************************************
-*                                                                      *
-*  6. Disclaimer of Warranty                                           *
-*  -------------------------                                           *
-*                                                                      *
-*  Covered Software is provided under this License on an "as is"       *
-*  basis, without warranty of any kind, either expressed, implied, or  *
-*  statutory, including, without limitation, warranties that the       *
-*  Covered Software is free of defects, merchantable, fit for a        *
-*  particular purpose or non-infringing. The entire risk as to the     *
-*  quality and performance of the Covered Software is with You.        *
-*  Should any Covered Software prove defective in any respect, You     *
-*  (not any Contributor) assume the cost of any necessary servicing,   *
-*  repair, or correction. This disclaimer of warranty constitutes an   *
-*  essential part of this License. No use of any Covered Software is   *
-*  authorized under this License except under this disclaimer.         *
-*                                                                      *
-************************************************************************
-
-************************************************************************
-*                                                                      *
-*  7. Limitation of Liability                                          *
-*  --------------------------                                          *
-*                                                                      *
-*  Under no circumstances and under no legal theory, whether tort      *
-*  (including negligence), contract, or otherwise, shall any           *
-*  Contributor, or anyone who distributes Covered Software as          *
-*  permitted above, be liable to You for any direct, indirect,         *
-*  special, incidental, or consequential damages of any character      *
-*  including, without limitation, damages for lost profits, loss of    *
-*  goodwill, work stoppage, computer failure or malfunction, or any    *
-*  and all other commercial damages or losses, even if such party      *
-*  shall have been informed of the possibility of such damages. This   *
-*  limitation of liability shall not apply to liability for death or   *
-*  personal injury resulting from such party's negligence to the       *
-*  extent applicable law prohibits such limitation. Some               *
-*  jurisdictions do not allow the exclusion or limitation of           *
-*  incidental or consequential damages, so this exclusion and          *
-*  limitation may not apply to You.                                    *
-*                                                                      *
-************************************************************************
-
-8. Litigation
--------------
-
-Any litigation relating to this License may be brought only in the
-courts of a jurisdiction where the defendant maintains its principal
-place of business and such litigation shall be governed by laws of that
-jurisdiction, without reference to its conflict-of-law provisions.
-Nothing in this Section shall prevent a party's ability to bring
-cross-claims or counter-claims.
-
-9. Miscellaneous
-----------------
-
-This License represents the complete agreement concerning the subject
-matter hereof. If any provision of this License is held to be
-unenforceable, such provision shall be reformed only to the extent
-necessary to make it enforceable. Any law or regulation which provides
-that the language of a contract shall be construed against the drafter
-shall not be used to construe this License against a Contributor.
-
-10. Versions of the License
----------------------------
-
-10.1. New Versions
-
-Mozilla Foundation is the license steward. Except as provided in Section
-10.3, no one other than the license steward has the right to modify or
-publish new versions of this License. Each version will be given a
-distinguishing version number.
-
-10.2. Effect of New Versions
-
-You may distribute the Covered Software under the terms of the version
-of the License under which You originally received the Covered Software,
-or under the terms of any subsequent version published by the license
-steward.
-
-10.3. Modified Versions
-
-If you create software not governed by this License, and you want to
-create a new license for such software, you may create and use a
-modified version of this License if you rename the license and remove
-any references to the name of the license steward (except to note that
-such modified license differs from this License).
-
-10.4. Distributing Source Code Form that is Incompatible With Secondary
-Licenses
-
-If You choose to distribute Source Code Form that is Incompatible With
-Secondary Licenses under the terms of this version of the License, the
-notice described in Exhibit B of this License must be attached.
-
-Exhibit A - Source Code Form License Notice
--------------------------------------------
-
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
-If it is not possible or desirable to put the notice in a particular
-file, then You may include the notice in a location (such as a LICENSE
-file in a relevant directory) where a recipient would be likely to look
-for such a notice.
-
-You may add additional accurate notices of copyright ownership.
-
-Exhibit B - "Incompatible With Secondary Licenses" Notice
----------------------------------------------------------
-
-  This Source Code Form is "Incompatible With Secondary Licenses", as
-  defined by the Mozilla Public License, v. 2.0.
-
-
-LICENSE.BSD-2-Clause
-
-Copyright (c) <year>, <copyright holder>
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
-LICENSE.BSD-3-Clause
-
-Copyright (c) <year>, <copyright holder>
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the <organization> nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
-LICENSE.OFL-1.1
-
-This Font Software is licensed under the SIL Open Font License, Version 1.1.
-This license is copied below, and is also available with a FAQ at:
-http://scripts.sil.org/OFL
-
-
------------------------------------------------------------
-SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
------------------------------------------------------------
-
-PREAMBLE
-The goals of the Open Font License (OFL) are to stimulate worldwide
-development of collaborative font projects, to support the font creation
-efforts of academic and linguistic communities, and to provide a free and
-open framework in which fonts may be shared and improved in partnership
-with others.
-
-The OFL allows the licensed fonts to be used, studied, modified and
-redistributed freely as long as they are not sold by themselves. The
-fonts, including any derivative works, can be bundled, embedded,
-redistributed and/or sold with any software provided that any reserved
-names are not used by derivative works. The fonts and derivatives,
-however, cannot be released under any other type of license. The
-requirement for fonts to remain under this license does not apply
-to any document created using the fonts or their derivatives.
-
-DEFINITIONS
-"Font Software" refers to the set of files released by the Copyright
-Holder(s) under this license and clearly marked as such. This may
-include source files, build scripts and documentation.
-
-"Reserved Font Name" refers to any names specified as such after the
-copyright statement(s).
-
-"Original Version" refers to the collection of Font Software components as
-distributed by the Copyright Holder(s).
-
-"Modified Version" refers to any derivative made by adding to, deleting,
-or substituting -- in part or in whole -- any of the components of the
-Original Version, by changing formats or by porting the Font Software to a
-new environment.
-
-"Author" refers to any designer, engineer, programmer, technical
-writer or other person who contributed to the Font Software.
-
-PERMISSION & CONDITIONS
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of the Font Software, to use, study, copy, merge, embed, modify,
-redistribute, and sell modified and unmodified copies of the Font
-Software, subject to the following conditions:
-
-1) Neither the Font Software nor any of its individual components,
-in Original or Modified Versions, may be sold by itself.
-
-2) Original or Modified Versions of the Font Software may be bundled,
-redistributed and/or sold with any software, provided that each copy
-contains the above copyright notice and this license. These can be
-included either as stand-alone text files, human-readable headers or
-in the appropriate machine-readable metadata fields within text or
-binary files as long as those fields can be easily viewed by the user.
-
-3) No Modified Version of the Font Software may use the Reserved Font
-Name(s) unless explicit written permission is granted by the corresponding
-Copyright Holder. This restriction only applies to the primary font name as
-presented to the users.
-
-4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
-Software shall not be used to promote, endorse or advertise any
-Modified Version, except to acknowledge the contribution(s) of the
-Copyright Holder(s) and the Author(s) or with their explicit written
-permission.
-
-5) The Font Software, modified or unmodified, in part or in whole,
-must be distributed entirely under this license, and must not be
-distributed under any other license. The requirement for fonts to
-remain under this license does not apply to any document created
-using the Font Software.
-
-TERMINATION
-This license becomes null and void if any of the above conditions are
-not met.
-
-DISCLAIMER
-THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
-OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
-COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
-DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
-OTHER DEALINGS IN THE FONT SOFTWARE.
-
-
-Bundled Pako license
-
-(The MIT License)
-
-Copyright (C) 2014-2016 by Vitaly Puzrin
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-DES implementation attribution
-
-
- * Ported from Flashlight VNC ActionScript implementation:
- *     http://www.wizhelp.com/flashlight-vnc/
- *
- * Full attribution follows:
- *
- * -------------------------------------------------------------------------
- *
- * This DES class has been extracted from package Acme.Crypto for use in VNC.
- * The unnecessary odd parity code has been removed.
- *
- * These changes are:
- *  Copyright (C) 1999 AT&T Laboratories Cambridge.  All Rights Reserved.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- *
-
- * DesCipher - the DES encryption method
- *
- * The meat of this code is by Dave Zimmerman <dzimm@widget.com>, and is:
- *
- * Copyright (c) 1996 Widget Workshop, Inc. All Rights Reserved.
- *
- * Permission to use, copy, modify, and distribute this software
- * and its documentation for NON-COMMERCIAL or COMMERCIAL purposes and
- * without fee is hereby granted, provided that this copyright notice is kept
- * intact.
- *
- * WIDGET WORKSHOP MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY
- * OF THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
- * TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE, OR NON-INFRINGEMENT. WIDGET WORKSHOP SHALL NOT BE LIABLE
- * FOR ANY DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR
- * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
- *
- * THIS SOFTWARE IS NOT DESIGNED OR INTENDED FOR USE OR RESALE AS ON-LINE
- * CONTROL EQUIPMENT IN HAZARDOUS ENVIRONMENTS REQUIRING FAIL-SAFE
- * PERFORMANCE, SUCH AS IN THE OPERATION OF NUCLEAR FACILITIES, AIRCRAFT
- * NAVIGATION OR COMMUNICATION SYSTEMS, AIR TRAFFIC CONTROL, DIRECT LIFE
- * SUPPORT MACHINES, OR WEAPONS SYSTEMS, IN WHICH THE FAILURE OF THE
- * SOFTWARE COULD LEAD DIRECTLY TO DEATH, PERSONAL INJURY, OR SEVERE
- * PHYSICAL OR ENVIRONMENTAL DAMAGE ("HIGH RISK ACTIVITIES").  WIDGET WORKSHOP
- * SPECIFICALLY DISCLAIMS ANY EXPRESS OR IMPLIED WARRANTY OF FITNESS FOR
- * HIGH RISK ACTIVITIES.
- *
- *
- * The rest is:
- *
- * Copyright (C) 1996 by Jef Poskanzer <jef@acme.com>.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- * Visit the ACME Labs Java page for up-to-date versions of this and other
- * fine Java utilities: http://www.acme.com/java/
-
-
-*/
 //#region \0rolldown/runtime.js
 var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), s = (e, i, o, s) => {
 	if (i && typeof i == "object" || typeof i == "function") for (var c = r(i), l = 0, u = c.length, d; l < u; l++) d = c[l], !a.call(e, d) && d !== o && t(e, d, {
@@ -991,7 +307,7 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 	t.exports = l();
 })), d = (e) => e?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
 function f(e, t, n = []) {
 	if (t == null) throw Error("[lucide]: iconNode is required when icon name is used");
 	return {
@@ -1002,7 +318,7 @@ function f(e, t, n = []) {
 	};
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
 var p = (e) => {
 	let t = "", n = !1;
 	for (let r of e) r === "-" || r === "_" || r <= " " ? n = t.length > 0 : (t.length === 0 ? t += r.toLowerCase() : t += n ? r.toUpperCase() : r, n = !1);
@@ -1022,7 +338,7 @@ var p = (e) => {
 	"stroke-linejoin": "round"
 };
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
 function _(e) {
 	return e != null;
 }
@@ -1059,7 +375,7 @@ function v(e, t = {}) {
 	];
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
 function y(e, t = {}) {
 	return v(e, {
 		...t,
@@ -1074,7 +390,7 @@ function y(e, t = {}) {
 	});
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
 var b = (e) => {
 	for (let t in e) if (t.startsWith("aria-") || t === "role" || t === "title") return !0;
 	return !1;
@@ -1100,7 +416,7 @@ var b = (e) => {
 	}, [...D.map(([e, t]) => (0, x.createElement)(e, t)), ...Array.isArray(c) ? c : [c]]);
 });
 //#endregion
-//#region node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/createLucideIcon.mjs
 function T(e, t = [], n = []) {
 	let r = typeof e == "string" ? f(e, t, n) : e, i = (0, x.forwardRef)(({ className: e, ...t }, n) => (0, x.createElement)(w, {
 		ref: n,
@@ -1111,7 +427,7 @@ function T(e, t = [], n = []) {
 	return r.name && (i.displayName = m(r.name)), i;
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/icons/activity.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/icons/activity.mjs
 var E = {
 	name: "activity",
 	size: 24,
@@ -13054,7 +12370,7 @@ function Qa(e, { relative: t } = {}) {
 	return Ar(i.pathname, o) != null || Ar(i.pathname, a) != null;
 }
 //#endregion
-//#region node_modules/react/cjs/react-jsx-runtime.production.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/react/cjs/react-jsx-runtime.production.js
 var $a = /* @__PURE__ */ o(((e) => {
 	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
 	function r(e, n, r) {
@@ -13969,7 +13285,7 @@ function Io() {
 	] });
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/int.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/int.js
 function Lo(e) {
 	return e >>> 0;
 }
@@ -13977,7 +13293,7 @@ function Ro(e) {
 	return e | 0;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/logging.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/logging.js
 var zo = "warn", Bo = () => {}, Vo = () => {}, Ho = () => {}, Uo = () => {};
 function Wo(e) {
 	if (e === void 0 ? e = zo : zo = e, Bo = Vo = Ho = Uo = () => {}, window.console !== void 0) switch (e) {
@@ -13991,7 +13307,7 @@ function Wo(e) {
 }
 Wo();
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/strings.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/strings.js
 function Go(e, t = !1) {
 	try {
 		return decodeURIComponent(escape(e));
@@ -14004,7 +13320,7 @@ function Ko(e) {
 	return unescape(encodeURIComponent(e));
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/base64.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/base64.js
 var qo = {
 	toBase64Table: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=".split(""),
 	base64Pad: "=",
@@ -14219,7 +13535,7 @@ function ns() {
 	return !!/ipad/i.exec(navigator.platform) || !!/iphone/i.exec(navigator.platform) || !!/ipod/i.exec(navigator.platform);
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/element.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/element.js
 function rs(e, t, n) {
 	let r = n.getBoundingClientRect(), i = {
 		x: 0,
@@ -14228,7 +13544,7 @@ function rs(e, t, n) {
 	return i.x = e < r.left ? 0 : e >= r.right ? r.width - 1 : e - r.left, i.y = t < r.top ? 0 : t >= r.bottom ? r.height - 1 : t - r.top, i;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/events.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/events.js
 function is(e) {
 	e.stopPropagation(), e.preventDefault();
 }
@@ -14262,7 +13578,7 @@ function ds() {
 	}
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/util/eventtarget.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/eventtarget.js
 var fs = class {
 	constructor() {
 		this._listeners = /* @__PURE__ */ new Map();
@@ -14507,14 +13823,14 @@ var fs = class {
 	}
 };
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/utils/common.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/utils/common.js
 function ms(e, t, n, r, i) {
 	if (t.subarray && e.subarray) e.set(t.subarray(n, n + r), i);
 	else for (var a = 0; a < r; a++) e[i + a] = t[n + a];
 }
 var hs = Uint8Array, gs = Uint16Array, _s = Int32Array;
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/adler32.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/adler32.js
 function vs(e, t, n, r) {
 	for (var i = e & 65535, a = e >>> 16 & 65535, o = 0; n !== 0;) {
 		o = n > 2e3 ? 2e3 : n, n -= o;
@@ -14526,7 +13842,7 @@ function vs(e, t, n, r) {
 	return i | a << 16;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/crc32.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/crc32.js
 function ys() {
 	for (var e, t = [], n = 0; n < 256; n++) {
 		e = n;
@@ -14537,7 +13853,7 @@ function ys() {
 }
 ys();
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inffast.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inffast.js
 var bs = 30, xs = 12;
 function Ss(e, t) {
 	var n = e.state, r = e.next_in, i, a, o, s, c, l, u, d, f, p, m, h, g, _, v, y, b, x, S, C, w, T = e.input, E;
@@ -14622,7 +13938,7 @@ function Ss(e, t) {
 	x = m >> 3, r -= x, m -= x << 3, p &= (1 << m) - 1, e.next_in = r, e.next_out = a, e.avail_in = r < i ? 5 + (i - r) : 5 - (r - i), e.avail_out = a < s ? 257 + (s - a) : 257 - (a - s), n.hold = p, n.bits = m;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inftrees.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inftrees.js
 var Cs = 15, ws = 852, Ts = 592, Es = 0, Ds = 1, Os = 2, ks = [
 	3,
 	4,
@@ -14785,7 +14101,7 @@ function Ns(e, t, n, r, i, a, o, s) {
 	return v !== 0 && (i[C + v] = l - h << 24 | 4194304), s.bits = p, 0;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inflate.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inflate.js
 var Ps = 0, Fs = 1, Is = 2, Ls = 1, Rs = 2, zs = 3, Bs = 4, Vs = 5, Hs = 6, Us = 7, Ws = 8, Gs = 9, Ks = 10, qs = 11, Js = 12, Ys = 13, Xs = 14, Zs = 15, Qs = 16, $s = 17, ec = 18, tc = 19, nc = 20, rc = 21, ic = 22, ac = 23, oc = 24, sc = 25, cc = 26, lc = 27, uc = 28, dc = 29, fc = 30, pc = 31, mc = 32, hc = 852, gc = 592, _c = 15;
 function vc(e) {
 	return (e >>> 24 & 255) + (e >>> 8 & 65280) + ((e & 65280) << 8) + ((e & 255) << 24);
@@ -15212,12 +14528,12 @@ function Ac(e, t) {
 	return e.next_out = o, e.avail_out = c, e.next_in = a, e.avail_in = s, n.hold = l, n.bits = u, (n.wsize || f !== e.avail_out && n.mode < fc && (n.mode < lc || t !== 4)) && kc(e, e.output, e.next_out, f - e.avail_out) ? (n.mode = pc, -4) : (d -= e.avail_in, f -= e.avail_out, e.total_in += d, e.total_out += f, n.total += f, n.wrap && f && (e.adler = n.check = n.flags ? ys(n.check, i, f, e.next_out - f) : vs(n.check, i, f, e.next_out - f)), e.data_type = n.bits + (n.last ? 64 : 0) + (n.mode === Js ? 128 : 0) + (n.mode === nc || n.mode === Zs ? 256 : 0), (d === 0 && f === 0 || t === 4) && w === 0 && (w = -5), w);
 }
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/zstream.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/zstream.js
 function jc() {
 	this.input = null, this.next_in = 0, this.avail_in = 0, this.total_in = 0, this.output = null, this.next_out = 0, this.avail_out = 0, this.total_out = 0, this.msg = "", this.state = null, this.data_type = 2, this.adler = 0;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/inflator.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/inflator.js
 var Mc = class {
 	constructor() {
 		this.strm = new jc(), this.chunkSize = 102400, this.strm.output = new Uint8Array(this.chunkSize), wc(this.strm);
@@ -15497,7 +14813,7 @@ function Wl(e, t, n) {
 	return e.pending_buf[e.d_buf + e.last_lit * 2] = t >>> 8 & 255, e.pending_buf[e.d_buf + e.last_lit * 2 + 1] = t & 255, e.pending_buf[e.l_buf + e.last_lit] = n & 255, e.last_lit++, t === 0 ? e.dyn_ltree[n * 2]++ : (e.matches++, t--, e.dyn_ltree[(ul[n] + Wc + 1) * 2]++, e.dyn_dtree[vl(t) * 2]++), e.last_lit === e.lit_bufsize - 1;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/messages.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/messages.js
 var Gl = {
 	2: "need dictionary",
 	1: "stream end",
@@ -15740,7 +15056,7 @@ function zu(e, t) {
 	return t === 4 ? r.wrap <= 0 ? 1 : (r.wrap === 2 ? (xu(r, e.adler & 255), xu(r, e.adler >> 8 & 255), xu(r, e.adler >> 16 & 255), xu(r, e.adler >> 24 & 255), xu(r, e.total_in & 255), xu(r, e.total_in >> 8 & 255), xu(r, e.total_in >> 16 & 255), xu(r, e.total_in >> 24 & 255)) : (Su(r, e.adler >>> 16), Su(r, e.adler & 65535)), yu(e), r.wrap > 0 && (r.wrap = -r.wrap), +(r.pending === 0)) : 0;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/deflator.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/deflator.js
 var Bu = class {
 	constructor() {
 		this.strm = new jc(), this.chunkSize = 102400, this.outputBuffer = new Uint8Array(this.chunkSize), Ru(this.strm, -1);
@@ -17206,7 +16522,7 @@ function qu(e, t, n) {
 }
 Ku("Alt", U.XK_Alt_L, U.XK_Alt_R), W("AltGraph", U.XK_ISO_Level3_Shift), W("CapsLock", U.XK_Caps_Lock), Ku("Control", U.XK_Control_L, U.XK_Control_R), Ku("Meta", U.XK_Super_L, U.XK_Super_R), W("NumLock", U.XK_Num_Lock), W("ScrollLock", U.XK_Scroll_Lock), Ku("Shift", U.XK_Shift_L, U.XK_Shift_R), qu("Enter", U.XK_Return, U.XK_KP_Enter), W("Tab", U.XK_Tab), qu(" ", U.XK_space, U.XK_KP_Space), qu("ArrowDown", U.XK_Down, U.XK_KP_Down), qu("ArrowLeft", U.XK_Left, U.XK_KP_Left), qu("ArrowRight", U.XK_Right, U.XK_KP_Right), qu("ArrowUp", U.XK_Up, U.XK_KP_Up), qu("End", U.XK_End, U.XK_KP_End), qu("Home", U.XK_Home, U.XK_KP_Home), qu("PageDown", U.XK_Next, U.XK_KP_Next), qu("PageUp", U.XK_Prior, U.XK_KP_Prior), W("Backspace", U.XK_BackSpace), qu("Clear", U.XK_Clear, U.XK_KP_Begin), W("Copy", U.XF86XK_Copy), W("Cut", U.XF86XK_Cut), qu("Delete", U.XK_Delete, U.XK_KP_Delete), qu("Insert", U.XK_Insert, U.XK_KP_Insert), W("Paste", U.XF86XK_Paste), W("Redo", U.XK_Redo), W("Undo", U.XK_Undo), W("Cancel", U.XK_Cancel), W("ContextMenu", U.XK_Menu), W("Escape", U.XK_Escape), W("Execute", U.XK_Execute), W("Find", U.XK_Find), W("Help", U.XK_Help), W("Pause", U.XK_Pause), W("Select", U.XK_Select), W("ZoomIn", U.XF86XK_ZoomIn), W("ZoomOut", U.XF86XK_ZoomOut), W("BrightnessDown", U.XF86XK_MonBrightnessDown), W("BrightnessUp", U.XF86XK_MonBrightnessUp), W("Eject", U.XF86XK_Eject), W("LogOff", U.XF86XK_LogOff), W("Power", U.XF86XK_PowerOff), W("PowerOff", U.XF86XK_PowerDown), W("PrintScreen", U.XK_Print), W("Hibernate", U.XF86XK_Hibernate), W("Standby", U.XF86XK_Standby), W("WakeUp", U.XF86XK_WakeUp), W("AllCandidates", U.XK_MultipleCandidate), W("Alphanumeric", U.XK_Eisu_toggle), W("CodeInput", U.XK_Codeinput), W("Compose", U.XK_Multi_key), W("Convert", U.XK_Henkan), W("GroupFirst", U.XK_ISO_First_Group), W("GroupLast", U.XK_ISO_Last_Group), W("GroupNext", U.XK_ISO_Next_Group), W("GroupPrevious", U.XK_ISO_Prev_Group), W("NonConvert", U.XK_Muhenkan), W("PreviousCandidate", U.XK_PreviousCandidate), W("SingleCandidate", U.XK_SingleCandidate), W("HangulMode", U.XK_Hangul), W("HanjaMode", U.XK_Hangul_Hanja), W("JunjaMode", U.XK_Hangul_Jeonja), W("Eisu", U.XK_Eisu_toggle), W("Hankaku", U.XK_Hankaku), W("Hiragana", U.XK_Hiragana), W("HiraganaKatakana", U.XK_Hiragana_Katakana), W("KanaMode", U.XK_Kana_Shift), W("KanjiMode", U.XK_Kanji), W("Katakana", U.XK_Katakana), W("Romaji", U.XK_Romaji), W("Zenkaku", U.XK_Zenkaku), W("ZenkakuHankaku", U.XK_Zenkaku_Hankaku), W("F1", U.XK_F1), W("F2", U.XK_F2), W("F3", U.XK_F3), W("F4", U.XK_F4), W("F5", U.XK_F5), W("F6", U.XK_F6), W("F7", U.XK_F7), W("F8", U.XK_F8), W("F9", U.XK_F9), W("F10", U.XK_F10), W("F11", U.XK_F11), W("F12", U.XK_F12), W("F13", U.XK_F13), W("F14", U.XK_F14), W("F15", U.XK_F15), W("F16", U.XK_F16), W("F17", U.XK_F17), W("F18", U.XK_F18), W("F19", U.XK_F19), W("F20", U.XK_F20), W("F21", U.XK_F21), W("F22", U.XK_F22), W("F23", U.XK_F23), W("F24", U.XK_F24), W("F25", U.XK_F25), W("F26", U.XK_F26), W("F27", U.XK_F27), W("F28", U.XK_F28), W("F29", U.XK_F29), W("F30", U.XK_F30), W("F31", U.XK_F31), W("F32", U.XK_F32), W("F33", U.XK_F33), W("F34", U.XK_F34), W("F35", U.XK_F35), W("Close", U.XF86XK_Close), W("MailForward", U.XF86XK_MailForward), W("MailReply", U.XF86XK_Reply), W("MailSend", U.XF86XK_Send), W("MediaFastForward", U.XF86XK_AudioForward), W("MediaPause", U.XF86XK_AudioPause), W("MediaPlay", U.XF86XK_AudioPlay), W("MediaRecord", U.XF86XK_AudioRecord), W("MediaRewind", U.XF86XK_AudioRewind), W("MediaStop", U.XF86XK_AudioStop), W("MediaTrackNext", U.XF86XK_AudioNext), W("MediaTrackPrevious", U.XF86XK_AudioPrev), W("New", U.XF86XK_New), W("Open", U.XF86XK_Open), W("Print", U.XK_Print), W("Save", U.XF86XK_Save), W("SpellCheck", U.XF86XK_Spell), W("AudioVolumeDown", U.XF86XK_AudioLowerVolume), W("AudioVolumeUp", U.XF86XK_AudioRaiseVolume), W("AudioVolumeMute", U.XF86XK_AudioMute), W("MicrophoneVolumeMute", U.XF86XK_AudioMicMute), W("LaunchApplication1", U.XF86XK_MyComputer), W("LaunchApplication2", U.XF86XK_Calculator), W("LaunchCalendar", U.XF86XK_Calendar), W("LaunchMail", U.XF86XK_Mail), W("LaunchMediaPlayer", U.XF86XK_AudioMedia), W("LaunchMusicPlayer", U.XF86XK_Music), W("LaunchPhone", U.XF86XK_Phone), W("LaunchScreenSaver", U.XF86XK_ScreenSaver), W("LaunchSpreadsheet", U.XF86XK_Excel), W("LaunchWebBrowser", U.XF86XK_WWW), W("LaunchWebCam", U.XF86XK_WebCam), W("LaunchWordProcessor", U.XF86XK_Word), W("BrowserBack", U.XF86XK_Back), W("BrowserFavorites", U.XF86XK_Favorites), W("BrowserForward", U.XF86XK_Forward), W("BrowserHome", U.XF86XK_HomePage), W("BrowserRefresh", U.XF86XK_Refresh), W("BrowserSearch", U.XF86XK_Search), W("BrowserStop", U.XF86XK_Stop), W("Dimmer", U.XF86XK_BrightnessAdjust), W("MediaAudioTrack", U.XF86XK_AudioCycleTrack), W("RandomToggle", U.XF86XK_AudioRandomPlay), W("SplitScreenToggle", U.XF86XK_SplitScreen), W("Subtitle", U.XF86XK_Subtitle), W("VideoModeNext", U.XF86XK_Next_VMode), qu("=", U.XK_equal, U.XK_KP_Equal), qu("+", U.XK_plus, U.XK_KP_Add), qu("-", U.XK_minus, U.XK_KP_Subtract), qu("*", U.XK_asterisk, U.XK_KP_Multiply), qu("/", U.XK_slash, U.XK_KP_Divide), qu(".", U.XK_period, U.XK_KP_Decimal), qu(",", U.XK_comma, U.XK_KP_Separator), qu("0", U.XK_0, U.XK_KP_0), qu("1", U.XK_1, U.XK_KP_1), qu("2", U.XK_2, U.XK_KP_2), qu("3", U.XK_3, U.XK_KP_3), qu("4", U.XK_4, U.XK_KP_4), qu("5", U.XK_5, U.XK_KP_5), qu("6", U.XK_6, U.XK_KP_6), qu("7", U.XK_7, U.XK_KP_7), qu("8", U.XK_8, U.XK_KP_8), qu("9", U.XK_9, U.XK_KP_9);
 //#endregion
-//#region node_modules/@novnc/novnc/core/input/util.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/input/util.js
 function Ju(e) {
 	if (e.code) {
 		switch (e.code) {
@@ -17282,7 +16598,7 @@ function Xu(e) {
 	return n ? Hu.lookup(n) : null;
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/input/keyboard.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/input/keyboard.js
 var Zu = class {
 	constructor(e) {
 		this._target = e || null, this._keyDownList = {}, this._altGrArmed = !1, this._eventHandlers = {
@@ -18815,7 +18131,7 @@ var Pd = [
 	}
 };
 //#endregion
-//#region node_modules/@novnc/novnc/core/crypto/bigint.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/bigint.js
 function Rd(e, t, n) {
 	let r = 1n;
 	for (e %= n; t > 0n;) (t & 1n) == 1n && (r = r * e % n), t >>= 1n, e = e * e % n;
@@ -18834,7 +18150,7 @@ function Bd(e) {
 	return BigInt(t);
 }
 //#endregion
-//#region node_modules/@novnc/novnc/core/crypto/rsa.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/rsa.js
 var Vd = class e {
 	constructor() {
 		this._keyLength = 0, this._keyBytes = 0, this._n = null, this._e = null, this._d = null, this._nBigInt = null, this._eBigInt = null, this._dBigInt = null, this._extractable = !1;
@@ -18931,7 +18247,7 @@ var Vd = class e {
 	}
 };
 //#endregion
-//#region node_modules/@novnc/novnc/core/crypto/md5.js
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/md5.js
 async function Wd(e) {
 	let t = "";
 	for (let n = 0; n < e.length; n++) t += String.fromCharCode(e[n]);
@@ -29948,7 +29264,7 @@ function Fm({ title: e, children: t, onCancel: n, className: r = "" }) {
 	});
 }
 //#endregion
-//#region node_modules/@xterm/xterm/lib/xterm.mjs
+//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@xterm/xterm/lib/xterm.mjs
 var Im = Object.defineProperty, Lm = Object.getOwnPropertyDescriptor, Rm = (e, t) => {
 	for (var n in t) Im(e, n, {
 		get: t[n],
@@ -41874,16 +41190,89 @@ function aC({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a,
 	});
 }
 //#endregion
+//#region src/devices/RoutePairing.tsx
+function oC({ route: e, client: t, language: n, busy: r, run: i, onCatalog: a }) {
+	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), d = e.identity;
+	if (!d) return /* @__PURE__ */ (0, B.jsx)("p", {
+		className: "direct-pairing",
+		children: o("首次连接后显示配对码", "The pairing code appears after the first connection")
+	});
+	if (d.verified) return /* @__PURE__ */ (0, B.jsxs)("p", {
+		className: "direct-pairing direct-pairing-verified",
+		children: [
+			/* @__PURE__ */ (0, B.jsx)(L, {
+				size: 15,
+				"aria-hidden": "true"
+			}),
+			o("配对码已核对", "Pairing code verified"),
+			" ",
+			/* @__PURE__ */ (0, B.jsx)("code", { children: d.pairing_code || "—" })
+		]
+	});
+	function f(n) {
+		n.preventDefault(), i(async () => {
+			try {
+				let n = await t({
+					operation: "verify",
+					node: e.node,
+					code: s.trim()
+				});
+				c(""), u(""), a(n.catalog);
+			} catch (e) {
+				u(e instanceof Error ? e.message : String(e));
+			}
+		});
+	}
+	return /* @__PURE__ */ (0, B.jsxs)("form", {
+		className: "direct-pairing direct-pairing-pending",
+		onSubmit: f,
+		"aria-label": o("核对配对码 ", "Verify pairing code ") + e.node,
+		children: [
+			/* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)(bn, {
+				size: 15,
+				"aria-hidden": "true"
+			}), o("未核对：请在目标设备输入此配对码", "Not verified: enter this code on the target device")] }),
+			/* @__PURE__ */ (0, B.jsxs)("span", { children: [
+				o("本机显示的配对码", "Code shown here"),
+				" ",
+				/* @__PURE__ */ (0, B.jsx)("code", { children: d.pairing_code || "—" })
+			] }),
+			/* @__PURE__ */ (0, B.jsxs)("label", { children: [o("输入对方设备显示的配对码", "Enter the code shown on the other device"), /* @__PURE__ */ (0, B.jsx)("input", {
+				inputMode: "numeric",
+				autoComplete: "off",
+				pattern: "[0-9 -]{12,16}",
+				required: !0,
+				value: s,
+				disabled: r,
+				onChange: (e) => c(e.target.value)
+			})] }),
+			/* @__PURE__ */ (0, B.jsxs)("button", {
+				type: "submit",
+				disabled: r,
+				children: [/* @__PURE__ */ (0, B.jsx)(L, {
+					size: 16,
+					"aria-hidden": "true"
+				}), o("核对并信任", "Verify and trust")]
+			}),
+			l && /* @__PURE__ */ (0, B.jsx)("span", {
+				className: "direct-error",
+				role: "alert",
+				children: l
+			})
+		]
+	});
+}
+//#endregion
 //#region src/devices/DirectDevicesView.tsx
-var oC = {
+var sC = {
 	node: "",
 	url: "",
 	token: "",
 	allow_private_http: !1
-}, sC = (e) => e instanceof Error ? e.message : String(e), cC = "cranibox.direct.jobs";
-function lC() {
+}, cC = (e) => e instanceof Error ? e.message : String(e), lC = "cranibox.direct.jobs";
+function uC() {
 	try {
-		let e = JSON.parse(sessionStorage.getItem(cC) || "[]");
+		let e = JSON.parse(sessionStorage.getItem(lC) || "[]");
 		if (Array.isArray(e)) return e.filter((e) => typeof e?.id == "string" && typeof e?.node == "string").slice(-20).map((e) => ({
 			id: e.id,
 			node: e.node,
@@ -41892,8 +41281,8 @@ function lC() {
 	} catch {}
 	return [];
 }
-function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(oC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [P, F] = (0, x.useState)(lC), [te, ne] = (0, x.useState)(""), [I, re] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), le = (0, x.useRef)(null), ue = i?.routes.find((e) => e.node === o) || i?.routes[0], de = P.filter((e) => e.node === ue?.node), fe = de.find((e) => e.id === te) || de.at(-1), z = C?.node === ue?.node ? C : void 0, me = (e) => {
+function dC({ client: e, language: t = "en", onOpenTerminal: n }) {
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(sC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [P, F] = (0, x.useState)(uC), [te, ne] = (0, x.useState)(""), [I, re] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), le = (0, x.useRef)(null), ue = i?.routes.find((e) => e.node === o) || i?.routes[0], de = P.filter((e) => e.node === ue?.node), fe = de.find((e) => e.id === te) || de.at(-1), z = C?.node === ue?.node ? C : void 0, me = (e) => {
 		++ce.current, a(e), w(void 0), ++se.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
 	}, he = (0, x.useCallback)(async () => {
 		let t = ++ce.current;
@@ -41901,7 +41290,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			let n = await e({ operation: "list" });
 			ae.current && t === ce.current && (a(n), w(void 0), ++se.current, E(!1), h(""));
 		} catch (e) {
-			ae.current && t === ce.current && h(sC(e));
+			ae.current && t === ce.current && h(cC(e));
 		} finally {
 			ae.current && t === ce.current && _(!1);
 		}
@@ -41915,7 +41304,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 		c && le.current?.focus();
 	}, [c]), (0, x.useEffect)(() => {
 		try {
-			sessionStorage.setItem(cC, JSON.stringify(P.map(({ node: e, id: t }) => ({
+			sessionStorage.setItem(lC, JSON.stringify(P.map(({ node: e, id: t }) => ({
 				node: e,
 				id: t
 			}))));
@@ -41935,7 +41324,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					if (t) return;
 					F((e) => e.map((e) => e.id === i && e.node === a ? n : e)), re(""), n.outcome === "running" && (r = setTimeout(o, 1e3));
 				} catch (e) {
-					t || re(sC(e));
+					t || re(cC(e));
 				} finally {
 					n = !1;
 				}
@@ -41960,7 +41349,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			try {
 				await e();
 			} catch (e) {
-				ae.current && h(sC(e));
+				ae.current && h(cC(e));
 			} finally {
 				oe.current = !1, ae.current && y(!1);
 			}
@@ -41974,7 +41363,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 				node: t,
 				url: u.url.trim()
 			});
-			ae.current && (me(n), s(t), l(!1), d(oC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
+			ae.current && (me(n), s(t), l(!1), d(sC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
 		});
 	}
 	async function ve() {
@@ -41995,7 +41384,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 		} catch (e) {
 			ae.current && n === se.current && w({
 				node: t,
-				error: sC(e),
+				error: cC(e),
 				checked: Date.now()
 			});
 		} finally {
@@ -42039,7 +41428,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					}), /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: v,
 						onClick: () => {
-							l(!0), p(!1), d(oC);
+							l(!0), p(!1), d(sC);
 						},
 						children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 							size: 16,
@@ -42095,7 +41484,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 							disabled: v,
 							"aria-label": r("关闭连接表单", "Close connection form"),
 							onClick: () => {
-								l(!1), d(oC);
+								l(!1), d(sC);
 							},
 							children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 								size: 16,
@@ -42181,7 +41570,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 						disabled: v,
 						"aria-pressed": ue?.node === e.node,
 						onClick: () => {
-							s(e.node), ne(""), l(!1), d(oC), ++se.current, E(!1);
+							s(e.node), ne(""), l(!1), d(sC), ++se.current, E(!1);
 						},
 						children: [/* @__PURE__ */ (0, B.jsx)(R, {
 							size: 18,
@@ -42202,6 +41591,14 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								}), T ? r("检查中…", "Checking…") : r("检查连接", "Check connection")]
 							})]
 						}),
+						/* @__PURE__ */ (0, B.jsx)(oC, {
+							route: ue,
+							client: e,
+							language: t,
+							busy: v,
+							run: ge,
+							onCatalog: me
+						}, ue.node),
 						z ? /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-probe",
 							children: [/* @__PURE__ */ (0, B.jsx)("p", {
@@ -42404,7 +41801,7 @@ function uC({ client: e, language: t = "en", onOpenTerminal: n }) {
 }
 //#endregion
 //#region src/devices/NodeIdentityDialog.tsx
-function dC({ source: e, onCancel: t, onMigrated: n }) {
+function fC({ source: e, onCancel: t, onMigrated: n }) {
 	let [r, i] = (0, x.useState)(""), [a, o] = (0, x.useState)(""), [s, c] = (0, x.useState)(!1), l = (0, x.useRef)(null);
 	(0, x.useEffect)(() => {
 		l.current?.focus();
@@ -42497,7 +41894,7 @@ function dC({ source: e, onCancel: t, onMigrated: n }) {
 }
 //#endregion
 //#region src/devices/NetworkInvitations.tsx
-function fC({ busy: e, t, submit: n }) {
+function pC({ busy: e, t, submit: n }) {
 	let r = (0, x.useId)(), [i, a] = (0, x.useState)(""), [o, s] = (0, x.useState)("");
 	async function c(e) {
 		e.preventDefault(), await n(i.trim(), o.trim(), () => s(""));
@@ -42563,7 +41960,7 @@ function fC({ busy: e, t, submit: n }) {
 		]
 	});
 }
-function pC({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
+function mC({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
 	let s = (0, x.useId)(), c = (0, x.useRef)(null), [l, u] = (0, x.useState)(() => {
 		if (e.length) return e.join("\n");
 		let n = window.location.hostname;
@@ -42705,7 +42102,7 @@ function pC({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: 
 }
 //#endregion
 //#region src/devices/TailscaleDiscovery.tsx
-function mC({ device: e, disabled: t, t: n, onSelect: r }) {
+function hC({ device: e, disabled: t, t: n, onSelect: r }) {
 	let i = (0, x.useId)(), [a, o] = (0, x.useState)(""), s = e.paths?.length ? e.paths : [e], c = s.find((e) => e.url === a) ?? s[0];
 	return /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [
 		/* @__PURE__ */ (0, B.jsx)("strong", { children: e.name || e.address }),
@@ -42736,7 +42133,7 @@ function mC({ device: e, disabled: t, t: n, onSelect: r }) {
 		children: n("接入节点", "Connect node")
 	})] });
 }
-function hC({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
+function gC({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
 	let o = (e.ports ?? (e.port ? [e.port] : [])).join(", "), [s, c] = (0, x.useState)(o), [l, u] = (0, x.useState)(!1), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), h = (0, x.useRef)(!0), g = (0, x.useRef)(!1), _ = (0, x.useRef)(!1), v = (0, x.useRef)(null), y = (0, x.useId)(), b = (0, x.useRef)(null), S = (0, x.useRef)(e.enabled);
 	(0, x.useEffect)(() => (h.current = !0, () => {
 		h.current = !1;
@@ -42890,7 +42287,7 @@ function hC({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 			}),
 			!!e.devices.length && /* @__PURE__ */ (0, B.jsx)("ul", {
 				"aria-label": r("自动发现的节点", "Automatically discovered nodes"),
-				children: e.devices.map((e) => /* @__PURE__ */ (0, B.jsx)(mC, {
+				children: e.devices.map((e) => /* @__PURE__ */ (0, B.jsx)(hC, {
 					device: e,
 					disabled: n || l,
 					t: r,
@@ -42902,7 +42299,7 @@ function hC({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 }
 //#endregion
 //#region src/devices/TailscaleNodes.tsx
-function gC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
+function _C({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
 	let [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), C = (0, x.useRef)(!0), w = (0, x.useRef)(!1), T = (0, x.useRef)(null), E = (0, x.useRef)(null), D = (0, x.useRef)(null), O = e.find((e) => e.addresses.includes(c)), k = O?.online === !0;
 	(0, x.useEffect)(() => (C.current = !0, () => {
 		C.current = !1;
@@ -42945,7 +42342,7 @@ function gC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 		}
 	}
 	return /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
-		t && /* @__PURE__ */ (0, B.jsx)(hC, {
+		t && /* @__PURE__ */ (0, B.jsx)(gC, {
 			status: t,
 			client: r,
 			disabled: i || v,
@@ -43097,7 +42494,7 @@ function gC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 }
 //#endregion
 //#region src/devices/TailscaleSetup.tsx
-function _C({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
+function vC({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
 	let [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(!1), [d, f] = (0, x.useState)(0), [p, m] = (0, x.useState)(Date.now()), h = (0, x.useRef)(null), g = (0, x.useRef)(null), _ = e?.phase === "running", v = !!s?.available && p >= d;
 	if ((0, x.useEffect)(() => {
 		s && h.current?.focus();
@@ -43231,13 +42628,13 @@ function _C({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, op
 }
 //#endregion
 //#region src/devices/NetworkProvidersView.tsx
-var vC = (e) => e instanceof Error ? e.message : String(e);
-function yC(e) {
+var yC = (e) => e instanceof Error ? e.message : String(e);
+function bC(e) {
 	let t = e;
 	if (!t?.easytier || !Array.isArray(t.easytier.devices) || !t.tailscale || !Array.isArray(t.tailscale.devices)) throw Error("Network management is unavailable. Upgrade the node backend and retry.");
 	return t;
 }
-function bC(e) {
+function xC(e) {
 	try {
 		let t = new URL(e || "");
 		return t.protocol === "https:" && t.hostname === "login.tailscale.com" && !t.port && !t.username && !t.password && !t.hash ? t.href : void 0;
@@ -43245,16 +42642,16 @@ function bC(e) {
 		return;
 	}
 }
-function xC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
+function SC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
 	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, P] = (0, x.useState)(""), F = (0, x.useId)(), te = (0, x.useRef)(null), [ne, I] = (0, x.useState)(""), [re, L] = (0, x.useState)(""), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useCallback)(async () => {
 		if (oe.current || ae.current || document.hidden) return;
 		oe.current = !0;
 		let t = ++se.current;
 		try {
-			let n = yC(await e({ operation: "status" }));
+			let n = bC(await e({ operation: "status" }));
 			ie.current && t === se.current && (o(n), f(""));
 		} catch (e) {
-			ie.current && t === se.current && f(vC(e));
+			ie.current && t === se.current && f(yC(e));
 		} finally {
 			oe.current = !1, ie.current && t === se.current && g(!1);
 		}
@@ -43280,9 +42677,9 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
-				].includes(t.operation) || o(yC(r)), n?.(r));
+				].includes(t.operation) || o(bC(r)), n?.(r));
 			} catch (e) {
-				ie.current && c(vC(e));
+				ie.current && c(yC(e));
 			} finally {
 				ae.current = !1, ie.current && (m(!1), g(!1));
 			}
@@ -43326,13 +42723,13 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			node: ne,
 			token: re
 		}, (e) => {
-			o(yC(e.network)), L(""), I(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
+			o(bC(e.network)), L(""), I(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let z = a?.easytier, me = a?.tailscale, he = z?.phase === "running" ? i("后台运行中", "Running in background") : z?.phase === "installing" ? i("正在安装…", "Installing…") : z?.phase === "restarting" ? i("正在连接…", "Connecting…") : z?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = bC(me?.login_url);
+	let z = a?.easytier, me = a?.tailscale, he = z?.phase === "running" ? i("后台运行中", "Running in background") : z?.phase === "installing" ? i("正在安装…", "Installing…") : z?.phase === "restarting" ? i("正在连接…", "Connecting…") : z?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = xC(me?.login_url);
 	function _e(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ie.current && c(vC(e));
+			ie.current && c(yC(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -43464,7 +42861,7 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								onClick: () => N("manual"),
 								children: i("手动填写地址", "Enter addresses manually")
 							})]
-						}), M === "invitation" ? /* @__PURE__ */ (0, B.jsx)(fC, {
+						}), M === "invitation" ? /* @__PURE__ */ (0, B.jsx)(pC, {
 							busy: p,
 							t: i,
 							submit: (e, t, n) => R({
@@ -43645,7 +43042,7 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								role: "alert",
 								children: z.invitation_error
 							}),
-							n === "server" && /* @__PURE__ */ (0, B.jsx)(pC, {
+							n === "server" && /* @__PURE__ */ (0, B.jsx)(mC, {
 								entries: z.peers ?? (z.peer ? [z.peer] : []),
 								listenPort: z.listen_port,
 								invitations: z.invitations,
@@ -43656,7 +43053,7 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									peers: e
 								}, (e) => {
 									let n = e;
-									o(yC(n.network)), t(n.invitation);
+									o(bC(n.network)), t(n.invitation);
 								}),
 								revoke: (e) => R({
 									operation: "easy_tier_revoke_invitation",
@@ -43730,7 +43127,7 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							role: "alert",
 							children: me.error
 						}),
-						/* @__PURE__ */ (0, B.jsx)(_C, {
+						/* @__PURE__ */ (0, B.jsx)(vC, {
 							setup: me?.setup,
 							systemState: me?.state || "Checking",
 							busy: p || !!me?.login_pending,
@@ -43768,11 +43165,11 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								})]
 							})]
 						}),
-						(me?.state === "Running" || me?.discovery?.enabled) && /* @__PURE__ */ (0, B.jsx)(gC, {
+						(me?.state === "Running" || me?.discovery?.enabled) && /* @__PURE__ */ (0, B.jsx)(_C, {
 							devices: me.devices,
 							discovery: me.discovery,
 							onDiscoveryChanged: (e) => {
-								++se.current, o(yC(e)), f("");
+								++se.current, o(bC(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
@@ -43790,7 +43187,7 @@ function xC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 }
 //#endregion
 //#region src/pages/Nodes.tsx
-function SC() {
+function CC() {
 	let { snapshot: e, refresh: t, notify: n } = mo(), { openTerminal: r } = ao(), i = (0, x.useCallback)((e) => lo("/api/peers", e), []), a = (0, x.useCallback)((e) => lo("/api/network", e), []), o = e?.remote_nodes, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(null), [p, m] = (0, x.useState)(() => location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "ws://" + location.host : "wss://" + location.host), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)("[]"), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)("60"), [E, D] = (0, x.useState)({}), [O, k] = (0, x.useState)(null), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)("");
 	async function F(e, n, r) {
 		if (!M) {
@@ -43833,7 +43230,7 @@ function SC() {
 		...e.aliases || []
 	].join(" ").toLowerCase().includes(s.toLowerCase()));
 	return /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
-		O && /* @__PURE__ */ (0, B.jsx)(dC, {
+		O && /* @__PURE__ */ (0, B.jsx)(fC, {
 			source: O,
 			onCancel: () => k(null),
 			onMigrated: (e) => {
@@ -43874,12 +43271,12 @@ function SC() {
 				children: V("浏览器通过这台设备访问工作空间。命令在这台设备执行；其他设备需获得授权后接入。", "Your browser accesses the workspace through this device. Commands run here; other devices need permission to connect.")
 			})]
 		}),
-		/* @__PURE__ */ (0, B.jsx)(xC, {
+		/* @__PURE__ */ (0, B.jsx)(SC, {
 			client: a,
 			language: window.workspaceWeb.language,
 			host: "server"
 		}),
-		/* @__PURE__ */ (0, B.jsx)(uC, {
+		/* @__PURE__ */ (0, B.jsx)(dC, {
 			client: i,
 			language: window.workspaceWeb.language,
 			onOpenTerminal: (e) => r({
@@ -44208,7 +43605,7 @@ function SC() {
 }
 //#endregion
 //#region src/pages/Performance.tsx
-function CC() {
+function wC() {
 	let { snapshot: e, state: t, refresh: n } = mo(), r = e?.metrics;
 	return /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 		/* @__PURE__ */ (0, B.jsx)(yo, {
@@ -44278,7 +43675,7 @@ function CC() {
 }
 //#endregion
 //#region src/main.tsx
-var wC = [
+var TC = [
 	{
 		id: "overview",
 		label: V("总览", "Overview"),
@@ -44360,7 +43757,7 @@ var wC = [
 		icon: Sn
 	}
 ];
-function TC() {
+function EC() {
 	let e = mo(), { snapshot: t, state: n, error: r, notice: i } = e, a = Ti(), o = Oi(), s = ao();
 	(0, x.useEffect)(() => {
 		if (a.pathname !== "/terminal") return;
@@ -44381,7 +43778,7 @@ function TC() {
 		} catch {
 			return "dark";
 		}
-	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = wC.find((e) => a.pathname === "/" + e.id) || wC[0];
+	}), [u, d] = (0, x.useState)(!1), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = TC.find((e) => a.pathname === "/" + e.id) || TC[0];
 	(0, x.useEffect)(() => {
 		document.documentElement.dataset.theme = c;
 		try {
@@ -44431,7 +43828,7 @@ function TC() {
 				children: [
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "sidebar-brand",
-						children: [/* @__PURE__ */ (0, B.jsx)(EC, {}), /* @__PURE__ */ (0, B.jsx)("button", {
+						children: [/* @__PURE__ */ (0, B.jsx)(DC, {}), /* @__PURE__ */ (0, B.jsx)("button", {
 							className: "button secondary icon-button mobile-menu-close",
 							"aria-label": V("关闭导航", "Close navigation"),
 							onClick: () => {
@@ -44446,7 +43843,7 @@ function TC() {
 					}),
 					/* @__PURE__ */ (0, B.jsx)("nav", {
 						"aria-label": V("工作区导航", "Workspace navigation"),
-						children: wC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, B.jsxs)("button", {
+						children: TC.map((e) => e.id === "terminal" ? /* @__PURE__ */ (0, B.jsxs)("button", {
 							className: "nav-link terminal-nav-button" + (s.mode === "open" ? " active" : ""),
 							"aria-label": e.label,
 							title: e.label,
@@ -44637,7 +44034,7 @@ function TC() {
 								}),
 								/* @__PURE__ */ (0, B.jsx)(Qi, {
 									path: "/nodes",
-									element: /* @__PURE__ */ (0, B.jsx)(SC, {})
+									element: /* @__PURE__ */ (0, B.jsx)(CC, {})
 								}),
 								/* @__PURE__ */ (0, B.jsx)(Qi, {
 									path: "/history",
@@ -44645,7 +44042,7 @@ function TC() {
 								}),
 								/* @__PURE__ */ (0, B.jsx)(Qi, {
 									path: "/performance",
-									element: /* @__PURE__ */ (0, B.jsx)(CC, {})
+									element: /* @__PURE__ */ (0, B.jsx)(wC, {})
 								}),
 								/* @__PURE__ */ (0, B.jsx)(Qi, {
 									path: "/overview",
@@ -44724,7 +44121,7 @@ function TC() {
 		]
 	});
 }
-function EC() {
+function DC() {
 	return /* @__PURE__ */ (0, B.jsxs)("a", {
 		className: "brand",
 		href: "#/overview",
@@ -44738,6 +44135,6 @@ function EC() {
 		}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: "Cranibox" }), /* @__PURE__ */ (0, B.jsx)("small", { children: "AGENT WORKSPACE" })] })]
 	});
 }
-var DC = location.hash.slice(1);
-wC.some((e) => e.id === DC) && history.replaceState(null, "", "#/" + DC), (0, to.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, B.jsx)(Ba, { children: /* @__PURE__ */ (0, B.jsx)(oo, { children: /* @__PURE__ */ (0, B.jsx)(ho, { children: /* @__PURE__ */ (0, B.jsx)(QS, { children: /* @__PURE__ */ (0, B.jsx)(TC, {}) }) }) }) }));
+var OC = location.hash.slice(1);
+TC.some((e) => e.id === OC) && history.replaceState(null, "", "#/" + OC), (0, to.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, B.jsx)(Ba, { children: /* @__PURE__ */ (0, B.jsx)(oo, { children: /* @__PURE__ */ (0, B.jsx)(ho, { children: /* @__PURE__ */ (0, B.jsx)(QS, { children: /* @__PURE__ */ (0, B.jsx)(EC, {}) }) }) }) }));
 //#endregion
