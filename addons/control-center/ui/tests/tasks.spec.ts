@@ -722,13 +722,26 @@ test('read collaboration records is an opt-in source view with search, reports a
   expect(await row.locator('img').count()).toBe(0);
   await panel.getByRole('searchbox').fill('Release 42');
   await expect(panel.locator('.activity-list article')).toHaveCount(2);
-  await panel.getByRole('combobox', { name: 'Record type', exact: true }).selectOption('message');
+  const kinds = panel.getByRole('group', { name: 'Record type', exact: true });
+  await expect(kinds.getByRole('radio', { name: 'All types', exact: true })).toBeChecked();
+  await kinds.getByRole('radio', { name: 'Message', exact: true }).check();
   await expect(panel).toContainText('No matching records.');
   await panel.getByRole('searchbox').clear();
   await expect(panel.locator('.activity-list article')).toHaveCount(20);
   await panel.getByRole('button', { name: 'Next page', exact: true }).click();
   await expect(panel.getByRole('navigation')).toContainText('2 / 3');
-  await panel.getByRole('combobox', { name: 'Record type', exact: true }).selectOption('task');
+  const taskKind = kinds.getByRole('radio', { name: 'Task', exact: true });
+  await taskKind.focus();
+  await taskKind.press('Space');
+  await expect(taskKind).toBeChecked();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await expect(panel.getByRole('navigation')).toHaveCount(0);
+  await taskKind.press('ArrowLeft');
+  await expect(kinds.getByRole('radio', { name: 'All types', exact: true })).toBeChecked();
+  await expect(panel.getByRole('navigation')).toContainText('1 / 3');
+  await kinds.getByRole('radio', { name: 'All types', exact: true }).press('ArrowRight');
+  await expect(taskKind).toBeFocused();
+  await expect(taskKind).toBeChecked();
   await row.getByText('View content and reports', { exact: true }).click();
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -736,6 +749,7 @@ test('read collaboration records is an opt-in source view with search, reports a
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(await panel.locator('.activity-sources label').first().evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+      for (const choice of await kinds.locator('label').all()) expect(await choice.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
       if (width === 375 || width === 1440) await panel.screenshot({ path: '/tmp/cranibox-federated-activity-' + width + '-' + theme + '.png' });
     }
   }

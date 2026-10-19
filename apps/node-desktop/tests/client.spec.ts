@@ -2148,6 +2148,17 @@ test('read-only collaboration records use shared native IPC with source identity
   await panel.getByRole('button', { name: '查看协作记录', exact: true }).click();
   await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
   await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  const kinds = panel.getByRole('group', { name: '记录类型', exact: true });
+  await kinds.getByRole('radio', { name: '任务', exact: true }).check();
+  await expect(panel.locator('.activity-list article')).toHaveCount(0);
+  await kinds.getByRole('radio', { name: '任务', exact: true }).press('ArrowRight');
+  await expect(kinds.getByRole('radio', { name: '消息', exact: true })).toBeChecked();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await panel.getByRole('searchbox', { name: '搜索协作记录', exact: true }).fill('remote-device');
+  await expect(panel.locator('.activity-list article')).toHaveCount(1);
+  await panel.getByRole('searchbox', { name: '搜索协作记录', exact: true }).clear();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await kinds.getByRole('radio', { name: '全部类型', exact: true }).check();
   const settings = panel.locator('.project-sync');
   await settings.locator(':scope > summary').click();
   await expect(settings).toContainText('消息正文');

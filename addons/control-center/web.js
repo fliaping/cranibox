@@ -24893,12 +24893,12 @@ function jp(e) {
 	});
 }
 function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices: a }) {
-	let o = (e, t) => r.startsWith("zh") ? e : t, s = [n, ...Array.from(new Set((t?.routes || []).map((e) => e.node))).filter((e) => e !== n).sort()], [c, l] = (0, x.useState)([n]), [u, d] = (0, x.useState)(0), [f, p] = (0, x.useState)({
+	let o = (e, t) => r.startsWith("zh") ? e : t, s = (0, x.useId)(), c = [n, ...Array.from(new Set((t?.routes || []).map((e) => e.node))).filter((e) => e !== n).sort()], [l, u] = (0, x.useState)([n]), [d, f] = (0, x.useState)(0), [p, m] = (0, x.useState)({
 		scope: "",
 		views: {}
-	}), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)("all"), [v, y] = (0, x.useState)(0), b = (0, x.useDeferredValue)(m).trim().toLocaleLowerCase(), S = (0, x.useRef)(i), C = (0, x.useRef)(() => void 0);
-	S.current = i;
-	let w = s.filter((e) => c.includes(e)).slice(0, 16), T = JSON.stringify([
+	}), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)("all"), [y, b] = (0, x.useState)(0), S = (0, x.useDeferredValue)(h).trim().toLocaleLowerCase(), C = (0, x.useRef)(i), w = (0, x.useRef)(() => void 0);
+	C.current = i;
+	let T = c.filter((e) => l.includes(e)).slice(0, 16), E = JSON.stringify([
 		n,
 		t?.node_id,
 		t?.routes.map((e) => [
@@ -24907,39 +24907,39 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 			e.allow_private_http,
 			e.paths
 		])
-	]), E = JSON.stringify([
+	]), D = JSON.stringify([
+		E,
 		T,
-		w,
-		u,
+		d,
 		r
-	]), D = f.scope === E ? f.views : {};
+	]), O = p.scope === D ? p.views : {};
 	(0, x.useEffect)(() => {
-		let e = () => d((e) => e + 1);
+		let e = () => f((e) => e + 1);
 		return window.addEventListener("cranibox:peers-changed", e), window.addEventListener("cranibox:network-routes-changed", e), window.addEventListener("cranibox:activity-sync-changed", e), () => {
 			window.removeEventListener("cranibox:peers-changed", e), window.removeEventListener("cranibox:network-routes-changed", e), window.removeEventListener("cranibox:activity-sync-changed", e);
 		};
 	}, []), (0, x.useEffect)(() => {
 		let t = !1, r = !1;
-		p({
-			scope: E,
+		m({
+			scope: D,
 			views: {}
 		});
 		let i = async (i = !1) => {
-			if (t || r || document.hidden || i && S.current) return;
+			if (t || r || document.hidden || i && C.current) return;
 			r = !0;
-			let a = [...w], s = (e, n) => {
-				t || p((t) => t.scope === E ? {
-					scope: E,
+			let a = [...T], s = (e, n) => {
+				t || m((t) => t.scope === D ? {
+					scope: D,
 					views: {
 						...t.views,
 						[e]: n
 					}
 				} : t);
 			}, c = async () => {
-				for (; !t && !document.hidden && !(i && S.current) && a.length;) {
+				for (; !t && !document.hidden && !(i && C.current) && a.length;) {
 					let r = a.shift();
-					t || p((e) => e.scope === E ? {
-						scope: E,
+					t || m((e) => e.scope === D ? {
+						scope: D,
 						views: {
 							...e.views,
 							[r]: {
@@ -24971,26 +24971,26 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 				r = !1;
 			}
 		};
-		C.current = () => void i(), i();
+		w.current = () => void i(), i();
 		let a = setInterval(() => void i(!0), 1e4), s = () => void i(!0);
 		return document.addEventListener("visibilitychange", s), () => {
-			t = !0, C.current = () => void 0, clearInterval(a), document.removeEventListener("visibilitychange", s);
+			t = !0, w.current = () => void 0, clearInterval(a), document.removeEventListener("visibilitychange", s);
 		};
-	}, [e, E]), (0, x.useEffect)(() => {
-		i || C.current();
+	}, [e, D]), (0, x.useEffect)(() => {
+		i || w.current();
 	}, [i]), (0, x.useEffect)(() => {
-		y(0);
+		b(0);
 	}, [
-		b,
-		g,
-		E
+		S,
+		_,
+		D
 	]);
-	let O = {
+	let k = {
 		task: o("任务", "Task"),
 		message: o("消息", "Message"),
 		run: o("协作 Run", "Collaboration Run")
-	}, k = w.flatMap((e) => {
-		let t = D[e]?.snapshot;
+	}, A = T.flatMap((e) => {
+		let t = O[e]?.snapshot;
 		return t ? [
 			...t.tasks.map((t) => ({
 				key: e + ":task:" + t.task.id,
@@ -25036,12 +25036,12 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 				].filter(Boolean).join("\n\n")
 			}))
 		] : [];
-	}).filter((e) => (g === "all" || e.kind === g) && (!b || [
+	}).filter((e) => (_ === "all" || e.kind === _) && (!S || [
 		e.owner,
 		e.title,
 		e.text,
 		e.detail
-	].some((e) => e.toLocaleLowerCase().includes(b)))).sort((e, t) => t.created - e.created || e.key.localeCompare(t.key)), A = Math.max(1, Math.ceil(k.length / 20)), j = Math.min(v, A - 1), M = w.some((e) => D[e]?.reading), N = (e) => (/* @__PURE__ */ new Date(e * 1e3)).toLocaleString(r);
+	].some((e) => e.toLocaleLowerCase().includes(S)))).sort((e, t) => t.created - e.created || e.key.localeCompare(t.key)), j = Math.max(1, Math.ceil(A.length / 20)), M = Math.min(y, j - 1), N = T.some((e) => O[e]?.reading), ee = (e) => (/* @__PURE__ */ new Date(e * 1e3)).toLocaleString(r);
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "activity-content",
 		children: [
@@ -25057,13 +25057,13 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 			}),
 			/* @__PURE__ */ (0, B.jsxs)("fieldset", {
 				className: "activity-sources",
-				children: [/* @__PURE__ */ (0, B.jsx)("legend", { children: o("选择来源设备（最多 16 个）", "Select source devices (up to 16)") }), s.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
+				children: [/* @__PURE__ */ (0, B.jsx)("legend", { children: o("选择来源设备（最多 16 个）", "Select source devices (up to 16)") }), c.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
 					className: "direct-check",
 					children: [/* @__PURE__ */ (0, B.jsx)("input", {
 						type: "checkbox",
-						checked: w.includes(e),
-						disabled: !w.includes(e) && w.length >= 16,
-						onChange: (t) => l((n) => t.target.checked ? [...n.filter((e) => s.includes(e)), e] : n.filter((t) => t !== e))
+						checked: T.includes(e),
+						disabled: !T.includes(e) && T.length >= 16,
+						onChange: (t) => u((n) => t.target.checked ? [...n.filter((e) => c.includes(e)), e] : n.filter((t) => t !== e))
 					}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [e === n ? o("本机 · ", "This device · ") : "", /* @__PURE__ */ (0, B.jsx)("code", { children: e })] })]
 				}, e))]
 			}),
@@ -25072,16 +25072,16 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 				children: [/* @__PURE__ */ (0, B.jsxs)("p", {
 					role: "status",
 					children: [
-						k.length,
+						A.length,
 						" ",
 						o("条匹配记录", "matching records"),
-						M ? o(" · 正在读取", " · Reading") : "",
+						N ? o(" · 正在读取", " · Reading") : "",
 						i ? o(" · 自动刷新已暂停", " · Automatic updates paused") : o(" · 每 10 秒刷新", " · Refreshes every 10 seconds")
 					]
 				}), /* @__PURE__ */ (0, B.jsxs)("button", {
 					type: "button",
-					disabled: M || !w.length,
-					onClick: () => C.current(),
+					disabled: N || !T.length,
+					onClick: () => w.current(),
 					children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
 						"aria-hidden": "true"
@@ -25090,8 +25090,8 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 			}),
 			/* @__PURE__ */ (0, B.jsx)("div", {
 				className: "activity-source-status",
-				children: w.map((e) => {
-					let t = D[e], n = t?.snapshot;
+				children: T.map((e) => {
+					let t = O[e], n = t?.snapshot;
 					return /* @__PURE__ */ (0, B.jsxs)("div", {
 						"aria-label": o("记录来源 ", "Record source ") + e,
 						children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e }), t?.error ? /* @__PURE__ */ (0, B.jsx)("p", {
@@ -25103,7 +25103,7 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 								o("来源读取时间：", "Source observation: "),
 								/* @__PURE__ */ (0, B.jsx)("time", {
 									dateTime: (/* @__PURE__ */ new Date(n.observed_at * 1e3)).toISOString(),
-									children: N(n.observed_at)
+									children: ee(n.observed_at)
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("small", { children: [o("内容指纹：", "Content digest: "), /* @__PURE__ */ (0, B.jsx)("code", { children: n.digest.slice(0, 12) })] })
 							] }),
@@ -25126,7 +25126,7 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 					}, e);
 				})
 			}),
-			w.some((e) => D[e]?.error) && /* @__PURE__ */ (0, B.jsxs)("p", {
+			T.some((e) => O[e]?.error) && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				children: [
 					o("请检查设备连接，并在目标设备授予“只读协作记录”。原有消息授权不足以读取完整内容。", "Check connectivity and grant Read collaboration records on the target. Message access alone does not allow reading all content."),
@@ -25142,31 +25142,33 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 				className: "activity-filters",
 				children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [o("搜索协作记录", "Search collaboration records"), /* @__PURE__ */ (0, B.jsx)("input", {
 					type: "search",
-					value: m,
-					onChange: (e) => h(e.target.value),
+					value: h,
+					onChange: (e) => g(e.target.value),
 					placeholder: o("标题、正文、结果或设备 ID", "Title, content, result or device ID")
-				})] }), /* @__PURE__ */ (0, B.jsxs)("label", { children: [o("记录类型", "Record type"), /* @__PURE__ */ (0, B.jsxs)("select", {
-					value: g,
-					onChange: (e) => _(e.target.value),
-					children: [/* @__PURE__ */ (0, B.jsx)("option", {
-						value: "all",
-						children: o("全部类型", "All types")
-					}), Object.entries(O).map(([e, t]) => /* @__PURE__ */ (0, B.jsx)("option", {
-						value: e,
-						children: t
-					}, e))]
-				})] })]
+				})] }), /* @__PURE__ */ (0, B.jsxs)("fieldset", {
+					className: "activity-kind",
+					children: [/* @__PURE__ */ (0, B.jsx)("legend", { children: o("记录类型", "Record type") }), /* @__PURE__ */ (0, B.jsx)("div", { children: [["all", o("全部类型", "All types")], ...Object.entries(k)].map(([e, t]) => /* @__PURE__ */ (0, B.jsxs)("label", {
+						className: _ === e ? "is-selected" : void 0,
+						children: [/* @__PURE__ */ (0, B.jsx)("input", {
+							type: "radio",
+							name: s,
+							value: e,
+							checked: _ === e,
+							onChange: () => v(e)
+						}), /* @__PURE__ */ (0, B.jsx)("span", { children: t })]
+					}, e)) })]
+				})]
 			}),
-			w.length ? !k.length && !M ? /* @__PURE__ */ (0, B.jsx)("p", { children: o("没有匹配记录。没有可用离线快照时，读取失败的来源不会显示旧内容。", "No matching records. Failed sources show previous content only when an explicitly saved offline snapshot is available.") }) : null : /* @__PURE__ */ (0, B.jsx)("p", { children: o("请选择要查看的来源设备。", "Select a source device to view its records.") }),
+			T.length ? !A.length && !N ? /* @__PURE__ */ (0, B.jsx)("p", { children: o("没有匹配记录。没有可用离线快照时，读取失败的来源不会显示旧内容。", "No matching records. Failed sources show previous content only when an explicitly saved offline snapshot is available.") }) : null : /* @__PURE__ */ (0, B.jsx)("p", { children: o("请选择要查看的来源设备。", "Select a source device to view its records.") }),
 			/* @__PURE__ */ (0, B.jsx)("div", {
 				className: "activity-list",
-				children: k.slice(j * 20, j * 20 + 20).map((e) => /* @__PURE__ */ (0, B.jsxs)("article", {
-					"aria-label": O[e.kind] + ": " + e.title,
+				children: A.slice(M * 20, M * 20 + 20).map((e) => /* @__PURE__ */ (0, B.jsxs)("article", {
+					"aria-label": k[e.kind] + ": " + e.title,
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-heading",
 							children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: e.title }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
-								O[e.kind],
+								k[e.kind],
 								" · ",
 								e.status
 							] })]
@@ -25177,7 +25179,7 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 								o("来源：", "Source: "),
 								/* @__PURE__ */ (0, B.jsx)("code", { children: e.owner }),
 								" · ",
-								N(e.created)
+								ee(e.created)
 							]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("details", { children: [
@@ -25188,25 +25190,25 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 					]
 				}, e.key))
 			}),
-			k.length > 20 && /* @__PURE__ */ (0, B.jsxs)("nav", {
+			A.length > 20 && /* @__PURE__ */ (0, B.jsxs)("nav", {
 				className: "direct-actions",
 				"aria-label": o("协作记录分页", "Collaboration records pages"),
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("button", {
 						type: "button",
-						disabled: j === 0,
-						onClick: () => y(j - 1),
+						disabled: M === 0,
+						onClick: () => b(M - 1),
 						children: o("上一页", "Previous page")
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("span", { children: [
-						j + 1,
+						M + 1,
 						" / ",
-						A
+						j
 					] }),
 					/* @__PURE__ */ (0, B.jsx)("button", {
 						type: "button",
-						disabled: j + 1 >= A,
-						onClick: () => y(j + 1),
+						disabled: M + 1 >= j,
+						onClick: () => b(M + 1),
 						children: o("下一页", "Next page")
 					})
 				]

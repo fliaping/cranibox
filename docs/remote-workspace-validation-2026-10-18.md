@@ -1691,3 +1691,44 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 六份最终报告、审计汇总及带观测时间的 CI 原始快照统一保存在 **/config/validation-artifacts/selkies-ordering-20261019/handoff**；本机与远端证据摘要逐项核对。需求表和 P0 已更新为“六组通过，公开发布/真实拉取未完成”，保留前节四组通过时的历史快照。此次收尾只更新交接和验证文档，不增加产品功能测试数量。
 
 提交前再次通过远端健康检查：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web/客户端 PID、程序摘要与 NodeID 以及 KDE/Selkies/Xwayland 进程均保持，owned_processes=[]、test_package_absent=true。最新 final-health.json 随证据同步保存，未操作全局键鼠或剪贴板。
+
+## 2026-10-19：协作记录可见类型筛选与交接补验
+
+源码基于 **95cde280913b9d3d33b85179ff726f7a1ae84bd0**。按 UI/UX Pro Max 规则将 Web/Tauri 共用协作记录的类型下拉框改为直接可见的四项 radio/fieldset：全部类型、任务、消息、协作 Run。标签至少 44px，焦点可见、窄屏换行、选中不改变字重，遵循减少动画设置；显式覆盖原生全局表单样式，避免 radio 被拉大或标签纵向排列。保留搜索、来源授权/快照、分页和刷新逻辑，没有修改 Rust 协议或引入依赖。
+
+全部构建、浏览器、socket 与 GUI 运行仍在 **admin@192.168.217.6:22022 / cranibox-validation / abc**，本机只编辑、静态核对、传输和 Git。六轮报告记录四个源码文件开始/结束摘要，均 source_unchanged=true，最终与本机逐项一致。
+
+| 验证 | 结果 / 整轮耗时 | 命令与可信范围 |
+| --- | --- | --- |
+| Web 资源 | **通过，12.660 秒** | node scripts/build-control-center-ui.cjs |
+| 原生前端 | **通过，12.265 秒** | apps/node-desktop 下 npm run build |
+| Rust Web | **通过，10.511 秒** | cargo build --offline --locked -p cranibox |
+| Rust 原生程序 | **通过，82.291 秒** | cargo build --offline --locked -p cranibox-node-desktop --features desktop,custom-protocol；debug，含等待构建锁 |
+| Web 任务页 | **19/19，39.775 秒** | ui 下 npx playwright test tests/tasks.spec.ts --workers=1 |
+| Tauri 界面 | **56/56，70.764 秒** | apps/node-desktop 下 npm test -- --workers=1；Chromium 模拟 IPC |
+
+Web 新断言覆盖空格与方向键选择、切换后的焦点/选中状态和分页重置；既有搜索、问答/报告、纯文本防注入继续通过。375/768/1440 的深浅主题均检查无水平溢出与四项标签至少 44px，并查看 375/1440 的四张截图。panel 截图可能包含固定页头的合成位置，不能据此宣布全部页面叠层已验收。原生界面模拟回归增加类型方向键和搜索/清空；不等于 GTK 键盘输入已通过。本轮只运行受影响的 Web 任务页，没有重复 66edf11 的全 Web 143 项或未变的 Rust 测试。构建依然有依赖 use client 忽略和 Vite 大包提示。
+
+实际 GUI 使用私有 D-Bus、隔离 XDG 与现有 KDE 的 Xwayland，GDK_BACKEND=x11。程序为新构建的 debug cranibox-node-desktop，SHA-256 **46e04fb2ba74442ce4e6989a14314e06e6fb32db2a475c65c5d34510b03e5000**，PID **1823441**。证据目录 deb-native 沿用旧辅助脚本命名，**本轮没有安装 .deb 或验收 CI 包**。
+
+GUI 的独立调用方 node-f43f2d316175487fa6bee6ee0135dca4 读取同容器目标 node-51e18981bd124fe1a3e52aefce622691，第三发送方 node-227570b29f564ae99d98c721410ff20e 提供额外消息。通过真实 Rust CLI/HTTP 创建 **1 个已完成任务、22 条消息、1 个已关闭 Run，共 24 条**，没有手改账本；任务 worker 为脚本，没有调用模型。
+
+真实窗口确认了：
+
+- 通过 AT-SPI action 打开协作记录并只选目标来源；任务类型只剩 1 条，展开可见问题、回答和结果。
+- Run 类型只剩 1 条，展开可读目标与结束结果，截图包含新类型控件和真实报告。
+- 全部类型第一页 20 个 article，下一页 4 个；在第二页切到任务后剩 1 条且分页消失，切回全部恢复第一页 20 条。
+
+以上是可访问性 action 和真实 Rust IPC/网络范围，不能替代普通鼠标/键盘、正常登录/托盘、Wayland 原生窗口或跨物理设备日用验收。两次定向键盘尝试均未让搜索框更新，截图和读取文本仍为空，后续匹配计数也未改变；因此 **原生搜索未通过验证**。没有通过脚本直接写 DOM 来替代输入，也未将模拟 IPC 搜索通过写成 GTK 已通过。需要继续定位自动化焦点/输入链路与真实用户操作。
+
+失败记录全部保留：首次来源检查因 AT-SPI 不暴露内联 1 / 2 页码失败，之后通过 20/4 article 数验证；一次 Run 断言误用“1 匹配”，实际文案为“1 条匹配记录”，正确文案与报告内容随后通过。两次搜索及匹配计数失败仍保留，未覆盖为成功。截图仅捕获所属 X11 测试窗口；键鼠输入尝试定向该窗口，没有测试剪贴板。
+
+最终资源已取回并核对：web.js **cbf4f2f98842996f16ffe803f96d69d31ef9ac3ef7565ab3bb63d5906fdabf82**；web.css **add1e00311a5135b32dc8fe0bf221c47be7330833065166dc49b35fca226f626**。六份构建/测试报告、原始日志、native-steps 成功/失败动作、截图、最终摘要和健康报告保存在私有 **/config/validation-artifacts/activity-kind-controls-20261019**，不提交原始凭据、截图或辅助脚本。
+
+**2026-10-19 07:06:51 UTC** 核对原矩阵 **39210815263**，精确来源 **4fb6a4148cba1813c9c4af1182333d9b9806e23a**：Linux/Windows Rust、Linux/Windows 桌面包与真实 Wayland 共 **5/7 成功**，macOS 两项运行中。它包含 Selkies 测试修正，不包含本轮控件修改；本轮推送后需核对新 headSha 和结果，不将旧作业成功移作新 UI 的包验收。
+
+测试 GUI、包装进程、私有 D-Bus/门户辅助进程及目标节点已按所属配置清理。最终容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web **PID 538744** 与客户端 **PID 1403228**、程序摘要及 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启，owned_processes=[]、test_package_absent=true。日常应用没有升级。
+
+本轮同时更新功能需求表、测试版本与 P0/P1/P2，入口为 [功能与验证交接](implementation-handoff-2026-10-18.md)。下一位维护者优先补正常桌面及跨物理设备流程、Windows/macOS 提供者与系统安装、兼容公开镜像；完整同步、公钥信任和真实 Agent 接续仍未完成。
+
+提交前发现 origin/main 新增 **17342f2e4e5b8c511887cf4b6442ab4f0cbe4d11**，已快进同步并保留许可证 PR 的全部改动。相对 95cde28 仅增加 Apache-2.0 LICENSE/NOTICE、README 说明与八个 Cargo 许可证字段，无运行逻辑或本轮文件冲突。上述远端测试仍明确绑定 95cde28 加本轮四个源码/测试文件和生成资源；同步后的完整提交交给新 CI 核对，未伪称重新实测。

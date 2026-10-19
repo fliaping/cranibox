@@ -9,8 +9,16 @@
 .activity-source-status small { display: block; color: var(--muted); margin-top: 6px; }
 .activity-source-status .activity-stale { border-inline-start: 3px solid var(--accent); padding-inline-start: 10px; font-weight: 600; }
 .activity-source-status .activity-stale small { font-weight: 400; }
-.activity-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
-.activity-filters > label { flex: 1 1 220px; }
+.activity-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 20px; margin-block: 16px; }
+.activity-filters > label { flex: 1 1 240px; min-width: 0; }
+.activity-kind { min-width: 0; margin: 0; padding: 0; border: 0; flex: 1 1 360px; }
+.activity-kind legend { margin-bottom: 6px; padding: 0; font-size: 14px; }
+.activity-kind > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.activity-kind label { display: flex; flex-direction: row; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 500; transition: border-color 150ms ease, background-color 150ms ease; }
+.activity-kind label:hover, .activity-kind label.is-selected { border-color: var(--accent); background: var(--accent-soft, var(--card)); }
+.activity-kind label:focus-within { outline: 2px solid var(--focus, var(--accent)); outline-offset: 3px; }
+.activity-kind input[type="radio"] { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; border: 0; flex: 0 0 18px; accent-color: var(--focus, var(--accent)); }
+.activity-kind span { color: inherit; font-size: inherit; overflow-wrap: anywhere; }
 .activity-list { display: grid; gap: 12px; margin-block: 16px; }
 .activity-list article { border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-width: 0; }
 .activity-list h4 { margin: 0; overflow-wrap: anywhere; }
@@ -18,3 +26,4 @@
 .activity-list pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: inherit; }
 .activity-panel summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 @media (max-width: 580px) { .activity-panel { padding: 12px; } .activity-sources { display: block; } }
+@media (prefers-reduced-motion: reduce) { .activity-kind label { transition: none; } }
