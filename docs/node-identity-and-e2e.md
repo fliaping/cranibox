@@ -61,13 +61,15 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 ~~~
 
-- `peer grant --require-verified` 创建严格授权：在双方完成 `peer verify` 之前拒绝所有能力，并且始终拒绝明文 bearer 请求。
-- 默认（非严格）授权为了兼容旧节点和直接 HTTP 工具，仍接受明文 bearer 请求；新版节点之间总是自动使用加密通道。
+- **新授权默认严格**（`peer grant` 不加参数、Web“授权设备”默认、`/api/peers` 的 `grant` 未给 `require_verified`）：在目标所有者执行 `peer verify`（或在控制中心“入站授权”中输入对方设备显示的配对码）之前拒绝所有能力，并且始终拒绝明文 bearer 请求。首次连接时固定的密钥（TOFU）仍算“未核对”。`--require-verified` 继续可用，作用与默认相同。
+- 显式退出：`peer grant --allow-unverified`、Web 勾选“允许在核对配对码之前使用（不推荐）”或 `{"operation":"grant",…,"require_verified":false}`。这样的授权在核对前也可使用，并接受明文 bearer 请求（旧节点、网关、直接 HTTP 工具）；一旦固定了密钥仍拒绝换钥。
+- 控制中心在每个入站授权下显示配对状态：等待首次连接、未核对（显示本机配对码，需输入对方设备显示的代码后“核对并信任”）、已核对，或兼容模式。
 
 ### 兼容性
 
 - 旧目标没有 `/keys` 时，新调用方回退为原有的 bearer 请求（120 秒后重新探测）；一旦固定了密钥，就不再回退。
 - 旧调用方仍可使用非严格授权；严格授权会拒绝它们。
+- **迁移（默认改为严格）**：升级前已存在的授权没有 `require_verified` 字段，读取为 `false`，签名字节与行为都不变，不会突然失效。若想让旧授权也变为严格，撤销后重新授权（不加 `--allow-unverified`），对方首次连接后核对配对码。升级后新签发、需要给旧版节点或网关使用的授权，必须显式加 `--allow-unverified`。脚本中的 `--require-verified` 可保留；与 `--allow-unverified` 同时出现会报错。
 - 固定密钥不改变已排队消息、空间目录等的连接绑定。
 
 ## 威胁模型（阶段 2）
@@ -112,8 +114,10 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Nonces are explicit, with a 4096-message replay window. Frames are chunked and bound to the request nonce. The grant is re-checked on every call.
   - HTTP 410 makes the client handshake again once.
 - **Pinning.** Keys are pinned trust-on-first-use on both sides. A changed key fails closed and never downgrades.
-  - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified.
-  - `grant --require-verified` refuses capabilities until both sides are verified, and always refuses plaintext bearer requests.
+  - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified. In the Control Center, the owner types the code shown on the other device next to the grant.
+  - **New grants are strict by default.** Until the owner verifies the caller's pairing code, every capability is refused and plaintext bearer requests are always refused. A key pinned on first use counts as unverified. `--require-verified` is still accepted and means the same.
+  - **Explicit opt-out:** `peer grant --allow-unverified`, the Control Center checkbox, or `"require_verified": false`. This allows the caller before verification and accepts plaintext bearer requests (older nodes, gateways).
+  - **Migration:** grants that existed before the upgrade have no `require_verified` field. They stay non-strict with unchanged signed bytes. To make one strict, revoke it and grant again.
 - **WebSocket frames.** The single-use stream proof also carries a fresh 32-byte stream secret, sealed by the Noise session. Every text and binary frame on terminal, desktop and browser streams is then encrypted with ChaCha20-Poly1305, using per-direction keys derived from that secret and the request path, with implicit per-direction counters. A tampered, replayed, dropped, reordered or reflected frame, or a plaintext data frame, closes the stream. Ping, pong and close control frames carry no application data and are not encrypted.
 - **Known gaps:**
   - The first contact is TOFU.
