@@ -1,20 +1,20 @@
 # 交接说明 / Handoff (2026-10-19)
 
 ## 当前状态
-- main：PR #7–#16 已合入。#16 于 2026-10-19 合并，Phase 0 共享契约 C1–C8 已可用；说明见 `docs/design/CONTRACTS.md`、`docs/design/OWNERS.md`。
-- PR #17 `ws1/iroh-network`（目标已改为 main，未合并）：iroh 默认网络、内置 relay、链接/二维码配对。集成评审发现单方确认可授权，已补双方独立确认的修复及回归测试；CI 通过后才能合并。交接见 `docs/design/handoff/WS1-iroh.md`。
-- 本总交接文档在 #16 合并后才提交，随 #17 补入；不要误以为 main 已有该文档。
+- main：PR #7–#17 已合入。#16 于 2026-10-19 合并，Phase 0 共享契约 C1–C8 已可用；说明见 `docs/design/CONTRACTS.md`、`docs/design/OWNERS.md`。
+- PR #17 `ws1/iroh-network` 已于 2026-10-19 合并，merge commit `a23858f`：iroh 默认网络、内置 relay、链接/二维码配对。集成评审补上双方独立确认的授权修复和两处空间测试同步修正；最终提交 `5a181c8` 的 7 项跨平台 CI 及 Release 检查全部通过。交接及剩余事项见 `docs/design/handoff/WS1-iroh.md`。
+- 本总交接文档在 #16 合并后才提交，已随 #17 补入 main。
 - 已有草稿 PR #19（Claude cch 实测结论）、#18（协议转换器与许可证）、#20（WS2/WS3 本机订阅代理）。另一个 Agent 正在原工作区完成 WS5/WS6/WS7，接手前先协调，勿覆盖其未提交改动。
 
 ## 合并顺序
-1. #16 已合；#17 已改 base 为 main，等待修复后的 CI 全绿再合。
+1. #16、#17 已按顺序合入 main；新工作可直接基于 main 开始。
 2. 其他草稿当前是 #19 → #18 → #20 的堆叠关系；依次评审、改目标分支、验证后再合，禁止跳过草稿审核。
 3. 已有工作流先 merge main；新工作从 main 切 `wsN/...` 分支，按 `docs/design/tasks/NN-*.md` 执行。
 
 ## 待接手工作流
 | WS | 任务书 | 状态 |
 |---|---|---|
-| WS1 iroh | tasks/01 | 进行中（#17），剩余清单见 WS1-iroh.md |
+| WS1 iroh | tasks/01 | 核心已合并（#17），UI、名册接入等剩余清单见 WS1-iroh.md |
 | WS2 订阅代理核心 | tasks/02 | 草稿 #18/#20，已有 Agent 负责 |
 | WS3 Codex/Kimi/国内厂商 | tasks/03 | 草稿 #20，与 WS2 一起推进 |
 | WS4 Claude 节点 | tasks/04 | 草稿 #19 提交首轮实测结论；详细规格仍私下提供，勿写入公开仓库 |
