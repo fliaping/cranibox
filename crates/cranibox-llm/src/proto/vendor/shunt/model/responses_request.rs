@@ -1,0 +1,1365 @@
+// Adapted from pleaseai/shunt src/model/responses_request.rs@9d42ba251dd1f0651e9d150767e3ff98a1ae042b (MIT OR Apache-2.0).
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
+
+use axum::http::HeaderValue;
+
+use crate::proto::vendor::shunt::compat::ResponsesFlavor;
+use crate::proto::vendor::shunt::compat::Route;
+use crate::proto::vendor::shunt::model::responses_schema;
+
+/// Claude Code's name for its tool-search tool (`ENABLE_TOOL_SEARCH`). Under the
+/// native protocol this maps to the Responses `tool_search` client tool, its
+/// `tool_use` to a `tool_search_call`, and its `tool_result` to a
+/// `tool_search_output`. Shared with the response translator, which surfaces an
+/// upstream `tool_search_call` as a `tool_use` under this same name.
+pub(crate) const TOOL_SEARCH_NAME: &str = "ToolSearch";
+
+/// Request-scoped state for Claude Code's tool-search feature. Borrows from the
+/// request `Value` the whole translator already parses and traverses — a separate
+/// typed deserialization pass would only add a second parse — so the pre-scan
+/// allocates nothing beyond the map/set entries.
+///
+/// `native` selects between two translations of the same client contract: the
+/// #82 native `tool_search` protocol (when the provider/model/flavor support it)
+/// or the #43 text-based progressive-reveal shim otherwise.
+#[derive(Default)]
+struct ToolSearchContext<'a> {
+    native: bool,
+    schema_map: HashMap<&'a str, (&'a str, &'a Value)>,
+    deferred_names: HashSet<&'a str>,
+    loaded_tools: HashSet<&'a str>,
+    /// `tool_use` ids of `ToolSearch` calls in the history. A `tool_result` whose
+    /// `tool_use_id` is one of these is a search result to translate into a
+    /// `tool_search_output` (native) rather than a `function_call_output` (shim).
+    search_call_ids: HashSet<&'a str>,
+}
+
+impl<'a> ToolSearchContext<'a> {
+    fn from_request(request: &'a Value, native: bool) -> Self {
+        // Placeholder for a tool without an input_schema; renders as `{}` in the
+        // reveal text, matching what normalize_schema forwards for such a tool.
+        static NO_SCHEMA: Value = Value::Null;
+        let mut context = Self {
+            native,
+            ..Self::default()
+        };
+        if let Some(tools) = request.get("tools").and_then(Value::as_array) {
+            for tool in tools {
+                let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+                let description = tool
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let input_schema = tool.get("input_schema").unwrap_or(&NO_SCHEMA);
+                context.schema_map.insert(name, (description, input_schema));
+                if tool.get("defer_loading").and_then(Value::as_bool) == Some(true) {
+                    context.deferred_names.insert(name);
+                }
+            }
+        }
+
+        if let Some(messages) = request.get("messages").and_then(Value::as_array) {
+            for message in messages {
+                // Iterate the blocks by reference — content_blocks() clones, and
+                // string-shaped content can't carry a tool_use/tool_result anyway.
+                let Some(blocks) = message.get("content").and_then(Value::as_array) else {
+                    continue;
+                };
+                for block in blocks {
+                    match block.get("type").and_then(Value::as_str) {
+                        // Remember which tool_use ids are ToolSearch calls so the
+                        // matching tool_result becomes a tool_search_output.
+                        Some("tool_use")
+                            if block.get("name").and_then(Value::as_str)
+                                == Some(TOOL_SEARCH_NAME) =>
+                        {
+                            if let Some(id) = block.get("id").and_then(Value::as_str) {
+                                context.search_call_ids.insert(id);
+                            }
+                        }
+                        Some("tool_result") => {
+                            let Some(result_blocks) =
+                                block.get("content").and_then(Value::as_array)
+                            else {
+                                continue;
+                            };
+                            for result_block in result_blocks {
+                                if result_block.get("type").and_then(Value::as_str)
+                                    == Some("tool_reference")
+                                {
+                                    if let Some(name) =
+                                        result_block.get("tool_name").and_then(Value::as_str)
+                                    {
+                                        context.loaded_tools.insert(name);
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        context
+    }
+}
+
+pub fn translate_request(
+    body: &[u8],
+    route: &Route,
+    flavor: ResponsesFlavor,
+    tool_search_native: bool,
+    session_id: Option<&str>,
+    client_turn: bool,
+) -> Result<Value, serde_json::Error> {
+    let request: Value = serde_json::from_slice(body)?;
+    Ok(translate_request_value(
+        &request,
+        route,
+        flavor,
+        tool_search_native,
+        session_id,
+        client_turn,
+    ))
+}
+
+pub fn translate_request_value(
+    request: &Value,
+    route: &Route,
+    flavor: ResponsesFlavor,
+    tool_search_native: bool,
+    session_id: Option<&str>,
+    client_turn: bool,
+) -> Value {
+    let tool_search = ToolSearchContext::from_request(request, tool_search_native);
+    let mut out = Map::new();
+    out.insert("model".to_string(), json!(route.upstream_model));
+    if let Some(instructions) = instructions(request) {
+        out.insert("instructions".to_string(), json!(instructions));
+    }
+    out.insert(
+        "input".to_string(),
+        Value::Array(input_items(request, &tool_search)),
+    );
+    // Only emit tools/tool_choice when at least one tool survives translation.
+    // The hosted web-search tool is dropped on flavors that reject it (xAI), and
+    // deferred tools are withheld until loaded via a `tool_reference` (progressive
+    // tool reveal); if the set is now empty, an empty `tools: []` array is rejected
+    // by OpenAI-compatible backends ("expected an array with at least one
+    // element"), while a `tool_choice` with no tools is meaningless.
+    if let Some(tools) =
+        tools(request, flavor, &tool_search).filter(|t| t.as_array().is_some_and(|a| !a.is_empty()))
+    {
+        out.insert("tools".to_string(), tools);
+        if let Some(tool_choice) = tool_choice(request, flavor, &tool_search) {
+            out.insert("tool_choice".to_string(), tool_choice);
+        }
+    }
+    // The Codex CLI always sends `parallel_tool_calls: true` (non-lite models),
+    // so the chatgpt flavor defaults it to true when the client omits it,
+    // unless an Anthropic client turned the same switch off through
+    // `tool_choice.disable_parallel_tool_use`; every other flavor stays
+    // client-driven.
+    if let Some(value) = request.get("parallel_tool_calls") {
+        out.insert("parallel_tool_calls".to_string(), value.clone());
+    } else if flavor == ResponsesFlavor::Chatgpt {
+        let disabled =
+            request.pointer("/tool_choice/disable_parallel_tool_use") == Some(&Value::Bool(true));
+        out.insert("parallel_tool_calls".to_string(), json!(!disabled));
+    }
+    // Several grok models 400 on `reasoning.effort` even though they reason
+    // natively, so on the xai flavor the reasoning dial stays opt-in: sent only
+    // when an effort was explicitly chosen — configured on the route/provider,
+    // or sent per-request by the client (`output_config.effort`). Derived
+    // defaults (thinking flag, model-suffix) stay off to avoid blanket 400s
+    // (mirrors Hermes' per-model allowlist, but table-driven per AGENTS.md).
+    // xAI also rejects the `summary` key, so it is omitted there. Other
+    // flavors always request a reasoning summary, as before.
+    match flavor {
+        ResponsesFlavor::Xai | ResponsesFlavor::Grok => {
+            let client_effort = request
+                .pointer("/output_config/effort")
+                .and_then(Value::as_str)
+                .is_some();
+            if route.effort.is_some() || client_effort {
+                out.insert(
+                    "reasoning".to_string(),
+                    json!({"effort": effort(request, route)}),
+                );
+            }
+        }
+        _ => {
+            out.insert(
+                "reasoning".to_string(),
+                json!({"effort": effort(request, route), "summary": "auto"}),
+            );
+        }
+    }
+    // `text.verbosity` is a gpt-family knob; xAI's Responses API rejects the
+    // `text` object, and Hermes never sends it there, so skip it for xai.
+    //
+    // `service_tier` is Codex CLI's "Fast" mode opt-in (faster responses,
+    // increased usage) -- a top-level sibling of `reasoning`, sent only
+    // when explicitly configured on the route/provider (never derived).
+    // xAI 400s on it, and the Grok CLI flavor inherits xAI's
+    // request-shaping rules (see docs/m6-xai-provider.md), so both are
+    // withheld even when configured.
+    // `"default"` is a client-only sentinel preserved through config
+    // validation and route resolution (see config::normalize_service_tier_value)
+    // so a route can override an inherited provider-level tier -- this is the
+    // one place it is stripped; the literal string must never reach the wire.
+    if !matches!(flavor, ResponsesFlavor::Xai | ResponsesFlavor::Grok) {
+        let mut text = json!({"verbosity": "medium"});
+        // A judge target on a Responses provider: libsy's codec asks for a
+        // structured verdict as Anthropic's `output_config.format`, and the
+        // Responses equivalent is `text.format`. Without the translation the
+        // judge answers in prose and every verdict is unparseable — a
+        // `classifier_fail_open` on every turn, with no error to read.
+        //
+        // `strict: false` and a fixed `name`, because neither survives the
+        // Anthropic hop either: that codec emits `{"type": "json_schema",
+        // "schema": …}` and drops the packaged name and `strict` (the live
+        // capture, "Fact (c), re-captured"). Sending `strict: true` here would
+        // hold the Responses judge to a contract the Anthropic one is not,
+        // and the schemas carry `additionalProperties: false` already.
+        // Withheld on xai/grok for the reason the whole `text` object is:
+        // that API rejects it.
+        if let (Some("json_schema"), Some(schema)) = (
+            request
+                .pointer("/output_config/format/type")
+                .and_then(Value::as_str),
+            request
+                .pointer("/output_config/format/schema")
+                .filter(|schema| schema.is_object()),
+        ) {
+            if let Some(object) = text.as_object_mut() {
+                object.insert(
+                    "format".to_string(),
+                    json!({
+                        "type": "json_schema",
+                        "name": "verdict",
+                        "schema": schema.clone(),
+                        "strict": false,
+                    }),
+                );
+            }
+        }
+        out.insert("text".to_string(), text);
+        if let Some(service_tier) = &route.service_tier {
+            if service_tier != "default" {
+                out.insert("service_tier".to_string(), json!(service_tier));
+            }
+        }
+    }
+    // With store:false the Responses backend forgets each turn's reasoning, so ask
+    // for the encrypted reasoning blob and echo it back next turn (see input_items).
+    // The Codex CLI sends this unconditionally on the ChatGPT/Codex backend, so a
+    // CLIENT turn to that flavor forces it regardless of thinking (mirroring what
+    // the client itself sends); the other flavors keep it gated on extended
+    // thinking, which is what lets Claude Code round-trip the thinking blocks that
+    // carry the blob (see model/responses.rs). An INTERNAL call (judge,
+    // classifier, advisor — a body nobody marked as the client's turn) never
+    // forces it: its reply is parsed once and discarded, so the encrypted blobs
+    // would only inflate the reply against `judge_max_response_bytes`.
+    if thinking_enabled(request) || (flavor == ResponsesFlavor::Chatgpt && client_turn) {
+        out.insert(
+            "include".to_string(),
+            json!(["reasoning.encrypted_content"]),
+        );
+    }
+    if let Some(cache_key) = prompt_cache_key(request, session_id) {
+        out.insert("prompt_cache_key".to_string(), json!(cache_key));
+    }
+    // Anthropic `max_tokens` caps output; the Responses equivalent is
+    // `max_output_tokens`. Forward it so the client's cap is respected instead of
+    // falling back to the model default. The ChatGPT/Codex backend rejects the
+    // parameter it never receives from codex ("Unsupported parameter:
+    // max_output_tokens"), so send it everywhere except that backend.
+    if flavor != ResponsesFlavor::Chatgpt {
+        if let Some(max_tokens) = request.get("max_tokens").and_then(Value::as_u64) {
+            out.insert("max_output_tokens".to_string(), json!(max_tokens));
+        }
+    }
+    out.insert("store".to_string(), json!(false));
+    out.insert("stream".to_string(), json!(true));
+    Value::Object(out)
+}
+
+/// The source and value of the effective conversation identity shared by the
+/// upstream session headers and body `prompt_cache_key`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum EffectiveSessionId {
+    Header(String),
+    MetadataSession(String),
+    HashedUserId(String),
+}
+
+impl EffectiveSessionId {
+    pub(crate) fn into_string(self) -> String {
+        match self {
+            Self::Header(value) | Self::MetadataSession(value) | Self::HashedUserId(value) => value,
+        }
+    }
+
+    /// Only conversation-scoped identities may reuse a WebSocket. The hash
+    /// fallback can represent every conversation belonging to one user.
+    pub(crate) fn websocket_pool_id(&self) -> Option<&str> {
+        match self {
+            Self::Header(value) | Self::MetadataSession(value) => Some(value),
+            Self::HashedUserId(_) => None,
+        }
+    }
+}
+
+/// Resolve the conversation identity from the inbound session header, then a
+/// `metadata.user_id` JSON `session_id`, then a stable hash of the raw user id.
+/// Metadata-only clients still get matching affinity headers and body keys; the
+/// provenance keeps the per-user hash out of the WebSocket connection pool.
+pub(crate) fn effective_session_identity(
+    request: &Value,
+    session_id: Option<&str>,
+) -> Option<EffectiveSessionId> {
+    // The inbound header is always header-safe: hyper rejects invalid header
+    // values at parse time, so whatever reached the handler is valid.
+    if let Some(session_id) = session_id.filter(|session_id| !session_id.is_empty()) {
+        return Some(EffectiveSessionId::Header(session_id.to_string()));
+    }
+    let user_id = request
+        .pointer("/metadata/user_id")
+        .and_then(Value::as_str)
+        .filter(|user_id| !user_id.is_empty())?;
+    if let Ok(parsed) = serde_json::from_str::<Value>(user_id) {
+        if let Some(session) = parsed
+            .get("session_id")
+            .and_then(Value::as_str)
+            .filter(|session| !session.is_empty())
+            // A JSON-decoded value can carry an escaped control character;
+            // it becomes the upstream affinity headers, and an invalid header
+            // value would fail the whole request. The hash fallback below is
+            // hex, always header-safe, and keeps header and key equal.
+            .filter(|session| HeaderValue::from_str(session).is_ok())
+        {
+            return Some(EffectiveSessionId::MetadataSession(session.to_string()));
+        }
+    }
+    Some(EffectiveSessionId::HashedUserId(hashed_user_id(user_id)))
+}
+
+/// The value-only view of [`effective_session_identity`], for consumers that
+/// need the id string but no provenance (`prompt_cache_key`, the adapter's
+/// inner forward after the pool decision). The decision logic stays in one
+/// place; this only drops the variant.
+pub(crate) fn effective_session_id(request: &Value, session_id: Option<&str>) -> Option<String> {
+    effective_session_identity(request, session_id).map(EffectiveSessionId::into_string)
+}
+
+/// A stable per-conversation key so the Responses backend routes every turn of a
+/// session to the same prompt cache. The real Codex CLI sends its raw session id
+/// here (`codex-rs` `core/src/client.rs`), and the backend derives cache affinity
+/// from the `session-id` request header — so the key must equal that header's
+/// value, and both come from the one derivation in [`effective_session_id`].
+fn prompt_cache_key(request: &Value, session_id: Option<&str>) -> Option<String> {
+    effective_session_id(request, session_id)
+}
+
+/// The stable fallback id for a `metadata.user_id` that is not a JSON blob
+/// carrying a header-safe `session_id`. A stable hash: `DefaultHasher`'s
+/// algorithm is not pinned across rustc releases, and a rotated fallback key
+/// silently forfeits one turn's cache. sha2 is already a dependency; 8 bytes
+/// suffice for a cache-namespace id.
+fn hashed_user_id(user_id: &str) -> String {
+    let digest = Sha256::digest(user_id.as_bytes());
+    format!(
+        "{:016x}",
+        u64::from_be_bytes(digest[..8].try_into().expect("sha256 digest is 32 bytes"))
+    )
+}
+
+/// Whether the client requested extended thinking. Gates reasoning round-tripping:
+/// Claude Code only echoes assistant thinking blocks back when thinking is enabled.
+fn thinking_enabled(request: &Value) -> bool {
+    request.pointer("/thinking/type").and_then(Value::as_str) == Some("enabled")
+}
+
+/// Pack a Responses reasoning item's id + encrypted_content into the opaque
+/// `signature` of an Anthropic thinking block. Claude Code round-trips signatures
+/// verbatim, so the next turn can [`decode_reasoning_signature`] it back into a
+/// Responses `reasoning` input item — preserving chain-of-thought under store:false.
+pub fn encode_reasoning_signature(id: &str, encrypted_content: &str) -> String {
+    let payload = json!({"id": id, "enc": encrypted_content});
+    URL_SAFE_NO_PAD.encode(payload.to_string())
+}
+
+/// True when `signature` is one [`encode_reasoning_signature`] produced.
+///
+/// The accept half of [`decode_reasoning_signature`] without its payload, so the
+/// Anthropic outbound strip can recognise shunt's own signatures without
+/// duplicating the encoding — see [`crate::proto::vendor::shunt::model::thinking_signature`].
+pub fn is_reasoning_signature(signature: &str) -> bool {
+    decode_reasoning_signature(signature).is_some()
+}
+
+/// Inverse of [`encode_reasoning_signature`]. Returns `None` for signatures shunt
+/// did not produce (e.g. a genuine Anthropic thinking signature), which are dropped
+/// rather than forwarded — the Responses backend rejects reasoning it never issued.
+fn decode_reasoning_signature(signature: &str) -> Option<(String, String)> {
+    let bytes = URL_SAFE_NO_PAD.decode(signature).ok()?;
+    let value: Value = serde_json::from_slice(&bytes).ok()?;
+    let id = value.get("id").and_then(Value::as_str)?.to_string();
+    let enc = value.get("enc").and_then(Value::as_str)?.to_string();
+    Some((id, enc))
+}
+
+fn instructions(request: &Value) -> Option<String> {
+    match request.get("system")? {
+        Value::String(text) => Some(text.clone()),
+        Value::Array(blocks) => {
+            let text = blocks
+                .iter()
+                .filter(|block| block.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|block| block.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n");
+            (!text.is_empty()).then_some(text)
+        }
+        _ => None,
+    }
+}
+
+fn input_items(request: &Value, context: &ToolSearchContext) -> Vec<Value> {
+    let mut out = Vec::new();
+    let Some(messages) = request.get("messages").and_then(Value::as_array) else {
+        return out;
+    };
+    for message in messages {
+        let role = normalize_role(
+            message
+                .get("role")
+                .and_then(Value::as_str)
+                .unwrap_or("user"),
+        );
+        let blocks = content_blocks(message.get("content"));
+        let mut pending = Vec::new();
+        for block in blocks.iter() {
+            match block.get("type").and_then(Value::as_str) {
+                Some("text") => text_part(role, block, &mut pending),
+                Some("image") => image_part(block, &mut pending),
+                Some("document") => document_part(block, &mut pending),
+                Some("tool_use") => tool_use_item(&mut out, role, &mut pending, block, context),
+                Some("tool_result") => {
+                    tool_result_item(&mut out, role, &mut pending, block, context)
+                }
+                Some("thinking") => reasoning_item(&mut out, role, &mut pending, block),
+                Some("redacted_thinking") => {
+                    redacted_reasoning_item(&mut out, role, &mut pending, block)
+                }
+                _ => {}
+            }
+        }
+        flush_message(&mut out, role, &mut pending);
+    }
+    out
+}
+
+/// Claude Code sends `output_config.effort` (low|medium|high|xhigh|max) for
+/// most model ids, including custom gateway ids like gpt-5.6-sol; ids on its
+/// legacy effort deny list send no effort at all. Map it to the Responses
+/// `reasoning.effort`.
+///
+/// Which levels the ChatGPT/Codex backend accepts is per-model, listed in
+/// openai/codex `codex-rs/models-manager/models.json` (`supported_reasoning_levels`):
+/// the gpt-5.6 and gpt-6 families accept up to `max` (sol/terra even `ultra`), while
+/// the gpt-5.5/5.4/5.2 slugs cap at `xhigh`. So `max` passes through for a model that
+/// supports it and folds to `xhigh` otherwise. (Claude Code never emits `ultra`.)
+fn map_effort(effort: &str, model: &str) -> String {
+    if effort == "max" && !supports_max_effort(model) {
+        "xhigh".to_string()
+    } else {
+        effort.to_string()
+    }
+}
+
+/// Whether `model` accepts the `max` reasoning level, per codex models.json.
+/// The gpt-5.6 and gpt-6 families do; earlier slugs cap at `xhigh`.
+fn supports_max_effort(model: &str) -> bool {
+    model.contains("gpt-5.6") || model.contains("gpt-6")
+}
+
+/// Claude Code sends mid-conversation `system`-role messages (e.g. SessionStart
+/// hook output, the agent catalog) in the `messages` array. The ChatGPT Codex
+/// backend rejects them (`{"detail":"System messages are not allowed"}`), while
+/// the Responses convention for system-level turns is `developer`, which the
+/// backend accepts. Map `system` -> `developer` so the content is preserved
+/// rather than dropped; verified live against the ChatGPT Codex backend.
+fn normalize_role(role: &str) -> &str {
+    if role == "system" { "developer" } else { role }
+}
+
+fn text_part(role: &str, block: &Value, pending: &mut Vec<Value>) {
+    if let Some(text) = block.get("text").and_then(Value::as_str) {
+        if !text.trim().is_empty() {
+            let kind = if role == "assistant" {
+                "output_text"
+            } else {
+                "input_text"
+            };
+            pending.push(json!({"type": kind, "text": text}));
+        }
+    }
+}
+
+fn image_part(block: &Value, pending: &mut Vec<Value>) {
+    if let Some(item) = image_content_item(block) {
+        pending.push(item);
+    }
+}
+
+fn document_part(block: &Value, pending: &mut Vec<Value>) {
+    if let Some(item) = file_content_item(block) {
+        pending.push(item);
+    }
+}
+
+/// Anthropic `image` block -> Responses `input_image`. `image_url` accepts both
+/// a passthrough URL and a base64 `data:` URI, so both source shapes map to it.
+fn image_content_item(block: &Value) -> Option<Value> {
+    let image_url = source_url(block.get("source")?, "image/png")?;
+    Some(json!({"type": "input_image", "image_url": image_url}))
+}
+
+/// Anthropic `document` block (e.g. a PDF) -> Responses `input_file`. Unlike
+/// images, `input_file` splits by key: `file_url` for a URL source, `file_data`
+/// for base64. Source shapes shunt can't represent are dropped (return None)
+/// rather than forwarded as an empty, invalid `data:` URI.
+fn file_content_item(block: &Value) -> Option<Value> {
+    let source = block.get("source")?;
+    let mut item = match source.get("type").and_then(Value::as_str) {
+        Some("url") => {
+            let url = source.get("url").and_then(Value::as_str)?;
+            json!({"type": "input_file", "file_url": url})
+        }
+        Some("base64") | None => {
+            let data = source.get("data").and_then(Value::as_str)?;
+            let media_type = source
+                .get("media_type")
+                .and_then(Value::as_str)
+                .unwrap_or("application/pdf");
+            json!({"type": "input_file", "file_data": format!("data:{media_type};base64,{data}")})
+        }
+        _ => return None,
+    };
+    if let Some(filename) = block.get("title").and_then(Value::as_str) {
+        item["filename"] = json!(filename);
+    }
+    Some(item)
+}
+
+/// Resolve an Anthropic block `source` to a URL string: a passthrough `url`
+/// source, or a base64 `data:` URI. Returns None for a base64 source missing its
+/// data, or any source shape shunt can't represent — the caller drops the block
+/// rather than emitting a malformed empty `data:` URI.
+fn source_url(source: &Value, default_media_type: &str) -> Option<String> {
+    match source.get("type").and_then(Value::as_str) {
+        Some("url") => source
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        Some("base64") | None => {
+            let data = source.get("data").and_then(Value::as_str)?;
+            let media_type = source
+                .get("media_type")
+                .and_then(Value::as_str)
+                .unwrap_or(default_media_type);
+            Some(format!("data:{media_type};base64,{data}"))
+        }
+        _ => None,
+    }
+}
+
+fn tool_use_item(
+    out: &mut Vec<Value>,
+    role: &str,
+    pending: &mut Vec<Value>,
+    block: &Value,
+    context: &ToolSearchContext,
+) {
+    flush_message(out, role, pending);
+    let name = block.get("name").and_then(Value::as_str).unwrap_or("");
+    if context.native && name == TOOL_SEARCH_NAME {
+        // A ToolSearch call replayed from history -> native tool_search_call.
+        out.push(tool_search_call_item(block));
+        return;
+    }
+    out.push(json!({
+        "type": "function_call",
+        "call_id": block.get("id").and_then(Value::as_str).unwrap_or(""),
+        "name": name,
+        "arguments": block.get("input").map(Value::to_string).unwrap_or_else(|| "{}".to_string())
+    }));
+}
+
+fn tool_result_item(
+    out: &mut Vec<Value>,
+    role: &str,
+    pending: &mut Vec<Value>,
+    block: &Value,
+    context: &ToolSearchContext,
+) {
+    flush_message(out, role, pending);
+    let call_id = block
+        .get("tool_use_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if context.native && context.search_call_ids.contains(call_id) {
+        // The result of a ToolSearch call -> native tool_search_output carrying
+        // the loaded tools' full schemas (see tool_search_output_item).
+        out.push(tool_search_output_item(call_id, block, context));
+        return;
+    }
+    out.push(json!({
+        "type": "function_call_output",
+        "call_id": call_id,
+        "output": tool_result_output(block, &context.schema_map)
+    }));
+}
+
+/// A ToolSearch `tool_use` -> Responses `tool_search_call` input item. Unlike a
+/// `function_call` (whose `arguments` is a JSON-encoded string), a
+/// `tool_search_call` carries `arguments` as a native JSON object, `execution`
+/// is always `"client"`, and the Anthropic `tool_use` id becomes `call_id`.
+fn tool_search_call_item(block: &Value) -> Value {
+    json!({
+        "type": "tool_search_call",
+        "call_id": block.get("id").and_then(Value::as_str).unwrap_or(""),
+        "execution": "client",
+        "status": "completed",
+        "arguments": block.get("input").cloned().unwrap_or_else(|| json!({})),
+    })
+}
+
+/// A ToolSearch `tool_result` -> Responses `tool_search_output` input item. The
+/// ordered `tool_reference` blocks become an ordered `tools` array of loadable
+/// function specs carrying each tool's full schema (from `schema_map`), so the
+/// upstream model can call the loaded tool on the next turn. `call_id` echoes the
+/// originating search call; `status`/`execution` are the constants codex emits.
+/// Unknown references (no matching tool in `schema_map`) are skipped rather than
+/// serialized as an invalid loadable tool; an empty result yields `tools: []`.
+fn tool_search_output_item(call_id: &str, block: &Value, context: &ToolSearchContext) -> Value {
+    let tools = block
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|blocks| {
+            // Keep the first reference to each tool: a duplicate `tool_name`
+            // would serialize two function specs with the same `name`, wasting
+            // upstream context and tripping stricter backends' validation.
+            let mut seen = std::collections::HashSet::new();
+            blocks
+                .iter()
+                .filter(|inner| inner.get("type").and_then(Value::as_str) == Some("tool_reference"))
+                .filter_map(|inner| inner.get("tool_name").and_then(Value::as_str))
+                .filter(|name| seen.insert(*name))
+                .filter_map(|name| loadable_tool_spec(name, context))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({
+        "type": "tool_search_output",
+        "call_id": call_id,
+        "status": "completed",
+        "execution": "client",
+        "tools": tools,
+    })
+}
+
+/// A loadable `{type:"function", …, defer_loading:true}` spec for a revealed tool,
+/// or `None` when `name` is not a known tool (so an unknown reference is dropped
+/// rather than emitted as a malformed spec). Mirrors the wire shape codex puts in
+/// `tool_search_output.tools`, including the full normalized parameter schema;
+/// `strict:false` is shunt's addition on top of that shape (the same
+/// optional-preservation reason as `function_tool`), and the surface accepts it —
+/// measured 2026-09-10 against the ChatGPT/Codex backend, 3 reveal turns.
+fn loadable_tool_spec(name: &str, context: &ToolSearchContext) -> Option<Value> {
+    let (description, input_schema) = context.schema_map.get(name)?;
+    Some(json!({
+        "type": "function",
+        "name": name,
+        "description": description,
+        "defer_loading": true,
+        "strict": false,
+        "parameters": normalize_schema((*input_schema).clone()),
+    }))
+}
+
+/// An assistant `thinking` block carries a Responses reasoning item's state in its
+/// signature (stamped by shunt on the way out). Decode it back into a `reasoning`
+/// input item so the backend keeps its chain-of-thought under store:false. Blocks
+/// whose signature shunt did not produce are dropped — never forwarded.
+fn reasoning_item(out: &mut Vec<Value>, role: &str, pending: &mut Vec<Value>, block: &Value) {
+    let Some(signature) = block.get("signature").and_then(Value::as_str) else {
+        return;
+    };
+    let Some((id, encrypted_content)) = decode_reasoning_signature(signature) else {
+        return;
+    };
+    flush_message(out, role, pending);
+    let summary = block.get("thinking").and_then(Value::as_str).unwrap_or("");
+    out.push(reasoning_input_item(&id, &encrypted_content, summary));
+}
+
+/// A `redacted_thinking` block is the opaque fallback vehicle for the same reasoning
+/// state, carried in `data` instead of a signature.
+fn redacted_reasoning_item(
+    out: &mut Vec<Value>,
+    role: &str,
+    pending: &mut Vec<Value>,
+    block: &Value,
+) {
+    let Some(data) = block.get("data").and_then(Value::as_str) else {
+        return;
+    };
+    let Some((id, encrypted_content)) = decode_reasoning_signature(data) else {
+        return;
+    };
+    flush_message(out, role, pending);
+    out.push(reasoning_input_item(&id, &encrypted_content, ""));
+}
+
+fn reasoning_input_item(id: &str, encrypted_content: &str, summary: &str) -> Value {
+    let summary = if summary.is_empty() {
+        json!([])
+    } else {
+        json!([{"type": "summary_text", "text": summary}])
+    };
+    let mut item = json!({
+        "type": "reasoning",
+        "summary": summary,
+        "encrypted_content": encrypted_content,
+    });
+    if !id.is_empty() {
+        item["id"] = json!(id);
+    }
+    item
+}
+
+fn content_blocks(content: Option<&Value>) -> Cow<'_, [Value]> {
+    match content {
+        Some(Value::String(text)) => Cow::Owned(vec![json!({"type": "text", "text": text})]),
+        Some(Value::Array(blocks)) => Cow::Borrowed(blocks),
+        _ => Cow::Borrowed(&[]),
+    }
+}
+
+fn flush_message(out: &mut Vec<Value>, role: &str, pending: &mut Vec<Value>) {
+    if pending.is_empty() {
+        return;
+    }
+    // Move the accumulated blocks into the message instead of serializing them
+    // into a fresh JSON tree (`json!` would deep-copy the whole content array).
+    let mut message = Map::with_capacity(3);
+    message.insert("type".to_string(), Value::from("message"));
+    message.insert("role".to_string(), Value::from(role));
+    message.insert("content".to_string(), Value::Array(std::mem::take(pending)));
+    out.push(Value::Object(message));
+}
+
+/// Claude Code's tool-search feature puts `{type:"tool_reference", tool_name}`
+/// blocks in ToolSearch results. Render known references with the tool definition,
+/// emulating Anthropic's server-side progressive reveal. Unknown references retain
+/// the legacy name-only text so malformed or schema-less requests remain usable.
+fn tool_reference_text(
+    block: &Value,
+    schema_map: &HashMap<&str, (&str, &Value)>,
+) -> Option<String> {
+    let name = block.get("tool_name").and_then(Value::as_str)?;
+    let Some((description, input_schema)) = schema_map.get(name) else {
+        return Some(format!("Loaded tool: {name}"));
+    };
+    // Serialize the full input_schema (not just `properties`): `required` and the
+    // other constraints must reach the model at reveal time, or a tool with
+    // mandatory parameters reads as all-optional. Serialized from the borrowed
+    // schema — no clone.
+    let parameters = if input_schema.is_object() {
+        serde_json::to_string_pretty(input_schema).unwrap_or_else(|_| "{}".to_string())
+    } else {
+        "{}".to_string()
+    };
+    Some(format!(
+        "Tool '{name}' is now available.\n\nDescription: {description}\n\nParameters:\n{parameters}"
+    ))
+}
+
+/// The `output` of a `function_call_output`. Text-only results collapse to a plain
+/// string (what most tools return); results carrying an image or document are sent
+/// as the Responses content-item array (text/image/file) so they are not dropped.
+fn tool_result_output(block: &Value, schema_map: &HashMap<&str, (&str, &Value)>) -> Value {
+    let is_error = block.get("is_error").and_then(Value::as_bool) == Some(true);
+    match block.get("content") {
+        Some(Value::String(text)) => json!(text),
+        Some(Value::Array(blocks)) => {
+            let has_rich = blocks.iter().any(|inner| {
+                matches!(
+                    inner.get("type").and_then(Value::as_str),
+                    Some("image") | Some("document")
+                )
+            });
+            if has_rich {
+                let mut items = blocks
+                    .iter()
+                    .filter_map(|inner| match inner.get("type").and_then(Value::as_str) {
+                        Some("text") => inner
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .map(|text| json!({"type": "input_text", "text": text})),
+                        Some("image") => image_content_item(inner),
+                        Some("document") => file_content_item(inner),
+                        Some("tool_reference") => tool_reference_text(inner, schema_map)
+                            .map(|text| json!({"type": "input_text", "text": text})),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                // Preserve the failure signal the text-only branch conveys: a
+                // failed result with no text would otherwise reach the model as
+                // media alone, with no indication it errored.
+                let has_text = items.iter().any(|item| {
+                    item.get("type").and_then(Value::as_str) == Some("input_text")
+                        && item
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .is_some_and(|text| !text.is_empty())
+                });
+                if is_error && !has_text {
+                    items.insert(
+                        0,
+                        json!({"type": "input_text", "text": "Tool execution failed"}),
+                    );
+                }
+                return Value::Array(items);
+            }
+            let text = blocks
+                .iter()
+                .filter_map(|inner| match inner.get("type").and_then(Value::as_str) {
+                    Some("text") => inner
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    Some("tool_reference") => tool_reference_text(inner, schema_map),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            if text.is_empty() && is_error {
+                json!("Tool execution failed")
+            } else {
+                json!(text)
+            }
+        }
+        _ if is_error => json!("Tool execution failed"),
+        _ => json!(""),
+    }
+}
+
+/// The Anthropic tool `type` for the hosted web search tool Claude Code sends
+/// when a user enables web search.
+const WEB_SEARCH_TYPE: &str = "web_search_20250305";
+
+fn is_web_search_tool(tool: &Value) -> bool {
+    tool.get("type").and_then(Value::as_str) == Some(WEB_SEARCH_TYPE)
+}
+
+/// Anthropic's `web_search_20250305` is a server-hosted tool: the model runs
+/// the search upstream, the client never executes it. Naively forwarding it as
+/// a `function` tool (shunt's default for every tool) registers a phantom
+/// function the client can't fulfill, so the search never runs. Instead emit
+/// the Responses hosted web-search tool so the backend performs the search.
+///
+/// The wire shape (`external_web_access` + `search_content_types`, filters
+/// nested under `filters`) mirrors what the ChatGPT/Codex backend accepts.
+fn web_search_tool(tool: &Value) -> Value {
+    let mut filters = Map::new();
+    for key in ["allowed_domains", "blocked_domains"] {
+        let domains: Vec<Value> = tool
+            .get(key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|value| value.is_string())
+            .cloned()
+            .collect();
+        if !domains.is_empty() {
+            filters.insert(key.to_string(), Value::Array(domains));
+        }
+    }
+    let mut out = json!({
+        "type": "web_search",
+        "external_web_access": false,
+        "search_content_types": ["text", "image"],
+    });
+    if !filters.is_empty() {
+        out.as_object_mut()
+            .expect("web_search tool is a JSON object")
+            .insert("filters".to_string(), Value::Object(filters));
+    }
+    out
+}
+
+fn function_tool(tool: &Value, flavor: ResponsesFlavor) -> Value {
+    let mut out = json!({
+        "type": "function",
+        "name": tool.get("name").and_then(Value::as_str).unwrap_or(""),
+        "description": tool.get("description").and_then(Value::as_str).unwrap_or(""),
+        "parameters": normalize_schema(tool.get("input_schema").cloned().unwrap_or_else(|| json!({})))
+    });
+    // `strict:false` keeps the schema's optional properties optional: omitted,
+    // the field is normalized toward strict mode upstream and a closed
+    // parameter object behaves as if every property were required. Withheld on
+    // xAI/Grok, which reject several standard Responses fields (`text`,
+    // `service_tier`, `reasoning.summary`) and whose acceptance of `strict` is
+    // unverified — the same rule as the web-search gate below.
+    if !matches!(flavor, ResponsesFlavor::Xai | ResponsesFlavor::Grok) {
+        out["strict"] = json!(false);
+    }
+    out
+}
+
+/// Claude Code's ToolSearch tool definition -> the Responses native
+/// client-executed `tool_search` tool. It has no `name` (the `type` is its
+/// identity), `execution` is always `"client"`, and description/parameters carry
+/// through — normalized like any function tool — so the model sees the same
+/// search contract Claude Code executes. Unlike a function tool it carries no
+/// `strict`: that tool kind rejects the field (`400 Unknown parameter:
+/// 'tools[0].strict'`, measured 2026-09-10 against the ChatGPT/Codex backend),
+/// and the omission costs nothing — the ToolSearch schema has no optional
+/// properties (captured 2026-09-10: `query` and `max_results` are both
+/// required), so strict normalization cannot inflate its calls.
+fn tool_search_tool_def(tool: &Value) -> Value {
+    json!({
+        "type": "tool_search",
+        "execution": "client",
+        "description": tool.get("description").and_then(Value::as_str).unwrap_or(""),
+        "parameters": normalize_schema(tool.get("input_schema").cloned().unwrap_or_else(|| json!({}))),
+    })
+}
+
+fn tools(request: &Value, flavor: ResponsesFlavor, context: &ToolSearchContext) -> Option<Value> {
+    let tools = request.get("tools")?.as_array()?;
+    Some(Value::Array(
+        tools
+            .iter()
+            // Progressive tool reveal: withhold deferred tools. The shim forwards
+            // a deferred tool once a `tool_reference` has loaded it; the native
+            // path withholds every deferred tool from the initial callable set
+            // (loaded ones ride in the `tool_search_output` instead). ToolSearch
+            // itself is never deferred, so it always passes this gate.
+            .filter(|tool| {
+                let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+                if !context.deferred_names.contains(name) {
+                    return true;
+                }
+                !context.native && context.loaded_tools.contains(name)
+            })
+            .filter_map(|tool| {
+                let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+                if context.native && name == TOOL_SEARCH_NAME {
+                    return Some(tool_search_tool_def(tool));
+                }
+                if is_web_search_tool(tool) {
+                    // Only the Grok CLI subscription proxy is verified to accept
+                    // hosted web search. Keep dropping it on the xAI developer
+                    // API until that surface is verified separately.
+                    match flavor {
+                        ResponsesFlavor::Xai => None,
+                        _ => Some(web_search_tool(tool)),
+                    }
+                } else {
+                    Some(function_tool(tool, flavor))
+                }
+            })
+            .collect(),
+    ))
+}
+
+fn normalize_schema(schema: Value) -> Value {
+    let mut object = match schema {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    };
+    object.insert("type".to_string(), json!("object"));
+    object
+        .entry("properties".to_string())
+        .or_insert_with(|| json!({}));
+    if !object.get("required").is_some_and(Value::is_array) {
+        object.remove("required");
+    }
+    object
+        .entry("additionalProperties".to_string())
+        .or_insert_with(|| json!(true));
+    let mut schema = Value::Object(object);
+    // The backend compiles every `pattern` with Python's `re`; a JavaScript-only
+    // regex (Claude Code's `Artifact` tool carries `\p{Cc}`) fails the request.
+    responses_schema::strip_unsupported_patterns(&mut schema);
+    schema
+}
+
+/// Whether the request registered a hosted web-search tool under `name`,
+/// regardless of flavor. A `tool` choice naming it must not become a named
+/// `function` choice — the backend has no such function registered.
+fn names_web_search(request: &Value, name: &str) -> bool {
+    request
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|tools| {
+            tools.iter().any(|tool| {
+                is_web_search_tool(tool) && tool.get("name").and_then(Value::as_str) == Some(name)
+            })
+        })
+}
+
+fn tool_choice(
+    request: &Value,
+    flavor: ResponsesFlavor,
+    context: &ToolSearchContext,
+) -> Option<Value> {
+    let has_tools = request
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|tools| !tools.is_empty());
+    match request.get("tool_choice") {
+        Some(choice) => match choice.get("type").and_then(Value::as_str) {
+            Some("auto") => Some(json!("auto")),
+            Some("none") => Some(json!("none")),
+            Some("any") => Some(json!("required")),
+            Some("tool") => {
+                let name = choice.get("name").and_then(Value::as_str).unwrap_or("");
+                if names_web_search(request, name) {
+                    // The xAI developer API drops the hosted tool (see `tools`),
+                    // so a `web_search` choice there would force a tool that was
+                    // never registered. The Grok CLI flavor keeps the hosted
+                    // selector because that surface supports it.
+                    match flavor {
+                        ResponsesFlavor::Xai => Some(json!("auto")),
+                        _ => Some(json!({"type": "web_search"})),
+                    }
+                } else if context.native && name == TOOL_SEARCH_NAME {
+                    // ToolSearch is emitted as a native `tool_search` tool, not a
+                    // function, so forcing it as a named function choice would
+                    // reference an unregistered function (and the tool_search
+                    // force shape is unverified). Downgrade to `auto`.
+                    Some(json!("auto"))
+                } else if context.deferred_names.contains(name)
+                    && (context.native || !context.loaded_tools.contains(name))
+                {
+                    // Progressive tool reveal withheld this tool from `tools`
+                    // (the native path withholds every deferred tool; the shim
+                    // withholds an unloaded one), so a named function choice would
+                    // force a function the backend never saw. Downgrade to
+                    // `auto`, mirroring the dropped-web-search case.
+                    Some(json!("auto"))
+                } else {
+                    Some(json!({"type": "function", "name": name}))
+                }
+            }
+            _ => None,
+        },
+        None if has_tools => Some(json!("auto")),
+        None => None,
+    }
+}
+
+fn effort(request: &Value, route: &Route) -> String {
+    if let Some(effort) = &route.effort {
+        return effort.clone();
+    }
+    if let Some(effort) = request
+        .pointer("/output_config/effort")
+        .and_then(Value::as_str)
+    {
+        return map_effort(effort, &route.upstream_model);
+    }
+    if request.pointer("/thinking/type").and_then(Value::as_str) == Some("enabled") {
+        return "high".to_string();
+    }
+    let model = &route.upstream_model;
+    if model.ends_with("-xhigh") {
+        "xhigh"
+    } else if model.ends_with("-high") {
+        "high"
+    } else if model.ends_with("-medium") {
+        "medium"
+    } else if model.ends_with("-spark") || model.ends_with("-low") {
+        "low"
+    } else {
+        "medium"
+    }
+    .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    /// F9's other half: a CLIENT turn to the chatgpt flavor keeps the
+    /// encrypted-reasoning include (the force exists to mirror what the Codex
+    /// CLI itself sends), and flipping the mark off drops it — the same
+    /// translation, discriminated only by the body's origin.
+    #[test]
+    fn a_client_turn_to_the_chatgpt_flavor_keeps_the_encrypted_reasoning_include() {
+        let request = serde_json::json!({
+            "model": "gpt-5.2-codex",
+            "messages": [{"role": "user", "content": "hi"}],
+        });
+        let route = crate::proto::vendor::shunt::compat::Route {
+            provider: "codex".to_string(),
+            adapter: crate::proto::vendor::shunt::compat::AdapterKind::Responses,
+            model: "gpt-5.2-codex".to_string(),
+            upstream_model: "gpt-5.2-codex".to_string(),
+            effort: None,
+            service_tier: None,
+        };
+        let client = translate_request_value(
+            &request,
+            &route,
+            ResponsesFlavor::Chatgpt,
+            false,
+            None,
+            true,
+        );
+        assert_eq!(
+            client["include"],
+            serde_json::json!(["reasoning.encrypted_content"])
+        );
+        let internal = translate_request_value(
+            &request,
+            &route,
+            ResponsesFlavor::Chatgpt,
+            false,
+            None,
+            false,
+        );
+        assert!(internal.get("include").is_none());
+    }
+
+    use serde_json::json;
+
+    use super::{
+        EffectiveSessionId, ResponsesFlavor, ToolSearchContext, effective_session_identity, effort,
+        input_items, translate_request_value,
+    };
+    use crate::proto::vendor::shunt::compat::{AdapterKind, Route};
+
+    fn codex_route() -> Route {
+        Route {
+            provider: "codex".to_string(),
+            adapter: AdapterKind::Responses,
+            model: "gpt-5.5".to_string(),
+            upstream_model: "gpt-5.5".to_string(),
+            effort: None,
+            service_tier: None,
+        }
+    }
+
+    fn codex_route_model(model: &str) -> Route {
+        Route {
+            upstream_model: model.to_string(),
+            model: model.to_string(),
+            ..codex_route()
+        }
+    }
+
+    #[test]
+    fn maps_output_config_effort_to_reasoning_effort() {
+        // gpt-5.5 caps at xhigh, so `max` folds down (per codex models.json).
+        for (level, expected) in [
+            ("low", "low"),
+            ("medium", "medium"),
+            ("high", "high"),
+            ("xhigh", "xhigh"),
+            ("max", "xhigh"),
+        ] {
+            let request = json!({"output_config": {"effort": level}});
+            assert_eq!(effort(&request, &codex_route()), expected, "level={level}");
+        }
+    }
+
+    /// A judge target on a Responses provider (ADR-0005 §8 PR 5). libsy asks
+    /// for the verdict as Anthropic's `output_config.format`; this is where
+    /// that becomes the Responses API's `text.format`.
+    ///
+    /// Non-vacuity: delete the `output_config.format` branch in
+    /// `translate_request_value` and the `format` assertions go red; send
+    /// `strict: true` and the last one does.
+    #[test]
+    fn maps_output_config_json_schema_to_text_format() {
+        let schema = json!({
+            "type": "object",
+            "properties": {"target": {"type": "string"}},
+            "required": ["target"],
+            "additionalProperties": false,
+        });
+        let request = json!({
+            "messages": [],
+            "output_config": {"format": {"type": "json_schema", "schema": schema}},
+        });
+
+        let out = translate_request_value(
+            &request,
+            &codex_route(),
+            ResponsesFlavor::Chatgpt,
+            false,
+            None,
+            true,
+        );
+
+        assert_eq!(out["text"]["format"]["type"], "json_schema");
+        assert_eq!(out["text"]["format"]["name"], "verdict");
+        assert_eq!(out["text"]["format"]["schema"], schema);
+        assert_eq!(out["text"]["format"]["strict"], json!(false));
+        assert_eq!(
+            out["text"]["verbosity"], "medium",
+            "the format merges into the existing text object rather than replacing it"
+        );
+    }
+
+    /// xAI rejects the whole `text` object, so the judge's schema is withheld
+    /// there exactly as `verbosity` is.
+    #[test]
+    fn withholds_the_judge_schema_on_the_xai_flavor() {
+        let request = json!({
+            "messages": [],
+            "output_config": {"format": {"type": "json_schema", "schema": {"type": "object"}}},
+        });
+
+        for flavor in [ResponsesFlavor::Xai, ResponsesFlavor::Grok] {
+            let out = translate_request_value(&request, &codex_route(), flavor, false, None, true);
+            assert!(out.get("text").is_none(), "flavor={flavor:?}");
+        }
+    }
+
+    /// A client body with no structured-output request is untouched: the
+    /// branch must not invent a `format` for ordinary traffic.
+    #[test]
+    fn leaves_text_format_alone_without_a_json_schema_request() {
+        for request in [
+            json!({"messages": []}),
+            json!({"output_config": {"effort": "high"}}),
+            json!({"output_config": {"format": {"type": "text"}}}),
+            json!({"output_config": {"format": {"type": "json_schema"}}}),
+        ] {
+            let out = translate_request_value(
+                &request,
+                &codex_route(),
+                ResponsesFlavor::Chatgpt,
+                false,
+                None,
+                true,
+            );
+            assert!(
+                out["text"].get("format").is_none(),
+                "request={request}, out={out}"
+            );
+        }
+    }
+
+    #[test]
+    fn passes_max_effort_through_for_gpt_5_6() {
+        // gpt-5.6* accept `max` natively, so it must not fold to xhigh.
+        let request = json!({"output_config": {"effort": "max"}});
+        assert_eq!(effort(&request, &codex_route_model("gpt-5.6-sol")), "max");
+        assert_eq!(effort(&request, &codex_route_model("gpt-5.6-luna")), "max");
+    }
+
+    #[test]
+    fn passes_max_effort_through_for_gpt_6() {
+        // gpt-6* accept `max` natively, so it must not fold to xhigh.
+        let request = json!({"output_config": {"effort": "max"}});
+        assert_eq!(effort(&request, &codex_route_model("gpt-6-astra")), "max");
+        assert_eq!(effort(&request, &codex_route_model("gpt-6-sol")), "max");
+        assert_eq!(effort(&request, &codex_route_model("gpt-6-luna")), "max");
+        assert_eq!(effort(&request, &codex_route_model("gpt-6-pro")), "max");
+    }
+
+    #[test]
+    fn route_effort_overrides_request_effort() {
+        let mut route = codex_route();
+        route.effort = Some("high".to_string());
+        let request = json!({"output_config": {"effort": "low"}});
+        assert_eq!(effort(&request, &route), "high");
+    }
+
+    #[test]
+    fn falls_back_to_medium_without_effort_or_thinking() {
+        let request = json!({"messages": []});
+        assert_eq!(effort(&request, &codex_route()), "medium");
+    }
+
+    #[test]
+    fn maps_system_role_message_to_developer() {
+        // Claude Code sends mid-conversation system messages; the ChatGPT Codex
+        // backend rejects role "system" but accepts "developer".
+        let request = json!({
+            "messages": [
+                {"role": "user", "content": "hi"},
+                {"role": "system", "content": "SessionStart hook output"}
+            ]
+        });
+
+        let items = input_items(&request, &ToolSearchContext::default());
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["role"], "user");
+        assert_eq!(items[1]["role"], "developer");
+        assert_eq!(items[1]["content"][0]["type"], "input_text");
+        assert_eq!(items[1]["content"][0]["text"], "SessionStart hook output");
+    }
+
+    /// Only conversation-scoped identities may pool a WebSocket: the header and
+    /// the parsed metadata session qualify, while the per-user hash fallback —
+    /// including the one an unsafe metadata session degrades to — stays
+    /// affinity-only.
+    #[test]
+    fn only_conversation_scoped_identities_pool_a_websocket() {
+        let header = effective_session_identity(&json!({}), Some("hdr")).unwrap();
+        assert_eq!(header.websocket_pool_id(), Some("hdr"));
+
+        let metadata = effective_session_identity(
+            &json!({"metadata": {"user_id": "{\"session_id\":\"meta_sess\"}"}}),
+            None,
+        )
+        .unwrap();
+        assert_eq!(metadata.websocket_pool_id(), Some("meta_sess"));
+
+        let hashed =
+            effective_session_identity(&json!({"metadata": {"user_id": "plain-user"}}), None)
+                .unwrap();
+        assert!(matches!(hashed, EffectiveSessionId::HashedUserId(_)));
+        assert!(hashed.websocket_pool_id().is_none());
+
+        let unsafe_meta = effective_session_identity(
+            &json!({"metadata": {"user_id": "{\"session_id\":\"bad\\nid\"}"}}),
+            None,
+        )
+        .unwrap();
+        assert!(matches!(unsafe_meta, EffectiveSessionId::HashedUserId(_)));
+        assert!(unsafe_meta.websocket_pool_id().is_none());
+    }
+
+    #[test]
+    fn preserves_user_and_assistant_roles() {
+        let request = json!({
+            "messages": [
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "hello"}
+            ]
+        });
+
+        let items = input_items(&request, &ToolSearchContext::default());
+
+        assert_eq!(items[0]["role"], "user");
+        assert_eq!(items[0]["content"][0]["type"], "input_text");
+        assert_eq!(items[1]["role"], "assistant");
+        assert_eq!(items[1]["content"][0]["type"], "output_text");
+    }
+}
