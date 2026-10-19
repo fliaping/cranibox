@@ -123,12 +123,12 @@ fn transcripts(
         let path = entry.path();
         if kind.is_dir() && depth > 0 {
             transcripts(&path, depth - 1, out, cutoff);
-        } else if kind.is_file() && path.extension().is_some_and(|e| e == "jsonl") {
-            if let Ok(modified) = entry.metadata().and_then(|m| m.modified())
-                && modified >= cutoff
-            {
-                out.push((path, modified));
-            }
+        } else if kind.is_file()
+            && path.extension().is_some_and(|e| e == "jsonl")
+            && let Ok(modified) = entry.metadata().and_then(|m| m.modified())
+            && modified >= cutoff
+        {
+            out.push((path, modified));
         }
     }
 }
