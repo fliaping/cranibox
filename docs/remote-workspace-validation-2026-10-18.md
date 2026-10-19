@@ -1502,10 +1502,24 @@ API 确认 **10 份 artifact**，包含三平台服务端、独立节点 CLI、�
 | Rust 四程序构建 | **通过，37.334 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web，独立目标目录 |
 | fmt / 原生 Clippy | **通过，1.400 / 12.283 秒** | fmt --all --check；desktop,custom-protocol --all-targets -D warnings |
 
-本轮未重跑全部 Web 界面和其余 Python 集成；历史完整矩阵继续绑定 f49341d，不能改写成本次新提交已通过跨平台 CI。Windows/macOS 实机、真实系统安装认证/取消、物理多设备和公开兼容镜像仍待验收。镜像只验证运行 **39193919686** 本轮查询仍 queued，未重复触发、发布或替换公开标签。
+初次提交前未重跑全部 Web 界面和其余 Python 集成；提交后的 Web 全量补验见下节。历史完整矩阵继续绑定 f49341d，不能改写成本次新提交已通过跨平台 CI。Windows/macOS 实机、真实系统安装认证/取消、物理多设备和公开兼容镜像仍待验收。镜像只验证运行 **39193919686** 在此前查询时 queued，后续运行状态见下节，未重复触发、发布或替换公开标签。
 
 布局检查覆盖 375/768/1440、明暗主题无横向溢出；六份面板截图由浏览器在远端生成。人工审阅 375 亮色与 1440 暗色，恢复说明、命令和确认操作可读；元素截图顶部仍受固定顶栏遮盖，不能作为完整首屏或真实手机验收。没有以截图裁剪问题计作产品通过。
 
 私有 **/config/validation-artifacts/vnc-installation-lifecycle-20261019** 保存每条命令的结果、耗时、源码 SHA-256、完整日志、布局截图及 final-health.json；初始构建记录的测试文件与后续记录不同，是补入原生 IPC 用例和保留不支持平台的安装请求校验，产品源码摘要一致。功能需求和剩余 P0/P1/P2 统一在[交接入口](implementation-handoff-2026-10-18.md)。配置、凭据、截图、原始日志与辅助脚本不入 Git。
 
 收尾健康核对：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，无所属浏览器或服务残留，未升级日常程序。
+
+### 55fbe2a 提交后：完整 Web 回归与 CI 补验
+
+产品提交 **55fbe2a74eb61e20eb8050992a99e9f34aaaaa87** 已推送 origin/main。指定远端容器的同一源码快照补验完整 Web 界面：在 addons/control-center/ui 执行 `npm test`，**138/138，231.891 秒，退出 0**。没有修改产品/测试、放宽期限或重跑失败。包含设备授权、项目/Agent 目录、消息/任务/协作记录、后台策略、浮动终端和重连、桌面/剪贴板、空间引导、导航焦点及中英文响应式页面；18 项桌面专项也在这 138 项内，不重复累计。模拟提供者与真实 Rust 服务的边界不变，不能代替跨物理设备或 Windows/macOS GUI 验收。
+
+原始日志和结果位于私有 **/config/validation-artifacts/vnc-installation-lifecycle-20261019/web-all.{log,json}**。结果中的 source_base 是补丁基线 37718de；六项关键源码摘要与 55fbe2a 一致。补验后单独核对容器、3080/3031、日常 Web/客户端 PID、程序摘要、NodeID 与 KDE/Selkies，均保持；owned_processes=[]、test_package_absent=true，保存为同目录 **web-all-followup/final-health.json**，没有覆盖首次收尾健康记录。
+
+**2026-10-19 03:57 UTC** 的 GitHub API 快照：55fbe2a 的三平台矩阵 **39196468666**、Release **39196468706** 与 GitCode **39196468659** 已触发，矩阵仍 queued。旧镜像门槛提交 8566f59 的 **39193919686** 已 in_progress：amd64 构建完成，正在首次启动/授权/重启验收；arm64 正在构建。未记录为成功，也未重复触发或更新公开标签。后续直接核对现有运行及其完整 headSha。
+
+随后镜像运行 **39193919686** 于 **2026-10-19T03:58:35Z** 更新为 completed/success，完整 headSha **8566f59998b4b6884f95ed82be58d95e9de0faf5**；参数 desktop=xfce、architecture=all、publish=false。amd64 作业 **117872437694** 与 arm64 作业 **117872437850** 在原生 runner 上构建完整镜像并分别通过 **44/44** 启动验收，检查耗时 **67.995 / 63.271 秒**。已实际下载两个 artifact（**12162630233 / 12162455868**），核对报告的 expected_revision/revision、expected_platform/platform、所有检查通过、unready_checks=[]、四项所属容器/卷全部 removed=true。
+
+验收覆盖空配置与预置空间身份的首次启动和重启、Rust/Web/静态资源、服务与私有凭据、桌面登录保护、节点授权和错误令牌、真实命令执行及持久数据。amd64 镜像 ID **sha256:d8db47e287689a42cb238736a4bf6f9e1776ed5ba49168cad628d87bcb2acfa3**；arm64 为 **sha256:63e5881e5e8b4d09639d73103ca06760333f0cda74301806b020c48cfa3fb0c7**。Docker Hub 登录、标签提升和 Aliyun 均跳过，没有发布或改变默认公开镜像；不能计作仓库拉取、实际桌面输入、完整空间 UI 或 55fbe2a 新 VNC 修复的镜像验收。
+
+两份启动报告和完整运行元数据/核对摘要保存在私有 **/config/validation-artifacts/image-platform-gate-20261019/native-matrix-final-39193919686**，不覆盖此前队列记录。本轮收尾查询 55fbe2a 的三平台矩阵、Release 与 GitCode 仍 queued，因此其最终结果继续留待核对，没有沿用旧来源的成功结论。
