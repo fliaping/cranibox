@@ -171,7 +171,7 @@ class BrowserUseTests(unittest.TestCase):
         except (OSError, ValueError):
             opcode, data = None, b''
         self.assertEqual(relay.tampered, 1)
-        self.assertNotEqual(opcode, 1, 'a modified frame must never be delivered')
+        self.assertNotEqual(opcode, 1, f'a modified frame must never be delivered: {data!r}')
         self.assertNotIn(b'Browser.getVersion', data or b'')
 
     def test_legacy_grants_and_disabled_provider(self):

@@ -48,16 +48,22 @@ class RecordingProxy:
             while data := source.recv(65536):
                 with self.lock:
                     self.seen += data
-                if back and upgraded and self.tamper_streams and not self.tampered:
-                    data = data[:-1] + bytes([data[-1] ^ 1])
-                    self.tampered += 1
                 if back and not upgraded and data.startswith(b'HTTP/1.1 101'):
                     upgraded = True
                     head, _, rest = data.partition(b'\r\n\r\n')
-                    if rest and self.tamper_streams and not self.tampered:
-                        data = head + b'\r\n\r\n' + rest[:-1] + bytes([rest[-1] ^ 1])
-                        self.tampered += 1
-                sink.sendall(data)
+                    sink.sendall(head + b'\r\n\r\n')
+                    data = rest
+                # Only data frames (FIN + binary) are end-to-end protected; control frames
+                # such as heartbeat pongs are not, so leave those intact.
+                if back and upgraded and self.tamper_streams and not self.tampered and data[:1] == b'\x82' and len(data) > 24:
+                    # Flip the first payload byte of that frame (a coalesced chunk may
+                    # carry further frames after it).
+                    code = data[1] & 127
+                    at = 2 + (2 if code == 126 else 8 if code == 127 else 0)
+                    data = data[:at] + bytes([data[at] ^ 1]) + data[at + 1:]
+                    self.tampered += 1
+                if data:
+                    sink.sendall(data)
         except OSError:
             pass
         finally:
