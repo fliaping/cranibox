@@ -216,7 +216,10 @@ fn all_six_configuration_goldens_and_drift_preserve_user_values() {
                 let mut config = text.parse::<toml_edit::DocumentMut>().unwrap();
                 assert_eq!(
                     config["model_catalog_json"].as_str(),
-                    env.home.join(".codex/cranibox-models.json").to_str()
+                    env.home
+                        .join(".codex")
+                        .join("cranibox-models.json")
+                        .to_str()
                 );
                 config["model_catalog_json"] =
                     toml_edit::value("$HOME/.codex/cranibox-models.json");
