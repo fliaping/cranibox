@@ -1,7 +1,7 @@
 //! Binary noVNC adapter with explicit receive acknowledgements for IPC backpressure.
 use agent_workspace_runtime::peers::{
     Store,
-    desktop::{Event, MAX_CHUNK},
+    desktop::{Event, MAX_CHUNK, Stream},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
@@ -50,7 +50,7 @@ pub async fn desktop_open(
         .clone()
         .try_acquire_owned()
         .map_err(|_| "Maximum eight desktop viewers")?;
-    let mut desktop = if options.local {
+    let desktop = if options.local {
         let local = app
             .service
             .lock()
@@ -87,41 +87,60 @@ pub async fn desktop_open(
     }
     .map_err(|e| e.to_string())?;
     let id = agent_workspace_runtime::config::token();
-    let (sender, mut input) = mpsc::channel(32);
+    let (sender, input) = mpsc::channel(32);
     state.attachments.lock().await.insert(id.clone(), sender);
     let owner = state.inner().clone();
     let attachment = id.clone();
     tauri::async_runtime::spawn(async move {
         let _permit = permit;
-        let mut sequence = 0u64;
-        let mut pending = None;
-        let mut delivered = tokio::time::Instant::now();
-        if events.send(json!({"type":"ready"})).is_ok() {
-            loop {
-                tokio::select! {
-                    _ = tokio::time::sleep_until(delivered + Duration::from_secs(10)), if pending.is_some() => break,
-                    input = input.recv() => match input {
-                        Some(Input::Data(data)) => if desktop.send(data).is_err() { break; },
-                        Some(Input::Ack(value)) => { if pending != Some(value) { break; } pending = None; },
-                        None => break,
-                    },
-                    output = desktop.output.recv(), if pending.is_none() => match output {
-                        Some(Event::Data(data)) => {
-                            sequence += 1;
-                            if events.send(json!({"type":"data","sequence":sequence,"data":STANDARD.encode(data)})).is_err() { break; }
-                            pending = Some(sequence); delivered = tokio::time::Instant::now();
-                        }
-                        Some(Event::Error(message)) => { let _ = events.send(json!({"type":"error","message":message})); break; }
-                        None => break,
-                    },
-                }
-            }
+        if let Err(message) =
+            forward_desktop(desktop, input, &events, Duration::from_secs(10)).await
+        {
+            let _ = events.send(json!({"type":"error","message":message}));
         }
         owner.attachments.lock().await.remove(&attachment);
-        drop(desktop);
         let _ = events.send(json!({"type":"closed"}));
     });
     Ok(id)
+}
+
+async fn forward_desktop(
+    mut desktop: Stream,
+    mut input: mpsc::Receiver<Input>,
+    events: &Channel<Value>,
+    acknowledgement_timeout: Duration,
+) -> Result<(), String> {
+    let mut sequence = 0u64;
+    let mut pending = None;
+    let mut delivered = tokio::time::Instant::now();
+    events
+        .send(json!({"type":"ready"}))
+        .map_err(|e| e.to_string())?;
+    loop {
+        tokio::select! {
+            _ = tokio::time::sleep_until(delivered + acknowledgement_timeout), if pending.is_some() => {
+                return Err("Desktop viewer did not acknowledge received data within 10 seconds".into());
+            }
+            input = input.recv() => match input {
+                Some(Input::Data(data)) => desktop.send(data).map_err(|e| e.to_string())?,
+                Some(Input::Ack(value)) => {
+                    if pending != Some(value) { return Err("Invalid desktop viewer acknowledgement".into()); }
+                    pending = None;
+                }
+                None => return Ok(()),
+            },
+            output = desktop.output.recv(), if pending.is_none() => match output {
+                Some(Event::Data(data)) => {
+                    sequence += 1;
+                    events.send(json!({"type":"data","sequence":sequence,"data":STANDARD.encode(data)})).map_err(|e| e.to_string())?;
+                    pending = Some(sequence);
+                    delivered = tokio::time::Instant::now();
+                }
+                Some(Event::Error(message)) => return Err(message),
+                None => return Err("Desktop provider closed the connection".into()),
+            },
+        }
+    }
 }
 #[tauri::command]
 pub async fn desktop_input(
@@ -164,4 +183,119 @@ pub async fn desktop_ack(
 pub async fn desktop_close(state: State<'_, Arc<Desktops>>, id: String) -> Result<(), String> {
     state.attachments.lock().await.remove(&id);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::ipc::InvokeResponseBody;
+    use tokio::{
+        io::AsyncWriteExt,
+        net::{TcpListener, TcpStream},
+    };
+
+    async fn connection() -> (Stream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (client, server) = tokio::join!(
+            TcpStream::connect(listener.local_addr().unwrap()),
+            listener.accept()
+        );
+        let permit = Arc::new(Semaphore::new(1)).acquire_owned().await.unwrap();
+        (
+            Stream::from_tcp(client.unwrap(), permit, || true),
+            server.unwrap().0,
+        )
+    }
+    fn channel() -> (Channel<Value>, mpsc::UnboundedReceiver<Value>) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        (
+            Channel::new(move |body| {
+                let InvokeResponseBody::Json(body) = body else {
+                    panic!("Expected JSON")
+                };
+                sender.send(serde_json::from_str(&body).unwrap()).unwrap();
+                Ok(())
+            }),
+            receiver,
+        )
+    }
+    async fn next(receiver: &mut mpsc::UnboundedReceiver<Value>) -> Value {
+        tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+            .await
+            .unwrap()
+            .unwrap()
+    }
+    #[tokio::test]
+    async fn missing_acknowledgement_reports_timeout() {
+        let (desktop, mut server) = connection().await;
+        let (_sender, input) = mpsc::channel(32);
+        let (events, mut receiver) = channel();
+        let task = tokio::spawn(async move {
+            forward_desktop(desktop, input, &events, Duration::from_millis(100)).await
+        });
+        assert_eq!(next(&mut receiver).await["type"], "ready");
+        server.write_all(b"frame").await.unwrap();
+        assert_eq!(next(&mut receiver).await["sequence"], 1);
+        assert_eq!(
+            task.await.unwrap().unwrap_err(),
+            "Desktop viewer did not acknowledge received data within 10 seconds"
+        );
+    }
+    #[tokio::test]
+    async fn acknowledgements_allow_next_frame_and_explicit_detach_is_clean() {
+        let (desktop, mut server) = connection().await;
+        let (sender, input) = mpsc::channel(32);
+        let (events, mut receiver) = channel();
+        let task = tokio::spawn(async move {
+            forward_desktop(desktop, input, &events, Duration::from_secs(10)).await
+        });
+        assert_eq!(next(&mut receiver).await["type"], "ready");
+        server.write_all(b"first").await.unwrap();
+        assert_eq!(next(&mut receiver).await["sequence"], 1);
+        server.write_all(b"second").await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), receiver.recv())
+                .await
+                .is_err()
+        );
+        sender.send(Input::Ack(1)).await.unwrap();
+        let second = next(&mut receiver).await;
+        assert_eq!(second["sequence"], 2);
+        assert_eq!(
+            STANDARD.decode(second["data"].as_str().unwrap()).unwrap(),
+            b"second"
+        );
+        drop(sender);
+        assert!(task.await.unwrap().is_ok());
+    }
+    #[tokio::test]
+    async fn invalid_acknowledgement_reports_protocol_error() {
+        let (desktop, _server) = connection().await;
+        let (sender, input) = mpsc::channel(32);
+        let (events, mut receiver) = channel();
+        let task = tokio::spawn(async move {
+            forward_desktop(desktop, input, &events, Duration::from_secs(10)).await
+        });
+        next(&mut receiver).await;
+        sender.send(Input::Ack(9)).await.unwrap();
+        assert_eq!(
+            task.await.unwrap().unwrap_err(),
+            "Invalid desktop viewer acknowledgement"
+        );
+    }
+    #[tokio::test]
+    async fn provider_disconnect_reports_reason() {
+        let (desktop, server) = connection().await;
+        let (_sender, input) = mpsc::channel(32);
+        let (events, mut receiver) = channel();
+        let task = tokio::spawn(async move {
+            forward_desktop(desktop, input, &events, Duration::from_secs(10)).await
+        });
+        next(&mut receiver).await;
+        drop(server);
+        assert_eq!(
+            task.await.unwrap().unwrap_err(),
+            "Desktop provider closed the connection"
+        );
+    }
 }

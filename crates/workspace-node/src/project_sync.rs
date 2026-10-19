@@ -25,13 +25,25 @@ impl Service {
                         let configuration = path.clone();
                         // Invalid private policy/state fails closed; the operator
                         // sees the error when opening its settings. No secrets log.
-                        let Ok(Ok(pending)) = tokio::task::spawn_blocking(move || project_sync::pending(&configuration)).await else { continue; };
+                        let Ok(Ok(pending)) = tokio::task::spawn_blocking(move || {
+                                // Independent policies share four slots. A broken
+                                // policy cannot stop the other kinds of sync.
+                                let mut queues = [project_sync::Kind::Projects, project_sync::Kind::Agents, project_sync::Kind::Activity]
+                                    .map(|kind| project_sync::pending_kind(&configuration, kind).unwrap_or_default().into_iter());
+                                let mut pending = Vec::new();
+                                loop {
+                                    let before = pending.len();
+                                    for queue in &mut queues { pending.extend(queue.next()); }
+                                    if pending.len() == before { break; }
+                                }
+                                Ok::<_, anyhow::Error>(pending)
+                            }).await else { continue; };
                         for job in pending {
                             if tasks.len() >= project_sync::MAX_PARALLEL { break; }
-                            if !active.insert(job.node.clone()) { continue; }
+                            if !active.insert((job.kind, job.node.clone())) { continue; }
                             let path = path.clone();
                             tasks.spawn(async move {
-                                let node = job.node.clone();
+                                let node = (job.kind, job.node.clone());
                                 let _ = project_sync::run(&path, job).await;
                                 node
                             });

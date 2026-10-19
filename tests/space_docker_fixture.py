@@ -43,6 +43,8 @@ def main():
             sys.exit('No such image: local build is not loaded')
         emit({} if (root / 'old-image').exists() else {'io.cranibox.space-protocol': '1'})
     elif argv[:2] in (['container', 'ls'], ['volume', 'ls']):
+        if (root / 'fail-list').exists():
+            sys.exit('engine unavailable during inspection')
         kind = 'containers' if argv[0] == 'container' else 'volumes'
         prefix = 'name=^/' if kind == 'containers' else 'name=^'
         rule = argv[argv.index('--filter')+1]

@@ -34,6 +34,7 @@ fn proxy(target: Url) -> (tempfile::TempDir, Proxy) {
             version: 1,
             installation: Uuid::new_v4(),
             setup: None,
+            setup_plan: None,
             spaces: vec![Space {
                 id,
                 name: "Application test".into(),

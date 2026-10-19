@@ -1,5 +1,5 @@
 export type AgentReport = { id: string; name: string; harness: string; status: 'ready' | 'busy' | 'waiting' | 'ended'; updated_at: number; expires_at: number; revision: number };
-export type AgentCatalog = { owner: string; observed_at: number; lease_secs: number; capacity: number; sessions: AgentReport[] };
+export type AgentCatalog = { owner: string; observed_at: number; lease_secs: number; capacity: number; sessions: AgentReport[]; sync?: { state: 'online' | 'offline'; synced_at: number; warning?: string } };
 export type AgentSnapshot = { catalog: AgentCatalog; received: number };
 
 /** Public directory data is never a route, an execution permission or proof of liveness. */
@@ -9,6 +9,7 @@ export function agentCatalog(value: unknown, owner: string, invalid: string): Ag
   const label = (value: string, limit: number) => typeof value === 'string' && !!value.trim() && new TextEncoder().encode(value).length <= limit && !/[\u0000-\u001f\u007f]/u.test(value);
   const ids = new Set<string>();
   if (!catalog || catalog.owner !== owner || !positive(catalog.observed_at) || catalog.lease_secs !== 300 || catalog.capacity !== 64 || !Array.isArray(catalog.sessions) || catalog.sessions.length > catalog.capacity) throw new Error(invalid);
+  if (catalog.sync && (!['online', 'offline'].includes(catalog.sync.state) || !positive(catalog.sync.synced_at) || catalog.sync.synced_at > 253402300799000)) throw new Error(invalid);
   for (const report of catalog.sessions) {
     if (!report || typeof report.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(report.id) || /^0{8}-0{4}-0{4}-0{4}-0{12}$/u.test(report.id) || ids.has(report.id.toLowerCase()) || !label(report.name, 120) || !label(report.harness, 80) || !['ready', 'busy', 'waiting', 'ended'].includes(report.status) || !positive(report.revision) || !positive(report.updated_at) || !positive(report.expires_at) || report.expires_at - report.updated_at !== catalog.lease_secs || report.updated_at > catalog.observed_at + 30) throw new Error(invalid);
     ids.add(report.id.toLowerCase());
@@ -18,7 +19,7 @@ export function agentCatalog(value: unknown, owner: string, invalid: string): Ag
 
 export function currentAgent(report: AgentReport, snapshot: AgentSnapshot, clock: number): boolean {
   const at = snapshot.catalog.observed_at + Math.max(0, clock - snapshot.received) / 1000;
-  return report.status !== 'ended' && report.expires_at > at && report.updated_at <= at + 30;
+  return snapshot.catalog.sync?.state !== 'offline' && report.status !== 'ended' && report.expires_at > at && report.updated_at <= at + 30;
 }
 
 export function agentRegistrationInstructions(language: string): string {

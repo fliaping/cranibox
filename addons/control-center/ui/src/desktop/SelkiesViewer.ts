@@ -135,6 +135,15 @@ export class SelkiesViewer extends EventTarget {
       }
       const n = Math.min(this.payload.length - this.payloadUsed, chunk.length); this.payload.set(chunk.subarray(0, n), this.payloadUsed); this.payloadUsed += n; chunk = chunk.subarray(n);
       if (this.payloadUsed === this.payload.length) {
+        if (this.header[0] === 0) {
+          const text = new TextDecoder('utf-8', { fatal: true }).decode(this.payload);
+          if (text.startsWith('clipboard')) {
+            // Clipboard controls are independent of the video resolution and
+            // must not wait for an asynchronous JPEG decode. Keep their wire
+            // order, including multipart and secret markers.
+            this.headerUsed = 0; this.clipboardMessage(text); continue;
+          }
+        }
         this.queuedBytes += this.payload.length;
         if (this.queue.length >= 256 || this.queuedBytes > 2 * MAX_FRAME) throw Error('Selkies decoder cannot keep up. Reconnect using a lower server frame rate.');
         this.queue.push({ kind: this.header[0], data: this.payload }); this.headerUsed = 0;

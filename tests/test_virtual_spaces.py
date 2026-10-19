@@ -142,6 +142,17 @@ class VirtualSpacesTests(unittest.TestCase):
         self.assertIn('local Docker engine', check['detail'])
         self.assertEqual(self.state()['containers'], {})
 
+    def test_setup_without_review_never_starts_an_installer(self):
+        for fields in [{}, {'plan_id': '11111111-1111-4111-8111-111111111111'}]:
+            status, value = self.h.post('/api/spaces', {'operation': 'install', 'action': 'linux_docker', **fields})
+            self.assertEqual(status, 400, value)
+            self.assertIn('plan', json.dumps(value).lower())
+        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox-node/settings.json'), 'space', 'install', 'linux-docker'], capture_output=True, text=True, timeout=20)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('--plan-id', result.stderr)
+        self.assertEqual(self.state()['events'], [])
+        self.assertIsNone(self.api()['setup'])
+
     def test_application_links_are_session_bound_one_use_and_require_owned_running_containers(self):
         self.api('create', name='Browser applications', provider='docker')
         space = self.wait('ready')
@@ -178,9 +189,64 @@ class VirtualSpacesTests(unittest.TestCase):
         self.assertIn('does not support Cranibox virtual-space enrollment', failed['error'])
         self.assertEqual(self.state()['containers'], {})
         self.assertEqual(self.state()['volumes'], {})
+        credentials = self.api('credentials', id=failed['id'])
+        event_index = len(self.state()['events'])
+        self.assertEqual(self.h.post('/api/spaces', {'operation': 'resume', 'id': failed['id'], 'image': '--privileged'})[0], 400)
+        self.assertEqual(len(self.state()['events']), event_index)
+        self.assertEqual(self.api()['spaces'][0], failed)
         (self.root / 'old-image').unlink()
-        self.api('resume', id=failed['id'])
-        self.assertEqual(self.wait('ready')['node'], failed['node'])
+        self.api('resume', id=failed['id'], image='cranibox-current:test', pull_policy='never')
+        recovered = self.wait('ready')
+        for field in ['id', 'node', 'volume']:
+            self.assertEqual(recovered[field], failed[field])
+        self.assertEqual(recovered['image'], 'cranibox-current:test')
+        self.assertEqual(recovered['pull_policy'], 'never')
+        self.assertEqual(self.api('credentials', id=failed['id']), credentials)
+        events = self.state()['events'][event_index:]
+        self.assertTrue(any(event[:2] == ['image', 'inspect'] and event[-1] == 'cranibox-current:test' for event in events))
+        self.assertFalse(any(event[:2] == ['image', 'pull'] for event in events))
+
+    def test_image_change_requires_archive_and_retains_existing_data(self):
+        self.api('create', name='Retained workspace', provider='docker')
+        space = self.wait('ready')
+        credentials = self.api('credentials', id=space['id'])
+        data_file = self.root / space['volume'] / 'user-project.txt'
+        data_file.write_text('retain across image change')
+        for phase in ['ready', 'stopped']:
+            if phase == 'stopped':
+                self.cli('space', 'stop', space['id'])
+                space = self.wait('stopped')
+            event_index = len(self.state()['events'])
+            for fields in [{'image': 'cranibox-current:test'}, {'pull_policy': 'never'}]:
+                status, error = self.h.post('/api/spaces', {'operation': 'resume', 'id': space['id'], **fields})
+                self.assertEqual(status, 400, error)
+                self.assertIn('Archive this space', str(error))
+                self.assertEqual(self.api()['spaces'][0], space)
+            self.assertTrue(all(event[:2] in (['container', 'ls'], ['container', 'inspect']) for event in self.state()['events'][event_index:]))
+        self.cli('space', 'remove', space['id'])
+        self.wait('archived')
+        result = self.cli('space', 'resume', space['id'], '--image', 'cranibox-current:test', '--pull-policy', 'never')
+        restored = result['spaces'][0]
+        self.assertEqual(restored['phase'], 'ready')
+        self.assertEqual(restored['image'], 'cranibox-current:test')
+        self.assertEqual(restored['pull_policy'], 'never')
+        for field in ['id', 'node', 'volume']:
+            self.assertEqual(restored[field], space[field])
+        self.assertEqual(self.api('credentials', id=space['id']), credentials)
+        self.assertEqual(data_file.read_text(), 'retain across image change')
+        self.assertFalse(any(event[:2] == ['volume', 'rm'] for event in self.state()['events']))
+
+    def test_image_change_does_not_treat_engine_failure_as_absent_container(self):
+        (self.root / 'fail-pull').touch()
+        self.api('create', name='Engine interrupted', provider='docker')
+        space = self.wait('failed')
+        (self.root / 'fail-list').touch()
+        status, error = self.h.post('/api/spaces', {'operation': 'resume', 'id': space['id'], 'image': 'cranibox-current:test', 'pull_policy': 'never'})
+        self.assertEqual(status, 400, error)
+        self.assertIn('engine unavailable during inspection', str(error))
+        self.assertEqual(self.api()['spaces'][0], space)
+        self.assertEqual(self.state()['containers'], {})
+        self.assertEqual(self.state()['volumes'], {})
 
     def test_local_image_policy_stays_offline_through_archive_and_restore(self):
         (self.root / 'fail-pull').touch()

@@ -1,5 +1,64 @@
 use super::*;
 impl Store {
+    pub(in crate::peers) fn activity(
+        &self,
+    ) -> Result<(
+        Vec<super::super::activity::Task>,
+        Vec<super::super::activity::Run>,
+    )> {
+        use super::super::activity::{Direction, Run, Task};
+        let ledger = self.read()?;
+        let incoming = ledger
+            .incoming
+            .values()
+            .filter(|item| !item.archived)
+            .map(|item| Task {
+                direction: Direction::Incoming,
+                task: item.task.clone(),
+                current: item.history.last().expect("validated history").clone(),
+                cancel_requested: item
+                    .history
+                    .last()
+                    .is_some_and(|receipt| receipt.state == State::CancelRequested),
+            });
+        let outgoing = ledger
+            .outgoing
+            .values()
+            .filter(|item| {
+                !item.archived
+                    || item.task.collaboration.as_ref().is_some_and(|scope| {
+                        ledger
+                            .collaborations
+                            .get(&scope.id)
+                            .is_some_and(|run| !run.archived)
+                    })
+            })
+            .map(|item| Task {
+                direction: Direction::Outgoing,
+                task: item.task.clone(),
+                current: item.history.last().expect("validated history").clone(),
+                cancel_requested: item.cancel,
+            });
+        let runs = ledger
+            .collaborations
+            .values()
+            .filter(|run| !run.archived)
+            .map(|run| Run {
+                scope: run.scope.clone(),
+                members: run.members.clone(),
+                state: match run.state {
+                    collaborations::State::Open => "open",
+                    collaborations::State::Stopping => "stopping",
+                    collaborations::State::Closed => "closed",
+                }
+                .into(),
+                revision: run.revision,
+                created_at: run.created_at,
+                result: run.result.clone(),
+            })
+            .collect();
+        Ok((incoming.chain(outgoing).collect(), runs))
+    }
     pub fn new(peers: &std::path::Path, owner: String) -> Self {
         Self {
             path: peers.with_file_name("device-tasks.json"),

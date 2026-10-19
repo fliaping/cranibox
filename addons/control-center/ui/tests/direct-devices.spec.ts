@@ -92,7 +92,7 @@ test('space directory access can be granted without execution, credentials or ot
   await submit.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Saved, close', exact: true }).click();
   await expect(panel.locator('.direct-grant-list')).toContainText('Space catalog');
-  expect(commands.find(command => command.operation === 'grant')).toEqual({ operation: 'grant', node: 'viewer', permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: true } });
+  expect(commands.find(command => command.operation === 'grant')).toEqual({ operation: 'grant', node: 'viewer', permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: false, activity: false, spaces: true } });
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
   await expect(panel.getByRole('checkbox', { name: 'View virtual spaces managed by this device', exact: true })).not.toBeChecked();
   await expect(submit).toBeDisabled();
@@ -302,7 +302,7 @@ test('incoming access issues tokens once, keeps scopes explicit and supports key
   await expect(dialog.getByLabel('New access token', { exact: true })).toHaveValue(token);
   await expect(dialog).toContainText('target-direct-id');
   await expect(dialog).toContainText('caller-direct-id');
-  expect(actions.find(a => a.operation === 'grant')).toEqual({ operation: 'grant', node: 'caller-direct-id', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false } });
+  expect(actions.find(a => a.operation === 'grant')).toEqual({ operation: 'grant', node: 'caller-direct-id', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, activity: false, spaces: false } });
   await dialog.getByRole('button', { name: 'Copy token', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('selected for manual copying');
   expect(await dialog.getByLabel('New access token', { exact: true }).evaluate((element: HTMLTextAreaElement) => element.selectionEnd - element.selectionStart)).toBe(64);
@@ -335,4 +335,31 @@ test('incoming access issues tokens once, keeps scopes explicit and supports key
   await panel.getByRole('button', { name: 'Revoke access caller-direct-id', exact: true }).click();
   await expect(panel.getByLabel('Granted devices', { exact: true })).toContainText('No devices have incoming access');
   expect(errors).toEqual([]);
+});
+
+test('activity is a separate read grant and resets after issuing a token', async ({ page }) => {
+  const commands: any[] = [], catalog: any = { node_id: 'local-id', routes: [], grants: [] };
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'grant') {
+      catalog.grants.push({ node: command.node, permissions: command.permissions });
+      await route.fulfill({ json: { node: command.node, token: 'a'.repeat(64), catalog } }); return;
+    }
+    await route.fulfill({ json: catalog });
+  });
+  await page.goto('/#/nodes');
+  const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
+  await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
+  await panel.getByRole('textbox', { name: /^Caller node ID/ }).fill('observer-device');
+  const permission = panel.getByRole('checkbox', { name: 'Read collaboration records, including other senders', exact: true });
+  await expect(permission).not.toBeChecked();
+  await expect(panel).toContainText('message bodies and collaboration Runs');
+  await permission.check();
+  await panel.getByRole('button', { name: 'Create access token', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Saved, close', exact: true }).click();
+  await expect(panel.locator('.direct-grant-list')).toContainText('Read collaboration records');
+  expect(commands.find(command => command.operation === 'grant').permissions).toEqual({ exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: false, activity: true, spaces: false });
+  await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
+  await expect(permission).not.toBeChecked();
+  await expect(panel.getByRole('button', { name: 'Create access token', exact: true })).toBeDisabled();
 });

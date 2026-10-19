@@ -6,6 +6,7 @@ import '../messages/messages.css';
 import './tasks.css';
 import { AgentSessions } from './AgentSessions';
 import { FederatedAgentSessions } from './FederatedAgentSessions';
+import { FederatedActivity } from './FederatedActivity';
 import { ManagedRuns } from './ManagedRuns';
 import { AutomaticWorker, type AutomaticCommand } from './AutomaticWorker';
 import { TaskRun, type TaskRunCommand } from './TaskRun';
@@ -101,6 +102,7 @@ export function DeviceTasksView({ client, language = 'en', onDevices, onMessages
     {!ledger ? <p role="status">{readError ? t('无法读取任务，请检查设备服务后重试。', 'Tasks could not be read. Check the device service and retry.') : t('正在读取协作任务…', 'Reading collaboration tasks…')}</p> : <>
       <div className="messages-identity"><span>{t('本机身份', 'This device')}<code>{ledger.owner}</code></span><span>{t('等待本机 Agent', 'Awaiting a local Agent')}<strong>{ledger.incoming.filter(item => item.current.state === 'available').length}</strong></span><span>{t('存储占用', 'Stored tasks')}<strong>{ledger.used} / {ledger.capacity}</strong></span></div>
       <FederatedAgentSessions client={client} devices={catalog} owner={ledger.owner} language={language} paused={paused} disabled={busy || !!readError} onDelegate={(target, session) => { if (draftRun && (!selectedRun || selectedRun.state !== 'open' || !selectedRun.members.includes(target))) { setFormError(t('该 Agent 不属于当前选择的协作设备。请更改所属协作，或选择参与设备上的 Agent。', 'This Agent is not on a participating device in the selected collaboration. Change the collaboration or choose an Agent on a member device.')); return; } setNode(target); setTargetSession(session); setTargetValid(false); setTargetRead(value => value + 1); field.current?.focus(); }} />
+      <FederatedActivity client={client} devices={catalog} owner={ledger.owner} language={language} paused={paused} onDevices={onDevices} />
       <ManagedRuns client={client} language={language} paused={paused} devices={catalog} />
       <AutomaticWorker client={client} owner={ledger.owner} language={language} paused={paused} disabled={busy || !!readError} />
       {ledger.collaborations && <Collaborations runs={collaborations} routes={routes.map(route => route.node)} language={language} disabled={busy || !!readError} used={ledger.collaboration_used || 0} capacity={ledger.collaboration_capacity || 32} selected={runFilter} error={collaborationError} identifier={identifier} mutate={run} onSelect={key => { setBox('outgoing'); setRunFilter(key); }} onDelegate={id => { const selected = collaborations.find(run => run.scope.id === id); chooseRun(id); setBox('outgoing'); if (selected) setRunFilter(collaborationKey(selected.scope)); if (!selected?.members.includes(node)) { setNode(''); setTargetSession(''); setTargetValid(true); } field.current?.focus(); }} />}
