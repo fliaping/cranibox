@@ -598,7 +598,10 @@ mod tests {
         let (client, id) = session(&a, &b, &mut sessions);
         let path = "/api/v1/mesh/nodes/x/desktop/ws";
         let (proof, secret) = client.stream_proof(path).unwrap();
-        assert!(!proof.contains(&secret.to_hex()), "the secret travels encrypted");
+        assert!(
+            !proof.contains(&secret.to_hex()),
+            "the secret travels encrypted"
+        );
         let server = sessions.get(&id).unwrap();
         assert!(
             server
@@ -610,7 +613,10 @@ mod tests {
         let mut caller = stream::Cipher::caller(&secret, path);
         let mut target = stream::Cipher::target(&received, path);
         let frame = caller.seal(&stream::Data::Text("hi".into())).unwrap();
-        assert_eq!(target.open(&frame).unwrap(), stream::Data::Text("hi".into()));
+        assert_eq!(
+            target.open(&frame).unwrap(),
+            stream::Data::Text("hi".into())
+        );
         assert!(
             server
                 .open_stream_proof(&proof, "/api/v1/mesh/nodes/x/desktop/ws")

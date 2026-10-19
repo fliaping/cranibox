@@ -8,10 +8,7 @@ use anyhow::{Context, Result};
 use axum::{
     Extension, Json, Router,
     body::Body,
-    extract::{
-        DefaultBodyLimit, Path, Query, Request, State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
-    },
+    extract::{DefaultBodyLimit, Path, Query, Request, State, WebSocketUpgrade, ws::Message},
     http::{HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -37,6 +34,7 @@ mod desktop;
 mod e2e;
 mod executions;
 mod messages;
+use crate::peer::secure_ws::SecureSocket;
 mod projects;
 mod spaces;
 mod tasks;
@@ -147,10 +145,12 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
             .extensions()
             .get::<axum::extract::OriginalUri>()
             .map_or_else(|| request.uri().path().to_owned(), |u| u.path().to_owned());
-        let Some(caller) = e2e::stream_caller(&app, &proof, &path) else {
+        let Some((caller, secret)) = e2e::stream_caller(&app, &proof, &path) else {
             return failure(StatusCode::UNAUTHORIZED, "peer credential rejected").into_response();
         };
         request.extensions_mut().insert(caller);
+        // Data frames of this stream are encrypted end to end with this secret.
+        request.extensions_mut().insert(secret);
         return next.run(request).await;
     }
     let Some(token) = request
@@ -402,6 +402,7 @@ async fn attach(
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
     Query(open): Query<Open>,
+    secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response<Body>, Failure> {
     check_target(&app, &node)?;
@@ -422,10 +423,11 @@ async fn attach(
         .await
         .map_err(|e| failure(StatusCode::CONFLICT, &e.to_string()))?;
     Ok(upgrade
-        .max_message_size(MAX_FRAME)
-        .max_frame_size(MAX_FRAME)
+        .max_message_size(MAX_FRAME + crate::peer::secure_ws::MARGIN)
+        .max_frame_size(MAX_FRAME + crate::peer::secure_ws::MARGIN)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
+            let socket = SecureSocket::new(socket, secret.as_ref().map(|Extension(s)| s));
             terminal_stream(socket, pty, app, caller).await;
         }))
 }
@@ -436,7 +438,7 @@ enum TerminalMessage {
     Resize { cols: u16, rows: u16 },
     Detach {},
 }
-async fn send(socket: &mut WebSocket, value: Value) -> Result<()> {
+async fn send(socket: &mut SecureSocket, value: Value) -> Result<()> {
     tokio::time::timeout(
         Duration::from_secs(5),
         socket.send(Message::Text(value.to_string().into())),
@@ -444,7 +446,7 @@ async fn send(socket: &mut WebSocket, value: Value) -> Result<()> {
     .await??;
     Ok(())
 }
-async fn terminal_stream(mut socket: WebSocket, mut pty: Attachment, app: App, caller: Caller) {
+async fn terminal_stream(mut socket: SecureSocket, mut pty: Attachment, app: App, caller: Caller) {
     let result: Result<()> = async {
         // Retain only a bounded replay. The owning Engine retains the process on detach.
         for data in pty.take_replay() {

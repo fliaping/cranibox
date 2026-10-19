@@ -112,7 +112,13 @@ impl Cipher {
         let nonce = self.send.nonce()?;
         self.send
             .cipher
-            .encrypt(&nonce, Payload { msg: &plaintext, aad: b"" })
+            .encrypt(
+                &nonce,
+                Payload {
+                    msg: &plaintext,
+                    aad: b"",
+                },
+            )
             .map_err(|_| anyhow::anyhow!("stream encryption failed"))
     }
     /// Decrypt the next frame. Any failure is fatal for the stream: the counter has
@@ -122,7 +128,13 @@ impl Cipher {
         let mut plaintext = self
             .receive
             .cipher
-            .decrypt(&nonce, Payload { msg: frame, aad: b"" })
+            .decrypt(
+                &nonce,
+                Payload {
+                    msg: frame,
+                    aad: b"",
+                },
+            )
             .map_err(|_| anyhow::anyhow!("encrypted stream frame failed authentication"))?;
         ensure!(!plaintext.is_empty(), "invalid encrypted stream frame");
         let kind = plaintext.remove(0);
@@ -184,7 +196,11 @@ mod tests {
         let secret = Secret::random();
         let mut sender = Cipher::caller(&secret, PATH);
         let frame = sender.seal(&Data::Text("x".into())).unwrap();
-        assert!(Cipher::target(&Secret::random(), PATH).open(&frame).is_err());
+        assert!(
+            Cipher::target(&Secret::random(), PATH)
+                .open(&frame)
+                .is_err()
+        );
         assert!(
             Cipher::target(&secret, "/api/v1/mesh/nodes/x/desktop/ws")
                 .open(&frame)
