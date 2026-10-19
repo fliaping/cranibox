@@ -1,6 +1,6 @@
 # WS1 handoff: iroh default network, embedded relay, link/QR pairing
 
-Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task brief: `docs/design/tasks/01-iroh-network.md`. User docs: `docs/iroh-network.md`.
+PR #17 merged into `main` on 2026-10-19 at `a23858f`, after #16. Final reviewed head: `5a181c8` on `ws1/iroh-network`. Task brief: `docs/design/tasks/01-iroh-network.md`. User docs: `docs/iroh-network.md`.
 
 ## Done
 - [x] `IrohNode`: PR #7 ed25519 seed = iroh `SecretKey`; `remote_id` checked on every dial; pooled connections (idle 120 s).
@@ -13,11 +13,11 @@ Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task bri
 - [x] Back ends `Handle::pair_invite/pair_accept/pair_confirm/pair_flows/status` (C6 types) via `LocalNode::iroh()`; CLI `cranibox-node peer pair invite|accept|confirm|flows|status` over 0600 unix socket `cranibox-net.sock`.
 - [x] Route migration to iroh for pinned direct routes — **opt-in** `CRANIBOX_IROH_MIGRATE=1` (changing a route changes its binding and cancels queued messages/tasks).
 - [x] Docs `docs/iroh-network.md` (nginx/Caddy/Cloudflare Tunnel, ports, overrides, troubleshooting).
-- [x] netns acceptance `tests/integration/iroh_netns.sh` — ALL PASSED locally (see below).
+- [x] Original netns acceptance `tests/integration/iroh_netns.sh` — ALL PASSED before the consent fix; the updated helper was syntax-checked but not rerun (see below).
 
-## Left (checklist)
-- [ ] CI green on PR #17 after the bilateral-consent and space-test synchronization fixes. Run `39244375859` passed six jobs, but Linux virtual-space restarts raced the fixture's fixed 150 ms stop delay. The fixture now waits for actual process exit, matching Docker. Run `39249253228` passed six jobs and the stop/restore cases, but exposed a separate transient busy response when a test tried to archive immediately after observing `ready`. The test now retries only explicitly rejected busy requests with a deadline; check CI on the current PR head. The earlier background-sync migration issue was fixed in `f6c8682`.
-- [ ] Local regression not finished for: test_automatic_task_worker, test_browser_use, test_computer_use, test_desktop_relay/service, test_federated_activity, test_node_identity, test_node_peers, test_project_handoffs/streaming, test_remote_agent_executions, test_remote_desktops, test_rust_runtime, test_space_catalog, test_task_*, test_virtual_spaces, test_workspace_bootstrap/services, test_workspacectl_rust (stopped at wrap-up; CI runs them).
+## Status and remaining work
+- [x] Final PR-head CI green after the bilateral-consent and space-test synchronization fixes: run `39253838350`, all seven Linux/macOS/Windows native/desktop and real Wayland jobs passed. Release run `39253838175` also passed; both validate `5a181c8`. The earlier background-sync migration issue was fixed in `f6c8682`.
+- [x] Previously unfinished Python regression suites passed in the final CI, including task workers/dependencies, browser/computer use, desktop relay/service, federated activity, node identity/peers, project handoffs/streaming, remote Agent execution, virtual spaces/catalog, workspace bootstrap/services, runtime and control tools. Ignored/manual tests retain the separate limitations below.
 - [ ] Cloudflare Tunnel manual acceptance (steps in PR body; box can't reach cloudflared port 7844).
 - [ ] Web pairing page `/pair#…` and UI cards (WS7); roster join for OwnerDevice (WS6, currently grants only).
 - [ ] CLI/MCP skip Noise over iroh (needs WS0 client.rs change, see contract request 5).
@@ -26,6 +26,8 @@ Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task bri
 - [x] Merge the post-#16 `origin/ws0/contracts` handoff document; #17 targets main.
 
 ## Build / test
+
+Final integration CI on `5a181c8` passed before merge: `39253838350` (all seven jobs) and `39253838175` (Release). This includes the repaired virtual-space cases, control-center browser tests, real Chromium/VNC/Wayland/EasyTier checks, release binaries for all three platforms, and the Linux resource baseline.
 
 Integration review of `7737649` (2026-10-19, isolated `cranibox-validation` container): the new unilateral-confirmation regression fails on the old implementation because the inviter has already persisted a grant. After the fix, `cargo fmt --all --check`, workspace Clippy with `-D warnings`, and all seven non-ignored `cranibox-net` tests pass. Full workspace tests pass: 245 passed, 0 failed, 5 ignored. The expanded pairing test covers joiner-only consent staying pending, inviter-first consent followed by rejection, and mutual owner/guest confirmation.
 
