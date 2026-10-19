@@ -189,7 +189,7 @@ ok "a and b running"
 
 # pair <inviter-ns> <inviter-settings> <joiner-ns> <joiner-settings>
 pair() {
-  local ins=$1 iset=$2 jns=$3 jset=$4 invite accepted flow sas flows iflow isas
+  local ins=$1 iset=$2 jns=$3 jset=$4 invite accepted flow sas flows iflow isas confirm_pid
   invite=$(cli "$ins" "$iset" pair invite) || die "invite failed"
   link=$(jq -r .link <<<"$invite")
   [[ $link == cranibox://pair/* ]] || die "bad link $link"
@@ -200,8 +200,12 @@ pair() {
   iflow=$(jq -r '[.[] | select(.state == "comparing")][0].flow_id' <<<"$flows")
   isas=$(jq -r '[.[] | select(.state == "comparing")][0].sas' <<<"$flows")
   [ "$sas" = "$isas" ] || die "pairing codes differ: $sas vs $isas"
-  cli "$ins" "$iset" pair confirm "$iflow" >/dev/null
-  cli "$jns" "$jset" pair confirm "$flow" >/dev/null
+  cli "$ins" "$iset" pair confirm "$iflow" >"$WORK/confirm-$iflow.json" &
+  confirm_pid=$!
+  cli "$jns" "$jset" pair confirm "$flow" >"$WORK/confirm-$flow.json"
+  wait "$confirm_pid" || die "inviter confirmation failed"
+  jq -e '.state == "paired"' "$WORK/confirm-$iflow.json" >/dev/null || die "inviter did not pair"
+  jq -e '.state == "paired"' "$WORK/confirm-$flow.json" >/dev/null || die "joiner did not pair"
   for _ in $(seq 40); do
     if jq -e --arg n "$(node_id "$iset")" '.routes[$n]' "$(dirname "$jset")/peers.json" >/dev/null 2>&1 \
       && jq -e --arg n "$(node_id "$jset")" '.grants[$n]' "$(dirname "$iset")/peers.json" >/dev/null 2>&1; then

@@ -1,24 +1,26 @@
 # 交接说明 / Handoff (2026-10-19)
 
 ## 当前状态
-- main：PR #7–#15 已合入（安全阶段 1–4、Apache-2.0、设计文档）。
-- PR #16 `ws0/contracts`（未合并）：Phase 0 共享契约 C1–C8，`crates/cranibox-contracts` + 空 crate `cranibox-net` / `cranibox-llm` / `cranibox-agents`。CI 通过。说明见 `docs/design/CONTRACTS.md`、`docs/design/OWNERS.md`。
-- PR #17 `ws1/iroh-network`（基于 #16，未合并）：iroh 默认网络、内置 relay、链接/二维码配对，核心已可用。交接见该分支 `docs/design/handoff/WS1-iroh.md`。
+- main：PR #7–#16 已合入。#16 于 2026-10-19 合并，Phase 0 共享契约 C1–C8 已可用；说明见 `docs/design/CONTRACTS.md`、`docs/design/OWNERS.md`。
+- PR #17 `ws1/iroh-network`（目标已改为 main，未合并）：iroh 默认网络、内置 relay、链接/二维码配对。集成评审发现单方确认可授权，已补双方独立确认的修复及回归测试；CI 通过后才能合并。交接见 `docs/design/handoff/WS1-iroh.md`。
+- 本总交接文档在 #16 合并后才提交，随 #17 补入；不要误以为 main 已有该文档。
+- 已有草稿 PR #19（Claude cch 实测结论）、#18（协议转换器与许可证）、#20（WS2/WS3 本机订阅代理）。另一个 Agent 正在原工作区完成 WS5/WS6/WS7，接手前先协调，勿覆盖其未提交改动。
 
 ## 合并顺序
-1. 合 #16（契约）→ 2. #17 改 base 为 main，CI 绿后合。
-3. 之后各工作流从 main 切 `wsN/...` 分支，按 `docs/design/tasks/NN-*.md` 执行。
+1. #16 已合；#17 已改 base 为 main，等待修复后的 CI 全绿再合。
+2. 其他草稿当前是 #19 → #18 → #20 的堆叠关系；依次评审、改目标分支、验证后再合，禁止跳过草稿审核。
+3. 已有工作流先 merge main；新工作从 main 切 `wsN/...` 分支，按 `docs/design/tasks/NN-*.md` 执行。
 
 ## 待接手工作流
 | WS | 任务书 | 状态 |
 |---|---|---|
 | WS1 iroh | tasks/01 | 进行中（#17），剩余清单见 WS1-iroh.md |
-| WS2 订阅代理核心 | tasks/02 | 未开始 |
-| WS3 Codex/Kimi/国内厂商 | tasks/03 | 未开始（依赖 WS2 骨架） |
-| WS4 Claude 节点 | tasks/04 | 未开始；详细规格私下另行提供，勿写入公开仓库 |
-| WS5 Agent 适配（DSH 默认） | tasks/05 | 未开始 |
-| WS6 名册/同步/租约 | tasks/06 | 未开始 |
-| WS7 UI/UX | tasks/07 | 未开始（可先用 C6 mock） |
+| WS2 订阅代理核心 | tasks/02 | 草稿 #18/#20，已有 Agent 负责 |
+| WS3 Codex/Kimi/国内厂商 | tasks/03 | 草稿 #20，与 WS2 一起推进 |
+| WS4 Claude 节点 | tasks/04 | 草稿 #19 提交首轮实测结论；详细规格仍私下提供，勿写入公开仓库 |
+| WS5 Agent 适配（DSH 默认） | tasks/05 | 原工作区 Agent 进行中，尚未交付 |
+| WS6 名册/同步/租约 | tasks/06 | 原工作区 Agent 进行中，尚未交付 |
+| WS7 UI/UX | tasks/07 | 原工作区 Agent 进行中，尚未交付 |
 
 ## 规则
 - 一个工作流一个分支，小 PR，CI 绿再合，禁止 force-push / 改历史，合 main 用 merge 不用 rebase。

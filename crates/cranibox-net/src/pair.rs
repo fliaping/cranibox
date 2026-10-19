@@ -4,9 +4,9 @@
 //! 2. The joiner dials the inviter's EndpointId from the ticket (TLS pins it) and
 //!    proves the ticket secret; both sides exchange their public identities. The
 //!    joiner's identity must carry the EndpointId it authenticated with.
-//! 3. Both sides show the existing SAS pairing code. A decision on either side is
-//!    sent to the other; on "match" both sides commit (grant + route, see
-//!    [`PairHost::apply`]), on "mismatch" or timeout nothing changes.
+//! 3. Both sides show the existing SAS pairing code and send their local decision.
+//!    Only two matching decisions allow credentials to be exchanged and committed
+//!    (grant + route, see [`PairHost::apply`]); rejection or timeout changes nothing.
 use crate::{IrohNode, addr, relay::Relay, ticket};
 use anyhow::{Context, Result, bail, ensure};
 use cranibox_contracts::net::{
@@ -523,22 +523,32 @@ impl Pending {
         recv: &mut iroh::endpoint::RecvStream,
         decision: oneshot::Receiver<bool>,
     ) -> Result<bool> {
-        // Phase 1: the first decision on either device wins.
+        // Phase 1: require each device's local consent before sending credentials.
+        // Keep both futures alive so a partially read frame is never discarded.
         let matches = tokio::time::timeout(DECISION_TIMEOUT, async {
-            tokio::select! {
-                local = decision => {
-                    let matches = local.unwrap_or(false);
-                    write_frame(send, &Frame::Decision { matches }).await?;
-                    anyhow::Ok(matches)
-                }
-                remote = read_frame(recv) => match remote? {
+            let local = async {
+                let matches = decision.await.unwrap_or(false);
+                write_frame(send, &Frame::Decision { matches }).await?;
+                anyhow::Ok(matches)
+            };
+            let remote = async {
+                match read_frame(recv).await? {
                     Frame::Decision { matches } => Ok(matches),
                     _ => bail!("unexpected pairing frame"),
-                },
+                }
+            };
+            tokio::pin!(local, remote);
+            tokio::select! {
+                result = &mut local => {
+                    if result? { remote.await } else { Ok(false) }
+                }
+                result = &mut remote => {
+                    if result? { local.await } else { Ok(false) }
+                }
             }
         })
         .await
-        .context("Nobody confirmed the pairing code in time.")??;
+        .context("The pairing code was not confirmed on both devices in time.")??;
         if !matches {
             return Ok(false);
         }

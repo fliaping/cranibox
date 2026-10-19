@@ -94,7 +94,7 @@ cranibox-node peer pair status                               # EndpointId、rela
 ```
 
 - 链接 `cranibox://pair/<base32>`，网页版 `https://<hub>/pair#<base32>`（Hub 才有），内容是 C2 `PairTicket`（邀请方 EndpointId、relay URL、16 字节一次性 secret、过期时间、用途）。
-- 两边显示的配对码（SAS）由双方身份派生（复用 #7/#13 的 `pairing_code`），一致才确认；不一致或拒绝时什么都不写。
+- 两边显示的配对码（SAS）由双方身份派生（复用 #7/#13 的 `pairing_code`），双方都在各自设备确认后才交换凭据、保存授权。只有一方确认时仍等待；任一方拒绝或超时都不写入。CLI 确认命令会等待另一端，请在两台设备分别执行。
 - `OwnerDevice`（默认）：双方互相发 grant（全部能力，含 llm/vault），入站消息直接接受；`Guest`：只给对方 messages，入站消息待审。名册（roster）加入由 WS6 接手。
 - 确认后：grant 固定对方身份并标记已核对；route 指向本机回环转发 `http://127.0.0.1:<port>`（带 lease 锁），旧路径保留为备用；Hub 的 relay 记入 `iroh-peers.json` 并立刻开始使用。
 - 已有直连路由的对端（已固定公钥）：设置 `CRANIBOX_IROH_MIGRATE=1` 后，服务每 10 分钟探测一次，对端能用 iroh 时把 iroh 回环转发插到路由最前面。默认关闭：改路由会改变路由 binding，排队中的消息和任务会因此作废（重新配对则直接走 iroh）。

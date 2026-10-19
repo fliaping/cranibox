@@ -1,6 +1,6 @@
 # WS1 handoff: iroh default network, embedded relay, link/QR pairing
 
-Branch `ws1/iroh-network` (base `ws0/contracts`, PR #17, **do not merge before #16**). Task brief: `docs/design/tasks/01-iroh-network.md`. User docs: `docs/iroh-network.md`.
+Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task brief: `docs/design/tasks/01-iroh-network.md`. User docs: `docs/iroh-network.md`.
 
 ## Done
 - [x] `IrohNode`: PR #7 ed25519 seed = iroh `SecretKey`; `remote_id` checked on every dial; pooled connections (idle 120 s).
@@ -9,23 +9,26 @@ Branch `ws1/iroh-network` (base `ws0/contracts`, PR #17, **do not merge before #
 - [x] ALPN `cranibox/peer-fwd/1`: loopback forwards for CLI/MCP/gateway, spliced to the node's NetworkEndpoint listener (bearer/Noise still required — local users can't borrow the identity).
 - [x] Embedded relay in `cranibox serve` (`/relay`, `/ping`, `/generate_204`, same port, before axum); live allowlist from pinned grant/route keys, disconnect on removal; one-time pairing tokens for hub tickets.
 - [x] `--relay` / `--no-relay` (default on with https `--public-url`); startup self-check with readable diagnostics (no Upgrade 400, 404, 5xx/530, 200, TLS).
-- [x] Pairing: `PairTicket` (postcard+base32) as `cranibox://pair/…`, `https://<hub>/pair#…`, QR SVG; one-time, 15 min, ≤16 open; SAS shown on both sides; mismatch/reject writes nothing; OwnerDevice ↔ grants (all perms incl. llm/vault, inbound Accept), Guest → messages + Hold.
+- [x] Pairing: `PairTicket` (postcard+base32) as `cranibox://pair/…`, `https://<hub>/pair#…`, QR SVG; one-time, 15 min, ≤16 open; SAS shown on both sides; each device must confirm locally before credentials are exchanged; mismatch/reject writes nothing; OwnerDevice ↔ grants (all perms incl. llm/vault, inbound Accept), Guest → messages + Hold.
 - [x] Back ends `Handle::pair_invite/pair_accept/pair_confirm/pair_flows/status` (C6 types) via `LocalNode::iroh()`; CLI `cranibox-node peer pair invite|accept|confirm|flows|status` over 0600 unix socket `cranibox-net.sock`.
 - [x] Route migration to iroh for pinned direct routes — **opt-in** `CRANIBOX_IROH_MIGRATE=1` (changing a route changes its binding and cancels queued messages/tasks).
 - [x] Docs `docs/iroh-network.md` (nginx/Caddy/Cloudflare Tunnel, ports, overrides, troubleshooting).
 - [x] netns acceptance `tests/integration/iroh_netns.sh` — ALL PASSED locally (see below).
 
 ## Left (checklist)
-- [ ] CI green on PR #17: last pushed commit `4f701b7`; earlier failure (test_background_project_sync) was the migration probe, fixed in `f6c8682` and verified locally. Re-check runs.
+- [ ] CI green on PR #17 after the bilateral-consent fix: earlier failure (test_background_project_sync) was the migration probe, fixed in `f6c8682` and verified locally. Check the current PR head; superseded queued runs are not validation of the fix.
 - [ ] Local regression not finished for: test_automatic_task_worker, test_browser_use, test_computer_use, test_desktop_relay/service, test_federated_activity, test_node_identity, test_node_peers, test_project_handoffs/streaming, test_remote_agent_executions, test_remote_desktops, test_rust_runtime, test_space_catalog, test_task_*, test_virtual_spaces, test_workspace_bootstrap/services, test_workspacectl_rust (stopped at wrap-up; CI runs them).
 - [ ] Cloudflare Tunnel manual acceptance (steps in PR body; box can't reach cloudflared port 7844).
 - [ ] Web pairing page `/pair#…` and UI cards (WS7); roster join for OwnerDevice (WS6, currently grants only).
 - [ ] CLI/MCP skip Noise over iroh (needs WS0 client.rs change, see contract request 5).
 - [ ] Windows: control socket and `peer pair` CLI are unix-only (`run` bails on non-unix); service itself compiles everywhere.
 - [ ] `network/invitations.rs` not converted (pairing lives in transport_iroh); decide whether to fold existing invitations into tickets.
-- [ ] Re-merge `origin/ws0/contracts` (`git merge`, never rebase) when #16 updates.
+- [x] Merge the post-#16 `origin/ws0/contracts` handoff document; #17 targets main.
 
 ## Build / test
+
+Integration review (2026-10-19, isolated `cranibox-validation` container): the new unilateral-confirmation regression fails on the old implementation because the inviter has already persisted a grant. After the fix, `cargo fmt --all --check`, workspace Clippy with `-D warnings`, and all seven non-ignored `cranibox-net` tests pass. The expanded pairing test covers joiner-only consent staying pending, inviter-first consent followed by rejection, and mutual owner/guest confirmation. The netns helper now starts both confirmation commands concurrently and checks both final states; its shell syntax is checked. The previous netns and n0 results below predate this fix; the container lacks the capabilities needed to rerun netns.
+
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --locked --all-targets -- -D warnings

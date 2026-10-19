@@ -339,11 +339,31 @@ async fn link_pairing_is_one_time_shows_the_same_code_and_commits_only_on_match(
     let reused = pairing_b.accept(&invitation.link).await;
     assert!(reused.unwrap_err().to_string().contains("already used"));
 
-    // Confirming on the joiner commits on both sides with exchanged credentials.
+    // A ticket holder cannot authorize itself: each device must confirm locally.
+    let joiner_confirmation = {
+        let pairing = pairing_b.clone();
+        let flow_id = flow_b.flow_id.clone();
+        tokio::spawn(async move { pairing.confirm(&flow_id, true).await.unwrap() })
+    };
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(inviter_host.applied.lock().unwrap().is_empty());
+    assert!(joiner_host.applied.lock().unwrap().is_empty());
+    assert!(!joiner_confirmation.is_finished());
     assert_eq!(
-        pairing_b.confirm(&flow_b.flow_id, true).await.unwrap(),
+        pairing_a.flow(&flow_a.flow_id).unwrap().state,
+        FlowState::Comparing
+    );
+    assert_eq!(
+        pairing_b.flow(&flow_b.flow_id).unwrap().state,
+        FlowState::Comparing
+    );
+
+    // Confirming on the other device releases both sides to exchange credentials.
+    assert_eq!(
+        pairing_a.confirm(&flow_a.flow_id, true).await.unwrap(),
         FlowState::Paired
     );
+    assert_eq!(joiner_confirmation.await.unwrap(), FlowState::Paired);
     tokio::time::sleep(Duration::from_millis(300)).await;
     let a_out = inviter_host.applied.lock().unwrap().pop().unwrap();
     let b_out = joiner_host.applied.lock().unwrap().pop().unwrap();
@@ -354,7 +374,7 @@ async fn link_pairing_is_one_time_shows_the_same_code_and_commits_only_on_match(
     );
     assert_eq!(a_out.peer_addr.endpoint_id, addr::hex_id(&joiner_id));
 
-    // A mismatch changes nothing.
+    // An inviter's confirmation must still allow the joiner to reject.
     let second = pairing_a.invite(PairPurpose::Guest, None).unwrap();
     let flow = pairing_b.accept(&second.link).await.unwrap();
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -363,13 +383,20 @@ async fn link_pairing_is_one_time_shows_the_same_code_and_commits_only_on_match(
         .into_iter()
         .find(|f| f.state == FlowState::Comparing)
         .unwrap();
+    let inviter_confirmation = {
+        let pairing = pairing_a.clone();
+        let flow_id = inviter_flow.flow_id.clone();
+        tokio::spawn(async move { pairing.confirm(&flow_id, true).await.unwrap() })
+    };
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(inviter_host.applied.lock().unwrap().is_empty());
+    assert!(joiner_host.applied.lock().unwrap().is_empty());
+    assert!(!inviter_confirmation.is_finished());
     assert_eq!(
-        pairing_a
-            .confirm(&inviter_flow.flow_id, false)
-            .await
-            .unwrap(),
+        pairing_b.confirm(&flow.flow_id, false).await.unwrap(),
         FlowState::Rejected
     );
+    assert_eq!(inviter_confirmation.await.unwrap(), FlowState::Rejected);
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(
         pairing_b.flow(&flow.flow_id).unwrap().state,
@@ -377,6 +404,27 @@ async fn link_pairing_is_one_time_shows_the_same_code_and_commits_only_on_match(
     );
     assert!(inviter_host.applied.lock().unwrap().is_empty());
     assert!(joiner_host.applied.lock().unwrap().is_empty());
+
+    // Guests also require both decisions, and receive only the inviter's grant.
+    let guest = pairing_a.invite(PairPurpose::Guest, None).unwrap();
+    let guest_b = pairing_b.accept(&guest.link).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let guest_a = pairing_a
+        .flows()
+        .into_iter()
+        .find(|f| f.state == FlowState::Comparing)
+        .unwrap();
+    let (a, b) = tokio::join!(
+        pairing_a.confirm(&guest_a.flow_id, true),
+        pairing_b.confirm(&guest_b.flow_id, true)
+    );
+    assert_eq!(a.unwrap(), FlowState::Paired);
+    assert_eq!(b.unwrap(), FlowState::Paired);
+    let a_out = inviter_host.applied.lock().unwrap().pop().unwrap();
+    let b_out = joiner_host.applied.lock().unwrap().pop().unwrap();
+    assert_eq!(a_out.issued, b_out.received);
+    assert!(a_out.received.is_none());
+    assert!(b_out.issued.is_none());
 
     // A forged secret is refused; an expired ticket never dials.
     let mut forged = second.ticket.clone();
