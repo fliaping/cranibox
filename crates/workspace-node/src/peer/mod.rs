@@ -46,6 +46,9 @@ pub enum Command {
         #[arg(long)]
         command: Option<String>,
     },
+    /// Running Codex and Claude Code sessions on this device, found passively from their
+    /// transcript files (repo, branch, activity). Local only; nothing is registered.
+    DiscoverSessions,
     /// Explicit Agent session registrations; remote targets support list only.
     AgentSessions {
         #[arg(long)]
@@ -432,6 +435,17 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             client::print(agent_workspace_runtime::peers::project_sync::manage(
                 &path, command,
             )?);
+        }
+        Command::DiscoverSessions => {
+            use agent_workspace_runtime::peers::discovery;
+            let home = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .context("HOME is not set")?;
+            let sessions = discovery::discover(
+                &discovery::Roots::from_env(&home),
+                std::time::SystemTime::now(),
+            );
+            client::print(json!({"sessions": sessions}));
         }
         Command::AgentSessions { node, command } => {
             let command =
