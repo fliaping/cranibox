@@ -991,7 +991,7 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 	t.exports = l();
 })), d = (e) => e?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
 function f(e, t, n = []) {
 	if (t == null) throw Error("[lucide]: iconNode is required when icon name is used");
 	return {
@@ -1002,7 +1002,7 @@ function f(e, t, n = []) {
 	};
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
 var p = (e) => {
 	let t = "", n = !1;
 	for (let r of e) r === "-" || r === "_" || r <= " " ? n = t.length > 0 : (t.length === 0 ? t += r.toLowerCase() : t += n ? r.toUpperCase() : r, n = !1);
@@ -1022,7 +1022,7 @@ var p = (e) => {
 	"stroke-linejoin": "round"
 };
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
 function _(e) {
 	return e != null;
 }
@@ -1059,7 +1059,7 @@ function v(e, t = {}) {
 	];
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
 function y(e, t = {}) {
 	return v(e, {
 		...t,
@@ -1074,7 +1074,7 @@ function y(e, t = {}) {
 	});
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
 var b = (e) => {
 	for (let t in e) if (t.startsWith("aria-") || t === "role" || t === "title") return !0;
 	return !1;
@@ -1100,7 +1100,7 @@ var b = (e) => {
 	}, [...D.map(([e, t]) => (0, x.createElement)(e, t)), ...Array.isArray(c) ? c : [c]]);
 });
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+//#region node_modules/lucide-react/dist/esm/createLucideIcon.mjs
 function T(e, t = [], n = []) {
 	let r = typeof e == "string" ? f(e, t, n) : e, i = (0, x.forwardRef)(({ className: e, ...t }, n) => (0, x.createElement)(w, {
 		ref: n,
@@ -1111,7 +1111,7 @@ function T(e, t = [], n = []) {
 	return r.name && (i.displayName = m(r.name)), i;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/lucide-react/dist/esm/icons/activity.mjs
+//#region node_modules/lucide-react/dist/esm/icons/activity.mjs
 var E = {
 	name: "activity",
 	size: 24,
@@ -13054,7 +13054,7 @@ function Qa(e, { relative: t } = {}) {
 	return Ar(i.pathname, o) != null || Ar(i.pathname, a) != null;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/react/cjs/react-jsx-runtime.production.js
+//#region node_modules/react/cjs/react-jsx-runtime.production.js
 var $a = /* @__PURE__ */ o(((e) => {
 	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
 	function r(e, n, r) {
@@ -13969,7 +13969,7 @@ function Io() {
 	] });
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/int.js
+//#region node_modules/@novnc/novnc/core/util/int.js
 function Lo(e) {
 	return e >>> 0;
 }
@@ -13977,7 +13977,7 @@ function Ro(e) {
 	return e | 0;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/logging.js
+//#region node_modules/@novnc/novnc/core/util/logging.js
 var zo = "warn", Bo = () => {}, Vo = () => {}, Ho = () => {}, Uo = () => {};
 function Wo(e) {
 	if (e === void 0 ? e = zo : zo = e, Bo = Vo = Ho = Uo = () => {}, window.console !== void 0) switch (e) {
@@ -13991,7 +13991,7 @@ function Wo(e) {
 }
 Wo();
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/strings.js
+//#region node_modules/@novnc/novnc/core/util/strings.js
 function Go(e, t = !1) {
 	try {
 		return decodeURIComponent(escape(e));
@@ -14004,7 +14004,7 @@ function Ko(e) {
 	return unescape(encodeURIComponent(e));
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/base64.js
+//#region node_modules/@novnc/novnc/core/base64.js
 var qo = {
 	toBase64Table: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=".split(""),
 	base64Pad: "=",
@@ -14219,7 +14219,7 @@ function ns() {
 	return !!/ipad/i.exec(navigator.platform) || !!/iphone/i.exec(navigator.platform) || !!/ipod/i.exec(navigator.platform);
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/element.js
+//#region node_modules/@novnc/novnc/core/util/element.js
 function rs(e, t, n) {
 	let r = n.getBoundingClientRect(), i = {
 		x: 0,
@@ -14228,7 +14228,7 @@ function rs(e, t, n) {
 	return i.x = e < r.left ? 0 : e >= r.right ? r.width - 1 : e - r.left, i.y = t < r.top ? 0 : t >= r.bottom ? r.height - 1 : t - r.top, i;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/events.js
+//#region node_modules/@novnc/novnc/core/util/events.js
 function is(e) {
 	e.stopPropagation(), e.preventDefault();
 }
@@ -14262,7 +14262,7 @@ function ds() {
 	}
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/util/eventtarget.js
+//#region node_modules/@novnc/novnc/core/util/eventtarget.js
 var fs = class {
 	constructor() {
 		this._listeners = /* @__PURE__ */ new Map();
@@ -14507,14 +14507,14 @@ var fs = class {
 	}
 };
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/utils/common.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/utils/common.js
 function ms(e, t, n, r, i) {
 	if (t.subarray && e.subarray) e.set(t.subarray(n, n + r), i);
 	else for (var a = 0; a < r; a++) e[i + a] = t[n + a];
 }
 var hs = Uint8Array, gs = Uint16Array, _s = Int32Array;
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/adler32.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/adler32.js
 function vs(e, t, n, r) {
 	for (var i = e & 65535, a = e >>> 16 & 65535, o = 0; n !== 0;) {
 		o = n > 2e3 ? 2e3 : n, n -= o;
@@ -14526,7 +14526,7 @@ function vs(e, t, n, r) {
 	return i | a << 16;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/crc32.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/crc32.js
 function ys() {
 	for (var e, t = [], n = 0; n < 256; n++) {
 		e = n;
@@ -14537,7 +14537,7 @@ function ys() {
 }
 ys();
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inffast.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inffast.js
 var bs = 30, xs = 12;
 function Ss(e, t) {
 	var n = e.state, r = e.next_in, i, a, o, s, c, l, u, d, f, p, m, h, g, _, v, y, b, x, S, C, w, T = e.input, E;
@@ -14622,7 +14622,7 @@ function Ss(e, t) {
 	x = m >> 3, r -= x, m -= x << 3, p &= (1 << m) - 1, e.next_in = r, e.next_out = a, e.avail_in = r < i ? 5 + (i - r) : 5 - (r - i), e.avail_out = a < s ? 257 + (s - a) : 257 - (a - s), n.hold = p, n.bits = m;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inftrees.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inftrees.js
 var Cs = 15, ws = 852, Ts = 592, Es = 0, Ds = 1, Os = 2, ks = [
 	3,
 	4,
@@ -14785,7 +14785,7 @@ function Ns(e, t, n, r, i, a, o, s) {
 	return v !== 0 && (i[C + v] = l - h << 24 | 4194304), s.bits = p, 0;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/inflate.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/inflate.js
 var Ps = 0, Fs = 1, Is = 2, Ls = 1, Rs = 2, zs = 3, Bs = 4, Vs = 5, Hs = 6, Us = 7, Ws = 8, Gs = 9, Ks = 10, qs = 11, Js = 12, Ys = 13, Xs = 14, Zs = 15, Qs = 16, $s = 17, ec = 18, tc = 19, nc = 20, rc = 21, ic = 22, ac = 23, oc = 24, sc = 25, cc = 26, lc = 27, uc = 28, dc = 29, fc = 30, pc = 31, mc = 32, hc = 852, gc = 592, _c = 15;
 function vc(e) {
 	return (e >>> 24 & 255) + (e >>> 8 & 65280) + ((e & 65280) << 8) + ((e & 255) << 24);
@@ -15212,12 +15212,12 @@ function Ac(e, t) {
 	return e.next_out = o, e.avail_out = c, e.next_in = a, e.avail_in = s, n.hold = l, n.bits = u, (n.wsize || f !== e.avail_out && n.mode < fc && (n.mode < lc || t !== 4)) && kc(e, e.output, e.next_out, f - e.avail_out) ? (n.mode = pc, -4) : (d -= e.avail_in, f -= e.avail_out, e.total_in += d, e.total_out += f, n.total += f, n.wrap && f && (e.adler = n.check = n.flags ? ys(n.check, i, f, e.next_out - f) : vs(n.check, i, f, e.next_out - f)), e.data_type = n.bits + (n.last ? 64 : 0) + (n.mode === Js ? 128 : 0) + (n.mode === nc || n.mode === Zs ? 256 : 0), (d === 0 && f === 0 || t === 4) && w === 0 && (w = -5), w);
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/zstream.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/zstream.js
 function jc() {
 	this.input = null, this.next_in = 0, this.avail_in = 0, this.total_in = 0, this.output = null, this.next_out = 0, this.avail_out = 0, this.total_out = 0, this.msg = "", this.state = null, this.data_type = 2, this.adler = 0;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/inflator.js
+//#region node_modules/@novnc/novnc/core/inflator.js
 var Mc = class {
 	constructor() {
 		this.strm = new jc(), this.chunkSize = 102400, this.strm.output = new Uint8Array(this.chunkSize), wc(this.strm);
@@ -15497,7 +15497,7 @@ function Wl(e, t, n) {
 	return e.pending_buf[e.d_buf + e.last_lit * 2] = t >>> 8 & 255, e.pending_buf[e.d_buf + e.last_lit * 2 + 1] = t & 255, e.pending_buf[e.l_buf + e.last_lit] = n & 255, e.last_lit++, t === 0 ? e.dyn_ltree[n * 2]++ : (e.matches++, t--, e.dyn_ltree[(ul[n] + Wc + 1) * 2]++, e.dyn_dtree[vl(t) * 2]++), e.last_lit === e.lit_bufsize - 1;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/vendor/pako/lib/zlib/messages.js
+//#region node_modules/@novnc/novnc/vendor/pako/lib/zlib/messages.js
 var Gl = {
 	2: "need dictionary",
 	1: "stream end",
@@ -15740,7 +15740,7 @@ function zu(e, t) {
 	return t === 4 ? r.wrap <= 0 ? 1 : (r.wrap === 2 ? (xu(r, e.adler & 255), xu(r, e.adler >> 8 & 255), xu(r, e.adler >> 16 & 255), xu(r, e.adler >> 24 & 255), xu(r, e.total_in & 255), xu(r, e.total_in >> 8 & 255), xu(r, e.total_in >> 16 & 255), xu(r, e.total_in >> 24 & 255)) : (Su(r, e.adler >>> 16), Su(r, e.adler & 65535)), yu(e), r.wrap > 0 && (r.wrap = -r.wrap), +(r.pending === 0)) : 0;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/deflator.js
+//#region node_modules/@novnc/novnc/core/deflator.js
 var Bu = class {
 	constructor() {
 		this.strm = new jc(), this.chunkSize = 102400, this.outputBuffer = new Uint8Array(this.chunkSize), Ru(this.strm, -1);
@@ -17206,7 +17206,7 @@ function qu(e, t, n) {
 }
 Ku("Alt", U.XK_Alt_L, U.XK_Alt_R), W("AltGraph", U.XK_ISO_Level3_Shift), W("CapsLock", U.XK_Caps_Lock), Ku("Control", U.XK_Control_L, U.XK_Control_R), Ku("Meta", U.XK_Super_L, U.XK_Super_R), W("NumLock", U.XK_Num_Lock), W("ScrollLock", U.XK_Scroll_Lock), Ku("Shift", U.XK_Shift_L, U.XK_Shift_R), qu("Enter", U.XK_Return, U.XK_KP_Enter), W("Tab", U.XK_Tab), qu(" ", U.XK_space, U.XK_KP_Space), qu("ArrowDown", U.XK_Down, U.XK_KP_Down), qu("ArrowLeft", U.XK_Left, U.XK_KP_Left), qu("ArrowRight", U.XK_Right, U.XK_KP_Right), qu("ArrowUp", U.XK_Up, U.XK_KP_Up), qu("End", U.XK_End, U.XK_KP_End), qu("Home", U.XK_Home, U.XK_KP_Home), qu("PageDown", U.XK_Next, U.XK_KP_Next), qu("PageUp", U.XK_Prior, U.XK_KP_Prior), W("Backspace", U.XK_BackSpace), qu("Clear", U.XK_Clear, U.XK_KP_Begin), W("Copy", U.XF86XK_Copy), W("Cut", U.XF86XK_Cut), qu("Delete", U.XK_Delete, U.XK_KP_Delete), qu("Insert", U.XK_Insert, U.XK_KP_Insert), W("Paste", U.XF86XK_Paste), W("Redo", U.XK_Redo), W("Undo", U.XK_Undo), W("Cancel", U.XK_Cancel), W("ContextMenu", U.XK_Menu), W("Escape", U.XK_Escape), W("Execute", U.XK_Execute), W("Find", U.XK_Find), W("Help", U.XK_Help), W("Pause", U.XK_Pause), W("Select", U.XK_Select), W("ZoomIn", U.XF86XK_ZoomIn), W("ZoomOut", U.XF86XK_ZoomOut), W("BrightnessDown", U.XF86XK_MonBrightnessDown), W("BrightnessUp", U.XF86XK_MonBrightnessUp), W("Eject", U.XF86XK_Eject), W("LogOff", U.XF86XK_LogOff), W("Power", U.XF86XK_PowerOff), W("PowerOff", U.XF86XK_PowerDown), W("PrintScreen", U.XK_Print), W("Hibernate", U.XF86XK_Hibernate), W("Standby", U.XF86XK_Standby), W("WakeUp", U.XF86XK_WakeUp), W("AllCandidates", U.XK_MultipleCandidate), W("Alphanumeric", U.XK_Eisu_toggle), W("CodeInput", U.XK_Codeinput), W("Compose", U.XK_Multi_key), W("Convert", U.XK_Henkan), W("GroupFirst", U.XK_ISO_First_Group), W("GroupLast", U.XK_ISO_Last_Group), W("GroupNext", U.XK_ISO_Next_Group), W("GroupPrevious", U.XK_ISO_Prev_Group), W("NonConvert", U.XK_Muhenkan), W("PreviousCandidate", U.XK_PreviousCandidate), W("SingleCandidate", U.XK_SingleCandidate), W("HangulMode", U.XK_Hangul), W("HanjaMode", U.XK_Hangul_Hanja), W("JunjaMode", U.XK_Hangul_Jeonja), W("Eisu", U.XK_Eisu_toggle), W("Hankaku", U.XK_Hankaku), W("Hiragana", U.XK_Hiragana), W("HiraganaKatakana", U.XK_Hiragana_Katakana), W("KanaMode", U.XK_Kana_Shift), W("KanjiMode", U.XK_Kanji), W("Katakana", U.XK_Katakana), W("Romaji", U.XK_Romaji), W("Zenkaku", U.XK_Zenkaku), W("ZenkakuHankaku", U.XK_Zenkaku_Hankaku), W("F1", U.XK_F1), W("F2", U.XK_F2), W("F3", U.XK_F3), W("F4", U.XK_F4), W("F5", U.XK_F5), W("F6", U.XK_F6), W("F7", U.XK_F7), W("F8", U.XK_F8), W("F9", U.XK_F9), W("F10", U.XK_F10), W("F11", U.XK_F11), W("F12", U.XK_F12), W("F13", U.XK_F13), W("F14", U.XK_F14), W("F15", U.XK_F15), W("F16", U.XK_F16), W("F17", U.XK_F17), W("F18", U.XK_F18), W("F19", U.XK_F19), W("F20", U.XK_F20), W("F21", U.XK_F21), W("F22", U.XK_F22), W("F23", U.XK_F23), W("F24", U.XK_F24), W("F25", U.XK_F25), W("F26", U.XK_F26), W("F27", U.XK_F27), W("F28", U.XK_F28), W("F29", U.XK_F29), W("F30", U.XK_F30), W("F31", U.XK_F31), W("F32", U.XK_F32), W("F33", U.XK_F33), W("F34", U.XK_F34), W("F35", U.XK_F35), W("Close", U.XF86XK_Close), W("MailForward", U.XF86XK_MailForward), W("MailReply", U.XF86XK_Reply), W("MailSend", U.XF86XK_Send), W("MediaFastForward", U.XF86XK_AudioForward), W("MediaPause", U.XF86XK_AudioPause), W("MediaPlay", U.XF86XK_AudioPlay), W("MediaRecord", U.XF86XK_AudioRecord), W("MediaRewind", U.XF86XK_AudioRewind), W("MediaStop", U.XF86XK_AudioStop), W("MediaTrackNext", U.XF86XK_AudioNext), W("MediaTrackPrevious", U.XF86XK_AudioPrev), W("New", U.XF86XK_New), W("Open", U.XF86XK_Open), W("Print", U.XK_Print), W("Save", U.XF86XK_Save), W("SpellCheck", U.XF86XK_Spell), W("AudioVolumeDown", U.XF86XK_AudioLowerVolume), W("AudioVolumeUp", U.XF86XK_AudioRaiseVolume), W("AudioVolumeMute", U.XF86XK_AudioMute), W("MicrophoneVolumeMute", U.XF86XK_AudioMicMute), W("LaunchApplication1", U.XF86XK_MyComputer), W("LaunchApplication2", U.XF86XK_Calculator), W("LaunchCalendar", U.XF86XK_Calendar), W("LaunchMail", U.XF86XK_Mail), W("LaunchMediaPlayer", U.XF86XK_AudioMedia), W("LaunchMusicPlayer", U.XF86XK_Music), W("LaunchPhone", U.XF86XK_Phone), W("LaunchScreenSaver", U.XF86XK_ScreenSaver), W("LaunchSpreadsheet", U.XF86XK_Excel), W("LaunchWebBrowser", U.XF86XK_WWW), W("LaunchWebCam", U.XF86XK_WebCam), W("LaunchWordProcessor", U.XF86XK_Word), W("BrowserBack", U.XF86XK_Back), W("BrowserFavorites", U.XF86XK_Favorites), W("BrowserForward", U.XF86XK_Forward), W("BrowserHome", U.XF86XK_HomePage), W("BrowserRefresh", U.XF86XK_Refresh), W("BrowserSearch", U.XF86XK_Search), W("BrowserStop", U.XF86XK_Stop), W("Dimmer", U.XF86XK_BrightnessAdjust), W("MediaAudioTrack", U.XF86XK_AudioCycleTrack), W("RandomToggle", U.XF86XK_AudioRandomPlay), W("SplitScreenToggle", U.XF86XK_SplitScreen), W("Subtitle", U.XF86XK_Subtitle), W("VideoModeNext", U.XF86XK_Next_VMode), qu("=", U.XK_equal, U.XK_KP_Equal), qu("+", U.XK_plus, U.XK_KP_Add), qu("-", U.XK_minus, U.XK_KP_Subtract), qu("*", U.XK_asterisk, U.XK_KP_Multiply), qu("/", U.XK_slash, U.XK_KP_Divide), qu(".", U.XK_period, U.XK_KP_Decimal), qu(",", U.XK_comma, U.XK_KP_Separator), qu("0", U.XK_0, U.XK_KP_0), qu("1", U.XK_1, U.XK_KP_1), qu("2", U.XK_2, U.XK_KP_2), qu("3", U.XK_3, U.XK_KP_3), qu("4", U.XK_4, U.XK_KP_4), qu("5", U.XK_5, U.XK_KP_5), qu("6", U.XK_6, U.XK_KP_6), qu("7", U.XK_7, U.XK_KP_7), qu("8", U.XK_8, U.XK_KP_8), qu("9", U.XK_9, U.XK_KP_9);
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/input/util.js
+//#region node_modules/@novnc/novnc/core/input/util.js
 function Ju(e) {
 	if (e.code) {
 		switch (e.code) {
@@ -17282,7 +17282,7 @@ function Xu(e) {
 	return n ? Hu.lookup(n) : null;
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/input/keyboard.js
+//#region node_modules/@novnc/novnc/core/input/keyboard.js
 var Zu = class {
 	constructor(e) {
 		this._target = e || null, this._keyDownList = {}, this._altGrArmed = !1, this._eventHandlers = {
@@ -18815,7 +18815,7 @@ var Pd = [
 	}
 };
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/bigint.js
+//#region node_modules/@novnc/novnc/core/crypto/bigint.js
 function Rd(e, t, n) {
 	let r = 1n;
 	for (e %= n; t > 0n;) (t & 1n) == 1n && (r = r * e % n), t >>= 1n, e = e * e % n;
@@ -18834,7 +18834,7 @@ function Bd(e) {
 	return BigInt(t);
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/rsa.js
+//#region node_modules/@novnc/novnc/core/crypto/rsa.js
 var Vd = class e {
 	constructor() {
 		this._keyLength = 0, this._keyBytes = 0, this._n = null, this._e = null, this._d = null, this._nBigInt = null, this._eBigInt = null, this._dBigInt = null, this._extractable = !1;
@@ -18931,7 +18931,7 @@ var Vd = class e {
 	}
 };
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/md5.js
+//#region node_modules/@novnc/novnc/core/crypto/md5.js
 async function Wd(e) {
 	let t = "";
 	for (let n = 0; n < e.length; n++) t += String.fromCharCode(e[n]);
@@ -29948,7 +29948,7 @@ function Fm({ title: e, children: t, onCancel: n, className: r = "" }) {
 	});
 }
 //#endregion
-//#region ../../../../../agent-workspace/addons/control-center/ui/node_modules/@xterm/xterm/lib/xterm.mjs
+//#region node_modules/@xterm/xterm/lib/xterm.mjs
 var Im = Object.defineProperty, Lm = Object.getOwnPropertyDescriptor, Rm = (e, t) => {
 	for (var n in t) Im(e, n, {
 		get: t[n],
