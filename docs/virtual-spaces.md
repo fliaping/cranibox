@@ -8,6 +8,8 @@
 
 离线部署或本地构建镜像可使用 `cranibox-node space create "Local lab" --image cranibox-local:test --pull-policy never`。镜像必须已经构建或加载到管理设备使用的 Docker 引擎，并具有兼容性标签。缺少或不兼容时在创建数据卷之前提示错误；准备完成后可重试同一空间。初始化与创建容器也禁止 Docker 隐式拉取镜像。此策略只控制空间管理器的镜像下载，不代表容器内首次启动的工具安装无需联网。
 
+失败、中断或已归档的空间提供“修改镜像”：核对兼容镜像与拉取策略后“保存并重试”，继续使用原 UUID、NodeID、凭据和数据卷。取消不保存；提交失败保留输入并显示原因。只允许在容器不存在时修改，已有容器需先归档；引擎查询失败不会被视为容器不存在。也可运行 `cranibox-node space resume SPACE_UUID --image cranibox-current:test --pull-policy never`，两个选项均可省略。修改镜像不自动迁移卷内应用数据。
+
 ## 创建
 
 1. 打开“虚拟空间 → 新建空间”，选择并检测容器运行环境。检测和安装发生在运行 Cranibox 的设备上。远程浏览器不能替自己的电脑安装依赖。

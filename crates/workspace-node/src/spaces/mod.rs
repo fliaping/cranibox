@@ -56,6 +56,11 @@ pub enum Command {
     },
     Resume {
         id: Uuid,
+        /// Change the image only when no container exists; archive an existing container first.
+        #[arg(long)]
+        image: Option<String>,
+        #[arg(long, value_enum)]
+        pull_policy: Option<PullPolicy>,
     },
     Stop {
         id: Uuid,
@@ -372,7 +377,39 @@ impl Store {
                 catalog.begin_setup(*action, *plan_id, setup_time()?, || engine::plan(*action))?;
                 None
             }
-            Command::Resume { id } | Command::Stop { id } | Command::Remove { id } => {
+            Command::Resume {
+                id,
+                image,
+                pull_policy,
+            } => {
+                if let Some(image) = image {
+                    validate_image(image)?;
+                }
+                let space = catalog
+                    .spaces
+                    .iter_mut()
+                    .find(|space| space.id == *id)
+                    .context("space not found")?;
+                if image.is_some() || pull_policy.is_some() {
+                    let runner = space.provider.runner()?;
+                    ensure!(
+                        provision::inspect(&runner, "container", &space.container())
+                            .await?
+                            .is_none(),
+                        "Archive this space before changing its image or pull policy. Its existing container was not changed; the data volume and node identity will be retained when archived."
+                    );
+                    if let Some(image) = image {
+                        space.image = image.clone();
+                    }
+                    if let Some(pull_policy) = pull_policy {
+                        space.pull_policy = *pull_policy;
+                    }
+                }
+                space.phase = "preparing".into();
+                space.error = None;
+                Some(*id)
+            }
+            Command::Stop { id } | Command::Remove { id } => {
                 let space = catalog
                     .spaces
                     .iter_mut()

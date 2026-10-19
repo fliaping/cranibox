@@ -634,6 +634,34 @@ test('reviewed project copies use shared native IPC and require explicit approva
   expect(errors).toEqual([]);
 });
 
+test('archived spaces can change image and retry through native IPC without a relay', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const space = { id: 'archived-space', name: '保留数据的空间', provider: 'colima', image: 'old:image', pull_policy: 'always', node: 'same-node', phase: 'archived', error: null, volume: 'same-volume', ports: {} };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'spaces') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'resume') Object.assign(space, { image: payload.command.image, pull_policy: payload.command.pull_policy, phase: 'ready' });
+        return structuredClone({ spaces: [space], setup: null, platform: 'macos', default_image: 'old:image' });
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
+  const card = page.getByRole('article', { name: '保留数据的空间', exact: true });
+  await card.getByRole('button', { name: '修改镜像', exact: true }).click();
+  const form = card.getByRole('form', { name: '修改空间镜像', exact: true });
+  await form.getByLabel('镜像地址', { exact: true }).fill('cranibox-current:test');
+  await form.getByLabel('镜像拉取策略', { exact: true }).selectOption('never');
+  await form.getByRole('button', { name: '保存并重试', exact: true }).click();
+  await expect(card.getByRole('status')).toHaveText('可用');
+  await expect(card).toBeFocused();
+  await expect(card).toContainText('same-node');
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'spaces' && call.payload.command.operation === 'resume').map((call: any) => call.payload.command)).toEqual([{ operation: 'resume', id: 'archived-space', image: 'cranibox-current:test', pull_policy: 'never' }]);
+});
+
 test('virtual spaces use shared native IPC and open their enrolled terminal without a relay', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {

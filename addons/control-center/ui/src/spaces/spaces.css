@@ -44,6 +44,12 @@
 .space-phase { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-bottom: 16px; }.space-phase.ready { color: var(--good, #86efac); }.space-phase.failed, .space-phase.interrupted { color: var(--bad, #fda4af); }
 .space-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }.spaces-details { margin-top: 16px; border-top: 1px solid var(--border); font-size: 13px; }.spaces-details > p { margin: 10px 0; }.spaces-details code { font-size: 12px; overflow-wrap: anywhere; }
 .space-credentials { display: grid; gap: 12px; padding: 16px 0 0; }.space-credentials > button { justify-self: start; }
+.space-image-editor { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); gap: 16px; }
+.space-image-editor fieldset { display: grid; gap: 16px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.space-image-policy { display: grid; gap: 8px; min-width: 0; }
+.space-image-editor input, .space-image-editor select { min-width: 0; width: 100%; }
+.space-image-editor .direct-error { overflow-wrap: anywhere; scroll-margin-block: 100px; }
+.space-image-editor .direct-error:focus-visible, .space-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .spaces-spinner { animation: spaces-spin 1.4s linear infinite; flex-shrink: 0; }@keyframes spaces-spin { to { transform: rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .spaces-spinner { animation: none; } }
 @media(max-width:580px) { .spaces-wizard, .space-card { padding: 16px; }.spaces-empty { padding: 40px 16px; }.spaces-steps { gap: 10px; justify-content: space-between; }.spaces-steps li { font-size: 12px; gap: 5px; }.spaces-review > div { grid-template-columns: 1fr; gap: 4px; }.space-card-actions button { flex-grow: 1; } }

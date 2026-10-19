@@ -257,6 +257,67 @@ test('guided setup reviews installation, enrolls a space and retains it across r
   expect(errors).toEqual([]);
 });
 
+test('failed spaces can review a new image, recover errors and retry once with the same identity', async ({ page }, testInfo) => {
+  const commands: any[] = [];
+  const space = { id: 'space-recovery', name: 'Image recovery', provider: 'docker', image: 'old:image', pull_policy: 'always', node: 'persistent-node', phase: 'failed', error: 'This image does not support virtual-space enrollment.', volume: 'persistent-volume', ports: {} };
+  const catalog = { spaces: [space], platform: 'linux', default_image: 'old:image', setup: null };
+  let attempts = 0, release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/spaces', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'resume') {
+      if (++attempts === 1) { await route.fulfill({ status: 400, json: { error: 'Archive this space before changing its image. Its container was not changed.' } }); return; }
+      await pending; Object.assign(space, { image: command.image, pull_policy: command.pull_policy, phase: 'preparing', error: null });
+    }
+    await route.fulfill({ json: catalog });
+  });
+  await page.goto('/#/spaces');
+  const card = page.getByRole('article', { name: 'Image recovery', exact: true });
+  const change = card.getByRole('button', { name: 'Change image', exact: true });
+  await change.click();
+  const form = card.getByRole('form', { name: 'Change space image', exact: true });
+  await expect(form.getByLabel('Image reference', { exact: true })).toBeFocused();
+  await form.getByLabel('Image reference', { exact: true }).fill('unsubmitted:image');
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(change).toBeFocused();
+  expect(commands.filter(command => command.operation === 'resume')).toEqual([]);
+  await change.click();
+  await expect(form.getByLabel('Image reference', { exact: true })).toHaveValue('old:image');
+  const image = 'registry.example.com/cranibox/current-workspace-image-for-development:compatible';
+  await form.getByLabel('Image reference', { exact: true }).fill(image);
+  await form.getByLabel('Image pull policy', { exact: true }).selectOption('never');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      for (const control of await form.locator('button, input, select').all()) expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await page.screenshot({ path: testInfo.outputPath('image-recovery-' + width + '-' + theme + '.png'), fullPage: true, animations: 'disabled' });
+    }
+  }
+  await form.getByRole('button', { name: 'Save and retry', exact: true }).click();
+  await expect(form.getByRole('alert')).toContainText('Archive this space');
+  await expect(form.getByRole('alert')).toBeFocused();
+  await expect(form.getByLabel('Image reference', { exact: true })).toHaveValue(image);
+  await expect(form.getByLabel('Image pull policy', { exact: true })).toHaveValue('never');
+  await form.getByRole('button', { name: 'Save and retry', exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+  await expect(form.getByRole('button', { name: 'Submitting…', exact: true })).toBeDisabled();
+  await expect.poll(() => attempts).toBe(2);
+  release();
+  await expect(form).toHaveCount(0);
+  await expect(card).toBeFocused();
+  await expect(page.getByRole('status').filter({ hasText: 'Image settings saved' })).toBeVisible();
+  expect(commands.filter(command => command.operation === 'resume')).toEqual(Array(2).fill({ operation: 'resume', id: space.id, image, pull_policy: 'never' }));
+  expect(space.node).toBe('persistent-node'); expect(space.volume).toBe('persistent-volume');
+  space.phase = 'ready';
+  await page.reload();
+  await expect(card.getByRole('status')).toHaveText('Ready');
+  await card.getByText('Data and access', { exact: true }).click();
+  await expect(card).toContainText(image);
+  await expect(card).toContainText('Use local image only');
+});
+
 test('space setup requires a fresh review after expiry or a lost response and never repeats an accepted install', async ({ page }) => {
   const commands: any[] = [];
   const catalog: any = { spaces: [], platform: 'linux', default_image: 'local:test', setup: null };
