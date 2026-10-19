@@ -144,4 +144,4 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Delivery is capped at 8 messages / ~32 KB per turn. The hook always exits 0.
   - `peer messages hook-config --harness claude|codex [--wake-on-stop]` prints the settings. Codex requires trusting the hook in `/hooks`.
   - The MCP `device_messages` tool remains the fallback. The Codex app-server is not used; Codex hooks cover delivery.
-  - The tray tooltip shows how many messages await approval.
+  - The tray menu's first item shows how many messages await approval and opens the window. On Linux the count is also shown next to the icon, because appindicator has no tooltips. On macOS and Windows the tooltip shows it too.

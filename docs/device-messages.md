@@ -166,7 +166,7 @@ cranibox-node peer messages hook-config --harness claude --wake-on-stop   # 额�
 
 **回退。** 未配置 hook 时行为不变，Agent 通过 MCP `device_messages` 工具读取收件箱。Codex app-server 未接入：Codex hooks 已覆盖投递，app-server 需要另行托管会话，暂不实现。
 
-**所有者提醒。** 托盘图标的提示文字显示“N 条消息待批准”，审批仍在控制中心或 CLI 中完成。
+**所有者提醒。** 托盘菜单第一项显示“N 条消息待批准，打开审批”，点击打开窗口；Linux 上图标旁同时显示“N 待批准”（appindicator 不支持提示文字），macOS/Windows 的提示文字也包含该数量。审批仍在控制中心、桌面窗口或 CLI 中完成。
 
 ## 验证与后续
 

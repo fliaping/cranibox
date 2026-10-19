@@ -495,6 +495,13 @@ fn main() -> anyhow::Result<()> {
         ])
         .setup(move |app| {
             let open = MenuItem::with_id(app, "open", "打开 Cranibox Node", true, None::<&str>)?;
+            let held_item = MenuItem::with_id(
+                app,
+                "held",
+                cranibox_node_desktop::notify::menu_label(0),
+                true,
+                None::<&str>,
+            )?;
             let reconnect = MenuItem::with_id(
                 app,
                 "reconnect",
@@ -503,7 +510,7 @@ fn main() -> anyhow::Result<()> {
                 None::<&str>,
             )?;
             let exit = MenuItem::with_id(app, "quit", "退出并结束本机 Shell…", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &reconnect, &exit])?;
+            let menu = Menu::with_items(app, &[&held_item, &open, &reconnect, &exit])?;
             TrayIconBuilder::with_id("node")
                 .icon(tauri::image::Image::from_bytes(include_bytes!(
                     "../icons/32x32.png"
@@ -511,7 +518,7 @@ fn main() -> anyhow::Result<()> {
                 .tooltip("Cranibox Node — 正在启动")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => show(app),
+                    "open" | "held" => show(app),
                     "reconnect" => {
                         let state = app.state::<Arc<AppState>>().inner().clone();
                         tauri::async_runtime::spawn(async move {
@@ -561,6 +568,7 @@ fn main() -> anyhow::Result<()> {
             }
             let handle = app.handle().clone();
             let status_state = setup_state.clone();
+            let held_menu = held_item.clone();
             tauri::async_runtime::spawn(async move {
                 loop {
                     let status = {
@@ -586,7 +594,10 @@ fn main() -> anyhow::Result<()> {
                         let _ = tray.set_tooltip(Some(cranibox_node_desktop::notify::tooltip(
                             &status, held,
                         )));
+                        // Linux tray hosts ignore tooltips; show the count next to the icon.
+                        let _ = tray.set_title(cranibox_node_desktop::notify::title(held));
                     }
+                    let _ = held_menu.set_text(cranibox_node_desktop::notify::menu_label(held));
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }
             });

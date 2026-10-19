@@ -21,6 +21,20 @@ pub fn tooltip(status: &str, held: u64) -> String {
     }
 }
 
+/// Tray menu entry for the approval queue. Linux tray hosts do not show tooltips
+/// (appindicator), so the count must also appear in the menu and the icon title.
+pub fn menu_label(held: u64) -> String {
+    match held {
+        0 => "设备消息：没有待批准 / No messages awaiting approval".to_owned(),
+        n => format!("{n} 条消息待批准，打开审批 / {n} awaiting approval — review"),
+    }
+}
+
+/// Text next to the tray icon where the host supports it (Linux appindicator).
+pub fn title(held: u64) -> Option<String> {
+    (held > 0).then(|| format!("{held} 待批准"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -28,5 +42,9 @@ mod tests {
     fn tooltip_mentions_the_queue_only_when_messages_wait() {
         assert_eq!(tooltip("运行中", 0), "Cranibox Node — 运行中");
         assert!(tooltip("运行中", 2).ends_with("2 条消息待批准 / 2 awaiting approval"));
+        assert!(menu_label(0).contains("没有待批准"));
+        assert!(menu_label(3).starts_with("3 条消息待批准"));
+        assert_eq!(title(0), None);
+        assert_eq!(title(2).as_deref(), Some("2 待批准"));
     }
 }
