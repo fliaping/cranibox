@@ -96,10 +96,16 @@ pub enum Command {
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
-        /// Strict mode: accept only end-to-end sessions from the pinned key, and refuse every
-        /// capability until both owners compared the pairing code (peer verify).
-        #[arg(long)]
+        /// Strict mode (the default): accept only end-to-end sessions from the pinned key and
+        /// refuse every capability until the owner compared the pairing code (peer verify).
+        /// Kept for scripts written before it became the default.
+        #[arg(long, conflicts_with = "allow_unverified")]
         require_verified: bool,
+        /// Less safe opt-out: allow the caller before its pairing code is verified, and allow
+        /// plaintext bearer requests (older nodes, gateways). A key pinned on first use is
+        /// still enforced once seen.
+        #[arg(long)]
+        allow_unverified: bool,
         /// Agent-to-agent content from this caller: hold (default, human approval queue),
         /// accept, or refuse.
         #[arg(long, value_enum, default_value = "hold")]
@@ -549,7 +555,8 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             browser,
             messages,
             spaces,
-            require_verified,
+            require_verified: _,
+            allow_unverified,
             inbound,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
@@ -598,7 +605,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         spaces,
                     },
                 );
-                grant.require_verified = require_verified;
+                grant.require_verified = !allow_unverified;
                 grant.inbound = inbound.into();
                 value.grants.insert(node, grant);
                 Ok(())

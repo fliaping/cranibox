@@ -100,6 +100,7 @@ async fn real_two_node_network_authorization_and_restart() {
         .manage_peers(PeerCommand::Grant {
             node: a.id.clone(),
             inbound: None,
+            require_verified: Some(false),
             permissions: permissions.clone(),
         })
         .await
@@ -108,6 +109,7 @@ async fn real_two_node_network_authorization_and_restart() {
         .manage_peers(PeerCommand::Grant {
             node: b.id.clone(),
             inbound: None,
+            require_verified: Some(false),
             permissions,
         })
         .await
@@ -273,6 +275,7 @@ async fn real_three_node_network_entry_failover() {
         .manage_peers(PeerCommand::Grant {
             node: c.id.clone(),
             inbound: None,
+            require_verified: Some(false),
             permissions: Permissions {
                 exec: true,
                 terminals: true,
