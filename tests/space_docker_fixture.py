@@ -9,6 +9,27 @@ import sys
 import time
 
 
+def stop_node(pid):
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    # Docker waits for the container process to exit before reporting it stopped.
+    # Network shutdown can take longer than a fixed sleep, and a restart must not
+    # race the old node's identity lock. Zombies have already released that lock.
+    status = Path('/proc') / str(pid) / 'stat'
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            if status.read_text().rsplit(') ', 1)[1].split()[0] in ('Z', 'X'):
+                return
+        except FileNotFoundError:
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('fixture node did not exit within 10 seconds after SIGTERM')
+        time.sleep(.02)
+
+
 def main():
     root = Path(os.environ['CRANIBOX_SPACE_FIXTURE'])
     state_file = root / 'engine.json'
@@ -102,11 +123,7 @@ def main():
     elif argv[:2] == ['container', 'stop']:
         container = state['containers'][argv[-1]]
         if container['State']['Running']:
-            try:
-                os.kill(container['pid'], signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            time.sleep(.15)
+            stop_node(container['pid'])
             container['State']['Running'] = False
         save()
         print(argv[-1])

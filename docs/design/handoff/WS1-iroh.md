@@ -16,7 +16,7 @@ Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task bri
 - [x] netns acceptance `tests/integration/iroh_netns.sh` — ALL PASSED locally (see below).
 
 ## Left (checklist)
-- [ ] CI green on PR #17 after the bilateral-consent fix: earlier failure (test_background_project_sync) was the migration probe, fixed in `f6c8682` and verified locally. Check the current PR head; superseded queued runs are not validation of the fix.
+- [ ] CI green on PR #17 after the bilateral-consent and Docker-fixture fixes. Run `39244375859` passed six jobs, but Linux virtual-space restarts raced the fixture's fixed 150 ms stop delay. The fixture now waits for actual process exit, matching Docker; check CI on the current PR head. The earlier background-sync migration issue was fixed in `f6c8682`.
 - [ ] Local regression not finished for: test_automatic_task_worker, test_browser_use, test_computer_use, test_desktop_relay/service, test_federated_activity, test_node_identity, test_node_peers, test_project_handoffs/streaming, test_remote_agent_executions, test_remote_desktops, test_rust_runtime, test_space_catalog, test_task_*, test_virtual_spaces, test_workspace_bootstrap/services, test_workspacectl_rust (stopped at wrap-up; CI runs them).
 - [ ] Cloudflare Tunnel manual acceptance (steps in PR body; box can't reach cloudflared port 7844).
 - [ ] Web pairing page `/pair#…` and UI cards (WS7); roster join for OwnerDevice (WS6, currently grants only).
@@ -27,7 +27,13 @@ Branch `ws1/iroh-network` (base `main`, PR #17; #16 merged 2026-10-19). Task bri
 
 ## Build / test
 
-Integration review (2026-10-19, isolated `cranibox-validation` container): the new unilateral-confirmation regression fails on the old implementation because the inviter has already persisted a grant. After the fix, `cargo fmt --all --check`, workspace Clippy with `-D warnings`, and all seven non-ignored `cranibox-net` tests pass. The expanded pairing test covers joiner-only consent staying pending, inviter-first consent followed by rejection, and mutual owner/guest confirmation. The netns helper now starts both confirmation commands concurrently and checks both final states; its shell syntax is checked. The previous netns and n0 results below predate this fix; the container lacks the capabilities needed to rerun netns.
+Integration review of `7737649` (2026-10-19, isolated `cranibox-validation` container): the new unilateral-confirmation regression fails on the old implementation because the inviter has already persisted a grant. After the fix, `cargo fmt --all --check`, workspace Clippy with `-D warnings`, and all seven non-ignored `cranibox-net` tests pass. Full workspace tests pass: 245 passed, 0 failed, 5 ignored. The expanded pairing test covers joiner-only consent staying pending, inviter-first consent followed by rejection, and mutual owner/guest confirmation.
+
+A real two-node CLI smoke test confirms that joiner-only consent leaves both grant/route stores empty; after the inviter also confirms, both devices save owner grants and routes. The 16 direct-peer and 9 background-project-sync cases pass. Two terminal cases initially failed because the container lacked herdr; both pass after installing the pinned herdr 0.9.3 dependency, without a code change.
+
+The first integration CI run exposed a Docker test-fixture race: normal iroh shutdown took about 1 second, but the fake engine reported the container stopped after 150 ms, letting a new node race the old identity lock. Waiting for actual process exit restores the failing stop/resume/archive scenario without changing production shutdown behavior. All 11 virtual-space and 5 space-catalog tests pass with the corrected fixture.
+
+The netns helper now starts both confirmation commands concurrently and checks both final states; its shell syntax is checked. The previous netns and n0 results below predate this fix; the container lacks the capabilities needed to rerun netns.
 
 ```bash
 cargo fmt --all --check
@@ -40,7 +46,7 @@ CRANIBOX_HERDR_BIN=target/herdr/herdr python3 -m unittest discover -s tests -p t
 ```
 netns script: hub (`cranibox serve --relay` behind nginx TLS :443, bad proxy :8444) + devices a, b allowed only TCP 443 to hub. Checks pairing hub↔a, hub↔b, a↔b with SAS, exec both ways, PathInfo=relay, terminal sessions, messages, stranger refused by relay, 95 s idle, pcap without plaintext, PathInfo=direct after UDP opened.
 
-Local results (2026-10-19): cargo workspace tests 245 passed/0 failed; netns ALL PASSED; control-center Playwright 147 passed (run inside an own netns because another agent's server holds port 19090); Python: web_direct_peers 16, web_peer_paths 4, device_networks 17, device_messages 15, workspace_web_operations 6, cranibox_terminal 8, gateway_terminal 3, workspace_projects 4, project_catalog_sync 7, background_project_sync 9, background_agent_sync 8, background_activity_sync 8, device_tasks 12, agent_executions 10, collaboration_runs 5, web_host_node 3, agent_runs_mcp 6 — all OK.
+Original WS1 delivery results, before the consent fix (2026-10-19): cargo workspace tests 245 passed/0 failed; netns ALL PASSED; control-center Playwright 147 passed (run inside an own netns because another agent's server holds port 19090); Python: web_direct_peers 16, web_peer_paths 4, device_networks 17, device_messages 15, workspace_web_operations 6, cranibox_terminal 8, gateway_terminal 3, workspace_projects 4, project_catalog_sync 7, background_project_sync 9, background_agent_sync 8, background_activity_sync 8, device_tasks 12, agent_executions 10, collaboration_runs 5, web_host_node 3, agent_runs_mcp 6 — all OK.
 
 ## Known issues
 - CLI/MCP traffic runs Noise inside iroh (double encryption) until client.rs learns `Endpoint.iroh`.
