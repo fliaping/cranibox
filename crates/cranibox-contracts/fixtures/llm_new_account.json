@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "api_key",
+    "preset": "deepseek",
+    "key": "sk-test-not-a-real-key",
+    "label": null,
+    "region": "cn"
+  },
+  {
+    "kind": "custom",
+    "label": "My vLLM",
+    "key": "test-key",
+    "endpoints": {
+      "chat": "http://10.0.0.5:8000/v1"
+    },
+    "models": [
+      "qwen3-coder"
+    ]
+  }
+]

@@ -1,0 +1,262 @@
+//! C6 — App API, the UI's backend (`docs/design/WORKPLAN.md` §1 C6, ARCHITECTURE §8).
+//!
+//! Web: HTTP `/api/v1/app/*` served by `workspace-web` and the local control
+//! plane of `workspace-node`. Tauri: IPC commands with the same names
+//! (`app_status`, …) and the same JSON. Implemented by WS7 (`app_api.rs`);
+//! `crate::mock::MockAppApi` and `fixtures/app_*.json` back the UI mocks.
+use crate::{
+    NodeId,
+    agents::AgentId,
+    llm::{AccountSummary, ModelEntry},
+    net::{PairPurpose, PathKind},
+};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// HTTP routes.
+pub mod routes {
+    pub const PREFIX: &str = "/api/v1/app";
+    pub const STATUS: &str = "/api/v1/app/status";
+    pub const DEVICES: &str = "/api/v1/app/devices";
+    pub const PAIR_INVITE: &str = "/api/v1/app/pair/invite";
+    pub const PAIR_ACCEPT: &str = "/api/v1/app/pair/accept";
+    pub const PAIR_CONFIRM: &str = "/api/v1/app/pair/{flow}/confirm";
+    pub const APPROVALS: &str = "/api/v1/app/approvals";
+    pub const APPROVAL: &str = "/api/v1/app/approvals/{id}";
+    /// Prefix proxied verbatim to the C3 mgmt API (`/accounts`, `/signin/*`, `/models`, `/presets`, …).
+    pub const MODELS_PREFIX: &str = "/api/v1/app/models";
+    pub const AGENTS: &str = "/api/v1/app/agents";
+    pub const AGENT: &str = "/api/v1/app/agents/{id}";
+    /// SSE stream of [`super::AppEvent`].
+    pub const EVENTS: &str = "/api/v1/app/events";
+}
+
+/// Tauri IPC command names (same request/response JSON as HTTP).
+pub mod ipc {
+    pub const STATUS: &str = "app_status";
+    pub const DEVICES: &str = "app_devices";
+    pub const PAIR_INVITE: &str = "app_pair_invite";
+    pub const PAIR_ACCEPT: &str = "app_pair_accept";
+    pub const PAIR_CONFIRM: &str = "app_pair_confirm";
+    pub const APPROVALS: &str = "app_approvals";
+    pub const APPROVAL_DECIDE: &str = "app_approval_decide";
+    /// `{method, path, body}` forwarded to the mgmt API.
+    pub const MODELS: &str = "app_models";
+    pub const AGENTS: &str = "app_agents";
+    pub const AGENT_UPDATE: &str = "app_agent_update";
+    /// Subscribes to [`super::AppEvent`] (Tauri event channel `app://event`).
+    pub const EVENTS: &str = "app_events";
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PillState {
+    /// Hub online, models served through it.
+    Connected,
+    /// Hub offline; local fallback serving.
+    Local,
+    /// Something needs the user (approvals, sign-in).
+    Attention,
+    NoModels,
+    Offline,
+}
+
+/// `GET /api/v1/app/status`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct StatusPill {
+    pub state: PillState,
+    /// i18n key, e.g. `status.connected`.
+    pub text_key: String,
+    pub hub: Option<NodeId>,
+    pub models_available: u32,
+    pub approvals_pending: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceKind {
+    Desktop,
+    Laptop,
+    Server,
+    Phone,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Badge {
+    Hub,
+    Claude,
+    /// The device the UI runs on.
+    This,
+}
+
+/// Capabilities this device granted to the listed device.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DeviceCaps {
+    pub exec: bool,
+    pub terminals: bool,
+    pub projects: bool,
+    pub desktop: bool,
+    pub computer: bool,
+    pub browser: bool,
+    pub messages: bool,
+    pub activity: bool,
+    pub spaces: bool,
+    pub llm: bool,
+    pub vault: bool,
+}
+
+/// One entry of `GET /api/v1/app/devices`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Device {
+    pub node_id: NodeId,
+    pub name: String,
+    pub kind: DeviceKind,
+    pub online: bool,
+    pub path: PathKind,
+    pub rtt_ms: Option<u32>,
+    pub badges: Vec<Badge>,
+    pub guest: bool,
+    pub caps: DeviceCaps,
+}
+
+/// `POST /api/v1/app/pair/invite`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PairInviteReq {
+    pub purpose: PairPurpose,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PairInvite {
+    /// `cranibox://pair/…`
+    pub link: String,
+    pub web_link: Option<String>,
+    pub qr_svg: String,
+    pub expires_at: u64,
+}
+/// `POST /api/v1/app/pair/accept`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PairAcceptReq {
+    pub link: String,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PairAccepted {
+    pub flow_id: String,
+    /// Pairing code shown on both devices, e.g. `1234-5678-9012`.
+    pub sas: String,
+}
+/// `POST /api/v1/app/pair/{flow}/confirm`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PairConfirmReq {
+    #[serde(rename = "match")]
+    pub matches: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalKind {
+    Pairing,
+    Message,
+    Capability,
+    AgentTool,
+    ComputerUse,
+    ModelWrite,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Risk {
+    Low,
+    Medium,
+    High,
+}
+
+/// Decision on a card. Pairing cards use `allow_once` = codes match,
+/// `deny` = codes differ (decided by coordinator).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalAction {
+    AllowOnce,
+    AllowAlways,
+    Deny,
+}
+
+/// Unified human-in-the-loop card. Expiry means `deny`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ApprovalCard {
+    pub id: String,
+    pub kind: ApprovalKind,
+    pub from_node: Option<NodeId>,
+    pub on_node: NodeId,
+    pub agent: Option<AgentId>,
+    /// i18n key; the frontend renders text from `title_key` + `title_args`.
+    pub title_key: String,
+    pub title_args: BTreeMap<String, String>,
+    pub detail: Option<String>,
+    pub risk: Risk,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    pub actions: Vec<ApprovalAction>,
+}
+
+/// `POST /api/v1/app/approvals/{id}`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ApprovalDecision {
+    pub decision: ApprovalAction,
+}
+
+/// One entry of `GET /api/v1/app/agents`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AgentInfo {
+    pub id: AgentId,
+    pub installed: bool,
+    /// Cranibox owns this agent's model configuration.
+    pub managed: bool,
+    /// `<provider>/<model>`.
+    pub model: Option<String>,
+    pub recommended: bool,
+}
+/// `PUT /api/v1/app/agents/{id}`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AgentUpdate {
+    pub managed: bool,
+    pub model: Option<String>,
+}
+
+/// SSE event (`event:` = tag, `data:` = JSON of the variant payload).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(tag = "event", content = "data", rename_all = "snake_case")]
+pub enum AppEvent {
+    Status(StatusPill),
+    Approval(ApprovalCard),
+    Device(Device),
+    Account(AccountSummary),
+}
+
+/// Error body for every non-2xx App API answer.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{status} {code}: {message}")]
+pub struct AppError {
+    #[serde(skip)]
+    pub status: u16,
+    /// Stable machine code (C8 codes, or `not_found`, `invalid`, `forbidden`).
+    pub code: String,
+    pub message: String,
+}
+
+/// App API surface (HTTP and Tauri IPC share it). WS7 implements the
+/// aggregation layer; `MockAppApi` serves fixtures.
+#[async_trait::async_trait]
+pub trait AppApi: Send + Sync {
+    async fn status(&self) -> Result<StatusPill, AppError>;
+    async fn devices(&self) -> Result<Vec<Device>, AppError>;
+    async fn pair_invite(&self, req: PairInviteReq) -> Result<PairInvite, AppError>;
+    async fn pair_accept(&self, req: PairAcceptReq) -> Result<PairAccepted, AppError>;
+    async fn pair_confirm(&self, flow: &str, req: PairConfirmReq) -> Result<(), AppError>;
+    async fn approvals(&self) -> Result<Vec<ApprovalCard>, AppError>;
+    async fn decide(&self, id: &str, req: ApprovalDecision) -> Result<(), AppError>;
+    async fn agents(&self) -> Result<Vec<AgentInfo>, AppError>;
+    async fn update_agent(&self, id: AgentId, req: AgentUpdate) -> Result<AgentInfo, AppError>;
+    /// Models available to the agent model pickers (proxy of mgmt `GET /models`).
+    async fn models(&self) -> Result<Vec<ModelEntry>, AppError>;
+}

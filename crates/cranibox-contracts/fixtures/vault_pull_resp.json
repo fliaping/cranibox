@@ -1,0 +1,49 @@
+{
+  "records": [
+    {
+      "kind": "account",
+      "record": {
+        "id": "acc-deepseek-1",
+        "provider": "deepseek",
+        "kind": "api_key",
+        "label": "DeepSeek",
+        "home_node": "node-1f2e3d4c5b6a79880716253443526170",
+        "sync": "synced",
+        "version": 2,
+        "writer": "node-1f2e3d4c5b6a79880716253443526170",
+        "updated_at": 1792368800,
+        "sealed": "bm9uY2UuY2lwaGVydGV4dC50ZXN0",
+        "wraps": {
+          "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9": "d3JhcC1odWI=",
+          "node-1f2e3d4c5b6a79880716253443526170": "d3JhcC1tYWM="
+        },
+        "gen": 0,
+        "sig": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    },
+    {
+      "kind": "enablement",
+      "record": {
+        "account_id": "acc-deepseek-1",
+        "enabled_on": [
+          "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+          "node-1f2e3d4c5b6a79880716253443526170"
+        ],
+        "all_nodes": false,
+        "version": 1,
+        "writer": "node-1f2e3d4c5b6a79880716253443526170",
+        "sig": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    },
+    {
+      "kind": "lease",
+      "record": {
+        "account_id": "acc-codex-1",
+        "holder": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+        "epoch": 4,
+        "expires_at": 1792369800,
+        "sig": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    }
+  ]
+}

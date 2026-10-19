@@ -1,0 +1,80 @@
+[
+  {
+    "id": "apr-1",
+    "kind": "pairing",
+    "from_node": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+    "on_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "agent": null,
+    "title_key": "approval.pairing",
+    "title_args": {
+      "code": "1234-5678-9012",
+      "device": "Alex's laptop"
+    },
+    "detail": null,
+    "risk": "medium",
+    "created_at": 1792369000,
+    "expires_at": 1792369900,
+    "actions": [
+      "allow_once",
+      "deny"
+    ]
+  },
+  {
+    "id": "apr-2",
+    "kind": "agent_tool",
+    "from_node": null,
+    "on_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "agent": "deepseek-harness",
+    "title_key": "approval.agent_tool",
+    "title_args": {
+      "command": "rm -rf build/"
+    },
+    "detail": "cwd: ~/src/app",
+    "risk": "high",
+    "created_at": 1792369100,
+    "expires_at": null,
+    "actions": [
+      "allow_once",
+      "deny"
+    ]
+  },
+  {
+    "id": "apr-3",
+    "kind": "computer_use",
+    "from_node": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+    "on_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "agent": "codex",
+    "title_key": "approval.computer_use",
+    "title_args": {
+      "device": "Home server"
+    },
+    "detail": null,
+    "risk": "high",
+    "created_at": 1792369200,
+    "expires_at": 1792369500,
+    "actions": [
+      "allow_once",
+      "allow_always",
+      "deny"
+    ]
+  },
+  {
+    "id": "apr-4",
+    "kind": "model_write",
+    "from_node": null,
+    "on_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "agent": "deepseek-harness",
+    "title_key": "approval.model_write.enable_all",
+    "title_args": {
+      "account": "Kimi Code"
+    },
+    "detail": null,
+    "risk": "low",
+    "created_at": 1792369300,
+    "expires_at": null,
+    "actions": [
+      "allow_once",
+      "deny"
+    ]
+  }
+]

@@ -1,0 +1,3 @@
+# Built-in provider presets (schema: cranibox_contracts::llm::PresetFile).
+# Owned by WS2; Chinese rows are proposed by WS3 and reviewed by WS2.
+# Example of the schema: crates/cranibox-contracts/fixtures/presets.example.toml

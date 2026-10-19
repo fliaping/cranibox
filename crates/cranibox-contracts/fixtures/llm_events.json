@@ -1,0 +1,14 @@
+[
+  {
+    "event": "account_changed",
+    "account_id": "acc-kimi-1"
+  },
+  {
+    "event": "mode_changed",
+    "mode": "local"
+  },
+  {
+    "event": "models_changed",
+    "etag": "W/\"m-43\""
+  }
+]

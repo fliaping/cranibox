@@ -1,0 +1,19 @@
+[
+  {
+    "kind": "browser",
+    "flow_id": "flow-1",
+    "url": "https://auth.example.com/authorize?state=x"
+  },
+  {
+    "kind": "device_code",
+    "flow_id": "flow-2",
+    "code": "ABCD-EFGH",
+    "url": "https://auth.example.com/device",
+    "expires_at": 1792370000
+  },
+  {
+    "kind": "paste_callback",
+    "flow_id": "flow-3",
+    "url": "https://auth.example.com/authorize?state=y"
+  }
+]

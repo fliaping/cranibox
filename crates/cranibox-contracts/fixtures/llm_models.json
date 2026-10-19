@@ -1,0 +1,77 @@
+[
+  {
+    "id": "deepseek/deepseek-chat",
+    "display": "DeepSeek V3",
+    "wires": [
+      "chat",
+      "messages"
+    ],
+    "native": "chat",
+    "context": 131072,
+    "reasoning": false,
+    "vision": false,
+    "availability": {
+      "kind": "local"
+    }
+  },
+  {
+    "id": "codex/gpt-5-codex",
+    "display": "GPT-5 Codex",
+    "wires": [
+      "responses"
+    ],
+    "native": "responses",
+    "context": 400000,
+    "reasoning": true,
+    "vision": true,
+    "availability": {
+      "kind": "via_hub"
+    }
+  },
+  {
+    "id": "zhipu-coding/glm-5.1",
+    "display": "GLM-5.1",
+    "wires": [
+      "chat",
+      "messages"
+    ],
+    "native": "messages",
+    "context": null,
+    "reasoning": true,
+    "vision": false,
+    "availability": {
+      "kind": "via_node",
+      "node": "node-1f2e3d4c5b6a79880716253443526170"
+    }
+  },
+  {
+    "id": "claude/claude-sonnet-4-5",
+    "display": "Claude Sonnet 4.5",
+    "wires": [
+      "messages"
+    ],
+    "native": "messages",
+    "context": 200000,
+    "reasoning": true,
+    "vision": true,
+    "availability": {
+      "kind": "claude_node_only"
+    }
+  },
+  {
+    "id": "kimi-code/kimi-k2",
+    "display": "Kimi K2",
+    "wires": [
+      "chat",
+      "messages"
+    ],
+    "native": "messages",
+    "context": 262144,
+    "reasoning": false,
+    "vision": false,
+    "availability": {
+      "kind": "unavailable",
+      "code": "needs_sign_in"
+    }
+  }
+]

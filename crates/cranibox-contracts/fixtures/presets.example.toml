@@ -1,0 +1,22 @@
+# Example of the presets.toml schema (C3). The real table is
+# crates/cranibox-llm/src/upstream/presets.toml (owned by WS2; Chinese rows by WS3).
+[[preset]]
+id = "zhipu-coding"
+label = "智谱 GLM Coding Plan"
+region = ["cn"]
+chat = "https://open.bigmodel.cn/api/coding/paas/v4"
+responses = "https://open.bigmodel.cn/api/v1"
+anthropic = "https://open.bigmodel.cn/api/anthropic"
+default_wire = "messages"
+models = ["glm-5.1"]
+no_list = false
+quirks = ["zhipu_envelope", "zhipu_1113_fallback"]
+key_hint = "Coding Plan 套餐 key"
+
+[[preset]]
+id = "deepseek"
+label = "DeepSeek"
+region = ["cn", "global"]
+chat = "https://api.deepseek.com"
+anthropic = "https://api.deepseek.com/anthropic"
+default_wire = "chat"

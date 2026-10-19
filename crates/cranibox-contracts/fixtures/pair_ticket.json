@@ -1,0 +1,36 @@
+{
+  "v": 1,
+  "inviter": {
+    "endpoint_id": "3333333333333333333333333333333333333333333333333333333333333333",
+    "relay_url": "https://hub.example.com/relay",
+    "direct": []
+  },
+  "inviter_node_id": "node-1f2e3d4c5b6a79880716253443526170",
+  "secret": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "expires_at": 1792370000,
+  "purpose": "owner_device",
+  "hub": {
+    "endpoint_id": "1111111111111111111111111111111111111111111111111111111111111111",
+    "relay_url": "https://hub.example.com/relay",
+    "direct": [
+      "203.0.113.10:41641"
+    ]
+  }
+}

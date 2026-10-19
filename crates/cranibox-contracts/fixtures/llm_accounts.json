@@ -1,0 +1,67 @@
+[
+  {
+    "id": "acc-deepseek-1",
+    "provider": "deepseek",
+    "plan": null,
+    "label": "DeepSeek",
+    "kind": "api_key",
+    "home_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "sync": true,
+    "enabled_on": [
+      "node-1f2e3d4c5b6a79880716253443526170",
+      "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9"
+    ],
+    "all_nodes": false,
+    "state": {
+      "kind": "ready"
+    }
+  },
+  {
+    "id": "acc-codex-1",
+    "provider": "codex",
+    "plan": "plus",
+    "label": "ChatGPT Plus",
+    "kind": "oauth",
+    "home_node": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+    "sync": true,
+    "enabled_on": [
+      "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9"
+    ],
+    "all_nodes": false,
+    "state": {
+      "kind": "quota_exhausted",
+      "reset_at": 1792400000
+    }
+  },
+  {
+    "id": "acc-kimi-1",
+    "provider": "kimi-code",
+    "plan": null,
+    "label": "Kimi Code",
+    "kind": "oauth",
+    "home_node": "node-1f2e3d4c5b6a79880716253443526170",
+    "sync": true,
+    "enabled_on": [],
+    "all_nodes": true,
+    "state": {
+      "kind": "needs_sign_in"
+    }
+  },
+  {
+    "id": "acc-claude-1",
+    "provider": "claude",
+    "plan": "max",
+    "label": "Claude Max",
+    "kind": "claude_oauth",
+    "home_node": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+    "sync": false,
+    "enabled_on": [
+      "node-2c3d4e5f60718293a4b5c6d7e8f90a1b"
+    ],
+    "all_nodes": false,
+    "state": {
+      "kind": "error",
+      "message": "upstream 529"
+    }
+  }
+]

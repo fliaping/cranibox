@@ -1,0 +1,80 @@
+[
+  {
+    "event": "status",
+    "data": {
+      "state": "local",
+      "text_key": "status.local",
+      "hub": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "models_available": 5,
+      "approvals_pending": 1
+    }
+  },
+  {
+    "event": "approval",
+    "data": {
+      "id": "apr-1",
+      "kind": "pairing",
+      "from_node": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+      "on_node": "node-1f2e3d4c5b6a79880716253443526170",
+      "agent": null,
+      "title_key": "approval.pairing",
+      "title_args": {
+        "code": "1234-5678-9012",
+        "device": "Alex's laptop"
+      },
+      "detail": null,
+      "risk": "medium",
+      "created_at": 1792369000,
+      "expires_at": 1792369900,
+      "actions": [
+        "allow_once",
+        "deny"
+      ]
+    }
+  },
+  {
+    "event": "device",
+    "data": {
+      "node_id": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+      "name": "Studio",
+      "kind": "desktop",
+      "online": false,
+      "path": "unknown",
+      "rtt_ms": null,
+      "badges": [
+        "claude"
+      ],
+      "guest": false,
+      "caps": {
+        "exec": true,
+        "terminals": true,
+        "projects": true,
+        "desktop": true,
+        "computer": true,
+        "browser": true,
+        "messages": true,
+        "activity": true,
+        "spaces": true,
+        "llm": true,
+        "vault": true
+      }
+    }
+  },
+  {
+    "event": "account",
+    "data": {
+      "id": "acc-kimi-1",
+      "provider": "kimi-code",
+      "plan": null,
+      "label": "Kimi Code",
+      "kind": "oauth",
+      "home_node": "node-1f2e3d4c5b6a79880716253443526170",
+      "sync": true,
+      "enabled_on": [],
+      "all_nodes": true,
+      "state": {
+        "kind": "needs_sign_in"
+      }
+    }
+  }
+]
