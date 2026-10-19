@@ -29,6 +29,12 @@ struct Args {
     host: IpAddr,
     #[arg(long)]
     public_url: Option<String>,
+    /// Run the embedded iroh relay (default when --public-url is https).
+    #[arg(long, conflicts_with = "no_relay")]
+    relay: bool,
+    /// Do not run the embedded iroh relay; devices use the public n0 relays.
+    #[arg(long)]
+    no_relay: bool,
     /// Compatibility listener in the same process; use 0 for an ephemeral port.
     #[arg(long, default_value_t = 9090)]
     gateway_port: u16,
@@ -55,6 +61,7 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
         .command
         .unwrap_or_else(|| args.config_root.join("bin/workspacectl"));
     let mut state = server::State::new(args.config_root.clone(), command, config.clone())?;
+    let embedded = relay::setup(args.relay, args.no_relay, &config.public_url);
     state.local = Some(std::sync::Arc::new(
         cranibox_node::local::LocalNode::start_with(
             args.config_root.join(".config/cranibox-node/peers.json"),
@@ -128,7 +135,8 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
     };
     let mut closed = state.closing.subscribe();
     let mut compatibility_closed = state.closing.subscribe();
-    let main = axum::serve(listener, router.clone()).with_graceful_shutdown(async move {
+    embedded.spawn_self_check();
+    let main = embedded.serve(listener, router.clone(), async move {
         let _ = closed.changed().await;
     });
     let extra = async move {
@@ -142,7 +150,7 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
             Ok(())
         }
     };
-    let serving = async { tokio::try_join!(async { main.await }, extra).map(|_| ()) };
+    let serving = async { tokio::try_join!(main, extra).map(|_| ()) };
     tokio::pin!(serving);
     let result = tokio::select! {
         result = &mut serving => {

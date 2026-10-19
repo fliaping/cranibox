@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from urllib.parse import urlsplit
 from unittest.mock import patch
@@ -55,7 +56,16 @@ class VirtualSpacesTests(unittest.TestCase):
                 pass
 
     def api(self, operation='list', **fields):
-        status, value = self.h.post('/api/spaces', {'operation': operation, **fields})
+        deadline = time.monotonic() + 15
+        while True:
+            status, value = self.h.post('/api/spaces', {'operation': operation, **fields})
+            # A terminal phase can be visible before its background job releases
+            # the operation lock. Only retry an explicitly rejected busy request;
+            # other errors (including transport failures) must still fail the test.
+            busy = status == 400 and value.get('error', '').startswith('another space operation is running;')
+            if not busy or time.monotonic() >= deadline:
+                break
+            time.sleep(.04)
         self.assertEqual(status, 200, value)
         return value
 
