@@ -183,6 +183,16 @@ pub trait Upstream: Send + Sync {
         cx: &UpstreamCx,
         req: CanonicalRequest,
     ) -> Result<UpstreamResponse, UpstreamError>;
+    /// Count input tokens without generating a completion. Unsupported adapters
+    /// must not fall back to `send`, since that can consume generation quota.
+    /// The request and response use Messages wire format with `stream = false`.
+    async fn count_tokens(
+        &self,
+        _cx: &UpstreamCx,
+        _req: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        Err(UpstreamError::Unsupported)
+    }
     async fn refresh(
         &self,
         _cx: &UpstreamCx,
@@ -247,6 +257,12 @@ pub trait SignIn: Send + Sync {
         flow_id: &str,
         input: SignInInput,
     ) -> Result<AccountSummary, MgmtError>;
+    /// Stop a pending flow and release its callback listener. A token exchange
+    /// already running must finish saving rotating credentials before cancellation.
+    /// Completed flows are left intact; adapters without cancellation return 501.
+    async fn cancel(&self, _flow_id: &str) -> Result<(), MgmtError> {
+        Err(UpstreamError::Unsupported.into())
+    }
 }
 
 /// `GET <mesh>/nodes/{node}/llm/health`.
@@ -301,6 +317,8 @@ pub mod mgmt {
     pub const ACCOUNT_ENABLE: &str = "/accounts/{id}/enable";
     pub const SIGNIN_START: &str = "/signin/start";
     pub const SIGNIN_COMPLETE: &str = "/signin/{flow}/complete";
+    /// `POST`, no request body; 204 on success, 404 for an unknown flow.
+    pub const SIGNIN_CANCEL: &str = "/signin/{flow}/cancel";
     pub const MODELS: &str = "/models";
     pub const CLAUDE_SET_NODE: &str = "/claude/set-node";
     pub const PRESETS: &str = "/presets";
@@ -397,6 +415,10 @@ pub mod mgmt {
             flow: &str,
             input: SignInInput,
         ) -> Result<AccountSummary, MgmtError>;
+        /// Cancel through the same private OS transport as the other sign-in calls.
+        async fn signin_cancel(&self, _flow: &str) -> Result<(), MgmtError> {
+            Err(UpstreamError::Unsupported.into())
+        }
         async fn models(&self) -> Result<Vec<ModelEntry>, MgmtError>;
         async fn set_claude_node(&self, req: SetClaudeNode) -> Result<(), MgmtError>;
         async fn presets(&self) -> Result<Vec<Preset>, MgmtError>;
