@@ -400,3 +400,40 @@ async fn collect(body: BoxBody) -> Vec<u8> {
     }
     out
 }
+
+/// Needs outbound HTTPS to the n0 relays: `cargo test -p cranibox-net -- --ignored`.
+#[tokio::test]
+#[ignore = "needs internet access to the n0 public relays"]
+async fn n0_relays_take_over_while_the_own_relay_is_down() {
+    let node = IrohNode::bind(
+        &[9; 32],
+        Options {
+            // Nothing listens here: the own relay is down from the start.
+            relays: vec!["https://127.0.0.1:9".into()],
+            n0_fallback: true,
+            relay_only: true,
+            no_address_lookup: true,
+            ..Options::default()
+        },
+    )
+    .await
+    .unwrap();
+    let mut connected = Vec::new();
+    for _ in 0..60 {
+        connected = node
+            .relays_connected()
+            .into_iter()
+            .filter(|(_, up)| *up)
+            .map(|(url, _)| url)
+            .collect::<Vec<_>>();
+        if !connected.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    assert!(
+        connected.iter().any(|u| u.contains("iroh.link")),
+        "no n0 fallback relay: {connected:?}"
+    );
+    node.close().await;
+}
