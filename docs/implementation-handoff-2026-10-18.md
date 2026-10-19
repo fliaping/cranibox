@@ -74,11 +74,11 @@
 
 首轮新增集成 2 通过、6 失败，原因是测试重复使用夹具已占用的令牌输出文件名；改为独立文件后 8/8，未绕过产品的拒绝覆盖保护。首轮 Web 专项在执行前因辅助脚本漏配 Rust 程序路径中止；补齐后 17 通过、1 失败，原生 option 已有 disabled 属性但 Playwright 的 toBeDisabled 断言不适用，改为检查 DOM disabled 属性，同时继续核对提交按钮不可用。其后 Web 首次全量 129 通过、1 失败：项目设置用例仍匹配旧的 project sync 错误文案，改为共享 catalog sync 文案。以上失败与修正保留，不计作通过。构建最初另发现共享命令类型缺少 agent_sync，已补齐后通过。
 
-构建仍有依赖包的 use client 指令忽略及 Vite 大包提示，没有新增依赖或放宽 Rust 警告门槛。本轮没有再次验收真实 Tauri 窗口、安装包、系统登录、模型调用、跨物理设备或 Windows/macOS GUI。离线缓存只用于展示，不能作为当前有效 Agent；断网期间无法立即获知远端撤权，恢复后认证失败会清除快照。任务/消息/Run 完整复制仍在 P1。
+构建仍有依赖包的 use client 指令忽略及 Vite 大包提示，没有新增依赖或放宽 Rust 警告门槛。随后同提交的真实 Linux 安装包补验见下节；系统登录、模型调用、跨物理设备及 Windows/macOS GUI 仍未验收。离线缓存只用于展示，不能作为当前有效 Agent；断网期间无法立即获知远端撤权，恢复后认证失败会清除快照。任务/消息/Run 完整复制仍在 P1。
 
 最终 19 份产品源码、测试、工作流与生成资源的 SHA-256 与远端快照一致，记录五个 Rust 程序摘要。375/768/1440 像素检查无横向溢出、设备选择行不小于 44 像素；另审阅 375/1440 截图。清理后容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200；日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 保持，没有测试预览/MCP 进程残留或安装包遗留。
 
-私有证据位于 /config/validation-artifacts/agent-catalog-sync-20261019；原始日志、失败 trace、截图、配置与辅助脚本不提交。当前提交及新 CI 的来源与状态在收尾补记，不以旧 84454e6 的绿色矩阵代替。
+私有证据位于 /config/validation-artifacts/agent-catalog-sync-20261019；原始日志、失败 trace、截图、配置与辅助脚本不提交。下节 CI 与新安装包均核对本轮完整产品提交，不以旧 84454e6 的绿色矩阵代替。
 
 #### 本轮提交与 GitHub CI
 
@@ -86,11 +86,32 @@
 
 | 工作流 | 运行编号 | 交接时状态 |
 | --- | --- | --- |
-| Cranibox server and independent node client | 39178636288 | in_progress，尚未记为通过；三平台 Rust/Tauri 与独立 Wayland 矩阵 |
+| Cranibox server and independent node client | 39178636288 | completed/success，7/7：三平台 Rust 服务端/节点、三平台 Tauri 安装包及独立 Sway/wayvnc |
 | Release | 39178636180 | completed/success；不表示发布公开空间镜像 |
 | Sync to GitCode | 39178636169 | completed/success |
 
-GitHub 创建时间分别为 2026-10-18T23:57:30Z、23:57:29Z、23:57:29Z。下一位维护者先核对 39178636288 的最终结果，再下载绑定 87f20ee 的 Actions 安装包验收；不要使用旧绿色矩阵或包替代本轮。私有 ci-handoff.json 保存当时七项作业及完整来源。
+GitHub 创建时间分别为 2026-10-18T23:57:30Z、23:57:29Z、23:57:29Z；矩阵最终更新时间为 2026-10-19T00:23:12Z。已核对全部作业终态和完整 headSha，下载 Linux 两项作业的原始日志：Web 130/130（3.7 分钟）、客户端界面 50/50（34.4 秒）、新增后台 Agent 集成 8/8（80.564 秒），真实 Chromium/官方 MCP、X11 VNC、EasyTier 2/2 和 GIO 启动器均通过。客户端界面仍模拟 IPC；与远端结果重叠的测试不累加。Windows/macOS 构建通过不代表原生 GUI 或权限验收，Release 也没有发布公开空间镜像。
+
+私有 ci-handoff.json 保留先前进行中的状态，ci-final.json 保存最终结果；linux-installer-87f20ee 另保存包来源与 Linux 作业日志。安装包请从绑定 87f20ee 的矩阵下载。
+
+#### 同提交 Linux 安装包：后台 Agent 同步
+
+实际下载上述矩阵的 artifact **12155552479**（cranibox-node-desktop-ubuntu-latest），核对完整产品提交、成功的 Linux 客户端作业、本地与远端文件大小及 SHA-256。指定远端 KDE 中分别运行 .deb 和 AppImage 的真实 Tauri 窗口、IPC 与节点宿主；各自使用新身份、隔离 XDG、私有 D-Bus，目标是同容器中独立身份的真实 Rust 节点。
+
+| 操作与实际断言 | .deb | AppImage |
+| --- | --- | --- |
+| 界面选择设备并启用 15 秒同步，实际策略/0600 快照正确 | 通过 | 通过 |
+| 合成器关闭窗口，进程保持；目标新增登记后后台快照更新，唤回后界面可见 | 通过 | 通过 |
+| 客户端停止期间目标新增登记；重启后未打开任务页面即同步，身份/策略保持 | 通过 | 通过 |
+| 停止目标服务后保留历史，界面明确状态未确认，三个委托按钮均禁用 | 通过 | 通过 |
+| 目标恢复后后台状态回到 online | 通过 | 通过 |
+| 暂停后新增目标登记，等待 18 秒（配置间隔 15 秒），快照字节保持 | 通过；另验证暂停策略跨重启保留 | 通过；离开任务页并关闭原生窗口 |
+
+首次选项自动化只改变 AT-SPI 选择状态，未触发 React 保存，实际仍为 60 秒；改为真实选项动作并核对策略后为 15 秒。离线断言先匹配了不存在的“离线快照”字样，另一次刷新按钮误写为“刷新”，均改为真实文案后通过。两个私有会话并行时另遇辅助功能总线不可达，改为串行运行独立 GUI。初次暂停的快照摘要检查发生在页面最后一次交互读取完成前，未通过；后台状态并未继续尝试。最终移除页面轮询的干扰后建立新基线，.deb 重启保持暂停、AppImage 离页关窗，两者等待 18 秒均字节不变。失败原始记录保留，没有因此修改产品代码或放宽断言。后台暂停与页面自动刷新是两套独立控制。
+
+.deb 为实际 dpkg 安装，包名 cranibox-node；AppImage 使用 --appimage-extract-and-run。本轮不覆盖实际登录、托盘注册、自启、休眠、普通 FUSE、第二物理设备、桌面查看器或 Windows/macOS GUI，不能替代此前其他版本的独立验收。
+
+两包测试后退出 GUI、独立目标及所属辅助进程，卸载测试包并移除本次 AppImage 解压目录，归属检查无残留。容器仍 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200；日常 Web PID 538744、客户端 PID 1403228、程序摘要及 NodeID 均保持。未升级日常程序、重启 KDE/Selkies 或操作文字剪贴板。私有证据 /config/validation-artifacts/linux-installer-87f20ee 保存 acceptance.json、两包阶段记录与失败、原生状态/快照/界面树、cleanup-audit.json 和 final-health.json；包摘要见[详细验证记录](remote-workspace-validation-2026-10-18.md)。
 
 ### 已有桌面服务接入（2026-10-19）
 

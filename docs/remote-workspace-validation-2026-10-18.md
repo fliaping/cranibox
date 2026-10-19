@@ -1293,3 +1293,38 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 ### 本轮提交与 CI 交接
 
 产品提交 87f20ee3ceea0e0de65161f62e19d4cb28427c81 已推送 origin/main。完整 headSha 核对的 Rust/Tauri/Wayland 矩阵 39178636288 交接时为 in_progress，**尚未记作通过**；Release 39178636180 与 Sync to GitCode 39178636169 均 completed/success。GitHub 创建时间为 2026-10-18T23:57:30Z、23:57:29Z、23:57:29Z。ci-handoff.json 保存当时作业和步骤；后续只补文档，不改变测试过的产品代码。下一位维护者核对矩阵终态，再使用该提交的安装包做原生验收；默认公开空间镜像仍未发布。
+
+## 2026-10-19：公开 Agent 同步的 CI 终态与原生包验收
+
+本节补齐上一节交接后仍在进行的 CI 与 Linux 包检查，没有修改产品源码。三项工作流的完整来源均为 **87f20ee3ceea0e0de65161f62e19d4cb28427c81**：矩阵 **39178636288 completed/success、7/7**（三个平台 Rust、三个平台 Tauri、独立 Sway/wayvnc），最终更新时间 2026-10-19T00:23:12Z；Release **39178636180** 与 GitCode **39178636169** 也均 completed/success。保留先前 ci-handoff.json，不把进行中记录覆盖成最终状态。
+
+下载 Linux Rust 与客户端作业原始日志，确认 Web 全量 **130/130，3.7 分钟**，客户端界面 **50/50，34.4 秒**，后台 Agent 新增集成 **8/8，80.564 秒**，真实 Chromium/官方 MCP、X11 VNC、EasyTier **2/2**、GIO 启动器通过。界面全量仍模拟 Tauri IPC，Windows/macOS 的作业成功不代表原生桌面或权限实测；与远端已有回归重叠的结果不累加。Release 未发布公开空间镜像。
+
+### 包来源与真实窗口
+
+实际下载 artifact **12155552479**（cranibox-node-desktop-ubuntu-latest），归档元数据摘要为 sha256:3310f7458465ca914678e54b29cf3e1db358f84c60427adbaf3b23f227096f8a；其 workflow_run.head_sha 与成功的 Linux 客户端作业均匹配上述产品提交。传到指定远端后再次核对大小与包摘要。
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,363,574 | f300792cc4ca6ece469e3d554c60d53faa70e6a746a7147ea94982cfa7adbb81 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,517,688 | 27ba2283c4720440485ef65ea50f541b6a1c9915dbebaba1b10c8a11e81c9d02 |
+
+仍在 admin@192.168.217.6:22022 的 cranibox-validation、abc 下验收，使用现有 KDE/Wayland。两包分别使用全新身份、隔离 XDG 与私有 D-Bus，实际 Tauri 窗口/IPC，目标为同容器独立身份的真实 Rust 节点，经回环 HTTP 直连，不用 Web/网关或 IPC 模拟。.deb 实际 dpkg 安装，系统包名 cranibox-node；AppImage 使用 --appimage-extract-and-run。
+
+两包均完成：实际界面选择目标并启用 **15 秒**策略；KWin 关闭原生窗口后进程存活，目标随后新增的登记约在 11 秒后进入 0600 快照，唤回同一 PID 后界面可见；客户端停止期间新增另一登记，再以相同 XDG 启动，打开任务页之前后台已获取新目录，NodeID、策略和程序摘要保持。此处秒数包含检查脚本轮询，不作为协议性能基准。
+
+停止目标节点服务后，后台转 offline；实际界面显示“上次读取的登记”“状态未确认”，保存三条历史登记，三个“委托给此 Agent”按钮全部不可用。目标恢复后后台回 online。随后从界面暂停后台同步：.deb 另重启确认暂停策略保持；AppImage 离开任务页后关闭原生窗口。分别建立无页面读取干扰的基线，目标新增登记后等待 **18 秒**，暂停状态和快照字节均保持，没有同步新增登记。该时间只证明超过一次配置间隔，不代表长时间耐久性验收。
+
+### 辅助脚本失败与范围
+
+保留四份失败动作记录：.deb 离线断言误找不存在的“离线快照”文字；AppImage 的刷新按钮误写成“刷新”，实际名称为“刷新所有 Agent”；并行私有 GUI 导致 .deb 的辅助功能总线不可达；首次 .deb 暂停检查的快照摘要仍被最后一次页面交互读取更新。最后一项中后台 last_attempt 没有继续推进，快照仍为原三条，不能据此宣称后台暂停失效。随后串行运行、修正真实控件名称并排除页面轮询后通过，产品代码不变。
+
+另记录一次 AT-SPI select_child 返回成功但没有触发 React 事件：第一次启用实际保存的仍是 60 秒。改为实际 option 动作并重新保存，核对真实配置确为 15 秒后才继续；未将脚本返回成功当作设置已保存。后台暂停和页面刷新分别控制，页面主动读取仍可更新快照。初次失败保留在 deb-offline.json、deb-pause-final.json、deb-resume-pause.json、appimage-hidden.json；最终阶段记录及 acceptance.json 明确选取通过的动作，未抹掉失败或累计重复用例。
+
+本轮没有重验正常会话总线的托盘、自启动、实际登录、休眠、普通 FUSE、桌面控制/剪贴板、撤权、第二物理设备或 Windows/macOS GUI；各范围仍按前文对应产品版本及 P0/P1/P2 继续。目标是独立真实进程，仍不是多物理设备。
+
+### 清理与交接
+
+两份 GUI/启动器、独立节点目标和所属 XDG 辅助进程均停止；测试包已卸载，本次 AppImage 解压目录已按来源核对后删除，归属检查没有残留进程。日常 Web PID **538744** 与客户端 PID **1403228**、各自程序 SHA-256 及 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持。容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。未升级日常程序、重启 KDE/Selkies、操作文字剪贴板或发布镜像。
+
+私有证据 **/config/validation-artifacts/linux-installer-87f20ee** 保存 artifact.json、package-digests.json、CI 原始日志、acceptance.json、两包阶段 JSON、原生进程/界面树/快照与失败记录、安装/卸载日志、cleanup-audit.json 和 final-health.json；最终 CI 元数据另位于 agent-catalog-sync-20261019/ci-final.json。配置、令牌、截图、辅助脚本与原始日志不提交 Git。本轮仅提交测试结论与交接补记，完整需求/剩余事项见[交接入口](implementation-handoff-2026-10-18.md)。
