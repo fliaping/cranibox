@@ -96,11 +96,14 @@ impl Stream {
             tokio::select! { result = io => result, result = guard => result }
         })
     }
-    pub async fn connect_request(request: Request<()>) -> Result<Self> {
+    pub async fn connect_request(
+        request: Request<()>,
+        cipher: Option<crate::peers::e2e::stream::Cipher>,
+    ) -> Result<Self> {
         let config = WebSocketConfig::default()
-            .max_message_size(Some(MAX_CHUNK))
-            .max_frame_size(Some(MAX_CHUNK));
-        let (mut socket, _) = tokio::time::timeout(
+            .max_message_size(Some(MAX_CHUNK + crate::peers::e2e::stream::OVERHEAD))
+            .max_frame_size(Some(MAX_CHUNK + crate::peers::e2e::stream::OVERHEAD));
+        let (socket, _) = tokio::time::timeout(
             Duration::from_secs(10),
             connect_async_with_config(request, Some(config), true),
         )
@@ -115,6 +118,7 @@ impl Stream {
             }
             error.into()
         })?;
+        let mut socket = crate::peers::e2e::socket::SecureSocket::new(socket, cipher);
         Ok(Self::spawn(move |mut incoming, outgoing| async move {
             let mut ping = tokio::time::interval(Duration::from_secs(15));
             let mut seen = Instant::now();

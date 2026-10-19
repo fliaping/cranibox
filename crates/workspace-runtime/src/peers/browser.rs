@@ -4,10 +4,11 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{net::SocketAddr, path::Path, time::Duration};
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite};
+use tokio_tungstenite::tungstenite;
 
 pub const MAX_MESSAGE: usize = 16 * 1024 * 1024;
-pub type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+/// End-to-end encrypted when opened through a peer session; plain for local CDP.
+pub type Socket = super::e2e::socket::SecureSocket;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -139,10 +140,13 @@ pub async fn owner(path: &Path, command: OwnerCommand) -> Result<Value> {
     )
 }
 
-pub async fn connect(request: tungstenite::http::Request<()>) -> Result<Socket> {
+pub async fn connect(
+    request: tungstenite::http::Request<()>,
+    cipher: Option<super::e2e::stream::Cipher>,
+) -> Result<Socket> {
     let config = tungstenite::protocol::WebSocketConfig::default()
-        .max_message_size(Some(MAX_MESSAGE))
-        .max_frame_size(Some(MAX_MESSAGE));
+        .max_message_size(Some(MAX_MESSAGE + super::e2e::stream::OVERHEAD))
+        .max_frame_size(Some(MAX_MESSAGE + super::e2e::stream::OVERHEAD));
     let (socket, _) = tokio::time::timeout(
         Duration::from_secs(10),
         tokio_tungstenite::connect_async_with_config(request, Some(config), true),
@@ -155,7 +159,7 @@ pub async fn connect(request: tungstenite::http::Request<()>) -> Result<Socket> 
         ),
         _ => anyhow::anyhow!("Browser connection unavailable"),
     })?;
-    Ok(socket)
+    Ok(Socket::new(socket, cipher))
 }
 
 impl Store {
