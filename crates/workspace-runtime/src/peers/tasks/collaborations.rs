@@ -15,7 +15,7 @@ pub struct Scope {
     pub project_id: Option<Uuid>,
 }
 impl Scope {
-    pub(super) fn validate(&self, owner: &str) -> Result<()> {
+    pub(in crate::peers) fn validate(&self, owner: &str) -> Result<()> {
         identifier(self.id)?;
         ensure!(
             self.owner == owner && valid_node_id(owner),
@@ -41,13 +41,13 @@ pub(super) enum State {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Record {
-    scope: Scope,
-    members: Vec<String>,
+    pub(super) scope: Scope,
+    pub(super) members: Vec<String>,
     bindings: BTreeMap<String, String>,
-    state: State,
-    revision: u64,
-    created_at: u64,
-    result: Option<String>,
+    pub(super) state: State,
+    pub(super) revision: u64,
+    pub(super) created_at: u64,
+    pub(super) result: Option<String>,
     pub(super) archived: bool,
 }
 

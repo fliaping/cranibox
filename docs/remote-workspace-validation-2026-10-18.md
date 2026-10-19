@@ -2,6 +2,8 @@
 
 本次按用户要求使用 `admin@192.168.217.6:22022`，在远端 Docker 中启动独立验证容器，不使用本机图形桌面验证客户端。
 
+最新补验见[六组镜像最终审计](#2026-10-19六组镜像最终审计)及[Selkies 测试同步修正](#2026-10-19selkies-测试同步修正与模型交接)；功能、当前测试、版本边界和剩余 P0/P1/P2 集中在[需求与测试状态](implementation-handoff-2026-10-18.md)。以下历史记录各自绑定当时来源，不能代替当前版本验收。
+
 ## 部署
 
 | 项目 | 配置 |
@@ -781,7 +783,7 @@ GIO 启动的 AppImage 日志包含 EGL/Mesa 与缺少 GStreamer appsink 的环�
 
 ## 3c1a38d Linux 包及真实 Computer Use 补验
 
-本节绑定 3c1a38d19c66d3b9050f3003705f47a5c7187ace、矩阵 39117202769，功能提交为 973f1c8。该矩阵最终 7/7 成功，首次 Wayland 失败与单项重跑的边界见[交接记录](implementation-handoff-2026-10-18.md#最新收尾computer-use)，没有因此宣称认证超时根因已修复。本节另补真实包和桌面验收，没有改产品代码、部署日常服务或重跑全部自动化矩阵；411 项不同自动化测试及四项忽略的数量维持原口径。
+本节绑定 3c1a38d19c66d3b9050f3003705f47a5c7187ace、矩阵 39117202769，功能提交为 973f1c8。该矩阵最终 7/7 成功，首次 Wayland 失败与单项重跑的边界见[交接记录](implementation-handoff-2026-10-18.md#历史验证索引)，没有因此宣称认证超时根因已修复。本节另补真实包和桌面验收，没有改产品代码、部署日常服务或重跑全部自动化矩阵；411 项不同自动化测试及四项忽略的数量维持原口径。
 
 ### 包与运行隔离
 
@@ -887,3 +889,805 @@ Artifact 12136694653（cranibox-node-desktop-ubuntu-latest），归档 96,118,07
 反向获取仍未解决。后续先给原生 ACK 等待、输入/输出结束及上游关闭增加有界、不含文字内容的诊断，核对两端时序；再对照正常图形登录 D-Bus 与另一台物理设备。未证明 WebKit、IPC、上游通知或测试会话是哪一项根因，不应据猜测调整超时或放宽背压。
 
 证据目录 /config/validation-artifacts/native-clipboard-debug-20261018：native-errors-focused.log、native-ui-full.log、native-build.log、upstream.json、protocol.jsonl、native-cleanup.json，以及 patched 下的独立 GUI 元数据、截图、清理记录。诊断转发器与 GUI、私有会话辅助进程均停止，两次原剪贴板逐字节恢复且备份删除。截图、真实文字与配置不提交 Git；源代码和文档独立提交。日常服务、身份和认证入口由 final-health.json 复核，不以测试进程存在代替健康检查。
+
+## Rust 桌面传输收尾与最终交接
+
+2026-10-18 在指定远端容器继续完成同一故障的有限排查和交接，未扩大功能范围。修改 Rust 原生转发循环：ACK 10 秒超时、无效 ACK、输入失败、提供者退出现在返回可见错误；显式关闭保持正常。运行时输出队列仍有界为 32 个位置，预留一个位置保存最终错误，另保存失败原因供后续输入返回，避免满队列吞掉错误且不等待消费者释放控制权；Selkies 输出阻塞 5 秒增加具体提示。没有放宽时限、取消背压或改写上游。
+
+新增四项原生 desktop Rust 测试：实际回环 TCP、Tauri Channel 回调、未 ACK 超时、正确 ACK 后继续、无效 ACK、显式退出与提供者退出。另增运行时满队列错误保留/控制名额释放测试。三平台 Tauri CI 显式运行原生四项测试；常规工作区测试不会隐式运行带 desktop 功能的二进制测试。
+
+真实 debug GUI 检查保留成功与失败，不作为安装包验收：
+
+| 对照 | 观察 | 结论边界 |
+| --- | --- | --- |
+| transport、transport2、transport3 | 真实 KDE 画面；部分轮次收到新的 Unicode 多行文字，后续获取未更新，约 60–61 秒断线 | 所有轮次经过 Python WebSocket 诊断代理；代理自身可能影响时序，不能直接归因于产品 |
+| direct | 原生直连本机 Selkies 8082，未经过代理；61 字节标记真实显示，另置的 68 字节新标记经 wl-paste 确认但未更新到界面；约三分钟后仍显示连接，面板收起可响应 | 原生反向剪贴板仍未通过；此轮无上游消息追踪，没有证明断在 Selkies、IPC 或查看器；未重现代理的固定断线 |
+
+四轮采用实际新 debug 程序、独立 XDG 和私有 D-Bus，不模拟 IPC，也不证明正常图形登录、托盘或其他设备。每轮 GUI、诊断代理、私有会话辅助进程均停止，原剪贴板逐字节恢复且备份删除。direct 中的代理进程未被使用，已一同停止。既有 a8a97f5 .deb 失败及此前 Web 双向通过记录不改写。
+
+84fdf88 的原生/安装包矩阵 39138324015 最终 completed / success、7/7 成功；Release 39138324009 和 GitCode 39138324019 亦成功，完整 headSha 已核对。这些结果只属于上一版，不覆盖本节 Rust 修改。当前修改的远端自动化结果、提交及 CI 状态见[交接入口](implementation-handoff-2026-10-18.md#历史验证索引)。
+
+最终回归在指定远端执行：全工作区 Rust 178 通过/4 按条件忽略，原生 desktop 二进制四项全部通过，桌面后端 remote_desktops 7 + desktop_relay 7 + desktop_service 8 共 22 项全部通过（52.674 秒）。合计 204 项不同自动化测试，不重复累计早期专项与历史测试；原生四项不在工作区 178 项内。fmt、工作区与原生 desktop 所有 target 严格 Clippy、工作区构建、实际运行的 desktop,custom-protocol debug 构建通过。本轮没有改前端或重跑完整 Web/Tauri UI，旧界面结果保持原提交绑定。
+
+收尾代码 fa1d4019aaf9f79e690c937fcf75b34b5c63b6c2 已推送 origin/main。矩阵 39141291171 第二次尝试最终 completed / success、7/7 作业成功，GitHub 更新时间为 2026-10-18 16:25:03 UTC，完整 headSha 已核对。三平台原生构建、三平台 Tauri 打包和真实 Sway/wayvnc 全部成功；三个 Tauri 作业均实际通过新增的原生传输与 ACK 测试步骤。Wayland 重跑作业 117726271297 执行真实桌面测试 1 项通过、4.411 秒。
+
+第一轮 Wayland 作业 117716093179 无法解析 index.crates.io，依赖下载失败，真实测试未执行；首次请求重跑时整轮尚未结束，返回 job cannot be rerun。整轮结束后重跑成功，不将依赖网络故障误记为产品断言失败，也不删除原日志。Release 39141291175、GitCode 39141291229 已成功，均核对完整 headSha。原结果和失败日志为 final-ci.json、ci-wayland-first-failure.log；最终重跑元数据和真实测试日志为 ci-final-retry.json、ci-wayland-retry.log。CI 全绿不覆盖原生剪贴板的人工失败记录。
+
+final-health.json 确认容器 running/healthy、非 privileged、无 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 不变；测试安装包仍已卸载。transport-cleanup-final.json 复核所有本轮隔离 GUI 目录无存活进程及剪贴板备份。未升级日常服务、未安装系统 Tailscale，也未重启合成器。
+
+私有证据根目录仍为 /config/validation-artifacts/native-clipboard-debug-20261018；新增 final-rust-regression.log、final-desktop-backend.log、source-snapshot-final.json、transport* 与 direct 的截图、GUI 元数据、协议生命周期、清理和 direct/result.json。原始截图、剪贴板、配置、凭据及环境不进入 Git。接手优先修复原生反向文字更新，并在实际安装包、正常图形会话及另一物理设备验证；不要用新增自动化测试替代真实验收。
+
+## 2026-10-19 补记：原生查看器有限诊断
+
+使用 fa1d401 的同一 debug GUI、隔离 XDG 与私有 D-Bus，原生直接连接真实 Selkies 8082。通过实际 WebKit Inspector 添加仅在本次运行中生效的计数，没有修改产品源码、二进制或上游。最终计数为 32,191 次 createImageBitmap 开始、32,191 次完成，并观测到至少一条剪贴板文字消息；此轮没有观察到永久挂起的 JPEG 解码。
+
+没有完成连续更换目标文字后的有效 UI 对照，不能将这些计数写为剪贴板稳定、排除间歇解码问题或定位根因。尝试统计 ACK/请求的临时包装未截获真实调用链，零计数不作结论；部分较长诊断命令被 GUI 输入工具改变，生成的语法错误仅属于操作失败，不是产品异常。这轮不增加自动化通过数，也不覆盖既有 .deb 和 direct 的反向更新失败。
+
+证据保存在 inspector/result.json、first-stats.png、diag-final.png、native-cleanup.json 与 cleanup-final.json。GUI、未使用的转发器及私有会话辅助进程均已停止；再次扫描隔离 XDG 无存活进程，原剪贴板逐字节恢复并删除备份。final-health.json 重新核对日常进程、二进制、NodeID 和 LAN 认证入口保持。所有截图和诊断文件仍仅存私有远端，不提交 Git。
+
+## 2026-10-19 补记：真实原生剪贴板的显示环境对照
+
+继续在指定远端容器运行同一 fa1d401 debug 程序，通过真实 GTK AT-SPI 按按钮名称操作、读取原生接收栏；发送通过聚焦实际文本框、粘贴和点击按钮完成。使用实际 Tauri IPC、独立 XDG 和私有 D-Bus，直接连接真实 Selkies 8082；没有模拟 IPC、协议代理或产品/上游修改。
+
+| 对照 | 实际观察 | 边界 |
+| --- | --- | --- |
+| 原 KDE 桌面中显示查看器 | 48/50 字节新标记已由 wl-paste 确认，接收栏仍为空；上游 TCP 可连接，但 HTTP 读取及新的 WebSocket 握手超时，结束测试 GUI 后连接恢复 | 原失败仍存在；没有定位上游停滞与查看器的因果关系 |
+| 独立 Xvfb/X11 显示原生 GUI，目标仍为 KDE/Wayland Selkies | 六次新标记逐字节匹配：48、50、52、63、62、66 字节；包括超过一分钟后的更新、发送后更新和断开重连 | 真实 debug GUI 的有限集成通过；不是 CI 安装包、正常登录或多物理设备验收 |
+| 发送与显式复制 | 原生发送的 51 字节中文/emoji/多行文字由目标 wl-paste 核对；点击复制后，本机独立显示的剪贴板与 62 字节远端文字一致 | 未自动覆盖日常剪贴板；测试过程中明确接管并在结束时恢复 |
+| 断开与重连 | 断开后剪贴板面板移除；重连展开时旧文字为空，再获取 66 字节新标记成功 | 不覆盖休眠、长期断网和实际安装包重启 |
+
+独立显示同时改变了本机显示后端和共享画面的持续变化程度，不能仅据此归因为递归画面、Wayland、WebKit、IPC 或 Selkies。原 .deb 与 KDE 同屏失败不改写，下一步应在正常桌面和另一物理设备对照画面负载、上游响应及 IPC/ACK 时序。辅助工具不支持的 AT-SPI EditableText 调用、接口签名错误和首次误切“仅查看”是测试操作失败，不作为产品断言失败；后续通过实际聚焦和粘贴完成发送。
+
+新私有证据根目录 /config/validation-artifacts/native-clipboard-debug-20261019：result.json 汇总两种显示、逐字节核对及结论边界；accessibility 与 offscreen 保存各轮元数据、截图、接收结果、发送/复制和清理；final-health.json 保存日常健康。两轮原剪贴板均逐字节恢复且备份删除，原生 GUI、Xvfb 和私有会话辅助进程均停止，隔离 XDG 无存活进程。结束后重新连接上游取得 MODE websockets；容器 running/healthy、3080/3031 匿名 401/认证 200、日常 Web/客户端 PID、摘要和 NodeID 保持。该轮没有增加或重跑自动化测试，收尾总数仍为 204 通过、4 忽略；截图、文字、配置和环境不提交 Git。
+
+## 2026-10-19 收尾：剪贴板等待反馈与交接
+
+仍只在指定远端 cranibox-validation 构建、运行测试及原生 GUI；本机用于静态编辑和 Git。本次改动 Web/Tauri 共用剪贴板面板：请求时显示忙碌并禁止重复点击，10 秒未响应时显示重试/重连提示，保留旧文字和连接；使用事件序号处理相同文字，收到空文字或无效内容会结束等待，迟到响应清除超时，关闭面板清理计时器。原生模拟 IPC 的现有 Selkies 用例新增上述边界及旧错误不遮住新超时的验证，没有新增依赖或改动 Rust 传输。
+
+最终源码基于 ad9db15637e19ddc964943a34d15dd2d61eaaf88，关键文件摘要如下；最终提交与 CI 另见[交接入口](implementation-handoff-2026-10-18.md)。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| DesktopClipboard.tsx | ba8ffdf5efa1deeb23e194b8e9d6f335f5013ee3ed38891a2cd07fd1beff382a |
+| VncViewer.tsx | 4b4f2f2fe18d3cbaa7d69027424c1ad7bd856dec81f51e10018c1ccc8df8b638 |
+| apps/node-desktop/tests/client.spec.ts | 0808af12c2bf3c2af40dda3a252fedf8c052feab3612e30128fb6a2561e46a18 |
+| addons/control-center/web.js | 3cc56ca5175c30c4b742384297441ed3fb2537ec69e5c4bdcb720810a50246c9 |
+
+最终远端客户端全部界面 48/48 通过（91.146 秒），Web 桌面 12/12 通过（99.289 秒），合计 60 项不同测试。客户端使用模拟 IPC；Web 使用重新生成并嵌入 cranibox 的静态资源、真实 Rust 服务与受控 RFB/JPEG 提供者。两端 TypeScript/Vite、Web 静态生成、cranibox 与 desktop,custom-protocol debug 构建均通过。首次 Web 配置未找到构建产物，以及旧嵌入资源的通过结果均不作最终验证；重跑、专项和历史测试不重复累计。该远端专项未重跑 fa1d401 的 204 项后端测试或完整 Web 126 项；随后的 CI 另执行完整矩阵，结果见下段。
+
+实际新 debug GUI 使用原 KDE 桌面、隔离 XDG、私有 D-Bus、AT-SPI 操作和真实 Tauri IPC，直接连接 Selkies 8082。第一次响应使等待结束；另置 47 字节新标记后，接收栏仍为旧 48 字节，10 秒超时提示可见，获取按钮恢复，桌面仍显示连接。**等待失败反馈实际通过，原生反向文字更新仍未通过**。首次读取 AT-SPI 失效节点以及仅检查 accessible name 漏掉段落文字属于验证工具问题，后续按实际 Text 接口核对；未据其修改产品或宣称根因。
+
+另一轮为上游诊断复制 Selkies 到独立目录，只在该副本增加栈采样并绑定随机回环端口。剪贴板可更新，JPEG 也到达，但实际查看器画面为黑屏，无法确认捕获的是原 KDE 桌面，故对照无结论。副本及测试 GUI 已停止，原上游未改写；不要将此记录写成原故障已排除。证据在 native-clipboard-debug-20261019 的 isolated-server 与 selfview-isolated。
+
+本次证据根目录 /config/validation-artifacts/clipboard-feedback-20261019：native-ui、web-desktops、native-build、web-assets、web-build 的 json/log 记录最终结果；first-pass、pre-asset-refresh 是先前代码或旧资源基线；native-kde 的 gui.json、feedback-last.json、received-last.json、cleanup.json 记录实际等待反馈、未更新及逐字节恢复原剪贴板。截图、环境、真实文字与凭据不提交 Git。需求表、未完成项、优先级、复现入口及跨平台验收条件集中在交接文档，下一位模型先处理 P0。
+
+全部测试及 GUI 停止后重新检查日常健康：容器 running/healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401/认证 200；Web PID 538744、客户端 PID 767446、原二进制摘要和 NodeID 保持，测试包仍未安装，未发现预览或 MCP 测试进程。final-health.json 保存该结果，acceptance.json 的总体状态为 completed_with_documented_failure_and_limits。此前在测试仍运行时执行的残留扫描被预期的预览进程阻断，不是日常服务故障；最终健康检查在清理完成后通过。
+
+代码提交 2312b640d5a754d29e2d0269b1d3c2a6a0f74753 的矩阵 39151770009 最终 completed / success、7/7 成功，GitHub 更新时间 2026-10-18 18:18:49 UTC。三平台服务端/独立节点构建、三平台 Tauri 打包和原生 ACK 回归、Linux 完整 Web 126/126 与客户端界面 48/48 均通过；真实 Sway/wayvnc 为 1 项、4.291 秒，独立真实 Chromium/MCP 为 1 项、4.181 秒，真实 X11 VNC 为 1 项、3.558 秒，真实 EasyTier 步骤亦成功。不同环境的重跑不与前述 60 项累计。Release 39151770010、GitCode 39151769875 同为 completed / success，三份记录逐一核对完整 headSha；10 份未过期 Artifacts 已核对名称，包括三平台安装包。CI 成功不覆盖原生 KDE 剪贴板失败、Windows/macOS 实机、Tailnet 或产品镜像的验收缺口。
+
+最终 CI 元数据、作业步骤、产物清单及日志摘要在本节证据根目录的 ci-final.json；ci-native-ubuntu.log、ci-desktop-ubuntu.log、ci-wayland.log 保留对应完整日志。交接入口补充了 Web 静态资源生成与 Rust 嵌入构建命令，避免后续只运行 npm build 而验证到旧资源。此次只补充交接和 CI 证据，没有再次部署或启动产品进程。
+
+## 2026-10-19 补验：原生连接积压
+
+使用相同 2312b64 debug 客户端、原 KDE 桌面与日常 Selkies 8082，另建隔离 XDG 和私有 D-Bus；不经过诊断转发器，不改上游代码。真实 GUI 经 AT-SPI 连接桌面、展开剪贴板并请求文字。代码文件摘要与此前等待反馈构建一致，实际程序摘要保存在本节 acceptance.json。
+
+| 本次观察 | 结果与边界 |
+| --- | --- |
+| 原生反向获取 | 首段为 48 字节；目标改为 52 字节且 wl-paste 逐字节核对后，接收栏仍为 48 字节；超时提示、重试按钮和连接状态均可见 |
+| 独立上游读取 | 同次运行、未发送 SETTINGS 的另一个连接能够读到新 52 字节文字；可见窗口时两次成功记录在命令输出，upstream-read.json 仅保留收起后最后一次成功结果 |
+| 可见窗口时 TCP 队列 | Selkies 到原生连接的发送队列两次分别为 4,164,782 与 4,162,469 字节；对应客户端接收队列也有积压，样本见 stats-before-hide.json 和 stats-visible-new.json |
+| 上游进程采样 | 两次均未发现 wl-paste 子进程；分别处于运行/epoll 等待状态。不是完整线程追踪，不能据此排除其他上游阻塞 |
+| 收起对照 | 收起后后续 TCP 队列排空，但 AT-SPI 无法再读剪贴板字段；通过同一私有会话唤回时查看器已断开。因此不能称为恢复、有效性能对照或修复 |
+| 清理与健康 | 原剪贴板逐字节恢复并删除备份；测试 GUI/辅助进程退出，日常服务原 PID、摘要、NodeID 保持，容器健康、两入口匿名 401/认证 200 |
+
+这些观察支持优先检查画面吞吐、IPC ACK 和有序流中的控制消息排队；尚无每条消息的追踪，不能确定延迟在哪一层，也不能覆盖此前上游握手超时的记录。本次没有改产品、没有重跑自动化矩阵、不增加通过数量，原生反向剪贴板继续为 P0 未通过。不要直接以延长超时、降低固定帧率或另开一个控制连接代替定位和实机复验。
+
+私有证据为 /config/validation-artifacts/native-clipboard-layer-20261019：check.py、finalize.py、native-kde 下各次采样与 GUI/反馈/接收/清理记录，以及根目录 acceptance.json、final-health.json。健康检查在全部测试进程退出后执行；未替换日常程序、未重启 Selkies 或 KDE。Git 提交仅包含本节和交接文档，不包含剪贴板、截图或配置。
+
+## 2026-10-19 补验：IPC 测量及撤回的传输方案
+
+继续只在指定远端容器使用真实 KDE/Tauri GUI、隔离 XDG、私有 D-Bus，直接连接日常 Selkies 8082。以 2312b64 产品源码为基线，先加入不含正文的约五秒聚合计数，再分别试验合并已排队的小块、二进制输出及组合。所有轮次保留字节顺序、64 KiB 载荷上限、单块待 ACK 和原超时；没有等待填满块或放宽队列限制。
+
+| 私有原始证据目录（均在 /config/validation-artifacts 下） | 采样区间数 | IPC MiB/s 范围 | 区间平均 ACK 等待 | 真实 GUI 结果 |
+| --- | --- | --- | --- | --- |
+| native-desktop-throughput-20261019 | 22 | 0.355–0.728 | 11.9–24.6 ms | 初始 48 字节可读；目标换为 55 字节经 wl-paste 核对后仍显示旧文字 |
+| native-desktop-batching-20261019 | 29 | 0.408–0.838 | 28.0–81.2 ms | 目标 56 字节已核对，仍显示旧 48 字节，超时后保持连接 |
+| native-desktop-binary-20261019 | 11 | 0.419–1.471 | 7.4–25.9 ms | 目标 54 字节已核对，仍显示旧 48 字节 |
+| native-desktop-coalesced-20261019 | 1 | 1.016 | 40.4 ms | 实际界面出现 Selkies decoder cannot keep up. Reconnect using a lower server frame rate.，随后断开；未完成持续剪贴板验收 |
+
+画面内容、负载和启动阶段不同，这些顺序运行的试验不是受控性能排名。聚合 ACK 平均值不能代表单条剪贴板消息延迟，组合触发现有解码队列保护也不能证明原故障的根因。三个方案均未通过实际 KDE 验收；后续需同时核对上游生产、IPC 消费、JPEG 解码和控制消息到达，并在正常窗口和另一物理设备复验，不能仅提高传输速度、扩大队列或延长超时。
+
+所有产品源码与未验收的测试改动已逐字节恢复到仓库版本，未计入任何新增自动化通过项。远端重新完成客户端 TypeScript/Vite 及未插桩 desktop,custom-protocol debug 构建；恢复后的 desktops.rs 摘要为 f87322338256064ea187e1559ae1d7f34c182bb8e5bad82ce1e73ed6a0b88848，程序摘要为 8a9682473193a9c638a0db30b6ca560bb192557f7c1a44a769c9d77b1c52faf8。产品 CI 仍绑定 2312b64，不能将诊断构建写成通过的正式安装包。
+
+汇总证据根目录 /config/validation-artifacts/native-desktop-transport-trials-20261019：acceptance.json 状态 diagnostic_trials_reverted_no_product_fix；expected-source.json 逐一核对六项关键源码，build-final.json/log 记录恢复构建，final-health.json 记录日常服务。四轮测试 GUI/辅助进程均已停止，隔离 XDG 无存活进程；每轮原剪贴板逐字节恢复并删除备份。容器健康、原日常 PID/程序摘要/NodeID 与两入口匿名 401、认证 200 保持，未替换或升级日常程序。本次仅提交文档；私有辅助工具、日志、截图、文字和配置均不提交 Git。
+
+## 2026-10-19 补验：控制消息分段追踪
+
+以 2312b64 为基线，在指定远端临时插桩 desktops.rs 与 peers/desktop/selkies.rs，只输出阶段名称和毫秒时间戳，不改变字节、队列、协议或时限，不记录画面和剪贴板正文。客户端 TypeScript/Vite 与 desktop,custom-protocol 构建通过后，运行实际 KDE/Tauri GUI，使用隔离 XDG、私有 D-Bus、AT-SPI 操作，直接连接日常 Selkies 8082。没有协议代理、模拟 IPC 或上游服务重启。
+
+| 阶段标记 | 位置和含义 |
+| --- | --- |
+| native_cr_ipc_received | desktop_input 解码输入块后发现完整的 cr 帧；不包括此前浏览器排队和 Tauri 调用耗时 |
+| selkies_cr_before_send / selkies_cr_sent | 运行时向上游发送 cr 的前后 |
+| selkies_clipboard_received / selkies_clipboard_forwarded | 运行时读到 clipboard 文字消息、将其全部分块放入有界输出队列之后 |
+| native_clipboard_ipc_output | 原生转发器将含 clipboard 前缀的块交给 Tauri Channel 之前；不是 JS 接收或解码完成 |
+
+三次操作的原始事件共 18 条，使用同一进程的系统时间。没有消息编号或正文摘要；以下只按事件顺序报告区间，**不能认定下一条 clipboard 就是该行请求对应的新文字**，因为 Selkies 同时主动广播、独立读取也可能引发广播。
+
+| 操作 | native_cr_ipc_received | cr 发出至下一条 clipboard 被 Rust 读到 | Rust 读到至 native_clipboard_ipc_output | IPC 收到 cr 至发送完成 |
+| --- | --- | --- | --- | --- |
+| 初始获取，目标 48 字节 | 1792350768167 ms | 30.134 s | 226 ms | 8 ms |
+| 更换为 54 字节新标记后获取 | 1792350873784 ms | 20.656 s | 408 ms | 1 ms |
+| 更换为 52 字节新标记后获取 | 1792350984533 ms | 24.404 s | 1,377 ms | 20 ms |
+
+初始接收栏后来逐字节匹配 48 字节标记。独立上游连接没有发送 SETTINGS，分别成功读取当时的 48/54 字节内容。第二次新标记没有稳定显示；第三次由脚本连续操作，先确认实际忙碌、按钮不可重复点击，随后确认 10 秒超时、重试恢复、连接仍在，目标为 52 字节时接收栏仍是旧 48 字节。末次检查距第三次 Rust 接收请求约 89 秒，栏内为旧 54 字节，仍不匹配当前目标。等待反馈通过，新文字持续更新未通过；不能把迟到的旧内容当作成功。
+
+三次进程/TCP 采样中，匹配该连接的 Selkies 发送队列约为 2,627,141、1,981,932、1,836,278 字节；客户端接收端亦有积压。这支持继续检查该连接的视频生产与消费，不能独自证明所有延迟由网络、Tauri 或 JPEG 解码中的一层造成。本轮没有记录 JavaScript 到达或 createImageBitmap 时间，也没有把消息内容逐条对应到标记；下一位维护者应补齐这些关联，不能把表中区间换算为每个请求的精确响应延迟。
+
+另外只读核对容器实际安装的 Selkies：包元数据版本为 0.0.0，故以源码摘要标识具体副本。selkies.py 的 primary 分支通过 websockets.broadcast 向所有 primary 查看者发送视频，虽然更新背压统计，但此路径没有依据 backpressure_enabled 跳过发送；辅助显示分支存在该判断。input_handler.py 的 cr 则调用 read_clipboard，再广播结果。这是该副本的源代码事实，未通过修改上游证明因果，不应泛化为所有 Selkies 版本。
+
+| 上游文件（/lsiopy/lib/python3.14/site-packages/selkies 下） | SHA-256 |
+| --- | --- |
+| selkies.py | a03a812ca68ebc6f200c32b79e8e5f238c5796629173ff776a6971ce1174ecb4 |
+| input_handler.py | 00fb38a48c0249d54d1bae0e27d093b5aeab62a49ea8542e21edfc4e86a76779 |
+
+本轮插桩只在远端构建源码中临时使用，两个 Rust 文件已逐字节恢复为原始源码；恢复后客户端 TypeScript/Vite 及未插桩 desktop,custom-protocol 构建通过。没有修改产品实现、增加测试或重跑自动化矩阵，产品 CI 仍对应 2312b64。实际 GUI 与私有会话辅助进程已停止，原剪贴板逐字节恢复并删除备份；日常 Web/客户端原 PID、程序摘要、NodeID 保持，容器 healthy、非 privileged、无 Docker socket，3080/3031 均匿名 401、认证 200。
+
+私有证据根目录 /config/validation-artifacts/native-desktop-stages-20261019：stage-final.json 为原始时间戳；third-observation.json 为第三次真实操作与反馈；native-kde 包含 GUI 元数据、各次采样、独立读取及 cleanup.json；build-instrumented.json/log 与 build-final.json/log 分别记录诊断和恢复构建，gui.json 指向前者；source-restored.json、acceptance.json 和 final-health.json 记录逐字节恢复与最终健康。原始日志、标记、配置、凭据和辅助脚本不随 Git 提交。交接入口需求表及 P0 已同步此结论，下一轮应从这些证据继续，不重做已撤回的三个传输试验。
+
+## 2026-10-19 Selkies 慢查看器与原生剪贴板修复
+
+本次产品变更以 407b540 为基线，所有运行验证仍在 admin@192.168.217.6:22022 的 cranibox-validation。先在真实 KDE/Tauri 窗口做关联追踪，随后撤回全部插桩，构建并验收最终产品代码；本机只编辑、静态核对和 Git 操作。日常 Web、原生客户端、Selkies 和 KDE 均未升级或重启。
+
+### 关联追踪与首次失败
+
+临时 Rust/JavaScript 追踪只记录阶段、时间戳、长度和队列数量，不记录画面或剪贴板正文。一次 cr 上游发送完成于 1792351869618 ms，下一条剪贴板消息被 Rust 读到于 1792351914052 ms，相隔 44.434 秒；JavaScript 完成该消息拼接到事件派发约 1 ms。当时接收栏后续仍是旧文字。协议没有请求编号，且存在主动广播，这不是逐请求精确响应延迟；它将该轮主要等待定位在 Rust 读到消息之前，不能将所有停滞都归为 JPEG 解码。前端另用受控挂起的 JPEG 解码验证独立问题：旧实现的文字更新断言失败，修复后通过。
+
+第一版上游有界缓冲和 JPEG 合并在实际窗口触发 Selkies output queue exceeded its bounded capacity。只读协议元数据显示，每组 JPEG 区域之间重复出现查看器原本不处理的 cursor 消息，它们成为合并屏障，导致队列继续增长。保留该失败，最终版本在缓冲前忽略未实现的光标位图与音频输出，再做区域合并。上游实际 JPEG 的完整宽度为 1024、区域高 192，y 为 0/192/384/576；只检查元数据，不把像素写入 Git。
+
+### 最终实现
+
+- Selkies 输出不再等待所有块交付后才读下一条上游消息；持续读取与有界缓冲并行。待发送记录最多 256 条、剩余数据最多 32 MiB、单条最多 16 MiB，每传输块最多 64 KiB。Selkies 输出通道仅两个数据位置和一个保留错误位置；其他桌面通道仍用原 32 个位置。
+- 只删除尚未开始发送、同宽且被更新 JPEG 区域完全覆盖的旧区域；不跨分辨率/控制消息屏障，部分重叠仍保留，已部分发送的记录必须完整发完。剪贴板在完整记录边界优先，multipart/secret 等消息保持自身顺序。
+- 前端完整收到剪贴板文字后立即处理，不等待异步 JPEG 解码；其他控制与画面仍按原顺序。单块 ACK、10 秒原生 ACK 超时、5 秒阻塞保护、250 毫秒授权检查和所有容量上限保留。没有增加依赖、另建控制连接或放宽阈值。
+
+### 当前源码的运行验证
+
+| 验证 | 结果 | 说明 |
+| --- | --- | --- |
+| Rust 工作区测试 | 183 通过，4 忽略；67.333 秒 | 含新增 5 项回归；桌面专项 10 项已包括在内，不重复累计 |
+| 原生传输专项 | 4/4；0.10 秒测试时间 | desktop,custom-protocol；ACK、超时、提供者断开、主动关闭 |
+| 构建/静态检查 | 全部通过 | 工作区构建、fmt、工作区与原生 all-targets 严格 Clippy；TypeScript/Vite、Web 资源生成与原生 debug 构建 |
+| 客户端界面 | 48/48；81.006 秒 | 模拟 IPC；慢 JPEG 的断言扩展于既有用例，不新增计数 |
+| Web 桌面界面 | 12/12；37.706 秒 | 重新嵌入最新资源的 Rust 服务与受控 RFB/JPEG 提供者 |
+| 桌面后端集成 | 22/22；53.281 秒 | 直连/中继/权限/单控制者/守护与生命周期 |
+| 真实 KDE Web 中继 | 1/1；18.726 秒 | 真实 Selkies 画面、键盘、双向文字、重连、撤权；pageErrors 为空 |
+| 真实 KDE 原生窗口 | 五轮通过 | 实际 Tauri IPC，无插桩、无代理、隔离 XDG/私有 D-Bus；见下一表 |
+
+工作区构建 73.483 秒，严格 Clippy 工作区 19.623 秒、原生 17.246 秒。已有 Vite 大包及依赖 use client 提示保留，不影响构建。实际原生 GUI 程序 SHA-256 为 372bb5eea65f5314a50d512d757d07de3c8a861e95e0e41702ded3757b7f4162。源码快照保留实际构建的摘要；后续工作区构建和测试不能代替该 GUI 运行版本。
+
+| 原生真实操作 | 结果 |
+| --- | --- |
+| 初始获取 | 48 字节新标记逐字节匹配 |
+| 第二段不同文字 | 66 字节逐字节匹配，连接保持，无超时 |
+| 连接超过一分钟后再换文字 | 63 字节逐字节匹配 |
+| 主动断开后重连 | 接收栏先清空，再获取新的 50 字节并逐字节匹配 |
+| 重连超过两分钟后再换文字 | 62 字节逐字节匹配，连接保持，无超时 |
+
+各段标记包含中文、emoji、多行。实际画面可见且非黑屏；两次 TCP 样本中上游发送队列为 0，但样本不是吞吐/延迟基准。每轮管理脚本约数秒包含 SSH 和辅助进程启动，不能当作协议响应延迟。原生额外发送自动化在准备文本框输入时失败，未执行发送操作，不计为产品通过或产品失败；原生发送的真实证据仍绑定旧 a8a97f5。重连脚本首次误用按钮名称后按真实界面修正并通过，属于测试辅助脚本修正。
+
+最终全部测试停止后核对：原剪贴板逐字节恢复并删除备份，测试 GUI 与私有 D-Bus 等辅助进程退出，无预览/MCP 测试残留；容器 running/healthy、privileged=false、无 Docker socket；LAN 3080/3031 均匿名 401、认证 200；日常 Web PID 538744、客户端 PID 767446、原程序摘要与 NodeID 保持，测试安装包不在系统中。本轮没有替换日常服务或改变自启配置。
+
+私有证据位于 /config/validation-artifacts/native-desktop-correlated-20261019（临时追踪、旧实现失败与新实现通过）、native-desktop-coalescing-20261019（首轮真实失败与协议元数据）、native-desktop-coalescing-v2-20261019（最终源码摘要、构建、各测试 json/log、五轮操作、截图、清理和健康）。辅助脚本、剪贴板、截图、配置与凭据不随 Git 提交。
+
+**该轮限制：新修复的真实原生验收是 debug 程序及隔离桌面会话，不是新版正式安装包或正常登录桌面，也未覆盖另一物理设备、Windows/macOS、系统权限和实际登录/休眠。**后续安装包补验见下节“同提交 CI Linux 安装包实测”，完整需求和当前优先级见[交接入口](implementation-handoff-2026-10-18.md)。
+
+### 提交与最终 CI 核对
+
+产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a 已推送 origin/main；对应矩阵运行 39162097500 的七项作业全部成功，Release 39162097404 与 Sync GitCode 39162097385 也成功。Linux 日志确认 Web Playwright 126/126、原生模拟 IPC 48/48，真实 Chromium/官方 MCP、X11 VNC、独立 Sway/wayvnc、用户态 EasyTier 两项及 GIO 启动器均通过。三平台 Rust 与 Tauri 打包成功，共上传 10 项产物（三平台各一份服务端、节点与桌面客户端，以及 Linux 资源报告）；下载和后续验收须绑定该运行与提交。
+
+最终证据目录 native-desktop-coalescing-v2-20261019 增加 ci-final.json 与三份 Linux/Wayland 原始作业日志，保留提交、状态和产物元数据；acceptance.json 追加 Git 发布信息。该次补记提交只改文档，不重计测试。CI 结果与上述远端专项有重叠，不能累加；截至此次 CI 核对，新版安装包、另一物理设备及 Windows/macOS 实机仍待验收，随后 Linux 包的实测见下节。
+
+## 2026-10-19 同提交 CI Linux 安装包实测
+
+在上述 CI 之后下载运行 39162097500 的 cranibox-node-desktop-ubuntu-latest（Artifact 12149318027），核对完整产品提交 2c95dd49d7a11a6a6c6aedf87cf67dc769e9bd6a；传到指定远端 admin@192.168.217.6:22022 的 cranibox-validation 后再次逐字节核对包摘要。本轮只增加验收与文档，没有改变产品源码，也不重跑或重计已通过的自动化矩阵。
+
+| 产物 | 大小 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,304,766 字节 | 897ba2ce2b266f12993766a6ef89587d50930e9127c09a7ec176230ae4c3dec3 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,476,728 字节 | 46e21f5b2e809f1b8e96cf0e1cc24e1e71951aa91417b949f506a029cbc5677a |
+
+.deb 通过 dpkg 实际安装，包名为 cranibox-node，程序位于 /usr/bin/cranibox-node-desktop；启动程序 SHA-256 为 b72d4c277e6f9579fb9e34c1a77470933923a2771ce17957656cf9ddbabb9b4e。AppImage 通过 --appimage-extract-and-run 启动，实际内置程序摘要为 67a31350877bec72e5b52f8cbeb12081fabe2f42183b03fa798a16280bc3ad35。各包使用独立 XDG、全新 NodeID、私有 D-Bus，在现有 KDE 中运行真实 Tauri 窗口与 IPC，直接连接日常 Selkies 8082，无诊断代理、插桩或模拟 IPC。
+
+| 真实操作 | .deb | AppImage |
+| --- | --- | --- |
+| 初次获取新文字 | 48 字节逐字节匹配 | 48 字节逐字节匹配 |
+| 更换文字并再次获取 | 连接数分钟后 62 字节匹配 | 第二段 56 字节、连接超过一分钟后 57 字节匹配 |
+| 原生界面主动发送 | 41 字节匹配 | 46 字节匹配 |
+| 主动断开并重连 | 接收栏移除，重连后先清空，新 55 字节匹配 | 接收栏移除，重连后先清空，新 55 字节匹配 |
+| 重连后等待再更新 | 超过一分钟，新 63 字节匹配 | 超过两分钟，新 63 字节匹配 |
+
+各段文字包含中文、emoji、多行，实际画面可见且非黑屏。管理脚本时间包含 SSH 与辅助进程启动，不当作协议响应延迟。发送测试先逐字节核对界面草稿，再将目标系统剪贴板改为不同的哨兵文字，确认目标与草稿不同且草稿未变后，点击真实“发送文字”并用 wl-paste 检查目标。准备输入时使用 AT-SPI 聚焦和 Selkies 键盘 Ctrl+A/V，未通过产品发送接口提前写入目标；因此发送结果不等同于准备阶段写剪贴板。
+
+最初输入准备尝试中，PixelFlux type 只输入了 ASCII 部分，几种快捷键字符串也未完成粘贴；未执行产品发送，不计为产品失败。更正辅助脚本后中文完整准备及真实发送通过；保留 draft-ui-type.json、draft-ui.json、key-probe.json 与最终 send-preparation.json、send-result.json。最初 dpkg 查询误用了可执行文件名作为包名，实际安装成功，随后按包元数据核对 cranibox-node；同样属于辅助脚本修正。
+
+最终恢复各轮原剪贴板并逐字节检查，停止测试窗口与私有会话辅助进程，卸载临时 .deb。日常 Web PID 538744、客户端 PID 767446、程序摘要与 NodeID 保持；容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 入口均匿名 401/认证 200。未升级日常程序、重启 KDE/Selkies 或改动日常自启配置。
+
+私有证据根目录 /config/validation-artifacts/linux-installer-2c95dd4 包含包元数据、安装/卸载日志、baseline/final-health.json、各包 GUI 元数据、操作/发送/截图/清理记录，以及最终 acceptance.json、final-health.json。正文、截图、凭据、配置与辅助工具不随 Git 提交。
+
+本轮补齐同提交 Linux 正式产物的隔离 KDE 双向剪贴板与重连；**仍未覆盖正常登录 D-Bus/托盘/自启、真实登录和休眠、普通 FUSE、另一物理设备、Windows/macOS，以及新包的超时/断网/撤权流程**。P0 已调整为这些未覆盖的日用流程，详见[交接入口](implementation-handoff-2026-10-18.md)。
+
+## 2026-10-19 已有桌面服务检测与配置核对
+
+本轮以 799eae3499a5933aa7423cc94f9e900667331682 为基线，补齐已有 VNC/Selkies 的接入引导。所有运行验证仍在 admin@192.168.217.6:22022 的 cranibox-validation，普通用户 abc；本机只编辑、静态核对、管理私有证据和 Git 操作。未增加依赖。
+
+### 实现与需求边界
+
+Rust 桌面服务新增显式 discover：检查当前共享和已保存的托管地址，以及 IPv4/IPv6 回环的 VNC 5900、Selkies 8082，去重后最多六项并发、每项最多三秒。只读取 RFB 握手或 MODE websockets；不扫描局域网、不认证、不发送 SETTINGS、不启动或保存服务，不接管桌面。接口不接受调用方指定的扫描范围。
+
+Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保存前重新检查所选协议，通过后才开启共享。取消恢复配置按钮焦点；开启或停止同步更新当前共享标记。补齐空结果、重试、加载、忙碌保护、离页迟到响应、键盘操作、明暗主题与窄屏；核对表单紧接结果，平台说明引用按钮名称。这是已有服务引导，Windows/macOS 的提供者安装、系统权限和进程托管仍未完成。
+
+### 构建与自动化
+
+| 验证 | 结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区测试 | 183 通过、4 忽略，20 个测试目标 | 忽略项为离线测量、两项真实 EasyTier 和 GIO；本轮没有重跑这些忽略项 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol；不是 GUI 验收 |
+| 桌面服务集成 | 11/11 通过，无跳过 | 真实 Rust、隔离提供者；新增 IPv4/IPv6、无效/无响应及重试、已保存的自定义 Selkies、配置/凭据不变和不认证/不接管 |
+| 桌面传输集成 | 7/7 通过 | 真实 Rust 与隔离 VNC/Selkies 提供者 |
+| Web 全量 | 128/128 通过；命令耗时 215.26 秒 | 桌面 14 项已包括其中；检测响应可控，保存检查、配置及连接仍使用实际 Rust |
+| 客户端界面全量 | 49/49 通过；命令耗时 103.99 秒 | 浏览器模拟 Tauri IPC，不能当作原生包测试 |
+| Web API 检查 | 通过 | 访问保护、资源、缓存、表单、后台操作、刷新恢复和紧急停止 |
+| 静态检查及构建 | 通过 | fmt、工作区及原生 all-targets Clippy -D warnings、工作区构建、两端 TypeScript/Vite，以及嵌入资源的实际 Web/原生 debug 构建 |
+
+全量后仅调整平台说明文案及表单与说明的 20 像素间距，重新构建两端资源与实际 Web/原生 debug；Web 桌面 14/14、客户端相关 3/3 及下述真实服务流程再次通过。最后两处调整后没有重复全量 128/49；专项不与全量累计。
+
+### 首次失败与修正
+
+- 客户端首轮 48 通过、1 失败：已有 MCP 加载用例使用 250 毫秒延迟，断言前响应已完成；测试改为显式释放响应，最终 49/49。产品 MCP 行为没有为此修改。
+- 构建发现新增组件未接受可省略的 protocol 类型；改用共享目录类型，标记计算沿用缺省 VNC 规则，之后 TypeScript 与实际程序构建通过。
+- Web 全量首轮 119 通过、9 个终端用例失败：辅助脚本漏配 CRANIBOX_HERDR_BIN，界面显示需要安装 Herdr。补齐容器已有 /config/bin/herdr 后全量 128/128；没有改终端产品代码。九项失败上下文与 trace 均保留。
+- 辅助脚本曾误用 workspace-web 包名，正确 Cargo 包名为 agent-workspace-web；API 检查曾在容器根目录解析不到程序，随后使用源码工作目录和明确 WORKSPACE_WEB_BIN 通过。它们属于执行脚本修正，不计为产品测试通过。
+
+### 真实服务与清理
+
+实际 Rust Web 浏览器流程检测到日常 Selkies 127.0.0.1:8082，选择后协议与地址正确、焦点在地址输入；取消后回到配置按钮。记录的服务操作只有 status 与 discover，没有开启共享或打开查看器。测试前后共享配置逐字节不变，未生成托管配置或密码。最终重新检查 375/1440 像素明暗主题截图；自动化另覆盖 768/1024、812 横屏和减少动画。无页面异常。
+
+最终 source-binaries.json 核对 12 份产品源码与资源和本地待提交文件一致，并记录五个 Rust 程序摘要。全部测试清理后，容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 均匿名 401、认证 200。日常 Web PID 538744、原生客户端 PID 767446、程序摘要与 NodeID 保持，无测试预览/MCP 进程残留，临时安装包不存在。未升级日常程序、重启 KDE/Selkies，未操作桌面输入或剪贴板。
+
+私有证据根目录 /config/validation-artifacts/desktop-discovery-20261019：checks.json 与首轮日志；final 的 Rust 测试和构建；ui-final 的全量失败日志及 failure-contexts；verified 的全量成功日志、API 检查和初次真实服务检查；post-review 的最终构建、14/3 专项、real 的截图/操作/配置不变记录、source-binaries.json 和 final-health.json。凭据、截图、配置、原始正文与辅助脚本均不提交。
+
+本轮新检测功能没有做正式安装包的真实 GUI 验收；之前 Linux .deb/AppImage 的通过仍仅绑定 2c95dd4。正常登录/托盘/自启、跨物理设备、Windows/macOS、系统 Tailscale 安装、公开镜像拉取、完整同步及运行中 Agent 迁移仍有未完成项，已按 P0/P1/P2 列在[交接入口](implementation-handoff-2026-10-18.md)。本轮提交与 CI 状态在后续补记绑定，不能挪用旧矩阵的成功。
+
+### 提交与 CI 交接补记
+
+产品提交 84454e695d915157d245630c4ad3b8b77091c0b6 已推送 origin/main，功能、生成资源、回归与需求/验证文档均在此提交。GitHub 矩阵 39169225796、Release 39169225825、Sync to GitCode 39169225719 均核对完整 headSha，交接时为 in_progress，**尚未记为通过**。后续文档补记没有改变产品源码。下一位维护者继续核对运行结果，再下载该矩阵的新版安装包验收新检测流程；不要以 39162097500 的旧绿色矩阵替代。
+
+## 2026-10-19：默认公开空间镜像兼容性核对
+
+在指定远端容器中通过匿名 Docker Registry API 读取默认镜像 xuping/agent-workspace:ubuntu-xfce 的索引、Linux amd64 manifest 和配置；没有拉取镜像层、启动容器或使用宿主 Docker socket。公开索引摘要为 sha256:f2e58c4fffd5652e6b3736f6af432a81ededd3349f04c53195d87169f6eb06fa，amd64 manifest 为 sha256:4d60b036e39d8194457f8d2c12b340101e00163606b20aa3fe7ac4b304b4ad97。配置 blob 摘要 sha256:9340d7269f2133220b3a712d69ccd6b82d483b68789e6e8e8115eca584965f58 与实际字节匹配。
+
+来源标签仍为 c56508ce5008180e067a9c489f4527aa30b80b31，镜像配置创建于 2026-10-13T10:40:40.352550645Z，缺少 io.cranibox.space-protocol。对照当前 spaces/provision.rs 的保护条件，该公开版本会在数据卷创建前被拒绝，属于已确认的兼容性阻塞，不是运行成功。没有覆盖 arm64、阿里云镜像站、真实拉取或首次启动；没有修改、发布公开标签。
+
+私有证据 /config/validation-artifacts/public-image-review-20261019/metadata.json。交接 P0 改为“发布兼容镜像并完成真实拉取/首次启动/重启验收”；保留此前 71f2397 本地 KDE 镜像成功的版本边界，不将其冒充公开镜像结果，也不放宽协议检查。
+
+## 2026-10-19：84454e6 的 CI Linux 安装包发现流程实测
+
+下载矩阵 39169225796 的 cranibox-node-desktop-ubuntu-latest（artifact 12151304011），核对完整 headSha 84454e695d915157d245630c4ad3b8b77091c0b6；Linux 客户端作业已成功。两份文件在本机下载后与远端传输后核对大小及 SHA-256：
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,316,726 | b4cdd7157696f74fed8af6add38ccc7c5f9ec181cfe6877c58604718bf9147eb |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,484,920 | 26869e475df7538bc7211c8e598637089993a3982d63f758228adffe534a364a |
+
+.deb 通过实际 dpkg 安装，AppImage 使用 --appimage-extract-and-run。两包分别在指定远端 KDE 中以新 NodeID、隔离 XDG 与私有 D-Bus 启动真实 Tauri 窗口，未模拟 IPC。使用实际无共享初态，点击远程桌面、检测已有服务，找到真实 Selkies 127.0.0.1:8082；核对后协议为 Selkies、地址正确且输入聚焦，取消后 peers.json 摘要逐字节不变，托管配置和密码均不存在。
+
+再次核对并点击保存后，实际 peers.json 保存 Selkies 协议和地址，列表出现“当前共享配置”、停止共享按钮可用；点击停止后实际共享为空、标记及停止按钮消失，身份保持，未生成托管配置或密码。两包操作/状态断言与截图均完成，acceptance.json 汇总通过。没有打开查看器、发送桌面输入或改动剪贴板。
+
+两份初始脚本失败分别为 AT-SPI button 角色名称和列表内联标记文本匹配错误，保存在 deb-native/exercise-initial-role-failure.json 与 exercise-initial-badge-failure.json。根据真实控件树修正管理脚本，并先通过界面停止试验共享，再重跑完整流程；两包最终通过，未修改产品代码。失败不计作产品通过。
+
+退出两包 GUI 及属于对应 XDG 的辅助进程，卸载测试 .deb、清除本次 AppImage 解压目录；审计无试验进程残留。容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200；日常 Web PID 538744、客户端 PID 767446、程序摘要与 NodeID 均保持。源码及日常程序未升级。
+
+范围仅为已有服务发现与配置，不重验正常登录/托盘/自启、普通 FUSE、休眠、网关断线、另一物理设备、桌面查看器、双向剪贴板、撤权或 Windows/macOS 实机。旧版 2c95dd4 的剪贴板结果保留独立版本边界。私有证据目录 /config/validation-artifacts/linux-installer-84454e6 包含包元数据/摘要、安装/卸载记录、每包 GUI/操作/状态/截图、失败/修正记录、cleanup-audit.json、acceptance.json、before-health.json 和 final-health.json；不提交截图、配置、凭据或辅助脚本。
+
+### 本轮 GitHub CI 最终结果
+
+产品提交 84454e695d915157d245630c4ad3b8b77091c0b6 的矩阵 39169225796 已完成，7/7 作业全部 success：Linux/Windows/macOS 原生 Rust、三平台 Tauri 客户端，以及独立真实 Sway/wayvnc。Release 39169225825 与 Sync to GitCode 39169225719 也 success，均核对完整 headSha。此前补记的 in_progress 为当时状态，本节记录最终结果。
+
+原始日志确认 Linux CI Web 全量 128/128（3.1 分钟）、客户端界面全量 49/49（22.9 秒）、真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc、真实 EasyTier 2/2、GIO 启动器均通过。完整 CI 使用最终文案/间距后的产品提交，不再仅有此前远端专项的覆盖；与远端或历史结果重叠部分不累计。客户端 Playwright 仍模拟 IPC，不能替代上节真实 Linux 包，也不代表 Windows/macOS 实机验收。
+
+10 项未过期产物为 cranibox、cranibox-node、cranibox-node-desktop 各三平台，加 resource-baseline-linux。Windows 客户端为 NSIS .exe，macOS 为 .dmg；本轮只下载并在指定远端实际运行 Linux .deb/AppImage。Release 工作流只做脚本/Dockerfile/Compose 检查和脚本地址维护，ShellCheck 允许失败；它不发布镜像，默认公开镜像不兼容的问题仍未解决。
+
+远端 linux-installer-84454e6/ci-final.json 保存七项作业及步骤、两个其他工作流、完整来源与产物元数据；ci-native-linux.log、ci-desktop-linux.log、ci-wayland.log 保存原始日志。此后仅整理交接与验证文档，没有修改已经验收的产品代码。
+
+## 2026-10-19：镜像发布前门槛与完整 XFCE 镜像
+
+本轮只增加镜像发布流程、独立验收脚本、其回归和文档，Rust/React 产品代码仍绑定 84454e6。Build Multi-Arch Image 默认手动 publish=false，可选择桌面；正式发布先推送唯一候选，按摘要完成 amd64 启动验收后才提升公开标签，阿里云候选也独立验收。没有触发新 GitHub 镜像工作流或发布公开镜像；默认标签的已确认阻塞仍存在。
+
+检查器回归最终 14/14，通过缺少协议/来源错误的提前拒绝、实际就绪与容器健康的区分、授权/执行失败、私有报告、不泄漏子进程正文，以及资源归属/清理失败门槛。首轮 11 项中四项发现报告写入误用 Path.open(opener=...)；改用内置 open 并先 fchmod 后通过，之后补到 14 项。两个工作流的 actionlint v1.7.7 语法/表达式检查通过（关闭 ShellCheck），另有 14 段 run 的 bash -n 检查通过。上述均在指定远端容器 abc 下执行，不是产品全量重跑。
+
+完整 Git 源码快照为 18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4，归档 SHA-256 为 957510fd71eb72aa86b44657906f9ff6688e49afb37d9353efd43c7e94f530e0。指定远端宿主使用既有独立 buildx 构建器，限制 2 CPU、6 GiB、并发 2，未选为默认构建器；从拉取基础镜像开始完整构建默认 XFCE linux/amd64 镜像，没有运行本机 Docker。初始辅助脚本因宿主 Python 不支持 tarfile 的 filter 参数在 Docker 调用前中止，修正可信 Git 归档的解包方式后完成构建，不算产品失败或启动通过。
+
+构建耗时 666.17 秒，镜像 cranibox-image-release:18c3216-xfce，ID sha256:fa81e38cb9c42d7cfc3ea6b156b0ab2002b412dfffd7ae54830801e0ce4f08d0，大小 5,261,024,756 字节。协议标签为 1、来源标签匹配完整提交；构建器已停止，默认选择不变。该源码快照不含本轮新检查器/CI 文件，启动运行产品代码与当前产品相同，不能冒称新 CI 提交镜像已经发布。
+
+待提交检查器实际内容 SHA-256 d18ea9d50f0ed89d8b36248dd1f242833aafa912cc709d4e5b059b47ca9f3b82，与远端执行文件一致。对空普通卷与预置独立身份/授权的空间卷，各执行首次启动和重启，43/43 通过，耗时 86.73 秒：两端 Rust 健康、Web 静态资源与节点 API、内置程序及链接、默认服务、0600 凭据、桌面匿名 401/正确认证 200、应用根 404；空间身份保持、有效令牌列节点/执行真实命令、无效令牌 401；两类卷的身份、凭据摘要和测试文件重启保持。
+
+测试容器不发布端口、非 privileged、无宿主 Docker socket，使用独立命名卷并限制资源；初始化配置的辅助容器另设无网络及资源上限。两个主容器、两个卷与初始化容器均已按本轮标签清理，无资源被留作日常服务。新镜像保留在远端缓存中。旧日常镜像上的只读探针预检因缺少内置 cranibox-node 中止，记录 probe-read-only-failure.log，不计入本镜像通过，也未修改日常镜像。
+
+清理后日常容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、程序摘要和 NodeID 保持，无测试预览/MCP 进程或安装包残留。没有接管 KDE/Selkies 输入或剪贴板。
+
+私有证据 /config/validation-artifacts/image-release-20261019 保存构建与启动 JSON/日志、脚本/工作流快照、单元日志、actionlint.log、workflow-bash-syntax.json、final-health.json；不提交配置、密码、令牌、原始日志或辅助脚本。本轮不覆盖公开镜像拉取/发布、arm64 运行、Aliyun、新 GitHub 镜像工作流、浏览器桌面输入或完整空间生命周期。公开发布仍按[镜像发布说明](workspace-image-release.md)继续，不放宽协议保护。
+
+### 收尾提交与 CI
+
+代码提交 dff9ed957eb756fb82b32a5b9fe70f367f9b8cd7 已推送 origin/main。Release 39173470993 与 Sync to GitCode 39173470952 均 completed/success，核对完整 headSha。Release 中新增 Test image release gate 及安装脚本、Dockerfile、Compose 步骤均成功，原生七项矩阵未触发，产品矩阵仍绑定 84454e6。ci-dff9ed9.json 和 ci-dff9ed9-test-scripts.log 保存本次原始结果，cleanup-audit.json 另确认检查器容器/卷为空、独立构建器停止且默认构建器保持 default。此后仅补记文档。
+
+## 2026-10-19：GitHub 镜像工作流与正常 KDE 会话补验
+
+本轮没有修改 Rust/React、镜像或检查器源码。对最新 main 的 b76aaba2563af1869999228a664cf20cc7f93d4f 手动触发 Build Multi-Arch Image，desktop=xfce、publish=false；运行 **39173924368** 最终 completed/success，完整 headSha 已核对。GitHub 记录时间为 2026-10-18T22:49:57Z 至 23:06:00Z。
+
+完整候选构建从 22:51:00Z 到 23:04:29Z，约 13 分 29 秒；首次启动、空间接入与重启步骤成功，原始报告 **43/43**、68.44 秒，四项测试容器/卷清理均 removed=true。镜像为 linux/amd64，ID sha256:48212c54012c771d86e82a1933dc31fe8adb1e2a2255cdd0bddb870893e14fe9，来源标签为完整 b76aaba，空间协议为 1。覆盖范围与前节远端 43 项一致，不将两次运行累计为新的不同用例。
+
+工作流上传 artifact **12153698875**（image-startup-xfce），实际下载并逐项核对通过字段及清理结果。Docker Hub 登录、公开标签提升和 Aliyun 作业按只验证参数跳过，没有发布候选或公开镜像；此模式只构建 amd64。默认公开镜像不兼容的既有阻塞保持，不能将工作流成功写成公开发布或 arm64 验收。私有 image-release-20261019/ci-b76aaba 包含 run.json、artifacts.json、job.log 和原始启动报告。文档提交 b76aaba 的普通 Release 39173870697 与 GitCode 39173870757 也已核对 success；产品三平台矩阵仍是 84454e6 的 39169225796。
+
+### 同产品提交 Linux 包的正常 KDE 总线
+
+复用上节已下载并核对的 84454e695d915157d245630c4ad3b8b77091c0b6 CI 包，.deb SHA-256 b4cdd7157696f74fed8af6add38ccc7c5f9ec181cfe6877c58604718bf9147eb，AppImage SHA-256 26869e475df7538bc7211c8e598637089993a3982d63f758228adffe534a364a。仍在指定远端 cranibox-validation、abc 下操作；.deb 实际安装，AppImage 使用持久包路径及 --appimage-extract-and-run。
+
+先备份原客户端程序、启动环境和身份摘要，核对原 PID 767446 没有活动 Shell，仅有 WebKit 子进程后暂停。测试包分别使用隔离 XDG 和新身份，直接连接既有 plasmashell 的正常 D-Bus，不创建私有会话总线，未模拟 Tauri IPC。KDE、Selkies、日常 Web 持续运行。
+
+| 实际操作与断言 | .deb | AppImage |
+| --- | --- | --- |
+| 正常 KDE StatusNotifierWatcher 注册、实际托盘菜单 | 通过 | 通过 |
+| Wayland 窗口经 KWin 关闭，窗口隐藏而进程存活 | 通过 | 通过 |
+| 再次启动退出码为 0、原 PID 保持、窗口唤回 | 通过 | 通过 |
+| 托盘退出显示确认框，确认后 GUI/启动器退出 | 通过 | 通过 |
+| 实际界面开关登录自启动、启动项路径/后台参数/0600 权限 | 通过 | 通过 |
+| GIO 执行生成的启动项，初始窗口隐藏、托盘唤回 | 通过 | 通过 |
+| 前台启动与后台重启的 NodeID、二进制摘要保持 | 通过 | 通过 |
+| 界面关闭自启动后条目消失、清理无残留 | 通过 | 通过 |
+
+.deb 的“收起到系统托盘”按钮另通过真实界面与隐藏/唤回断言；两包的原生窗口关闭都通过实际合成器操作和 AT-SPI SHOWING 状态检查。GIO 使用生成的真实 Exec 行，AppImage 启动项包含兼容参数，不依赖临时解压路径或手动 APPIMAGE_EXTRACT_AND_RUN 环境变量。没有实际退出/重新登录系统，因此启动项验收不能记作系统登录验收，也不代表普通 FUSE。
+
+保留三类测试环境/辅助脚本失败：正常 org.a11y.Bus 进程存在但广告的 socket 已丢失，首轮 AT-SPI 中止；核对进程归属后只恢复辅助功能服务，socket 重建后实际窗口树可读，KDE/Selkies 未重启。其次 xdotool 无法按 PID 找到真实 Wayland 窗口，改用目标 PID 限定的临时 KWin 脚本；初次调用重载 loadScript 的推断签名不符，明确 ss 签名后通过窗口关闭断言。临时 KWin 脚本完成后卸载并删除。失败不计入产品通过，没有为此修改产品代码。
+
+测试后两包 GUI/启动器和所属 XDG 辅助进程均退出，测试 .deb 已卸载，本次 AppImage 解压目录已移除，两份测试自启项均关闭，无测试进程残留。恢复原客户端，当前 PID **1403228**，程序 SHA-256 e4199d9316bb4cd257ba7505865cdf35f78363a6ecb78e750a4eae949eb31510、NodeID node-82bf96c6f15d4f00923656f7877b8609 及身份文件原始字节保持。日常 Web PID 538744 与原程序保持。最终容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。
+
+私有 normal-desktop-84454e6-20261019 保存 acceptance.json、各包启动/后台/托盘/关闭/单实例/退出/自启状态、events.jsonl、accessibility-recovery.json、automation-failures.json、安装日志、原程序备份与私有环境、恢复/清理记录、final-health.json。原环境与配置只留在 0700/0600 证据中，不提交。未操作剪贴板、重验桌面查看器/撤权、制造网络故障或休眠；未覆盖实际系统登录、第二物理设备和 Windows/macOS 原生 GUI。原客户端本次仅恢复，没有升级，不应将旧日常程序作为 84454e6 包使用。
+
+## 2026-10-19：公开 Agent 目录后台同步与离线快照
+
+本轮在指定远端容器 cranibox-validation、abc 下完成构建和运行测试；本地仅编辑、核对与 Git 操作。Rust 节点增加独立 agent-sync 策略与凭据绑定的公开目录快照，Web/Tauri 共用配置。默认不启用，1–32 个显式目标、15/30/60/300 秒间隔，与项目同步共用四路后台请求。关闭页面后继续，节点重启恢复；暂停不重放操作。沿用目标消息授权，未开放全设备任务/消息账本。
+
+在线读取严格检查目标身份和目录结构；远端不能注入本机 sync 标记。离线回退只适用于可重试网络错误，保留原 observed_at 和租期；页面标记历史记录并禁止以其选择当前 Agent。授权、身份和内容错误清除快照；连接变更需重新核对，请求完成后重读绑定，移除后的迟到响应不能恢复缓存。CLI/MCP 也返回 online/offline 标记。操作说明见[会话文档](agent-sessions.md#关闭页面后的同步与离线快照)。
+
+| 验证 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | 183 通过、4 忽略 | 20 个目标；忽略项不计通过 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol，不是实际 GUI |
+| 后端集成 | 42/42 通过，无跳过；312.406 秒 | Agent 后台同步 8、项目后台 9、项目目录 7、任务 12、worker MCP 6；独立 Rust 身份与真实 HTTP/CLI，部分受控服务器 |
+| Web 全量 | 130/130 通过；约 3.7 分钟 | 最终生成资源和实际 Rust Web；新增目录界面使用可控响应 |
+| 客户端全量 | 50/50 通过；约 4 分钟 | Playwright 模拟 Tauri IPC；无 relay 的共享设置、导航保留、暂停和离线禁用 |
+| 构建与静态检查 | 通过 | 两端 TypeScript/Vite、工作区与原生 debug 构建、fmt、两类 all-targets Clippy -D warnings；最终再次生成资源并重建嵌入 Web |
+| CI 文件 | 通过 | actionlint v1.7.7，关闭 ShellCheck；Linux CI 新增 Agent 后台集成 |
+
+新增八项后端用例覆盖无页面、独立节点无 Web/网关、重启、0600/敏感字段排除、离线租期不续期、恢复/撤权、暂停/重选、伪造 owner/sync 拒绝、移除后迟到响应、两类目录四路总并发与暂停队列、缺少授权、旧版本及损坏策略隔离。目录只保留按来源的公开登记；测试不等于多物理设备、完整数据复制、模型调用或运行会话迁移。
+
+### 失败与修正
+
+- 新增集成首轮 2 通过、6 失败：测试复用已被夹具创建的令牌输出文件名。改为本测试独立文件后通过，保留产品拒绝覆盖规则。
+- 首次 Web 专项在用例前因预览脚本缺少 Rust 程序路径中止。补齐后 17 通过、1 失败：option 本来已有 disabled 属性，Playwright 的 toBeDisabled 不适用；改为检查 DOM disabled 属性，仍单独检查提交按钮不可用、没有提交请求。
+- 首次 Web 全量 129 通过、1 失败：项目同步旧用例仍匹配 Unexpected project sync settings；共享组件现使用 Unexpected catalog sync settings。更新该断言后，重新运行最终全量 130/130。不是放宽身份校验或隐藏错误。
+- 首轮 TypeScript 构建发现共享命令类型缺少 agent_sync，已补齐并通过两端编译。Vite 的已有大包和依赖 use client 提示仍在，没有放宽 Rust 警告检查。
+
+失败日志与 trace 保留，不计作通过；不同轮次与专项重叠不累计。最终全量使用重新生成并嵌入的 Web 程序。客户端资源、原生 debug 与严格检查也已完成，但没有对本轮功能重新做真实安装包窗口或系统登录验收。
+
+### 源码与环境清理
+
+19 份本地待提交产品源码、测试、工作流与生成资源和远端实际快照逐项 SHA-256 一致，另保存五个 Rust 程序摘要。后台设置用例检查 375/768/1440 像素无横向溢出、设备选择行至少 44 像素，审阅 375/1440 截图；项目共用控件已有明暗主题回归。没有将浏览器模拟 IPC 当作原生实机。
+
+最终容器 running/healthy、privileged=false、无宿主 Docker socket，3080/3031 均匿名 401、认证 200。日常 Web PID 538744、原生客户端 PID 1403228、程序摘要及 node-82bf96c6f15d4f00923656f7877b8609 身份保持；KDE/Selkies 未重启，未操作桌面输入或剪贴板，无预览/MCP 进程或测试安装包残留。日常程序没有升级。
+
+私有证据 /config/validation-artifacts/agent-catalog-sync-20261019：integration-second.log、build-checks.log、final-assets-checks.{json,log}、client-full.log、web-final.log、首次失败日志及 web-second-failure/web-full-failure trace、source-binaries.json、final-health.json 与 375/1440 截图。配置、令牌、截图、原始正文与辅助脚本不提交。Windows/macOS 实机、三物理设备同步、系统登录、完整账本复制、公开兼容镜像发布及实际 Agent 接续仍按交接入口的 P0/P1/P2 继续。
+
+### 本轮提交与 CI 交接
+
+产品提交 87f20ee3ceea0e0de65161f62e19d4cb28427c81 已推送 origin/main。完整 headSha 核对的 Rust/Tauri/Wayland 矩阵 39178636288 交接时为 in_progress，**尚未记作通过**；Release 39178636180 与 Sync to GitCode 39178636169 均 completed/success。GitHub 创建时间为 2026-10-18T23:57:30Z、23:57:29Z、23:57:29Z。ci-handoff.json 保存当时作业和步骤；后续只补文档，不改变测试过的产品代码。下一位维护者核对矩阵终态，再使用该提交的安装包做原生验收；默认公开空间镜像仍未发布。
+
+## 2026-10-19：公开 Agent 同步的 CI 终态与原生包验收
+
+本节补齐上一节交接后仍在进行的 CI 与 Linux 包检查，没有修改产品源码。三项工作流的完整来源均为 **87f20ee3ceea0e0de65161f62e19d4cb28427c81**：矩阵 **39178636288 completed/success、7/7**（三个平台 Rust、三个平台 Tauri、独立 Sway/wayvnc），最终更新时间 2026-10-19T00:23:12Z；Release **39178636180** 与 GitCode **39178636169** 也均 completed/success。保留先前 ci-handoff.json，不把进行中记录覆盖成最终状态。
+
+下载 Linux Rust 与客户端作业原始日志，确认 Web 全量 **130/130，3.7 分钟**，客户端界面 **50/50，34.4 秒**，后台 Agent 新增集成 **8/8，80.564 秒**，真实 Chromium/官方 MCP、X11 VNC、EasyTier **2/2**、GIO 启动器通过。界面全量仍模拟 Tauri IPC，Windows/macOS 的作业成功不代表原生桌面或权限实测；与远端已有回归重叠的结果不累加。Release 未发布公开空间镜像。
+
+### 包来源与真实窗口
+
+实际下载 artifact **12155552479**（cranibox-node-desktop-ubuntu-latest），归档元数据摘要为 sha256:3310f7458465ca914678e54b29cf3e1db358f84c60427adbaf3b23f227096f8a；其 workflow_run.head_sha 与成功的 Linux 客户端作业均匹配上述产品提交。传到指定远端后再次核对大小与包摘要。
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,363,574 | f300792cc4ca6ece469e3d554c60d53faa70e6a746a7147ea94982cfa7adbb81 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,517,688 | 27ba2283c4720440485ef65ea50f541b6a1c9915dbebaba1b10c8a11e81c9d02 |
+
+仍在 admin@192.168.217.6:22022 的 cranibox-validation、abc 下验收，使用现有 KDE/Wayland。两包分别使用全新身份、隔离 XDG 与私有 D-Bus，实际 Tauri 窗口/IPC，目标为同容器独立身份的真实 Rust 节点，经回环 HTTP 直连，不用 Web/网关或 IPC 模拟。.deb 实际 dpkg 安装，系统包名 cranibox-node；AppImage 使用 --appimage-extract-and-run。
+
+两包均完成：实际界面选择目标并启用 **15 秒**策略；KWin 关闭原生窗口后进程存活，目标随后新增的登记约在 11 秒后进入 0600 快照，唤回同一 PID 后界面可见；客户端停止期间新增另一登记，再以相同 XDG 启动，打开任务页之前后台已获取新目录，NodeID、策略和程序摘要保持。此处秒数包含检查脚本轮询，不作为协议性能基准。
+
+停止目标节点服务后，后台转 offline；实际界面显示“上次读取的登记”“状态未确认”，保存三条历史登记，三个“委托给此 Agent”按钮全部不可用。目标恢复后后台回 online。随后从界面暂停后台同步：.deb 另重启确认暂停策略保持；AppImage 离开任务页后关闭原生窗口。分别建立无页面读取干扰的基线，目标新增登记后等待 **18 秒**，暂停状态和快照字节均保持，没有同步新增登记。该时间只证明超过一次配置间隔，不代表长时间耐久性验收。
+
+### 辅助脚本失败与范围
+
+保留四份失败动作记录：.deb 离线断言误找不存在的“离线快照”文字；AppImage 的刷新按钮误写成“刷新”，实际名称为“刷新所有 Agent”；并行私有 GUI 导致 .deb 的辅助功能总线不可达；首次 .deb 暂停检查的快照摘要仍被最后一次页面交互读取更新。最后一项中后台 last_attempt 没有继续推进，快照仍为原三条，不能据此宣称后台暂停失效。随后串行运行、修正真实控件名称并排除页面轮询后通过，产品代码不变。
+
+另记录一次 AT-SPI select_child 返回成功但没有触发 React 事件：第一次启用实际保存的仍是 60 秒。改为实际 option 动作并重新保存，核对真实配置确为 15 秒后才继续；未将脚本返回成功当作设置已保存。后台暂停和页面刷新分别控制，页面主动读取仍可更新快照。初次失败保留在 deb-offline.json、deb-pause-final.json、deb-resume-pause.json、appimage-hidden.json；最终阶段记录及 acceptance.json 明确选取通过的动作，未抹掉失败或累计重复用例。
+
+本轮没有重验正常会话总线的托盘、自启动、实际登录、休眠、普通 FUSE、桌面控制/剪贴板、撤权、第二物理设备或 Windows/macOS GUI；各范围仍按前文对应产品版本及 P0/P1/P2 继续。目标是独立真实进程，仍不是多物理设备。
+
+### 清理与交接
+
+两份 GUI/启动器、独立节点目标和所属 XDG 辅助进程均停止；测试包已卸载，本次 AppImage 解压目录已按来源核对后删除，归属检查没有残留进程。日常 Web PID **538744** 与客户端 PID **1403228**、各自程序 SHA-256 及 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持。容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。未升级日常程序、重启 KDE/Selkies、操作文字剪贴板或发布镜像。
+
+私有证据 **/config/validation-artifacts/linux-installer-87f20ee** 保存 artifact.json、package-digests.json、CI 原始日志、acceptance.json、两包阶段 JSON、原生进程/界面树/快照与失败记录、安装/卸载日志、cleanup-audit.json 和 final-health.json；最终 CI 元数据另位于 agent-catalog-sync-20261019/ci-final.json。配置、令牌、截图、辅助脚本与原始日志不提交 Git。本轮仅提交测试结论与交接补记，完整需求/剩余事项见[交接入口](implementation-handoff-2026-10-18.md)。
+
+## 2026-10-19：跨设备协作记录统一视图
+
+本轮在 admin@192.168.217.6:22022 的 cranibox-validation、abc 下完成运行验证，本地只编辑、静态审阅、核对与 Git 操作。Web/Tauri 共用按来源的任务、问答/结果、消息和协作 Run 只读列表；CLI 可直接查询本机或远端。新 activity 权限默认关闭、独立于 messages，明确包含其他发送方正文；它不授予投递、修改或执行。操作、协议与容量见[协作记录文档](federated-activity.md)。
+
+来源保留权威，不合并同 ID 的多来源报告，不改来源账本。摘要排除读取时间，只用于确定内容是否相同，不是签名或全局版本。响应严格核对来源、参与者方向、内容结构、摘要与容量；请求结束后重新核对路径与凭据绑定。页面默认折叠，显式选来源，每 10 秒最多两路并发；隐藏、收起或暂停停止自动读取，手动刷新独立。失败、撤权、路由改变清除该来源旧记录，移除后的迟到响应不能恢复记录。没有浏览器存储、后台协作缓存、离线写入或复制协议。
+
+| 验证 | 最终结果 | 范围与限制 |
+| --- | --- | --- |
+| Rust 工作区 | 185 通过、4 忽略；20 个目标 | 两项新增摘要/结构单元测试包含其中，默认忽略项未重跑 |
+| 原生传输专项 | 4/4 通过 | desktop,custom-protocol；ACK/断开/超时，不是实际窗口 |
+| 后端联合回归 | 34/34 通过，无跳过；287.849 秒 | 协作记录 6、任务 12、消息 11、Run 5；真实独立节点与 HTTP/CLI，部分受控来源 |
+| Web 界面全量 | 134/134 通过；3.8 分钟 | 最终生成资源与实际 Rust Web；新增界面用可控来源响应验证 |
+| Tauri 界面全量 | 51/51 通过；3.5 分钟 | 模拟 IPC；新增无 relay 的本机/远端来源读取、撤权清除、纯文本、窄屏和不存正文 |
+| 构建与静态检查 | 通过 | 两端 TypeScript/Vite、生成资源、工作区和原生 debug 构建、fmt、两类 all-targets Clippy -D warnings、actionlint |
+
+新增后端六项包括：messages 不能读第三方记录、activity 单独授权可读但不能投递、GET 只读接口、CLI/Web 结果一致；任务问答与结果、重复读取摘要稳定、不改账本、Run 修订/归档和私有字段排除；错误目标/撤权、损坏账本保留；错误 owner、未知字段、改写内容/摘要及重复 ID 拒绝；同文件凭据轮换或移除路径后的迟到响应拒绝；132 条 8192 字节消息的响应超过通用 1 MiB 限制仍在专用 24 MiB 上限内。三方身份仍同容器，不是三台物理设备。
+
+### 本轮失败与修正
+
+- 新集成初轮 6 项因测试重复授权夹具失败。明确撤销旧授权、使用新输出文件并更新调用方凭据后继续，保留产品拒绝覆盖规则。第二轮 3 通过、3 失败：发现 Config 的非空能力检查漏掉 activity，已修复并在现有权限单元测试中覆盖 activity-only；同时修正测试 JSON 的可省略空字段与 CLI 凭据文件参数。
+- Rust 工作区首轮编译暴露两处真实 EasyTier 测试的 Permissions 显式字面量缺少新增字段，逐处补 activity=false 后最终全量与严格检查通过；编译失败不计作测试通过。
+- 首次后端联合回归 33 通过、1 错误，282.980 秒：大数据用例通过真实接口准备消息时发生既有 8 秒 HTTP 超时，当时并行运行工作区编译和界面回归。结束并行构建后串行联合回归 34/34；未修改超时或校验规则。串行通过不能证明性能根因已修复，规模/负载稳定性仍需继续观察。
+- Web 首次全量 133 通过、1 失败，7.3 分钟：旧 Browser Use 用例写死的权限对象缺少 activity=false，已更新该精确断言；其他消息和原生授权断言同步保留新权限默认关闭检查。首次失败 trace 单独保留，再运行最终全量。
+
+专项 Web 32/32 与新增原生 1/1 已通过，与全量重复的范围不累加。已有 Vite 大包、依赖 use client 提示保留，未新增依赖或放宽 Rust 警告检查。原始失败和重跑日志保留，不覆盖成通过。
+
+### 验收范围与交接
+
+提交前阶段没有新功能的实际 Linux 安装包窗口验收，后续补验见本文末节；系统登录、休眠、Windows/macOS GUI、第二物理设备或真实模型调用仍未验收，历史结论继续绑定各自完整提交。没有升级日常 Web/客户端、重启 KDE/Selkies、操作桌面输入/剪贴板、安装系统 Tailscale 或发布镜像。完整账本复制、Agent 检查点/运行进程迁移仍未实现，后续优先级见[交接入口](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)。
+
+27 份本地待提交产品源码、测试、工作流及生成资源与远端实际快照逐项 SHA-256 一致，source-binaries.json 另保存五个 Rust 程序摘要。375/768/1440 像素、明暗主题检查无横向溢出，来源选择行至少 44 像素，另审阅 375/1440 的四份元素截图。元素截图保留固定顶栏覆盖，不代替整页首屏或原生窗口验收。
+
+最终容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 1403228、程序摘要与 NodeID node-82bf96c6f15d4f00923656f7877b8609 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 仍在运行，无测试预览、节点、MCP 进程或测试安装包残留。日常程序没有升级。
+
+私有证据 /config/validation-artifacts/federated-activity-20261019 保存各轮 backend 日志、Rust/原生测试和构建/Clippy 日志、两端界面日志、web-first-failure trace、四份截图、source-binaries.json 和 final-health.json。配置、令牌、截图、正文和原始日志不提交。后续接手应按本轮产品提交核对 CI 与安装包，不以旧 87f20ee 的成功矩阵代替。
+
+### 本轮提交与 CI 交接
+
+产品提交 **41b8ca6487e32837b25315e5c12bd06e54763c67** 已推送 origin/main；提交前全部 **33 份文件**与远端 SHA-256 一致，final-source-manifest.json 包含产品、测试、工作流、生成资源和六份文档。之后 CI 补记仅改文档。
+
+2026-10-19 **01:43:21 UTC** 核对相同完整 headSha：矩阵 **39186579637 in_progress**，三平台 Rust、三平台 Tauri 及 Sway/wayvnc 七项均运行中，**尚未通过**；Release **39186579662 completed/success**（README 链接和脚本检查，不代表安装包完成或公开镜像发布）；GitCode **39186579640 completed/success**。三项创建时间均为 2026-10-19T01:42:32Z。私有 ci-handoff.json 保存当时完整作业/步骤；下一位维护者继续核对矩阵终态与同提交安装包，再按交接入口 P0/P1/P2 继续。
+
+### CI 直连授权回归修正
+
+矩阵 39186579637 的 Linux native 作业在 test_web_direct_peers.py 第 683 行失败：旧权限对象精确断言漏掉新增的 activity=false。保留独立权限默认关闭检查，补齐该字段；产品实现、依赖和生成资源不变。指定远端整组直连回归最终 16/16，无跳过，14.825 秒。首轮远端辅助脚本漏配已安装的 /config/bin/herdr，14 通过、2 项缺少 Herdr；设置 CRANIBOX_HERDR_BIN 后重跑通过，不改产品终端行为。失败日志、首轮记录和最终回归结果位于私有 linux-installer-41b8ca6。原矩阵与修正提交的最终结果见下文，不能将原矩阵记为全绿。
+
+## 2026-10-19：协作记录 Linux 发布包原生补验
+
+原矩阵 **39186579637 completed/failure**，最终更新时间 2026-10-19T02:01:41Z：三平台 Tauri、Windows/macOS Rust 与 Sway/wayvnc 六项成功，仅 Linux Rust 的旧权限精确断言失败。**984b7af89c22bc7fa6f105d54fa2df660777831f** 修正该断言并补文档；从产品提交 **41b8ca6487e32837b25315e5c12bd06e54763c67** 起产品源码、生成资源与依赖未变。此节真实包绑定 41b8ca6，不把原失败矩阵当作整体通过，也不把后续测试修正写成重新构建了这两包。
+
+### 包来源
+
+下载原矩阵的 artifact **12158731694**（cranibox-node-desktop-ubuntu-latest），workflow_run.head_sha 为完整 41b8ca6，Linux 客户端作业 **117850162837 success**；API 归档摘要 sha256:e0c598cd0e80ed3cf3f179552da315ea60a1aae4710fffc72a7d49b4c2e3927b，归档 96,409,844 字节。本地和指定远端均核对实际包大小与 SHA-256：
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,442,210 | 3baa9a4a4a49367e1f6a7da39d67b9abbae10782559d5da2f2223c26195b9854 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,607,800 | 03b04f400b4c40889c657c049309906e07b54a0ad91bee9bc6c34594b0f4ce81 |
+
+.deb 实际 dpkg 安装后的程序 SHA-256 为 377f47481afbdc187b1465d2de1946c68893e41fb1a71f8f9f143efec6e6a6f2；AppImage 使用 --appimage-extract-and-run，内部程序为 6675ff7728301755855dfe9059afedd6597a2bcc0a79576e29afaf05d30b213a。没有验证普通 FUSE 启动。
+
+### 实际窗口与结果
+
+两包均在 admin@192.168.217.6:22022 的 cranibox-validation、abc、现有 KDE 中运行，真实发布窗口、IPC 和 Rust 节点宿主。分别使用新 XDG/NodeID 与私有 D-Bus，目标和第三方发送者是同容器独立身份的真实 Rust 节点，经回环 HTTP；没有使用模拟 IPC、Web 页面或网关替代原生动作。
+
+两包都从“协作任务”进入“查看协作记录”，取消本机并选远端来源，读取任务进度、问题、回答和结果，以及第三方发送的设备消息。消息中的类 HTML 内容按文字显示。类型选“消息”后实际活动面板为一条匹配且无任务行；面板外原有本机任务列表仍保留。随后目标撤销调用方授权，点击“刷新协作记录”，确认该来源的任务和消息正文均清除，界面显示零条匹配和授权说明。任务报告由脚本 worker 通过真实接口提交，不代表模型或实际 Agent 进程执行。
+
+.deb 的两次原生搜索输入尝试均失败：WebKit search entry 未提供 org.a11y.atspi.EditableText，首次按接口过滤找不到对象，第二次直接调用也返回 No such interface。因此搜索不计原生通过；未操作全局键盘/剪贴板绕过。浏览器 134/134 与模拟 IPC 51/51 的搜索覆盖仍成立。截图审阅可见类型筛选后的消息和纯文本正文，但原生 select 弹出菜单仍未关闭；实际 React 列表已按内容断言，不把截图当作普通鼠标/键盘关闭菜单、移动端或完整首屏验收。
+
+本次未重验原生 Run 详情/分页、托盘/自启、真实登录、休眠、普通 FUSE、桌面控制/剪贴板、物理节点网络、Windows/macOS GUI。对应历史版本验收和后续 P0/P1/P2 保持边界。
+
+### 失败保留与清理
+
+最初两次 .deb 数据准备失败都发生在 GUI 前：第一次在问题同步前提交回答，第二次等待辅助脚本过早访问可省略的 questions 字段。改为等待真实报告、用可选字段读取后通过，失败身份与日志保留，所属节点进程均已停止。没有修改产品或手改账本。原生搜索的失败动作另在 deb-records.json、deb-filters.json 中保留；通过动作分别保存在 deb-third.json、deb-type-filter.json、appimage-exercise.json，acceptance.json 不将失败计入通过。
+
+两包及独立目标、发送者、启动器和所属辅助进程已退出；按程序摘要核对后卸载测试 cranibox-node 包，按来源与摘要移除本次 AppImage 解压目录。归属审计 owned_processes=[]、test_package_absent=true。日常 Web PID **538744**、客户端 PID **1403228**、各自程序摘要及 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。没有升级日常程序或发布公开镜像。
+
+私有证据 **/config/validation-artifacts/linux-installer-41b8ca6** 保存 artifact.json、package-digests.json、acceptance.json、两包阶段 JSON/失败、界面树/截图、CI 原始日志、直连回归首轮/最终结果、cleanup-audit.json 和 final-health.json。配置、令牌、正文、截图、辅助脚本和原始日志不提交 Git；仓库只保留结论、版本、摘要、失败解释与后续入口。
+
+### 修正提交的最终 CI
+
+完整来源 **984b7af89c22bc7fa6f105d54fa2df660777831f**，矩阵 **39187721392 completed/success，7/7**：三个平台 Rust、三个平台 Tauri 与独立 Sway/wayvnc；创建于 2026-10-19T01:57:56Z，最终更新于 **2026-10-19T02:25:01Z**。相同来源的 Release **39187721472**、GitCode **39187721368** 均 completed/success；Release 不发布公开空间镜像。原矩阵失败和进行中快照保留，未覆盖为成功。
+
+下载最终 Linux Rust、Linux 客户端、Wayland 三份作业日志后确认：
+
+| 检查 | 最终 CI 结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | 185 通过、4 默认忽略 | 默认忽略项不计入 185；下列专项显式执行 |
+| Web 界面全量 | 134/134，3.6 分钟 | 实际 Rust Web；新界面部分来源可控 |
+| 客户端界面全量 | 51/51，32.9 秒 | 模拟 IPC，不是 GUI 包验收 |
+| 直连授权回归 | 16/16，8.889 秒 | 修正旧权限精确断言的完整回归 |
+| 新协作记录后端 | 6/6，108.945 秒 | 实际独立 Rust 节点与 HTTP/CLI，部分受控来源 |
+| 原生传输、GIO | 4/4、1/1 | 真实 GIO 启动器仍不等于系统登录 |
+| EasyTier 用户态组网 | 2/2，16.77 秒 | CI 内真实软件/节点、重启和入口切换，非物理网络 |
+| 真实浏览器、X11 VNC、Wayland | 各 1/1 | Chromium/官方 MCP、像素/认证/输入与恢复，各自隔离场景 |
+| 资源测量 | 通过、报告已上传 | 显式执行默认忽略的传输测量；不代表规模或长时耐久性 |
+
+其他既有 Linux 服务、目录/文件复制、后台同步、任务/worker/依赖、Computer/Browser Use、桌面/空间集成也均通过；不与远端已有结果累计。Windows/macOS 原生构建和打包成功不代表 GUI、系统权限或实际多物理设备验收。
+
+最终 API 共 **10 份 artifact**：三平台 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包及 Linux 资源报告。新 Linux 桌面 artifact **12159265408**，未将本节实际使用的旧产品包 **12158731694** 改写为新包。私有 linux-installer-41b8ca6/ci-final.json、ci-correction-artifacts.json、ci-test-summary.json 和三份 ci-correction-*.log 保留完整来源、结果与测试摘要，ci-followup.json 仍保留此前进行中状态；后续仅补交接文档。
+
+## 2026-10-19：Windows/macOS 桌面准备向导收尾
+
+本轮基于 **336df91baed4d6a89b4cc5de8b71f36f8efafde9**，新增 Web/Tauri 共用的三步准备向导：官方说明、回环 RFB 检查、配置核对，再由原有表单明确保存并开启共享。Windows 引导 UltraVNC Server，macOS 引导系统屏幕共享；Tauri 只接受固定文档标识，由 Rust 打开对应官方地址。没有引入新依赖，也没有自动安装提供者、修改系统监听/防火墙或代替用户授予权限。
+
+全部构建、浏览器及运行测试位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户。测试使用隔离配置、端口和进程；本机仅编辑、静态审阅、文件传输和 Git 操作。Web/Tauri 构建、Web 生成资源、cranibox 与原生 debug 构建、fmt 及原生 desktop,custom-protocol all-targets Clippy -D warnings 通过。既有 Vite 大包和依赖 use client 提示保留，未放宽检查。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Web 全量 | **137/137，229.045 秒** | 真实 Rust Web；新向导仅模拟平台状态，RFB 检查使用实际回环夹具 |
+| Tauri 界面全量 | **53/53，117.344 秒** | 模拟 IPC，不是 Windows/macOS GUI 或系统打开链接验收 |
+| 桌面服务后端 | **11/11，无跳过，17.023 秒** | 真实 Rust 节点、隔离 X11/wayvnc 夹具 |
+| 原生传输专项 | **4/4** | desktop,custom-protocol，未打开桌面查看器 |
+
+新增 Web 专项 3/3、客户端专项 2/2 另已通过，范围包含在上述全量，不累加。向导覆盖 IPv4/IPv6 回环地址校验、无效地址不发请求、连接失败保留输入、重试、异步离页丢弃、文档打开错误、核对不启用与保存前再次检查、启用后授权入口。只读取 RFB greeting，不代表 VNC 认证、画面或输入已验证；没有保存 VNC 密码。
+
+### 失败与界面检查
+
+首轮 Web 全量 **136 通过、1 失败，296.436 秒**：旧平台用例仍查找替换前的 Windows/macOS 提示文案。将断言改为新向导标题，同时保留 Linux Wayland 提示和手动配置断言；最终全量 137/137。首轮日志和 web-initial-test-results 的 trace 单独保留，没有被重跑清除。首次元素截图上方被固定顶栏覆盖，修正截图前滚动位置后重新生成；该问题来自截取区域，不作为产品通过证据。
+
+检查 375×1000、812×375、1440×1000 与明暗主题无横向溢出，文档操作高度至少 44 像素；覆盖 reduced-motion 与步骤焦点。保留两平台 × 375/1440 × 明暗主题的八份截图；人工审阅窄屏 Windows 亮色、最终 macOS 桌面暗色截图，后者确认顶栏不再遮挡。它们是 Linux 浏览器中的平台夹具，不能作为实机 OS 验收。
+
+### 版本、清理与后续
+
+本轮未重新运行全部 Rust 工作区，也没有重装 Linux 发布包；前节的 185 项、7/7 CI 与安装包结论继续绑定各自旧提交。新提交 CI 必须核对新的完整 headSha。Windows/macOS 提供者自动安装和托管、实际桌面权限/认证/画面/输入、自启/休眠，以及跨物理设备仍待验收；WSL2 不代表原生 Windows。原始需求、实现边界与 P0/P1/P2 在[交接入口](implementation-handoff-2026-10-18.md)汇总。
+
+最终远端容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键盘/剪贴板。
+
+私有证据 **/config/validation-artifacts/desktop-platform-guide-20261019** 保存各轮测试/构建日志、结果 JSON、首次失败 trace、八份平台截图、最终文件与四个程序 SHA-256 清单 final-source-manifest.json，以及 final-health.json。源码、测试、生成资源和交接文档在提交前与远端快照逐项核对；配置、凭据、截图、辅助脚本和原始日志不提交 Git。
+
+## 2026-10-19：多架构镜像验收门槛
+
+基于 **f49341d107e64309f4e04d16c3acef0ff95f2e73** 补齐镜像工作流：仅验证模式默认分别使用 amd64/arm64 原生 runner，可选择单架构；发布模式始终检查两个架构，阿里云镜像独立执行相同门槛。检查器显式选择不可变 index 中唯一匹配的 manifest，按摘要拉取并核对实际架构；预置与正式测试容器均明确指定平台。任一架构失败时，该作业不更新公开标签。arm64 发布验收在 QEMU 下执行，不等于原生设备验收。
+
+在指定远端容器执行检查器回归 **22/22，0.041 秒**，actionlint 通过。新增八项覆盖错误架构拒绝、arm64 匹配、manifest 精确选择、缺失/重复/损坏 index 拒绝、显式平台/不可变摘要要求、默认不联网及预置/正式容器的平台参数。回归模拟 Docker，不能作为真实 arm64 或仓库拉取结果。
+
+同一远端宿主机执行实际 Docker 验收，镜像 **cranibox-image-release:18c3216-xfce**，完整来源 **18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4**，实际 linux/amd64。先请求 linux/arm64，按预期退出 1，在 requested-platform 检查拒绝，未创建任何容器/卷。随后请求 linux/amd64，**44/44，93.121 秒**：空配置和预置授权的首次启动、节点执行、令牌拒绝、重启及身份/文件保留均通过。新增平台检查使原来的 43 项变为 44 项；不是新增一轮产品功能全量。两个容器和两个命名卷均按归属标签成功删除。
+
+本轮未修改 Rust/React、嵌入资源或依赖，没有重跑旧产品全量或安装包。真实 arm64 的完整镜像构建/启动、新产品镜像、registry 拉取与正式发布仍未验收；不能将旧镜像通过改写为当前提交发布。默认公开镜像不兼容问题保留在 P0。证据统一保存于 **/config/validation-artifacts/image-platform-gate-20261019**；凭据、原始日志、报告和辅助脚本不提交 Git。
+
+最终六份待提交文件与远端快照 SHA-256 一致，保存在 final-source-manifest.json。final-health.json 确认日常 Web PID 538744、客户端 PID 1403228、原程序摘要及 NodeID 保持；KDE/Selkies 未重启。容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，owned_processes=[]、test_package_absent=true。只清理本轮带归属标签的验收容器与卷，没有升级日常程序。
+
+### 交接时补记：产品 CI 最终成功，镜像验证仍排队
+
+Windows/macOS 桌面准备向导的完整产品提交 **f49341d107e64309f4e04d16c3acef0ff95f2e73**，矩阵 **39192461791** 已 completed/success，**7/7**；创建于 **2026-10-19T02:58:37Z**，最终更新于 **03:20:50Z**。三个平台 Rust、三个平台 Tauri 及独立 Sway/wayvnc 全部成功。同来源 Release **39192461685** 与 GitCode **39192461704** 成功；Release 只是脚本检查，不发布公开产品镜像。
+
+核对最终 Linux Rust、Linux Tauri 和 Wayland 作业日志：Rust 工作区 **185 通过、4 默认忽略**；Web **137/137，2.8 分钟**；Tauri 模拟 IPC **53/53，33.9 秒**；原生传输 **4/4**、GIO **1/1**；真实 EasyTier **2/2，16.22 秒**；真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc 各 **1/1**，资源测量与既有 Linux 服务、目录/文件、后台同步、任务和桌面/空间集成均成功。显式专项不与默认工作区或远端轮次重复累计；Windows/macOS 构建成功不代表系统 GUI、权限或多物理设备验收。
+
+API 确认 **10 份 artifact**，包含三平台服务端、独立节点 CLI、桌面安装包及 Linux 资源报告。最新 Linux 桌面包 artifact **12161225440**，未安装到日常环境；此前真实窗口和剪贴板结果继续绑定文内各自旧提交。Actions 中打开运行 **39192461791** 即可下载本次 Windows NSIS、macOS DMG、Linux DEB/AppImage。
+
+多架构门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 已推送 origin/main。手动运行 **39193919686** 参数 desktop=xfce、architecture=all、publish=false；**2026-10-19T03:21:17Z** 的最后快照为 queued，amd64/arm64 两作业均未执行。同来源 Release **39193888500** 和 GitCode **39193888594** 也 queued。仅触发不计通过，未使用发布模式或替换公开标签；下一位维护者继续核对当前运行终态。
+
+私有 **/config/validation-artifacts/image-platform-gate-20261019** 保存 product-ci-final.json、product-artifacts.json、linux-native.log、linux-desktop.log、wayland.log 与 ci-handoff.json；原始失败和此前进行中证据保持。最后收尾只更新交接和验证文档，未重跑产品测试、安装发布包或修改日常服务。功能状态和剩余 P0/P1/P2 仍以[交接入口](implementation-handoff-2026-10-18.md)为准。
+
+## 2026-10-19：VNC 安装生命周期与最终交接
+
+基于 **37718debd6e1881bbb6977e00a8e624bc0f1ae89** 修复 Linux 安装生命周期：此前包安装使用 kill_on_drop，节点退出或三十分钟监控超时可能主动终止安装子进程，且重启后没有状态记录。现在安装进程关闭 kill_on_drop，监控与系统事务分开；执行前私有写入 desktop-setup.json，写失败不执行；上次运行中、记录损坏或超过 8 KiB 时仅显示中断待确认，不自动重放。系统关机、服务管理器和权限代理仍可能影响事务，不能保证安装完成。
+
+安装要求先查看方案并提交当前 plan_id，绑定提供者、有效期十分钟、只能使用一次；替换方案、重启或过期后重新准备。Web/Tauri 共用安装核对、中断说明、失败清除旧方案与焦点恢复；安装与启动共享始终分开。新前端遇到旧节点缺少方案 ID 时提示更新。协议和私有记录边界已补入[远程桌面文档](remote-desktops.md)。
+
+所有构建、socket、浏览器和运行测试均在指定远端 admin@192.168.217.6:22022、cranibox-validation、abc 用户执行；本机仅编辑、静态审阅、传输与 Git。未执行实际 pkexec/APT，不安装系统包，不使用当前登录桌面输入。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | **184 通过、3 默认忽略，126.077 秒** | cargo test --offline --workspace --exclude cranibox-node-desktop，18 个目标；不包含 Tauri Rust 测试，忽略项不计通过 |
+| VNC Rust 专项 | **7/7，51.666 秒含编译** | 包含在工作区；新四项覆盖私有记录、一次性方案、失败恢复和独立 shell 事务，不累加 |
+| 桌面服务后端 | **12/12，无跳过，29.692 秒** | 真实 Rust Web/节点，隔离 X11/Wayland 提供者；新重启/坏记录用例证明不重放、不开启共享或写入凭据 |
+| Web 桌面专项 | **18/18，109.066 秒** | 真实 Rust Web、RFB/JPEG 与可控安装响应；过期后重新准备、正确 ID、焦点恢复及不自动启动 |
+| Tauri 界面全量 | **54/54，139.032 秒** | 模拟 IPC；新增中断恢复和当前方案 ID 提交，非原生窗口/系统安装验收 |
+| Web / 客户端前端构建 | **通过，10.195 / 10.034 秒** | TypeScript 与 Vite；Web 静态资源由远端生成并取回提交，已知 use client 和大包提示未放宽 |
+| Rust 四程序构建 | **通过，37.334 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web，独立目标目录 |
+| fmt / 原生 Clippy | **通过，1.400 / 12.283 秒** | fmt --all --check；desktop,custom-protocol --all-targets -D warnings |
+
+初次提交前未重跑全部 Web 界面和其余 Python 集成；提交后的 Web 全量补验见下节。历史完整矩阵继续绑定 f49341d，不能改写成本次新提交已通过跨平台 CI。Windows/macOS 实机、真实系统安装认证/取消、物理多设备和公开兼容镜像仍待验收。镜像只验证运行 **39193919686** 在此前查询时 queued，后续运行状态见下节，未重复触发、发布或替换公开标签。
+
+布局检查覆盖 375/768/1440、明暗主题无横向溢出；六份面板截图由浏览器在远端生成。人工审阅 375 亮色与 1440 暗色，恢复说明、命令和确认操作可读；元素截图顶部仍受固定顶栏遮盖，不能作为完整首屏或真实手机验收。没有以截图裁剪问题计作产品通过。
+
+私有 **/config/validation-artifacts/vnc-installation-lifecycle-20261019** 保存每条命令的结果、耗时、源码 SHA-256、完整日志、布局截图及 final-health.json；初始构建记录的测试文件与后续记录不同，是补入原生 IPC 用例和保留不支持平台的安装请求校验，产品源码摘要一致。功能需求和剩余 P0/P1/P2 统一在[交接入口](implementation-handoff-2026-10-18.md)。配置、凭据、截图、原始日志与辅助脚本不入 Git。
+
+收尾健康核对：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，无所属浏览器或服务残留，未升级日常程序。
+
+### 55fbe2a 提交后：完整 Web 回归与 CI 补验
+
+产品提交 **55fbe2a74eb61e20eb8050992a99e9f34aaaaa87** 已推送 origin/main。指定远端容器的同一源码快照补验完整 Web 界面：在 addons/control-center/ui 执行 `npm test`，**138/138，231.891 秒，退出 0**。没有修改产品/测试、放宽期限或重跑失败。包含设备授权、项目/Agent 目录、消息/任务/协作记录、后台策略、浮动终端和重连、桌面/剪贴板、空间引导、导航焦点及中英文响应式页面；18 项桌面专项也在这 138 项内，不重复累计。模拟提供者与真实 Rust 服务的边界不变，不能代替跨物理设备或 Windows/macOS GUI 验收。
+
+原始日志和结果位于私有 **/config/validation-artifacts/vnc-installation-lifecycle-20261019/web-all.{log,json}**。结果中的 source_base 是补丁基线 37718de；六项关键源码摘要与 55fbe2a 一致。补验后单独核对容器、3080/3031、日常 Web/客户端 PID、程序摘要、NodeID 与 KDE/Selkies，均保持；owned_processes=[]、test_package_absent=true，保存为同目录 **web-all-followup/final-health.json**，没有覆盖首次收尾健康记录。
+
+**2026-10-19 03:57 UTC** 的 GitHub API 快照：55fbe2a 的三平台矩阵 **39196468666**、Release **39196468706** 与 GitCode **39196468659** 已触发，矩阵仍 queued。旧镜像门槛提交 8566f59 的 **39193919686** 已 in_progress：amd64 构建完成，正在首次启动/授权/重启验收；arm64 正在构建。未记录为成功，也未重复触发或更新公开标签。后续直接核对现有运行及其完整 headSha。
+
+随后镜像运行 **39193919686** 于 **2026-10-19T03:58:35Z** 更新为 completed/success，完整 headSha **8566f59998b4b6884f95ed82be58d95e9de0faf5**；参数 desktop=xfce、architecture=all、publish=false。amd64 作业 **117872437694** 与 arm64 作业 **117872437850** 在原生 runner 上构建完整镜像并分别通过 **44/44** 启动验收，检查耗时 **67.995 / 63.271 秒**。已实际下载两个 artifact（**12162630233 / 12162455868**），核对报告的 expected_revision/revision、expected_platform/platform、所有检查通过、unready_checks=[]、四项所属容器/卷全部 removed=true。
+
+验收覆盖空配置与预置空间身份的首次启动和重启、Rust/Web/静态资源、服务与私有凭据、桌面登录保护、节点授权和错误令牌、真实命令执行及持久数据。amd64 镜像 ID **sha256:d8db47e287689a42cb238736a4bf6f9e1776ed5ba49168cad628d87bcb2acfa3**；arm64 为 **sha256:63e5881e5e8b4d09639d73103ca06760333f0cda74301806b020c48cfa3fb0c7**。Docker Hub 登录、标签提升和 Aliyun 均跳过，没有发布或改变默认公开镜像；不能计作仓库拉取、实际桌面输入、完整空间 UI 或 55fbe2a 新 VNC 修复的镜像验收。
+
+两份启动报告和完整运行元数据/核对摘要保存在私有 **/config/validation-artifacts/image-platform-gate-20261019/native-matrix-final-39193919686**，不覆盖此前队列记录。本轮收尾查询 55fbe2a 的三平台矩阵、Release 与 GitCode 仍 queued，因此其最终结果继续留待核对，没有沿用旧来源的成功结论。
+
+## 2026-10-19：虚拟空间安装生命周期与交接整理
+
+基于 **d5beb23bb9eb7a0e31adfa2845c74a91a8841b22** 修复虚拟空间的运行环境安装：此前与普通 Docker 命令共用 kill_on_drop 进程管理，节点退出或超时可能终止安装，确认也未绑定经过审阅的方案。现在安装进程与监控分离、使用空输入/输出流，避免父进程退出导致管道断开；WSL 安装脚本随命令参数传入，不依赖节点 stdin。普通 Docker 操作仍保持原有超时清理。
+
+安装方案私有持久化，只保留当前一份，绑定操作/命令并在十分钟后过期；执行前复查，原子保存消耗方案与安装中状态，再启动系统命令。分开的 CLI 调用可使用同一未过期方案，已使用方案重启后也不能重放。旧调用方没有 plan_id 时明确拒绝，不执行安装。Web/Tauri 共用连续点击保护、提交后清除旧确认、响应丢失后读取状态、错误/核对/取消焦点以及中断提示。安装结束需重新检测，不自动创建空间。协议、兼容性和 CLI 示例见[虚拟空间](virtual-spaces.md#安装确认与中断恢复)。
+
+全部构建、socket、浏览器与运行测试仍在指定远端 admin@192.168.217.6:22022、cranibox-validation、abc 用户执行；本机只编辑、静态审阅、传输与 Git。系统包安装、权限确认、Windows/macOS 原生安装器均未实际运行，未升级日常程序。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | **187 通过、3 默认忽略，169.390 秒** | cargo test --offline --workspace --exclude cranibox-node-desktop；18 个目标，未运行 Tauri Rust 测试 |
+| Rust 空间专项 | **10/10，43.267 秒含编译** | 包含在工作区，不累加；新三项验证方案与重启、超时/取消后独立 shell 继续 |
+| 空间后端集成 | **9/9，无跳过，58.917 秒** | python3 -m unittest discover -s tests -p test_virtual_spaces.py -v；真实 Rust 服务、受限 Docker 夹具，不连宿主 Docker |
+| Web 界面全量 | **140/140，372.595 秒** | npm test，addons/control-center/ui；真实 Rust Web，新安装场景为可控响应 |
+| Tauri 界面全量 | **55/55，190.777 秒** | npm test -- --workers=1，apps/node-desktop；模拟 IPC，非真实系统 GUI |
+| 两端前端构建 | **通过，18.694 / 18.302 秒** | Web 生成资源与原生 TypeScript/Vite；既有 use client 和大包提示保留 |
+| Rust 四程序构建 | **通过，55.608 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web |
+| fmt / 原生 Clippy | **通过，3.129 / 15.561 秒** | cargo fmt --all -- --check；desktop,custom-protocol --all-targets -D warnings |
+
+首轮 Rust 专项编译未通过，因为应用测试 Catalog 夹具遗漏新字段；补齐后专项及工作区通过。首轮客户端界面为 **54 通过、1 失败，89.765 秒**，同区域另有设备目录错误，新增测试的 alert 定位不唯一；只将测试定位限定为安装错误，最终 55/55。初始 rust-unit、native-ui 日志与最终 rust-unit-final、native-ui-final 分开保留，没有放宽超时或删除失败记录。前端构建时测试文件尚未限定 alert，产品源码与生成资源未因此变化。
+
+Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件循环内重复点击、已接受但响应丢失、重载不重放、安装中限制操作及中断后重新检查。布局检查 375/768/1440、明暗主题、reduced-motion、无横向溢出与确认/取消至少 44 像素；六份完整页面截图及摘要保存在私有证据目录。人工审阅 375 亮色与 1440 暗色，顶栏未遮挡正文，命令换行、核对与取消操作可读；不是手机实机验收，也不替代上一轮 VNC 完整首屏待验范围。
+
+节点退出或监控超时不主动终止已启动的安装器，不保证系统事务完成；关机、服务管理器、权限代理仍可中断，多步安装也可能尚未执行后续命令。当前不保存系统安装输出，只报告启动错误、退出码和超时；应检查系统安装器再重新检测环境。真实三平台依赖安装、Windows/macOS 桌面提供者/权限、跨物理设备以及公开兼容镜像发布仍未完成，按[需求与 P0/P1/P2](implementation-handoff-2026-10-18.md)继续，不把本轮交接当作全部原始需求实现。
+
+**2026-10-19 04:28 UTC** 查询：55fbe2a 的矩阵 **39196468666** 总状态 queued，独立 Wayland 成功、Linux Tauri 运行中、其他五项 queued。d5beb23 的 XFCE 双架构只验证运行 **39197807627** 两项 queued，publish=false；它含 VNC 修复，不含本轮空间修复。未重复触发旧运行、发布镜像或改变公开标签。当前提交推送后须核对新 CI 的完整 headSha，旧 8566f59 镜像的 44/44 或 f49341d 的三平台成功不能沿用为新版本通过。
+
+最终健康检查：容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要及 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有所属浏览器/服务残留，也未操作全局键鼠或剪贴板。
+
+私有证据 **/config/validation-artifacts/space-setup-lifecycle-20261019** 保存各轮命令、耗时、日志、源码摘要、六份截图和 final-health.json；最终待提交源码、测试、生成资源及文档与远端快照逐项核对，清单为 final-source-manifest.json。配置、凭据、截图、原始日志与辅助脚本不入 Git。
+
+## 2026-10-19：2299b45 产品完整 XFCE 镜像与交接
+
+产品来源固定为 **2299b4559846eb1019a2b9e5faa6ba3b17f7e0bd**，已在 origin/main。收尾仅整理文档，没有修改 Rust/React、生成资源、依赖或测试，也没有重跑已经通过的 187 项 Rust、140 项 Web、55 项模拟 IPC 检查。源码 git archive 的本机与远端 SHA-256 均为 **60668e0850e61acff937694bf20813ccee6f7bc993c5295764f743a42be3c925**。
+
+完整构建与 Docker 运行使用指定远端 admin@192.168.217.6:22022 的宿主机，日常 cranibox-validation 仍没有宿主 socket。复用原有限额 builder（2 核、6 GiB、并发 2），从归档按完整 Dockerfile 以 DESKTOP=xfce、linux/amd64、--pull --load 和明确 revision 标签构建 **cranibox-image-validation:2299b45-xfce**。构建退出 0，耗时 **496.775 秒**；镜像 ID **sha256:fe9acab830119b53c3c8bdc775a9ee692fae178e91d8491a1c090469463095b8**，builder 已停止。没有推送仓库、修改公开标签或升级日常程序。
+
+同一归档中的 scripts/verify-workspace-image.py 对本地镜像显式指定 --platform linux/amd64 和完整 --revision 运行，退出 0、**44/44，90.315 秒**。报告中的平台和来源匹配，unready_checks=[]；空配置与预置空间身份两种场景的首次启动、Rust/Web/静态资源、默认服务/私有凭据、桌面登录保护、正确和错误节点令牌、真实命令执行，以及重启后的身份/凭据/文件保留通过。两个所属容器和两个卷均 removed=true。此项不覆盖完整空间创建 UI、真实桌面输入、当前产品 arm64 或公开镜像拉取。
+
+**2026-10-19T04:41:58Z** 从 Docker Hub 默认 xuping/agent-workspace:ubuntu-xfce 读取 index、唯一平台 manifest 与配置，并核对配置/manifest 摘要及 OS/架构。index 为 **sha256:f2e58c4fffd5652e6b3736f6af432a81ededd3349f04c53195d87169f6eb06fa**；amd64/arm64 均为旧来源 **c56508ce5008180e067a9c489f4527aa30b80b31**，均缺少 io.cranibox.space-protocol=1。仅元数据读取，没有拉取层或启动公开镜像。默认镜像不能创建新空间的 P0 继续保留，不能以本地构建成功或协议保护被删除来宣布解决。
+
+当前来源的双架构只验证运行 **39200391726** 于 **2026-10-19T04:37:23Z** 创建，参数 desktop=xfce、architecture=all、version=latest、publish=false；没有重复触发旧来源运行。**04:46:46 UTC** 最后核对：当前来源三平台矩阵 **39199888520** 七项 queued；39200391726 为 pending、无已启动 job，等待前一 d5beb23 镜像运行 **39197807627**，后者两项 queued。上一产品 55fbe2a 的矩阵 **39196468666** 已有 Wayland、Linux Tauri、Windows Rust、macOS Rust 四项成功，其余三项 queued；仍不是完整成功，也不能沿用到 2299b45。下一位维护者直接查看现有运行的 headSha、终态及 artifact，不因排队重复触发。
+
+最终健康核对通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有安装测试包、操作全局键鼠/剪贴板或留下所属测试服务。
+
+私有证据 **/config/validation-artifacts/image-head-2299b45-20261019** 保存源码归档、源码展开目录、build.log、build.json、build-metadata.json、startup.log、startup.json、startup-summary.json、public-metadata.json、ci-snapshot-044646.json、final-health.json 与 evidence-audit.json。最终复核来源/平台/镜像/检查器摘要、44 项检查及四项清理，并实际确认容器/卷已不存在、builder 已停止；证据文件 SHA-256 保存在 audit 中。功能需求、测试边界、后续优先级和复现入口集中在[交接文档](implementation-handoff-2026-10-18.md)；本轮精简其首页，保留历史结果与版本限制，便于下一位模型继续。原始证据与辅助脚本不入 Git。
+
+## 2026-10-19：虚拟空间镜像恢复与接手整理
+
+基于 **1e063a62721326de35f3cf29b1ba498a537db7db**，为失败、中断或已归档空间添加修改镜像并重试的 Web/Tauri 共用入口，CLI resume 同时支持可选 --image 与 --pull-policy。已有容器必须先归档；引擎检查失败不会误当容器不存在。修改保持 UUID、NodeID、凭据和数据卷，不迁移应用数据，也不自动重建正在使用的容器。错误保留草稿，取消恢复焦点，成功聚焦空间卡片；同步锁与客户端连续点击保护继续生效。
+
+验证仍只在指定远端 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户执行；本机仅编辑、静态审阅、传输与 Git。Rust 工作区 **187 通过、3 默认忽略，77.239 秒**；空间后端 **11/11，无跳过，17.684 秒**；最终 Web 空间专项 **9/9，17.942 秒**。后端是实际 Rust 服务与 Docker 命令夹具；前端新场景使用可控 API，不能计作真实 Docker、多设备桌面或 Windows/macOS 系统安装。详细命令和边界统一见[当前测试](implementation-handoff-2026-10-18.md#测试情况与可信范围)。
+
+初始 Web 全量 **140 通过、1 失败，302.110 秒**，启动早于重新编译结束，旧内嵌页面没有新按钮；重建后的第二轮 **140 通过、1 失败，264.520 秒**，隐式标签纳入选项文本，精确标签定位失败。修正为显式 ID 关联，没有调整断言、超时或测试次数。两轮失败日志、trace 均单独保留。第二轮结束前同步了修正源码，原报告的结束时源码摘要不能证明旧页面来源；最终测试新增开始/结束源码摘要、开始时程序和生成资源摘要，并核对 source_unchanged=true。
+
+最终两端 TypeScript/Vite 构建通过，耗时 **14.048 / 11.918 秒**；在最终 Web 资源之后重新构建四个 Rust 程序，**11.179 秒**。fmt **1.699 秒**、原生 desktop,custom-protocol all-targets Clippy -D warnings **12.293 秒** 均通过，其后只改 React 标签和样式，Rust 源码未变。已知 use client 与大包提示保留；Web 生成资源取回仓库。没有因此重复运行未变化的 Rust 测试或系统安装。
+
+布局检查覆盖 375/768/1440、明暗主题、reduced-motion、无横向溢出和表单控件至少 44 像素；六份完整页面截图在私有 layout 目录。人工审阅 375 亮色与 1440 暗色，内容、错误、表单和按钮可读，顶栏未遮挡正文；不代表手机实机。私有证据 **/config/validation-artifacts/space-image-recovery-20261019** 保存各轮命令、耗时、日志、摘要、失败 trace 和截图，不提交凭据、原始证据或辅助脚本。完整镜像验证仍分别绑定旧 2299b45/8566f59，不能沿用为本轮镜像恢复修改的镜像验收；默认公开镜像、三平台实机与完整同步等未完成项仍按交接文档继续。
+
+最终完整 Web 回归 **141/141，236.540 秒，退出 0**；报告 web-all-verified.json 的开始/结束八项源码摘要一致，最终 Web 资源与四个程序摘要在启动前记录。空间专项九项包含在此全量内，不重复累计；没有修改断言或放宽期限。
+
+随后 Tauri 界面全量 **56/56，72.301 秒，退出 0**，开始/结束源码一致。新增归档空间更换镜像与策略、通过 IPC 恢复原身份及焦点的回归；使用模拟 IPC，macOS 平台字段是夹具，不能当作真实 macOS GUI、Docker 或系统安装验收。
+
+最终健康检查保持日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。容器 running/healthy、privileged=false、无宿主 Docker socket，3080/3031 匿名 401、认证 200，owned_processes=[]、test_package_absent=true。没有升级日常程序或操作全局键鼠/剪贴板。私有 final-health.json 与 final-source-manifest.json 分别保存环境和源码/资源/报告核对，原始失败证据保留。
+
+产品提交 **a93b863346d6557b824e274611cc46bb904a897f** 已推送 origin/main。**2026-10-19 05:25 UTC** 实查该完整来源：三平台矩阵 **39204312609**、Release **39204312601**、GitCode **39204312589** 已触发，均 queued。旧 2299b45 矩阵 **39199888520** 三个平台桌面包成功、其余四项 queued，同来源双架构镜像 **39200391726** 为 pending；55fbe2a 矩阵 **39196468666** 六项成功、Linux Rust in_progress。未把排队或旧来源成功记为当前产品通过，也未重复触发、发布镜像或替换日常程序。下一位模型继续核对这些已有运行的 headSha、终态和产物。
+
+## 2026-10-19：协作记录后台同步与交接
+
+本轮基于 **c04a019cb5d7087089f427917a48adca29d1e4e9**。新增任务、消息和协作 Run 的独立 activity_sync 策略，默认关闭；获得目标 activity 只读授权并明确选择设备后，Rust 节点宿主在页面关闭、独立节点运行时继续同步。与项目和公开 Agent 目录交错调度，共享四路并发。Web/Tauri 共用间隔、设备、暂停、清空与离线时间显示；CLI/API 见[协作记录](federated-activity.md)。保存完整正文需明确选择，旧 messages 权限不扩大。
+
+快照为私有只读副本，绑定本机身份、来源、连接和凭据；删除选择、忘记设备、路径或令牌变更会删除缓存。迟到响应需再次校验绑定与策略版本，不能在清空/忘记后写回。拒绝、身份/内容/摘要错误会清除；只有网络故障可使用仍有效的快照，保留来源观测时间并明确标记离线。离线期间无法立即获知撤权，不支持离线写入或权威账本复制，也不把记录状态当成当前运行进程。
+
+所有构建、运行、socket 与浏览器测试仍仅在指定远端 admin@192.168.217.6:22022、cranibox-validation、abc 用户下进行；本机只编辑、静态核对、传输和 Git。日常 Web/客户端未替换，没有运行系统依赖安装器。
+
+| 检查 | 结果 | 来源与限制 |
+| --- | --- | --- |
+| 最终 Rust 工作区 | **187 通过、3 默认忽略，33.623 秒** | 18 个目标，排除 Tauri Rust 测试 |
+| 最终新增后端集成 | **8/8，85.474 秒** | 实际 Rust 节点/Web；含默认关闭、重启恢复、清空、离线、拒绝、缓存篡改和迟到响应 |
+| 三类后台同步 | **25/25，260.631 秒** | 包含新增八项，验证共享四路并发，不重复累计；Clippy 等价修正前 |
+| 协作记录协议 | **6/6，285.556 秒** | 实际 Rust、授权及大目录；Clippy 等价修正前 |
+| 完整 Web 界面 | **143/143，347.936 秒** | 最终 React/静态资源与新内嵌页面；Clippy 等价修正前后端；部分响应为夹具 |
+| Tauri 界面 | **56/56，132.133 秒** | 模拟 IPC，非原生窗口或三平台实机 |
+| 前端构建 | **通过，15.752 / 15.421 秒** | Web / Tauri TypeScript 与 Vite，Web 资源取回提交 |
+| 最终四程序构建 | **通过，27.468 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web |
+| 最终 fmt / 原生 Clippy | **通过，1.127 / 18.996 秒** | desktop,custom-protocol --all-targets -D warnings，无放宽 |
+
+首次 Web 专项 **4 通过、2 失败，42.851 秒**，原因是预览早于 Rust 编译完成、仍加载旧内嵌页面；原日志与 trace 留在 initial-web-failure。等待重建后完整 143 项通过，没有调整断言或超时。初次 Clippy 报 collapsible_if，仅将嵌套 if 改为等价 let-chain；前端、测试和语义未改。随后重建四程序、重跑 Rust 187 项及新增八项、fmt/Clippy 均通过。最终两批报告分别保留源码/程序摘要，不混作同一二进制；source_unchanged 均为 true。
+
+布局检查覆盖 375/768/1440 像素、明暗主题、无横向溢出及至少 44 像素操作控件；四张 375/1440 设置截图保存在私有 layout，人工审阅 375 亮色与 1440 暗色。不是手机实机或新客户端安装包的真实 GUI 验收，历史包的托盘、桌面、剪贴板结果仍绑定其原提交。当前完整镜像、Windows/macOS 提供者与依赖安装、物理组网、完整复制/信任及真实 Agent 接续仍按[交接清单](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)继续。
+
+私有证据 **/config/validation-artifacts/background-activity-sync-20261019** 保存各轮日志/命令/耗时、源码和程序摘要、原失败 trace、截图、final-health.json 及 final-source-manifest.json。最后两项分别核对日常环境及本机/远端待提交文件、资源和报告；源码摘要显式区分 Clippy 等价修正前后。凭据、原始日志、截图和辅助脚本不进 Git。
+
+最终健康通过：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有所属服务或浏览器残留，未操作全局键鼠/剪贴板。
+
+历史 a93b863 的 Release **39204312601** 于 **2026-10-19T05:42:02Z** 失败；已检查日志，脚本测试通过，update-readme-links 的 git push 因 main 已更新而 non-fast-forward 被拒绝。三平台矩阵 **39204312609** 本轮查询为 in_progress、GitCode **39204312589** 成功；这些结果不覆盖本次修改。最终提交后单独补记当前完整 headSha 与新 CI，不因旧运行排队重复触发，也不宣称公开镜像或跨平台 GUI 通过。
+
+产品已提交并推送为 **66edf1115c5bc3d6301cbecb219b5abbb522e016**。**2026-10-19 06:04 UTC** 的 GitHub API 快照确认同一完整 headSha：三平台矩阵 **39207809642**、Release **39207809787**、GitCode **39207809605** 自动触发且均 queued（创建时间 06:04:17–18 UTC）。下一位维护者直接核对这些已有运行的终态与产物；本次交接只记录排队，不声明新安装包或镜像验收成功。最后补记仅改文档，不需要重跑产品测试。
+
+## 2026-10-19：Release 只读检查与当前完整镜像交接
+
+提交 **981ff86473547bc84a7623e8be4d153dbc5d82a0** 只改 .github/workflows/release.yml 与发布说明：删除 update-readme-links 作业，并明确 contents: read。install.sh 已没有旧作业要替换的 RAW_URL，sed 实际无变更，仍向 main 推送会因检出版本落后而 non-fast-forward。a93b863 的 Release **39204312601** 原日志确认该原因；66edf11 的 **39207809787** 同样为脚本检查成功、自动推送作业失败。修正不改变镜像发布门槛、产品程序、生成资源、依赖或测试，不因此重复运行产品套件。远端静态 YAML 解析与只读/单作业检查、git diff --check 通过。
+
+当前来源的完整镜像只验证运行 **39208494283** 于 **2026-10-19T06:11:35Z** 创建，headSha 精确为上述 981ff86，参数 version=latest、desktop=all、architecture=all、publish=false。六组为 XFCE/LXQt/KDE × linux/amd64、linux/arm64；截至 **2026-10-19 06:16:52 UTC** 快照，两项 arm64 正在 Build candidate image，其余四项 queued。尚无当前镜像完整成功结果、安装包实机结果或公开标签发布。现有运行应继续核对，无需重复触发；完成后下载六份 image-startup artifact，检查 revision/platform、各 44 项通过、unready_checks=[] 及各四项容器/卷清理。只验证不会移动公开标签，正式发布与真实拉取仍是 P0。
+
+当前产品源码仍为 **66edf1115c5bc3d6301cbecb219b5abbb522e016**；从它到 981ff86 的差异仅为文档和上述 Release 工作流。产品矩阵 **39207809642** 两项 Windows 作业运行、其余五项排队，GitCode **39207809605** 已成功；新的只读 Release **39208300414** 与 GitCode **39208300409** 此时排队。历史 a93b863 的矩阵 **39204312609** 已完整成功 **7/7**，旧 2299b45 双架构 XFCE **39200391726** 也已显示成功，但本节未重新审计其 artifact，不能据此宣称当前来源已验收。
+
+另实查 2299b45 的矩阵 **39199888520** 为 **6/7**：Linux Rust 作业 **117890467476** 在 slow_viewer_keeps_upstream_drained_and_clipboard_input_live 失败，报告 superseded video delayed the clipboard by 12 frames，触发 frames < 10 断言。下载原始日志并保留在私有目录。此处实现和测试从 2c95dd4 起没有改动；较新的 a93b863 全矩阵成功不等于该问题已被修复。下一位维护者应复核上游发送、适配器接收和恢复消费的时序，确认是夹具同步还是实际排队问题，不能直接提高阈值或重跑后删除失败记录；已加入交接文档测试稳定性待办。
+
+日常健康复查通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序摘要与 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键鼠/剪贴板。私有证据目录 **/config/validation-artifacts/image-handoff-20261019** 保存带观测时间的 CI 快照、对应运行元数据、失败日志和 final-health.json。交接收尾只改文档，原始日志、辅助脚本与凭据不入 Git。
+
+## 2026-10-19：Selkies 测试同步修正与模型交接
+
+代码提交 **5af2b530ddc3ee8c349a9b3e0053e0c35ab6664a** 基于 973c544，仅修改 selkies.rs 的 cfg(test) 夹具和注释。静态比较生产部分与功能提交 **66edf1115c5bc3d6301cbecb219b5abbb522e016** 完全相同；没有修改输出算法、界面、生成资源、依赖或产品功能。
+
+2299b45 的 Linux CI 原先在剪贴板前计到 12 帧。夹具收到 cr 就通知测试恢复消费，此时响应尚未发送，导致上游仍在传输的视频帧也被计入队列延迟。现在服务端先发送剪贴板和带 clipboard-ready 标记的 WebSocket Ping，等待适配器返回匹配 Pong，再恢复测试消费。消息有序，因此适配器必须在查看器仍阻塞时消费响应；真正停止排空上游仍会触发超时。保留 500 帧负载、frames < 10 断言和原来的三秒期限，没有增加固定等待或放宽限制。此修正针对测试同步，不把既有真实桌面/跨设备待验项宣布完成。
+
+所有构建、运行与 socket 验证继续在 **admin@192.168.217.6:22022** 的 **cranibox-validation**、abc 用户执行；本机仅编辑、静态审阅、摘要核对、传输和 Git。CARGO_HOME=/config/.cargo、CARGO_TARGET_DIR=/config/validation-build/target、CARGO_BUILD_JOBS=2。
+
+| 检查 | 结果 | 命令与范围 |
+| --- | --- | --- |
+| Rust 工作区 | **187 通过、3 默认忽略，39.939 秒** | cargo test --locked --offline --workspace --exclude cranibox-node-desktop；18 个目标 |
+| Selkies 慢接收者用例 | **连续 30/30，37.413 秒** | cargo test --locked --offline -p agent-workspace-runtime --lib peers::desktop::selkies::tests::slow_viewer_keeps_upstream_drained_and_clipboard_input_live -- --exact，串行 30 次 |
+| fmt | **通过，0.983 秒** | cargo fmt --all --check |
+| 工作区 Clippy | **通过，20.537 秒** | cargo clippy --locked --offline --workspace --exclude cranibox-node-desktop --all-targets -- -D warnings |
+
+四份报告的开始/结束关键源码摘要一致，source_unchanged=true；本机/远端逐项匹配，修正文件 SHA-256 为 **d8d9a9860ab248df940a53517df21e184d55eba3e1722a1ca947cfb94b991b82**。首次 fmt 因长 if 的换行失败，耗时 1.056 秒；按 rustfmt 提示换行后通过，原报告和日志保留，未覆盖。当前仅改 Rust 测试，未重复运行已有 143 项 Web、56 项模拟 IPC 及其他未变功能的集成；它们仍绑定 66edf11 及上节说明的等价 Clippy 修正前后边界。
+
+**2026-10-19 06:33:34 UTC** 的 GitHub API 快照确认：981ff86 的只读 Release **39208300414**、GitCode **39208300409** 均 completed/success。66edf11 的产品矩阵 **39207809642** 有 Windows/macOS Rust、Linux/Windows 桌面包与真实 Wayland五项成功，Linux Rust 运行、macOS 桌面包排队；不含本次测试修正，也尚未完整成功。保留当前 run，不重复派发；本次推送后应另外核对包含 5af2b53 的新 headSha 和终态。
+
+六组完整镜像运行 **39208494283** 的来源仍为 **981ff86473547bc84a7623e8be4d153dbc5d82a0**、publish=false。上述快照中成功并实际下载审计的是：
+
+| 当前来源报告 | 结果 | artifact | 报告 SHA-256 |
+| --- | --- | --- | --- |
+| XFCE linux/arm64 | **44/44，63.563 秒** | 12166139955 | c8a7f1af3d168e641acb6ed6f4736232a1863909fe64f6801c5469e632f60b04 |
+| LXQt linux/amd64 | **44/44，67.300 秒** | 12167462140 | 1ec6658371a65164de85f9d1aaffc553e2175073bfcb1f9e98cdb3897face3b6 |
+| LXQt linux/arm64 | **44/44，63.869 秒** | 12166694684 | 400992cf45f6e3dc1b94e46ef1728cb15cb958759a765ae7aa093d2dc3873d98 |
+| KDE linux/arm64 | **44/44，66.051 秒** | 12167705546 | 9a0e735e118205fc0496a9f447dfa9ecae9dd39d4264a295d18ba42663404f4e |
+
+四份报告均核对 revision/expected_revision、platform/expected_platform 和 artifact 的完整来源，44 个检查名不重复且全为 true，passed=true、unready_checks=[]，每份的两个容器与两个卷均 removed=true；作业的仓库登录和公开标签推广均 skipped。KDE amd64 当时正在收尾、XFCE amd64 正在构建。这里只验收四组，不能写成六组通过、当前安装包实机通过或公开默认镜像已兼容；继续原运行并审计其余报告，正式发布与真实拉取仍为 P0。
+
+本轮最终健康检查通过：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID 保持；KDE/Selkies/Xwayland 原进程未重启，owned_processes=[]、test_package_absent=true。没有替换日常程序、操作全局键鼠/剪贴板或留下测试服务。
+
+私有证据 **/config/validation-artifacts/selkies-ordering-20261019** 保留初次 fmt 失败，final/ 保存最终四轮命令、日志、耗时及源码摘要。handoff/ 保存 CI 快照、artifact 原报告、test-audit.json、final-health.json 与 final-source-manifest.json。交接文档集中列出全部原需求、实现边界、测试来源和 P0/P1/P2，供下一模型接手；原始日志、凭据和辅助脚本不入 Git。
+
+## 2026-10-19：六组镜像最终审计
+
+**2026-10-19 06:37:49 UTC**，原运行 **39208494283** 已 completed/success，六个构建作业均成功、push-aliyun 跳过。来源精确为 **981ff86473547bc84a7623e8be4d153dbc5d82a0**，参数 desktop=all、architecture=all、version=latest、publish=false。它包含 66edf11 的生产实现，不包含后续 5af2b53 的 cfg(test) 夹具同步修正。未重跑镜像、未升级日常容器，也未修改公开标签。
+
+六份 artifact 均已实际下载并解析，没有仅凭作业成功推断报告通过：
+
+| 报告 | 检查 / 耗时 | artifact | 报告 SHA-256 |
+| --- | --- | --- | --- |
+| XFCE linux/amd64 | **44/44，65.785 秒** | 12166813629 | 0556d6121cef07f661483bfcbf8eea275424865baf3e0fece490abaa58b0c72e |
+| XFCE linux/arm64 | **44/44，63.563 秒** | 12166139955 | c8a7f1af3d168e641acb6ed6f4736232a1863909fe64f6801c5469e632f60b04 |
+| LXQt linux/amd64 | **44/44，67.300 秒** | 12167462140 | 1ec6658371a65164de85f9d1aaffc553e2175073bfcb1f9e98cdb3897face3b6 |
+| LXQt linux/arm64 | **44/44，63.869 秒** | 12166694684 | 400992cf45f6e3dc1b94e46ef1728cb15cb958759a765ae7aa093d2dc3873d98 |
+| KDE linux/amd64 | **44/44，67.488 秒** | 12167750579 | b482c8ee4b1e0f97bc504aff39012b84661bf07269280f91a4a0142724670fcc |
+| KDE linux/arm64 | **44/44，66.051 秒** | 12167705546 | 9a0e735e118205fc0496a9f447dfa9ecae9dd39d4264a295d18ba42663404f4e |
+
+逐份断言 revision=expected_revision=完整来源、platform=expected_platform=对应架构；44 个检查名唯一且全部 passed=true，报告 passed=true、unready_checks=[]；四项 cleanup 均 removed=true，类型为两个容器和两个卷。artifact 的 workflow_run.head_sha 同样匹配；每个作业的首次启动验收与报告上传均 success，Docker Hub 登录和公开标签推广均 skipped。image-acceptance.json 记录 verified_reports=6、all_six_verified=true，另保存各 image_id。以上为 CI 镜像启动、授权与重启范围，不能替代三平台实机、真实桌面、公开标签发布或 registry 拉取验收。
+
+**2026-10-19 06:40:57 UTC** 另外核对包含测试修正的来源 **4fb6a4148cba1813c9c4af1182333d9b9806e23a**：Release **39210815260**、GitCode **39210815816** 均 completed/success；矩阵 **39210815263** 的真实 Wayland 已成功，Linux/Windows Rust 与桌面包四项运行，macOS 两项排队，尚未整体通过。66edf11 的矩阵 **39207809642** 仍为五项成功、Linux Rust 运行、macOS 桌面包排队。继续核对这些已有运行，无需为文档改动重复派发；后续文档提交不改变其生产和测试源码。
+
+六份最终报告、审计汇总及带观测时间的 CI 原始快照统一保存在 **/config/validation-artifacts/selkies-ordering-20261019/handoff**；本机与远端证据摘要逐项核对。需求表和 P0 已更新为“六组通过，公开发布/真实拉取未完成”，保留前节四组通过时的历史快照。此次收尾只更新交接和验证文档，不增加产品功能测试数量。
+
+提交前再次通过远端健康检查：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web/客户端 PID、程序摘要与 NodeID 以及 KDE/Selkies/Xwayland 进程均保持，owned_processes=[]、test_package_absent=true。最新 final-health.json 随证据同步保存，未操作全局键鼠或剪贴板。

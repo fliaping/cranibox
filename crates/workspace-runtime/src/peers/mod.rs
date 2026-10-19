@@ -1,5 +1,8 @@
 //! Shared outbound routes for the node CLI, Web and Tauri.
+pub mod activity;
+mod activity_snapshots;
 pub mod agent_sessions;
+mod agent_snapshots;
 pub mod browser;
 pub mod computer;
 pub mod config;
@@ -30,6 +33,9 @@ use std::path::{Path, PathBuf};
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     List,
+    Activity {
+        node: Option<String>,
+    },
     Messages {
         command: messages::Command,
     },
@@ -175,6 +181,12 @@ pub enum Command {
         node: String,
         command: crate::projects::Command,
     },
+    AgentSync {
+        command: project_sync::Command,
+    },
+    ActivitySync {
+        command: project_sync::Command,
+    },
     ProjectSync {
         command: project_sync::Command,
     },
@@ -294,6 +306,8 @@ impl Store {
                 .filter(|p| p != &token_file);
             if !token.is_empty() {
                 self.forget_project_snapshot(&node)?;
+                self.forget_agent_snapshot(&node)?;
+                self.forget_activity_snapshot(&node)?;
             }
             value.routes.insert(
                 node.clone(),
@@ -355,6 +369,21 @@ impl Store {
     pub async fn manage(&self, command: Command) -> Result<Value> {
         match command {
             Command::List => self.list(),
+            Command::Activity { node } => self.activity(node).await,
+            Command::ActivitySync { command } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    project_sync::manage_kind(&path, command, project_sync::Kind::Activity)
+                })
+                .await?
+            }
+            Command::AgentSync { command } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    project_sync::manage_kind(&path, command, project_sync::Kind::Agents)
+                })
+                .await?
+            }
             Command::ProjectSync { command } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || project_sync::manage(&path, command)).await?
@@ -479,8 +508,9 @@ impl Store {
                             || permissions.computer
                             || permissions.browser
                             || permissions.messages
+                            || permissions.activity
                             || permissions.spaces,
-                        "choose command, terminal, project, desktop, computer, browser, message and/or space catalog access"
+                        "choose command, terminal, project, desktop, computer, browser, message, activity and/or space catalog access"
                     );
                     let token = crate::config::token();
                     let value = Config::update(&path, |value| {
@@ -541,6 +571,8 @@ impl Store {
                     let mut removed = None;
                     let value = Config::update(&store.path, |value| {
                         store.forget_project_snapshot(&node)?;
+                        store.forget_agent_snapshot(&node)?;
+                        store.forget_activity_snapshot(&node)?;
                         removed = Some(
                             value
                                 .routes

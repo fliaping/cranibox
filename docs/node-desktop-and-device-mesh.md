@@ -49,7 +49,7 @@ Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一
 
 Linux 自启动使用绝对 XDG_CONFIG_HOME/autostart；未设置或为相对路径时使用 HOME/.config/autostart。启用时会迁移原插件留在 HOME/.config 的同名条目，关闭时同时清理两处，避免重复启动。启动项正确转义空格和特殊字符。移动 AppImage 后应重新开启自启动、重新复制 MCP 配置。
 
-远端 KDE 已实际验收 6396b93、CI 运行 39110808540 的 .deb/AppImage：原生界面复制配置与 XDG 自启开关通过，三个入口在 GUI 退出、无兼容环境变量时均完成 MCP 初始化和工具枚举；AppImage 生成启动项通过 GIO 在无 FUSE 环境静默进入托盘，单实例唤回及身份保留通过。普通 FUSE 模式、真实注销/登录与休眠仍待验证，详见[交接记录](implementation-handoff-2026-10-18.md#最新补验6396b93-linux-ci-安装包)。旧 afaa137 及更早构建生成的配置仍需自行添加运行时参数或设置 APPIMAGE_EXTRACT_AND_RUN=1。
+远端 KDE 已实际验收 6396b93、CI 运行 39110808540 的 .deb/AppImage：原生界面复制配置与 XDG 自启开关通过，三个入口在 GUI 退出、无兼容环境变量时均完成 MCP 初始化和工具枚举；AppImage 生成启动项通过 GIO 在无 FUSE 环境静默进入托盘，单实例唤回及身份保留通过。普通 FUSE 模式、真实注销/登录与休眠仍待验证，详见[交接记录](implementation-handoff-2026-10-18.md#历史验证索引)。旧 afaa137 及更早构建生成的配置仍需自行添加运行时参数或设置 APPIMAGE_EXTRACT_AND_RUN=1。
 
 ## 会话保持
 
@@ -134,3 +134,5 @@ cargo build --locked -p cranibox-node-desktop --features desktop,custom-protocol
 仅启用 `desktop` 的直接 Cargo 构建会使用 `tauri.conf.json` 中的 Vite 开发地址；开发服务器关闭后窗口无法加载。Tauri CLI 的正式构建会自动配置 `custom-protocol`。实机验证应在开发服务器关闭时确认窗口内容及本机 IPC 均可用。
 
 桌面构建要求 Rust 1.90+、Node.js 22+ 和对应平台的 Tauri 系统依赖。三平台 CI 独立构建安装包。浏览器交互测试使用 Tauri IPC 模拟，验证窗口操作、设置、MCP 配置和布局；它不能代替各 OS 的真实托盘、登录自启动与休眠恢复体验测试。网关集成测试使用真实节点验证设备调用、组隔离、任务归属和客户端 MCP。
+
+2026-10-19 对产品提交 2c95dd4 的 CI Linux .deb/AppImage 另做真实 KDE 窗口验收：两包均通过直接连接 Selkies、中文/emoji/多行双向剪贴板、等待后新文字和断开重连清空。.deb 实际安装后卸载；AppImage 使用 --appimage-extract-and-run。为保留日常客户端，两包使用独立身份与私有 D-Bus，不能据此宣布正常登录、托盘、自启、休眠或其他物理设备已验收。完整需求、测试版本和剩余工作见[交接入口](implementation-handoff-2026-10-18.md)。

@@ -44,7 +44,7 @@ test('Browser Use requires a separate grant and local confirmation to resume', a
   await page.getByLabel('Allow Agent Browser Use', { exact: true }).check();
   await page.getByRole('button', { name: 'Create access token', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  expect(actions.find(a => a.operation === 'grant').permissions).toEqual({ exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: true, messages: false, spaces: false });
+  expect(actions.find(a => a.operation === 'grant').permissions).toEqual({ exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: true, messages: false, activity: false, spaces: false });
 });
 
 test('browser emergency stop supersedes a slow status and fits mobile themes', async ({ page }) => {

@@ -1,4 +1,4 @@
-//! Receiver-owned background pulls of authoritative project metadata.
+//! Receiver-owned background pulls of authoritative catalogs and collaboration observations.
 //! Membership and a saved route never opt a device into background reads.
 use super::{
     Store,
@@ -19,6 +19,48 @@ use std::{
 
 const MAX_FILE: u64 = 64 * 1024;
 pub const MAX_PARALLEL: usize = 4;
+
+/// Separate opt-in policies share bounded scheduling, never authorization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Kind {
+    Projects,
+    Agents,
+    Activity,
+}
+impl Kind {
+    fn policy(self) -> &'static str {
+        match self {
+            Self::Projects => "project-sync.json",
+            Self::Agents => "agent-sync.json",
+            Self::Activity => "activity-sync.json",
+        }
+    }
+    fn journal(self) -> &'static str {
+        match self {
+            Self::Projects => "project-sync-state.json",
+            Self::Agents => "agent-sync-state.json",
+            Self::Activity => "activity-sync-state.json",
+        }
+    }
+    fn entries(self, value: &Value) -> Option<usize> {
+        match self {
+            Self::Projects => value["projects"].as_array().map(Vec::len),
+            Self::Agents => value["sessions"].as_array().map(Vec::len),
+            Self::Activity => Some(
+                value["tasks"].as_array()?.len()
+                    + value["messages"].as_array()?.len()
+                    + value["runs"].as_array()?.len(),
+            ),
+        }
+    }
+    fn count(self) -> &'static str {
+        match self {
+            Self::Projects => "project_count",
+            Self::Agents => "session_count",
+            Self::Activity => "record_count",
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
@@ -67,7 +109,8 @@ struct Outcome {
     completed_at: Option<u64>,
     last_success: Option<u64>,
     catalog_revision: Option<u64>,
-    project_count: Option<usize>,
+    #[serde(rename = "project_count")]
+    entry_count: Option<usize>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -80,6 +123,7 @@ struct Journal {
 
 pub struct Job {
     pub node: String,
+    pub kind: Kind,
     owner: String,
     revision: u64,
     binding: String,
@@ -94,7 +138,7 @@ fn now() -> Result<u64> {
 fn interval(value: u32) -> Result<()> {
     ensure!(
         [15, 30, 60, 300].contains(&value),
-        "choose a project sync interval of 15, 30, 60 or 300 seconds"
+        "choose a catalog sync interval of 15, 30, 60 or 300 seconds"
     );
     Ok(())
 }
@@ -120,22 +164,21 @@ fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>> {
     };
     ensure!(
         file.metadata()?.len() <= MAX_FILE,
-        "project sync data is too large"
+        "catalog sync data is too large"
     );
     Ok(Some(serde_json::from_reader(file).context(
-        "invalid project sync data; existing files were preserved",
+        "invalid catalog sync data; existing files were preserved",
     )?))
 }
-fn settings(path: &Path, owner: &str) -> Result<Settings> {
-    let value: Settings =
-        read(&path.with_file_name("project-sync.json"))?.unwrap_or_else(|| Settings {
-            version: 1,
-            owner: owner.into(),
-            revision: 0,
-            enabled: false,
-            interval_seconds: 60,
-            nodes: BTreeMap::new(),
-        });
+fn settings(path: &Path, owner: &str, kind: Kind) -> Result<Settings> {
+    let value: Settings = read(&path.with_file_name(kind.policy()))?.unwrap_or_else(|| Settings {
+        version: 1,
+        owner: owner.into(),
+        revision: 0,
+        enabled: false,
+        interval_seconds: 60,
+        nodes: BTreeMap::new(),
+    });
     interval(value.interval_seconds)?;
     ensure!(
         value.version == 1
@@ -146,17 +189,16 @@ fn settings(path: &Path, owner: &str) -> Result<Settings> {
                 .nodes
                 .iter()
                 .all(|(node, binding)| valid_node_id(node) && node != owner && hash(binding)),
-        "invalid project sync policy or owner"
+        "invalid catalog sync policy or owner"
     );
     Ok(value)
 }
-fn journal(path: &Path, owner: &str) -> Result<Journal> {
-    let value: Journal =
-        read(&path.with_file_name("project-sync-state.json"))?.unwrap_or_else(|| Journal {
-            version: 1,
-            owner: owner.into(),
-            nodes: BTreeMap::new(),
-        });
+fn journal(path: &Path, owner: &str, kind: Kind) -> Result<Journal> {
+    let value: Journal = read(&path.with_file_name(kind.journal()))?.unwrap_or_else(|| Journal {
+        version: 1,
+        owner: owner.into(),
+        nodes: BTreeMap::new(),
+    });
     ensure!(
         value.version == 1
             && value.owner == owner
@@ -169,7 +211,7 @@ fn journal(path: &Path, owner: &str) -> Result<Journal> {
                     .iter()
                     .flatten()
                     .all(|value| *value > 0 && *value <= 253_402_300_799_000)),
-        "invalid project sync journal or owner"
+        "invalid catalog sync journal or owner"
     );
     Ok(value)
 }
@@ -177,7 +219,7 @@ fn write<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     let bytes = serde_json::to_vec(value)?;
     ensure!(
         bytes.len() as u64 <= MAX_FILE,
-        "project sync data is too large"
+        "catalog sync data is too large"
     );
     config::write_private(path, &bytes, true)
 }
@@ -188,7 +230,34 @@ fn matches(settings: &Settings, configuration: &Config, node: &str) -> bool {
         .and_then(|route| binding(&configuration.node_id, node, route).ok())
         .is_some_and(|binding| settings.nodes.get(node) == Some(&binding))
 }
-fn view(settings: &Settings, configuration: &Config, journal: &Journal) -> Value {
+fn purge_changed_activity(
+    path: &Path,
+    configuration: &Config,
+    saved: &Settings,
+    kind: Kind,
+) -> Result<()> {
+    if kind == Kind::Activity {
+        let store = Store::new(path.to_path_buf());
+        for node in saved.nodes.keys() {
+            if !matches(saved, configuration, node) {
+                store.forget_activity_snapshot(node)?;
+            }
+        }
+    }
+    Ok(())
+}
+/// Caller holds the peer lock. Pausing keeps selected snapshots available;
+/// every policy revision invalidates an in-flight read's permission to save.
+pub(super) fn activity_selection(
+    path: &Path,
+    owner: &str,
+    node: &str,
+    binding: &str,
+) -> Result<Option<u64>> {
+    let saved = settings(path, owner, Kind::Activity)?;
+    Ok((saved.nodes.get(node).map(String::as_str) == Some(binding)).then_some(saved.revision))
+}
+fn view(settings: &Settings, configuration: &Config, journal: &Journal, kind: Kind) -> Value {
     json!({
         "owner":settings.owner, "revision":settings.revision, "enabled":settings.enabled,
         "interval_seconds":settings.interval_seconds,
@@ -202,7 +271,7 @@ fn view(settings: &Settings, configuration: &Config, journal: &Journal) -> Value
                 "last_attempt":outcome.map(|o| o.attempted_at),
                 "last_success":outcome.and_then(|o| o.last_success),
                 "catalog_revision":outcome.and_then(|o| o.catalog_revision),
-                "project_count":outcome.and_then(|o| o.project_count),
+                (kind.count()):outcome.and_then(|o| o.entry_count),
             })
         }).collect::<Vec<_>>(),
     })
@@ -211,12 +280,17 @@ fn view(settings: &Settings, configuration: &Config, journal: &Journal) -> Value
 /// Only local operator entry points call this function. It is not exposed by
 /// the inbound peer capability API or the task-scoped MCP adapter.
 pub fn manage(path: &Path, command: Command) -> Result<Value> {
+    manage_kind(path, command, Kind::Projects)
+}
+pub fn manage_kind(path: &Path, command: Command, kind: Kind) -> Result<Value> {
     // All users of both locks take the peer lock first; none hold them over I/O.
     let _peer = config::lock_credentials(path)?;
     let configuration = Config::read(path)?;
-    let _guard = config::lock_credentials(&path.with_file_name("project-sync.json"))?;
-    let mut saved = settings(path, &configuration.node_id)?;
-    let mut state = journal(path, &configuration.node_id)?;
+    let _guard = config::lock_credentials(&path.with_file_name(kind.policy()))?;
+    let mut saved = settings(path, &configuration.node_id, kind)?;
+    let previous = saved.nodes.clone();
+    let mut state = journal(path, &configuration.node_id, kind)?;
+    purge_changed_activity(path, &configuration, &saved, kind)?;
     let revision = match &command {
         Command::Status => None,
         Command::Configure { revision, .. } | Command::Pause { revision } => Some(*revision),
@@ -224,7 +298,7 @@ pub fn manage(path: &Path, command: Command) -> Result<Value> {
     if let Some(revision) = revision {
         ensure!(
             saved.revision == revision,
-            "project sync settings changed; reload and review the selected devices again"
+            "catalog sync settings changed; reload and review the selected devices again"
         );
     }
     match command {
@@ -236,28 +310,28 @@ pub fn manage(path: &Path, command: Command) -> Result<Value> {
         } => {
             interval(interval_seconds)?;
             ensure!(
-                !nodes.is_empty() && nodes.len() <= 32,
-                "select one to 32 project sync devices"
+                (kind == Kind::Activity || !nodes.is_empty()) && nodes.len() <= 32,
+                "select one to 32 catalog sync devices"
             );
             let mut bindings = BTreeMap::new();
             for node in nodes {
                 ensure!(
                     valid_node_id(&node) && node != configuration.node_id,
-                    "choose a different valid project sync device"
+                    "choose a different valid catalog sync device"
                 );
                 let route = configuration
                     .routes
                     .get(&node)
-                    .context("selected project sync device is no longer connected")?;
+                    .context("selected catalog sync device is no longer connected")?;
                 let binding = binding(&configuration.node_id, &node, route)?;
                 ensure!(
                     bindings.insert(node, binding).is_none(),
-                    "select distinct project sync devices"
+                    "select distinct catalog sync devices"
                 );
             }
             saved.nodes = bindings;
             saved.interval_seconds = interval_seconds;
-            saved.enabled = true;
+            saved.enabled = !saved.nodes.is_empty();
         }
         Command::Pause { .. } => saved.enabled = false,
     }
@@ -265,10 +339,18 @@ pub fn manage(path: &Path, command: Command) -> Result<Value> {
         saved.revision = saved
             .revision
             .checked_add(1)
-            .context("project sync revision exhausted")?;
+            .context("catalog sync revision exhausted")?;
         // Publish the policy before its derived journal. A crash between the
         // writes ignores old outcomes by revision and safely retries reads.
-        write(&path.with_file_name("project-sync.json"), &saved)?;
+        write(&path.with_file_name(kind.policy()), &saved)?;
+        if kind == Kind::Activity {
+            let store = Store::new(path.to_path_buf());
+            for (node, binding) in previous {
+                if saved.nodes.get(&node) != Some(&binding) {
+                    store.forget_activity_snapshot(&node)?;
+                }
+            }
+        }
         state.nodes.retain(|node, outcome| {
             if saved.nodes.get(node) != Some(&outcome.binding) {
                 return false;
@@ -279,21 +361,25 @@ pub fn manage(path: &Path, command: Command) -> Result<Value> {
             outcome.completed_at = None;
             true
         });
-        write(&path.with_file_name("project-sync-state.json"), &state)?;
+        write(&path.with_file_name(kind.journal()), &state)?;
     }
-    Ok(view(&saved, &configuration, &state))
+    Ok(view(&saved, &configuration, &state, kind))
 }
 
 /// Cheap bounded scheduling; the node service limits concurrent network pulls.
 pub fn pending(path: &Path) -> Result<Vec<Job>> {
+    pending_kind(path, Kind::Projects)
+}
+pub fn pending_kind(path: &Path, kind: Kind) -> Result<Vec<Job>> {
     let _peer = config::lock_credentials(path)?;
     let configuration = Config::read(path)?;
-    let _guard = config::lock_credentials(&path.with_file_name("project-sync.json"))?;
-    let saved = settings(path, &configuration.node_id)?;
+    let _guard = config::lock_credentials(&path.with_file_name(kind.policy()))?;
+    let saved = settings(path, &configuration.node_id, kind)?;
+    purge_changed_activity(path, &configuration, &saved, kind)?;
     if !saved.enabled {
         return Ok(vec![]);
     }
-    let state = journal(path, &configuration.node_id)?;
+    let state = journal(path, &configuration.node_id, kind)?;
     let now = now()?;
     Ok(saved
         .nodes
@@ -312,6 +398,7 @@ pub fn pending(path: &Path) -> Result<Vec<Job>> {
         })
         .map(|(node, binding)| Job {
             node: node.clone(),
+            kind,
             owner: configuration.node_id.clone(),
             revision: saved.revision,
             binding: binding.clone(),
@@ -319,8 +406,9 @@ pub fn pending(path: &Path) -> Result<Vec<Job>> {
         .collect())
 }
 fn current(path: &Path, job: &Job) -> Result<Option<(Settings, Journal)>> {
+    let kind = job.kind;
     let configuration = Config::read(path)?;
-    let saved = settings(path, &configuration.node_id)?;
+    let saved = settings(path, &configuration.node_id, kind)?;
     if configuration.node_id != job.owner
         || !saved.enabled
         || saved.revision != job.revision
@@ -329,10 +417,11 @@ fn current(path: &Path, job: &Job) -> Result<Option<(Settings, Journal)>> {
     {
         return Ok(None);
     }
-    Ok(Some((saved, journal(path, &configuration.node_id)?)))
+    Ok(Some((saved, journal(path, &configuration.node_id, kind)?)))
 }
 
 pub async fn run(path: &Path, job: Job) -> Result<()> {
+    let kind = job.kind;
     let peer_path = path.to_path_buf();
     let node = job.node.clone();
     let binding = job.binding.clone();
@@ -340,7 +429,7 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
         let path = peer_path.clone();
         tokio::task::spawn_blocking(move || {
             let _peer = config::lock_credentials(&path)?;
-            let _guard = config::lock_credentials(&path.with_file_name("project-sync.json"))?;
+            let _guard = config::lock_credentials(&path.with_file_name(kind.policy()))?;
             let Some((_, mut state)) = current(&path, &job)? else {
                 return Ok(None);
             };
@@ -356,10 +445,10 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
                 completed_at: None,
                 last_success: previous.as_ref().and_then(|o| o.last_success),
                 catalog_revision: previous.as_ref().and_then(|o| o.catalog_revision),
-                project_count: previous.and_then(|o| o.project_count),
+                entry_count: previous.and_then(|o| o.entry_count),
             };
             state.nodes.insert(job.node.clone(), outcome);
-            write(&path.with_file_name("project-sync-state.json"), &state)?;
+            write(&path.with_file_name(kind.journal()), &state)?;
             Ok::<_, anyhow::Error>(Some(job))
         })
         .await??
@@ -367,21 +456,25 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
     let Some(job) = started else {
         return Ok(());
     };
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(40),
-        Store::new(peer_path.clone()).background_projects(node, binding),
-    )
+    let result = tokio::time::timeout(std::time::Duration::from_secs(40), async {
+        let store = Store::new(peer_path.clone());
+        match kind {
+            Kind::Projects => store.background_projects(node, binding).await,
+            Kind::Agents => store.background_agents(node, binding).await,
+            Kind::Activity => store.background_activity(node, binding).await,
+        }
+    })
     .await;
     tokio::task::spawn_blocking(move || {
         let _peer = config::lock_credentials(&peer_path)?;
-        let _guard = config::lock_credentials(&peer_path.with_file_name("project-sync.json"))?;
+        let _guard = config::lock_credentials(&peer_path.with_file_name(kind.policy()))?;
         let Some((_, mut state)) = current(&peer_path, &job)? else {
             return Ok(());
         };
         let outcome = state
             .nodes
             .get_mut(&job.node)
-            .context("project sync attempt disappeared")?;
+            .context("catalog sync attempt disappeared")?;
         outcome.completed_at = Some(now()?);
         outcome.phase = match result {
             Ok(Err(error)) if error.is::<projects::RefreshBusy>() => {
@@ -393,7 +486,7 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
             Ok(Ok(value)) => {
                 outcome.last_success = outcome.completed_at;
                 outcome.catalog_revision = value["revision"].as_u64();
-                outcome.project_count = value["projects"].as_array().map(Vec::len);
+                outcome.entry_count = kind.entries(&value);
                 if value["sync"]["warning"].is_string() {
                     Phase::CacheError
                 } else {
@@ -404,7 +497,7 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
             Err(_) => Phase::Unavailable,
             Ok(Err(_)) => Phase::Error,
         };
-        write(&peer_path.with_file_name("project-sync-state.json"), &state)
+        write(&peer_path.with_file_name(kind.journal()), &state)
     })
     .await?
 }

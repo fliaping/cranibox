@@ -322,13 +322,13 @@ async function agents(page: Page) {
     { id: '55555555-5555-4555-8555-555555555555', name: '<img src=x onerror="window.unsafe=true">', harness: 'old-cli', status: 'busy', updated_at: now - 400, expires_at: now - 100, revision: 2 },
     { id: '66666666-6666-4666-8666-666666666666', name: 'Finished reviewer', harness: 'custom-cli', status: 'ended', updated_at: now, expires_at: now + 300, revision: 3 },
   ];
-  const state = { now, reports, fail: false, calls: [] as any[] };
+  const state = { now, reports, fail: false, offline: false, calls: [] as any[] };
   await page.route('**/api/peers', async route => {
     const command = route.request().postDataJSON();
     if (command.operation === 'agent_sessions') {
       state.calls.push(command);
       if (state.fail && command.node) { await route.fulfill({ status: 503, json: { error: 'Agent directory unavailable' } }); return; }
-      await route.fulfill({ json: { owner: command.node || fixture.state.owner, observed_at: state.now, lease_secs: 300, capacity: 64, sessions: state.reports } }); return;
+      await route.fulfill({ json: { owner: command.node || fixture.state.owner, observed_at: state.now, lease_secs: 300, capacity: 64, sessions: state.reports, ...(state.offline && command.node ? { sync: { state: 'offline', synced_at: state.now * 1000 } } : {}) } }); return;
     }
     if (command.operation === 'list') {
       await route.fulfill({ json: { node_id: fixture.state.owner, routes: [{ node: 'remote-device' }, { node: 'another-device' }], grants: [] } }); return;
@@ -518,4 +518,291 @@ test('a reply draft stays with its attempt when polling observes a retry already
   await expect(panel.locator('.task-history textarea')).toHaveCount(0);
   await expect(text).toHaveCount(1);
   expect(actions.some(action => action.operation === 'answer')).toBe(false);
+});
+
+
+test('offline Agent snapshots stay visible without allowing delegation and recover on refresh', async ({ page }) => {
+  const { directory, actions } = await agents(page);
+  await page.goto('/#/tasks');
+  const panel = page.getByRole('region', { name: 'Collaboration tasks', exact: true });
+  const overview = panel.getByRole('region', { name: 'Agents across devices', exact: true });
+  const remote = overview.getByRole('article', { name: 'Device remote-device', exact: true });
+  await panel.getByRole('combobox', { name: 'Target device', exact: true }).selectOption('remote-device');
+  const picker = panel.getByRole('combobox', { name: 'Target Agent', exact: true });
+  await picker.selectOption(session);
+  await panel.getByLabel('Task title', { exact: true }).fill('Wait for the owner');
+  await panel.getByRole('textbox', { name: 'Description and completion criteria', exact: true }).fill('Confirm the session before delegating.');
+  const save = panel.getByRole('button', { name: 'Save and delegate', exact: true });
+  await expect(save).toBeEnabled();
+  directory.offline = true;
+  await overview.getByRole('button', { name: 'Refresh all Agents', exact: true }).click();
+  await panel.getByRole('button', { name: 'Refresh Agents', exact: true }).click();
+  await expect(remote).toContainText('Offline snapshot');
+  await expect(remote).toContainText('Build reviewer');
+  await expect(remote).toContainText('Last synced:');
+  await expect(remote.locator('.agent-session-card').first().getByRole('button')).toBeDisabled();
+  await expect(picker).toHaveValue(session);
+  await expect(picker.locator('option[value="' + session + '"]')).toHaveJSProperty('disabled', true);
+  await expect(save).toBeDisabled();
+  expect(actions.some(action => action.operation === 'create')).toBe(false);
+  directory.offline = false;
+  await overview.getByRole('button', { name: 'Refresh all Agents', exact: true }).click();
+  await panel.getByRole('button', { name: 'Refresh Agents', exact: true }).click();
+  await expect(remote).not.toContainText('Offline snapshot');
+  await expect(save).toBeEnabled();
+});
+
+test('Agent background sync is opt-in, persists selection and fits narrow screens', async ({ page }) => {
+  await agents(page);
+  const actions: any[] = [];
+  const state = { owner: 'local-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device', 'another-device'], nodes: [] as any[] };
+  await page.route('**/api/peers', async route => {
+    const request = route.request().postDataJSON();
+    if (request.operation !== 'agent_sync') return route.fallback();
+    const command = request.command; actions.push(command);
+    if (command.operation === 'configure') {
+      state.revision++; state.enabled = true; state.interval_seconds = command.interval_seconds;
+      state.nodes = command.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', session_count: 2, last_success: Date.now() }));
+    }
+    if (command.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach(node => { node.phase = 'paused'; }); }
+    return route.fulfill({ json: state });
+  });
+  await page.goto('/#/tasks');
+  const panel = page.locator('.agent-federation .project-sync');
+  await expect(panel).toBeVisible(); expect(actions).toHaveLength(0);
+  await panel.locator(':scope > summary').click();
+  await expect(panel).toContainText('Target message access is required');
+  await panel.getByRole('button', { name: 'Set up background sync', exact: true }).click();
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await panel.getByRole('combobox', { name: 'Sync interval', exact: true }).selectOption('30');
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const row = await panel.locator('.project-sync-check').first().boundingBox();
+    expect(row!.height).toBeGreaterThanOrEqual(44);
+    if (width === 375 || width === 1440) await panel.screenshot({ path: '/tmp/cranibox-agent-background-sync-' + width + '.png' });
+  }
+  await panel.getByRole('button', { name: 'Enable background sync', exact: true }).click();
+  expect(actions.find(command => command.operation === 'configure')).toEqual({ operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 30 });
+  await expect(panel.getByRole('status')).toContainText('Saved.');
+  await expect(panel.getByLabel('Device sync status')).toContainText('2 registrations');
+  await page.reload(); await panel.locator(':scope > summary').click();
+  await expect(panel).toContainText('Background sync enabled');
+  await panel.getByRole('button', { name: 'Pause sync', exact: true }).click();
+  await expect(panel.getByLabel('Device sync status')).toContainText('Paused');
+});
+
+async function activity(page: Page) {
+  await tasks(page);
+  const control = { calls: [] as any[], error: '', wrongOwner: false, sync: undefined as any, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], wait: undefined as Promise<void> | undefined };
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation === 'list') { await route.fulfill({ json: { node_id: 'local-device', routes: control.routes, grants: [] } }); return; }
+    if (command.operation !== 'activity') { await route.fallback(); return; }
+    control.calls.push(command);
+    if (command.node && control.wait) await control.wait;
+    if (command.node && control.error) { await route.fulfill({ status: 403, json: { error: control.error } }); return; }
+    const owner = command.node || 'local-device', now = Math.floor(Date.now() / 1000);
+    const task = { id, sender: owner, recipient: 'other-device', title: owner + ' review', description: '<img src=x onerror=window.unsafe=true> Review evidence 中文', created_at: now + 100 };
+    const current = { dispatch, state: 'running', progress: 'Source progress', result: null, revision: 3, updated_at: now, questions: [{ id, text: 'Which release?', answer: 'Release 42' }] };
+    await route.fulfill({ json: { version: 1, owner: command.node && control.wrongOwner ? 'wrong-device' : owner, observed_at: now, digest: 'a'.repeat(64), tasks: [{ direction: 'outgoing', task, current, cancel_requested: false }], messages: Array.from({ length: 22 }, (_, index) => ({ direction: 'outgoing', status: 'received', message: { id: 'message-' + index, sender: owner, recipient: 'other-device', text: 'Message evidence ' + index, created_at: now - index } })), runs: [{ scope: { id: 'run-1', owner, name: 'Release collaboration', goal: 'Check every report' }, state: 'open', members: ['other-device'], revision: 1, created_at: now + 99, result: null }], ...(command.node && control.sync !== undefined ? { sync: control.sync } : {}) } });
+  });
+  return control;
+}
+
+test('collaboration background sync is explicit, keeps conflict edits and can pause or clear snapshots', async ({ page }) => {
+  const control = await activity(page), actions: any[] = [];
+  const state: any = { owner: 'local-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] };
+  let fail = false;
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation !== 'activity_sync') return route.fallback();
+    const action = command.command; actions.push(action);
+    if (action.operation !== 'status' && (fail || action.revision !== state.revision)) return route.fulfill({ status: 400, json: { error: 'Settings changed; review selected devices.' } });
+    if (action.operation === 'configure') { state.revision++; state.enabled = !!action.nodes.length; state.interval_seconds = action.interval_seconds; state.nodes = action.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', record_count: 24, last_success: 1792386000000 })); }
+    if (action.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach((node: any) => { node.phase = 'paused'; }); }
+    return route.fulfill({ json: state });
+  });
+  await page.goto('/#/tasks');
+  const records = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  const settings = records.locator('.project-sync');
+  await expect(settings).toContainText('Background collaboration sync');
+  expect(actions).toHaveLength(0);
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('message content');
+  await expect(settings).toContainText('Sync is off by default');
+  await settings.getByRole('button', { name: 'Set up background sync', exact: true }).click();
+  const save = settings.getByRole('button', { name: 'Enable background sync', exact: true });
+  await expect(save).toBeDisabled();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('combobox', { name: 'Sync interval', exact: true }).selectOption('30');
+  fail = true; await save.click();
+  await expect(settings.getByRole('alert')).toContainText('Settings changed');
+  await expect(settings.getByRole('checkbox', { name: 'remote-device', exact: true })).toBeChecked();
+  await expect(settings.getByRole('combobox', { name: 'Sync interval', exact: true })).toHaveValue('30');
+  fail = false; state.revision++;
+  await settings.getByRole('button', { name: 'Refresh sync status', exact: true }).click();
+  await expect(save).toBeDisabled();
+  await settings.getByRole('button', { name: 'Continue with current version', exact: true }).click();
+  await save.click();
+  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await expect(settings.getByLabel('Device sync status')).toContainText('24 records');
+  expect(actions.filter(action => action.operation === 'configure').at(-1)).toEqual({ operation: 'configure', revision: 1, nodes: ['remote-device'], interval_seconds: 30 });
+  expect(control.calls.every(command => !command.node)).toBe(true); // Background selection does not change the viewed sources.
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1100 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (width === 375 || width === 1440) await settings.screenshot({ path: '/tmp/cranibox-activity-sync-' + width + '-' + theme + '.png' });
+    }
+  }
+  await settings.getByRole('button', { name: 'Pause sync', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('Existing snapshots remain available');
+  await records.getByRole('button', { name: 'Close collaboration records', exact: true }).click();
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await settings.locator(':scope > summary').click();
+  await expect(settings.getByLabel('Device sync status')).toContainText('Paused');
+  await settings.getByRole('button', { name: 'Clear snapshots and turn off sync', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('snapshots were deleted');
+  expect(actions.filter(action => action.operation === 'configure').at(-1)).toEqual({ operation: 'configure', revision: 3, nodes: [], interval_seconds: 30 });
+  await expect(settings.getByRole('button', { name: 'Clear snapshots and turn off sync', exact: true })).toHaveCount(0);
+});
+
+test('offline collaboration snapshots show sync time, reject malformed metadata and clear on denial', async ({ page }) => {
+  const control = await activity(page), syncedAt = 1792386000000;
+  control.sync = { state: 'offline', synced_at: syncedAt };
+  await page.goto('/#/tasks');
+  const records = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await records.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  const source = records.getByLabel('Record source remote-device', { exact: true });
+  const remote = records.getByRole('article', { name: 'Task: remote-device review', exact: true });
+  await expect(source).toContainText('Offline snapshot · current status unconfirmed');
+  await expect(source.locator('time').last()).toHaveAttribute('datetime', new Date(syncedAt).toISOString());
+  await expect(remote).toBeVisible();
+  await expect(remote.getByRole('button')).toHaveCount(0);
+  for (const sync of [{ state: 'online', synced_at: 0 }, { state: 'offline', synced_at: 'yesterday' }, { state: 'current', synced_at: syncedAt }, { state: 'offline', synced_at: syncedAt, injected: true }]) {
+    control.sync = sync;
+    await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+    await expect(source.getByRole('alert')).toContainText('Invalid collaboration records');
+    await expect(remote).toHaveCount(0);
+  }
+  control.sync = { state: 'online', synced_at: syncedAt, warning: 'Local collaboration snapshot could not be saved.' };
+  await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(source.getByRole('alert')).toContainText('could not be saved');
+  await expect(source).not.toContainText('Local snapshot saved');
+  await expect(remote).toBeVisible();
+  control.error = 'Read collaboration records grant revoked';
+  await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(source.getByRole('alert')).toContainText('grant revoked');
+  await expect(remote).toHaveCount(0);
+  await expect(source).not.toContainText('Offline snapshot');
+});
+
+test('read collaboration records is an opt-in source view with search, reports and bounded pages', async ({ page }) => {
+  const control = await activity(page), errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/tasks');
+  const panel = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await expect(panel).toBeVisible();
+  expect(control.calls).toHaveLength(0);
+  await panel.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await expect(panel.getByRole('article', { name: 'Task: local-device review', exact: true })).toBeVisible();
+  expect(control.calls.every(command => command.node === null)).toBe(true);
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await expect(panel.getByRole('article', { name: 'Task: remote-device review', exact: true })).toBeVisible();
+  await expect(panel.locator('.activity-list article')).toHaveCount(20);
+  await expect(panel.getByRole('navigation')).toContainText('1 / 3');
+  const row = panel.getByRole('article', { name: 'Task: remote-device review', exact: true });
+  await row.getByText('View content and reports', { exact: true }).click();
+  await expect(row).toContainText('<img src=x onerror=window.unsafe=true>');
+  await expect(row).toContainText('Release 42');
+  expect(await row.locator('img').count()).toBe(0);
+  await panel.getByRole('searchbox').fill('Release 42');
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await panel.getByRole('combobox', { name: 'Record type', exact: true }).selectOption('message');
+  await expect(panel).toContainText('No matching records.');
+  await panel.getByRole('searchbox').clear();
+  await expect(panel.locator('.activity-list article')).toHaveCount(20);
+  await panel.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(panel.getByRole('navigation')).toContainText('2 / 3');
+  await panel.getByRole('combobox', { name: 'Record type', exact: true }).selectOption('task');
+  await row.getByText('View content and reports', { exact: true }).click();
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(await panel.locator('.activity-sources label').first().evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+      if (width === 375 || width === 1440) await panel.screenshot({ path: '/tmp/cranibox-federated-activity-' + width + '-' + theme + '.png' });
+    }
+  }
+  expect(await page.evaluate(() => (window as any).unsafe)).toBeUndefined();
+  expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain('Release 42');
+  expect(errors).toEqual([]);
+});
+
+test('failed or misidentified collaboration sources clear old content and ignore a removed route response', async ({ page }) => {
+  const control = await activity(page);
+  await page.goto('/#/tasks');
+  const panel = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await panel.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  const remote = panel.getByRole('article', { name: 'Task: remote-device review', exact: true });
+  await expect(remote).toBeVisible();
+  control.error = 'Read collaboration records grant revoked';
+  await panel.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('grant revoked');
+  await expect(remote).toHaveCount(0);
+  control.error = ''; control.wrongOwner = true;
+  await panel.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('Invalid collaboration records or source identity');
+  await expect(remote).toHaveCount(0);
+  control.wrongOwner = false;
+  let release!: () => void;
+  control.wait = new Promise<void>(resolve => { release = resolve; });
+  const before = control.calls.length;
+  await panel.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect.poll(() => control.calls.length).toBeGreaterThan(before);
+  control.routes = [];
+  await page.evaluate(() => window.dispatchEvent(new Event('cranibox:peers-changed')));
+  await expect(panel.getByRole('checkbox', { name: 'remote-device', exact: true })).toHaveCount(0);
+  release();
+  await expect(remote).toHaveCount(0);
+  await expect(panel.getByRole('article', { name: 'Task: local-device review', exact: true })).toBeVisible();
+});
+
+test('collaboration automatic reads stop when paused, hidden or collapsed and manual reads stay available', async ({ page }) => {
+  const control = await activity(page);
+  await page.clock.install();
+  await page.goto('/#/tasks');
+  const panel = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await panel.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await expect(panel.getByRole('article', { name: 'Task: local-device review', exact: true })).toBeVisible();
+  const initial = control.calls.length;
+  await page.clock.fastForward(11000);
+  await expect.poll(() => control.calls.length).toBeGreaterThan(initial);
+  await page.getByRole('region', { name: 'Collaboration tasks', exact: true }).getByRole('button', { name: 'Pause updates', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Refresh collaboration records', exact: true })).toBeEnabled();
+  const paused = control.calls.length;
+  await page.clock.fastForward(21000);
+  expect(control.calls).toHaveLength(paused);
+  await panel.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect.poll(() => control.calls.length).toBeGreaterThan(paused);
+  await panel.getByRole('button', { name: 'Close collaboration records', exact: true }).click();
+  const closed = control.calls.length;
+  await page.clock.fastForward(21000);
+  expect(control.calls).toHaveLength(closed);
+  await panel.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await expect(panel.getByRole('article', { name: 'Task: local-device review', exact: true })).toBeVisible();
+  await page.getByRole('region', { name: 'Collaboration tasks', exact: true }).getByRole('button', { name: 'Resume updates', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Refresh collaboration records', exact: true })).toBeEnabled();
+  await page.evaluate(() => Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }));
+  const hidden = control.calls.length;
+  await page.clock.fastForward(21000);
+  expect(control.calls).toHaveLength(hidden);
+  await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+  await expect.poll(() => control.calls.length).toBeGreaterThan(hidden);
 });
