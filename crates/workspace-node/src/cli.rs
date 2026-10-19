@@ -46,6 +46,20 @@ pub async fn run() -> anyhow::Result<()> {
             agent_workspace_runtime::client::print(result);
             return Ok(());
         }
+        Some(agent::Command::Peer {
+            command:
+                crate::peer::Command::Messages {
+                    action:
+                        crate::peer::Messages::HookConfig {
+                            harness,
+                            wake_on_stop,
+                        },
+                },
+        }) => {
+            let config = crate::peer::hook::config(harness, wake_on_stop, &args.config)?;
+            println!("{}", serde_json::to_string_pretty(&config)?);
+            return Ok(());
+        }
         Some(agent::Command::Peer { command }) => {
             return crate::peer::run(peer_path, command).await;
         }

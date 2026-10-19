@@ -37,6 +37,10 @@ impl std::fmt::Display for RateLimited {
 }
 impl std::error::Error for RateLimited {}
 pub const LOOP_WINDOW: u64 = 600;
+/// Most messages, and approximate framed bytes, injected into one Agent turn by a hook;
+/// the rest wait for the next turn.
+const HOOK_BATCH: usize = 8;
+const HOOK_BYTES: usize = 32 * 1024;
 /// Frame untrusted remote text for an Agent. Closing tags inside the text are defanged
 /// so content cannot end the frame early and pose as instructions.
 pub fn frame(sender: &str, thread: &Uuid, text: &str) -> String {
@@ -386,6 +390,46 @@ impl Peers {
             }
         }
         Ok(value)
+    }
+    /// Messages released to an Agent session that it has not seen yet, framed as untrusted
+    /// text, and acknowledged in the same locked update so concurrent hooks never deliver
+    /// twice. Held, archived, expired and device-wide messages are never returned. This
+    /// reuses the existing acknowledgement; there is no separate delivery state.
+    pub async fn deliver_to_session(&self, session: Uuid) -> Result<Vec<Value>> {
+        ensure!(!session.is_nil(), "invalid Agent session");
+        let peers = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let configuration = Config::read(&peers.path)?;
+            let store = Store::new(&peers.path, configuration.node_id.clone());
+            store.update(|mailbox| {
+                let current = now();
+                let mut pending: Vec<_> = mailbox
+                    .incoming
+                    .values_mut()
+                    .filter(|item| {
+                        !item.archived
+                            && item.held.is_none()
+                            && item.acknowledged_at.is_none()
+                            && item.message.expires_at > current
+                            && item.message.target_session == Some(session)
+                    })
+                    .collect();
+                pending.sort_by_key(|item| (item.received_at, item.message.id));
+                let mut out = Vec::new();
+                let mut size = 0;
+                for item in pending.into_iter().take(HOOK_BATCH) {
+                    let text = frame(&item.message.sender, &item.message.thread, &item.message.text);
+                    size += text.len();
+                    if !out.is_empty() && size > HOOK_BYTES {
+                        break;
+                    }
+                    item.acknowledged_at = Some(current);
+                    out.push(json!({"id":item.message.id,"sender":item.message.sender,"thread":item.message.thread,"text":text}));
+                }
+                Ok(out)
+            })
+        })
+        .await?
     }
     pub async fn messages(&self, command: Command) -> Result<Value> {
         let peers = self.clone();

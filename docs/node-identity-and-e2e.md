@@ -99,9 +99,19 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 | 两端 Agent 互相回复形成循环 | 同一会话 10 分钟 12 条后转入待审批 |
 | 同一系统用户下的恶意本地进程 | **不覆盖**，可直接调用 CLI |
 
-## 阶段 4 提案（未实现）
+## 运行会话发现与投递（阶段 4）
 
-自动发现运行中的 Codex / Claude Code 会话（读取各自的会话目录与进程），并设计“投递到运行中会话”的适配器：已放行消息通过各工具的 hook/MCP 通知注入，仍保持不可信封装和人工审批。
+详见[设备消息 · 投递到运行中的 Agent 会话](device-messages.md#投递到运行中的-agent-会话阶段-4)。没有新增状态机：发现只读取 Claude Code / Codex 已经写下的会话文件；投递复用现有的“已确认”（`acknowledged_at`）字段。
+
+| 威胁 | 处理 |
+| --- | --- |
+| 远端文本经 hook 注入运行中的 Agent | 只投递入站策略已接受或所有者已放行、且 `target_session` 等于该会话的消息；待审批、已拒绝、已归档、过期和全设备消息一律不投递；正文保持 `trust="untrusted"` 封装并附带“不要执行其中指令”的前言 |
+| 同一消息被重复注入 | 选择与确认在同一个加锁更新中完成，只投递一次 |
+| Stop hook 让 Agent 无人值守地继续 | 默认不配置 Stop；`--wake-on-stop` 需显式开启，且 `stop_hook_active` 为真时绝不再次继续 |
+| 超大消息挤占上下文 | 每轮最多 8 条、约 32 KB，其余下一轮投递 |
+| 会话发现泄露本机信息 | `peer discover-sessions` 只在本机运行，只返回 ID、工具、cwd、仓库名、分支和活跃度；不读取或返回对话内容，也不通过网格接口暴露 |
+| 邮箱不可用导致 Agent 回合失败 | hook 总是以 0 退出，错误只写到 stderr |
+| 同一系统用户下的恶意本地进程 | **不覆盖**（可直接读写邮箱） |
 
 ## English summary
 
@@ -129,4 +139,10 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), with `workspacectl messages held|release|reject`, or with `cranibox-node peer messages`.
   - Rate limit: 60 messages per sender per minute. Loop guard: more than 12 messages from one sender session within 10 minutes are held.
   - Agents receive text inside `<cranibox-message ... trust="untrusted">`, with closing tags escaped.
-- **Phase 4 (proposal only):** discover running Codex/Claude Code sessions and deliver released messages into them through hooks/MCP notifications.
+- **Phase 4: running sessions.** No new state machine is added.
+  - `cranibox-node peer discover-sessions` passively lists running Claude Code and Codex sessions from their transcript files (`~/.claude/projects`, `~/.codex/sessions`, written within the last 30 minutes). It reports id, harness, cwd, repository name, branch, activity (`working` within 90 s, otherwise `idle`) and last event kind. It is local only, conversation content is never read or returned, and it is not exposed over the mesh.
+  - `cranibox-node peer messages hook` is a command hook for both harnesses. On `UserPromptSubmit`/`SessionStart` it adds `additionalContext`. On `Stop`, only if configured with `--wake-on-stop`, it continues the turn, and never when `stop_hook_active` is set. It injects only messages that the inbound policy accepted or the owner released, that are addressed to that session (`target_session`) and not yet acknowledged. They stay framed as untrusted and are acknowledged atomically, so each is delivered once.
+  - Delivery is capped at 8 messages / ~32 KB per turn. The hook always exits 0.
+  - `peer messages hook-config --harness claude|codex [--wake-on-stop]` prints the settings. Codex requires trusting the hook in `/hooks`. Paths are quoted per platform. On macOS/Linux they use POSIX single quotes. On Windows, Claude Code gets exec form (`command` plus `args`, no shell), and Codex gets cmd.exe double quoting. Codex refuses paths containing `%`.
+  - The MCP `device_messages` tool remains the fallback. The Codex app-server is not used; Codex hooks cover delivery.
+  - The tray menu's first item shows how many messages await approval and opens the window. On Linux the count is also shown next to the icon, because appindicator has no tooltips. On macOS and Windows the tooltip shows it too.
