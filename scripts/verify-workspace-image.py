@@ -101,7 +101,9 @@ class ImageCheck:
         self.identity = uuid.uuid4().hex
         self.resources = []
         self.report = {'started_at': self.now(), 'image': args.image,
-                       'expected_revision': args.revision, 'checks': [], 'passed': False}
+                       'expected_revision': args.revision, 'expected_platform': args.platform,
+                       'checks': [], 'passed': False}
+        self.platform_args = ['--platform', args.platform] if args.platform else []
 
     @staticmethod
     def now():
@@ -133,6 +135,35 @@ class ImageCheck:
 
     def inspect(self, kind, name):
         return json.loads(self.docker(kind, 'inspect', name))[0]
+
+    @staticmethod
+    def platform_manifest(index, platform):
+        system, architecture = platform.split('/')
+        if not isinstance(index, dict) or not isinstance(index.get('manifests'), list):
+            raise ValueError('Candidate must be a multi-platform image index')
+        matches = []
+        for manifest in index['manifests']:
+            if not isinstance(manifest, dict) or not isinstance(manifest.get('platform'), dict):
+                continue
+            target = manifest['platform']
+            if (target.get('os') == system and target.get('architecture') == architecture
+                    and target.get('variant', '') in (('', 'v8') if architecture == 'arm64' else ('',))):
+                matches.append(manifest)
+        if (len(matches) != 1 or not isinstance(matches[0].get('digest'), str)
+                or not re.fullmatch(r'sha256:[0-9a-f]{64}', matches[0]['digest'])):
+            raise ValueError('Candidate must contain exactly one matching platform manifest')
+        return matches[0]['digest']
+
+    def image_reference(self):
+        if not self.args.pull:
+            return self.args.image
+        index = json.loads(self.docker('buildx', 'imagetools', 'inspect', '--raw', self.args.image))
+        digest = self.platform_manifest(index, self.args.platform)
+        image = self.args.image.split('@')[0] + '@' + digest
+        self.report['platform_image'] = image
+        self.save()
+        self.docker('pull', '--platform', self.args.platform, image, timeout=900)
+        return image
 
     def wait(self, name, credentials, phase):
         end = time.monotonic() + self.args.timeout
@@ -207,7 +238,7 @@ class ImageCheck:
                         'permissions': {'exec': True, 'terminals': True, 'projects': True, 'desktop': False}}}}
             seed_name = name+'-seed'
             self.resources.append(('container', seed_name))
-            self.docker('run', '--name', seed_name, '--label', LABEL+'='+self.identity,
+            self.docker('run', *self.platform_args, '--name', seed_name, '--label', LABEL+'='+self.identity,
                         '--pull=never', '-i', '--network', 'none',
                         '--cpus', '1', '--memory', '128m', '--memory-swap', '128m', '--pids-limit', '32',
                         '--mount', 'type=volume,source='+volume+',target=/config',
@@ -219,7 +250,7 @@ class ImageCheck:
                        secrets.token_hex(32)+'\nSTART_DOCKER=false\nUSE_CHINA_MIRROR=false\n')
         env.chmod(0o600)
         self.resources.append(('container', name))
-        self.docker('run', '-d', '--pull=never', '--name', name, '--label', LABEL+'='+self.identity,
+        self.docker('run', *self.platform_args, '-d', '--pull=never', '--name', name, '--label', LABEL+'='+self.identity,
                     '--restart', 'no', '--cpus', '2', '--memory', '4g', '--memory-swap', '4g',
                     '--shm-size', '512m', '--pids-limit', '1024', '--env-file', str(env),
                     '--mount', 'type=volume,source='+volume+',target=/config', image_id, timeout=90)
@@ -259,7 +290,7 @@ class ImageCheck:
 
     def run(self):
         try:
-            image = self.inspect('image', self.args.image)
+            image = self.inspect('image', self.image_reference())
             labels = image['Config'].get('Labels') or {}
             self.report['image_id'] = image['Id']
             self.report['platform'] = image['Os']+'/'+image['Architecture']
@@ -268,6 +299,8 @@ class ImageCheck:
             if self.args.revision:
                 self.check('source-revision', self.report['revision'] == self.args.revision)
             self.check('linux-image', image['Os'] == 'linux')
+            if self.args.platform:
+                self.check('requested-platform', self.report['platform'] == self.args.platform)
             with tempfile.TemporaryDirectory(prefix='cranibox-image-check-') as temporary:
                 for mode in ('fresh', 'space'):
                     self.scenario(mode, image['Id'], Path(temporary))
@@ -288,12 +321,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='Image already loaded in this Docker engine')
     parser.add_argument('--revision', help='Required full org.opencontainers.image.revision label')
+    parser.add_argument('--platform', choices=('linux/amd64', 'linux/arm64'),
+                        help='Require this image platform and use it for every test container')
+    parser.add_argument('--pull', action='store_true',
+                        help='Explicitly select and pull a platform manifest from an immutable registry index')
     parser.add_argument('--report', required=True, type=Path, help='Sanitized acceptance JSON')
     parser.add_argument('--timeout', type=int, default=600, help='Readiness deadline per startup, seconds')
     parser.add_argument('--sudo', action='store_true', help='Invoke Docker through sudo -n')
     args = parser.parse_args()
     if args.revision and not re.fullmatch(r'[0-9a-f]{40,64}', args.revision):
         parser.error('--revision must be a full lowercase Git revision')
+    if args.pull and (not args.platform or not re.fullmatch(r'[^@\s]+@sha256:[0-9a-f]{64}', args.image)):
+        parser.error('--pull requires --platform and --image REPOSITORY@sha256:DIGEST')
     if not 30 <= args.timeout <= 1800:
         parser.error('--timeout must be between 30 and 1800 seconds')
     os.umask(0o077)

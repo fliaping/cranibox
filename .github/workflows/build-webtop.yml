@@ -15,6 +15,11 @@ on:
         type: choice
         options: [all, xfce, lxqt, kde]
         default: all
+      architecture:
+        description: 'Architecture to verify on a native runner (publish always checks both)'
+        type: choice
+        options: [all, amd64, arm64]
+        default: all
       publish:
         description: 'Publish verified images and update public desktop tags'
         type: boolean
@@ -35,7 +40,7 @@ jobs:
   # Verify a local image or a registry candidate before promotion.
   # ==========================================
   build-dockerhub:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     environment: docker-hub
     permissions:
       contents: read
@@ -45,6 +50,9 @@ jobs:
       fail-fast: false
       matrix:
         desktop: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.desktop != 'all' && format('["{0}"]', inputs.desktop) || '["lxqt","xfce","kde"]') }}
+        # Publishing builds one multi-arch candidate, then checks both platform manifests.
+        # Check-only jobs use native runners and never need registry credentials.
+        architecture: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.publish) && '["amd64"]' || (inputs.architecture == 'amd64' && '["amd64"]' || inputs.architecture == 'arm64' && '["arm64"]' || '["amd64","arm64"]')) }}
 
     steps:
       - name: Checkout repository
@@ -105,30 +113,43 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: DESKTOP=${{ matrix.desktop }}
-          cache-from: type=gha,scope=${{ matrix.desktop }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.desktop }}
-          platforms: ${{ (github.event_name != 'workflow_dispatch' || inputs.publish) && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          cache-from: |
+            type=gha,scope=${{ matrix.desktop }}-${{ matrix.architecture }}
+            type=gha,scope=${{ matrix.desktop }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.desktop }}-${{ matrix.architecture }}
+          platforms: ${{ (github.event_name != 'workflow_dispatch' || inputs.publish) && 'linux/amd64,linux/arm64' || format('linux/{0}', matrix.architecture) }}
 
       - name: Verify fresh startup, space enrollment and restart
         env:
           PUBLISH_IMAGE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
           LOCAL_IMAGE: ${{ steps.meta.outputs.tags }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          DESKTOP: ${{ matrix.desktop }}
         run: |
           image="$LOCAL_IMAGE"
+          architectures=("$ARCHITECTURE")
+          pull_args=()
           if [ "$PUBLISH_IMAGE" = true ]; then
             image="$REGISTRY_DOCKERHUB/$IMAGE_NAME@$IMAGE_DIGEST"
-            docker pull --platform linux/amd64 "$image"
+            architectures=(amd64 arm64)
+            pull_args=(--pull)
           fi
-          python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
-            --report "$RUNNER_TEMP/image-startup-${{ matrix.desktop }}.json"
+          for architecture in "${architectures[@]}"; do
+            # QEMU startup may be slower than the native check-only runner.
+            timeout=600
+            if [ "$PUBLISH_IMAGE" = true ] && [ "$architecture" = arm64 ]; then timeout=1800; fi
+            python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
+              --platform "linux/$architecture" "${pull_args[@]}" --timeout "$timeout" \
+              --report "$RUNNER_TEMP/image-startup-$DESKTOP-$architecture.json"
+          done
 
       - name: Upload sanitized startup acceptance
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: image-startup-${{ matrix.desktop }}
-          path: ${{ runner.temp }}/image-startup-${{ matrix.desktop }}.json
+          name: image-startup-${{ matrix.desktop }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/image-startup-${{ matrix.desktop }}-*.json
           if-no-files-found: warn
 
       - name: Promote the verified image to public tags
@@ -219,24 +240,31 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: DESKTOP=${{ matrix.desktop }}
-          cache-from: type=gha,scope=${{ matrix.desktop }}
+          cache-from: |
+            type=gha,scope=${{ matrix.desktop }}-amd64
+            type=gha,scope=${{ matrix.desktop }}
           platforms: linux/amd64,linux/arm64
 
       - name: Verify mirror startup, space enrollment and restart
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          DESKTOP: ${{ matrix.desktop }}
         run: |
           image="$REGISTRY_ALIYUN/$IMAGE_NAME@$IMAGE_DIGEST"
-          docker pull --platform linux/amd64 "$image"
-          python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
-            --report "$RUNNER_TEMP/image-startup-aliyun-${{ matrix.desktop }}.json"
+          for architecture in amd64 arm64; do
+            timeout=600
+            if [ "$architecture" = arm64 ]; then timeout=1800; fi
+            python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
+              --platform "linux/$architecture" --pull --timeout "$timeout" \
+              --report "$RUNNER_TEMP/image-startup-aliyun-$DESKTOP-$architecture.json"
+          done
 
       - name: Upload sanitized mirror acceptance
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: image-startup-aliyun-${{ matrix.desktop }}
-          path: ${{ runner.temp }}/image-startup-aliyun-${{ matrix.desktop }}.json
+          path: ${{ runner.temp }}/image-startup-aliyun-${{ matrix.desktop }}-*.json
           if-no-files-found: warn
 
       - name: Promote the verified mirror to public tags

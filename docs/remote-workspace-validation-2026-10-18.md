@@ -1458,3 +1458,15 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 最终远端容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键盘/剪贴板。
 
 私有证据 **/config/validation-artifacts/desktop-platform-guide-20261019** 保存各轮测试/构建日志、结果 JSON、首次失败 trace、八份平台截图、最终文件与四个程序 SHA-256 清单 final-source-manifest.json，以及 final-health.json。源码、测试、生成资源和交接文档在提交前与远端快照逐项核对；配置、凭据、截图、辅助脚本和原始日志不提交 Git。
+
+## 2026-10-19：多架构镜像验收门槛
+
+基于 **f49341d107e64309f4e04d16c3acef0ff95f2e73** 补齐镜像工作流：仅验证模式默认分别使用 amd64/arm64 原生 runner，可选择单架构；发布模式始终检查两个架构，阿里云镜像独立执行相同门槛。检查器显式选择不可变 index 中唯一匹配的 manifest，按摘要拉取并核对实际架构；预置与正式测试容器均明确指定平台。任一架构失败时，该作业不更新公开标签。arm64 发布验收在 QEMU 下执行，不等于原生设备验收。
+
+在指定远端容器执行检查器回归 **22/22，0.041 秒**，actionlint 通过。新增八项覆盖错误架构拒绝、arm64 匹配、manifest 精确选择、缺失/重复/损坏 index 拒绝、显式平台/不可变摘要要求、默认不联网及预置/正式容器的平台参数。回归模拟 Docker，不能作为真实 arm64 或仓库拉取结果。
+
+同一远端宿主机执行实际 Docker 验收，镜像 **cranibox-image-release:18c3216-xfce**，完整来源 **18c321654dcc21cdb8c9eb1c5686f7ed73d4d6c4**，实际 linux/amd64。先请求 linux/arm64，按预期退出 1，在 requested-platform 检查拒绝，未创建任何容器/卷。随后请求 linux/amd64，**44/44，93.121 秒**：空配置和预置授权的首次启动、节点执行、令牌拒绝、重启及身份/文件保留均通过。新增平台检查使原来的 43 项变为 44 项；不是新增一轮产品功能全量。两个容器和两个命名卷均按归属标签成功删除。
+
+本轮未修改 Rust/React、嵌入资源或依赖，没有重跑旧产品全量或安装包。真实 arm64 的完整镜像构建/启动、新产品镜像、registry 拉取与正式发布仍未验收；不能将旧镜像通过改写为当前提交发布。默认公开镜像不兼容问题保留在 P0。证据统一保存于 **/config/validation-artifacts/image-platform-gate-20261019**；凭据、原始日志、报告和辅助脚本不提交 Git。
+
+最终六份待提交文件与远端快照 SHA-256 一致，保存在 final-source-manifest.json。final-health.json 确认日常 Web PID 538744、客户端 PID 1403228、原程序摘要及 NodeID 保持；KDE/Selkies 未重启。容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，owned_processes=[]、test_package_absent=true。只清理本轮带归属标签的验收容器与卷，没有升级日常程序。
