@@ -35,3 +35,8 @@
 .messages-notice { margin-bottom: 16px !important; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; font-size: 14px; }
 @media(max-width:1000px) { .messages-layout { grid-template-columns: 1fr; } .messages-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .7fr); gap: 20px; } }
 @media(max-width:650px) { .messages-compose { display: block; } .messages-guidance { margin-bottom: 20px; } .message-card { padding: 16px; } .message-heading { flex-wrap: wrap; } .messages-identity { padding: 14px; } }
+.messages-held { margin-bottom: 20px; padding: 16px; border: 1px solid var(--danger, #e87888); border-radius: 12px; }
+.messages-held h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 15px; }
+.messages-held h3 span { font-size: 12px; font-variant-numeric: tabular-nums; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; }
+.messages-held > .direct-note { margin-bottom: 12px; }
+.message-held-reason { margin-bottom: 12px; font-size: 13px; color: var(--muted); }

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { Archive, CheckCheck, Inbox, MessageSquare, RefreshCw, Reply, Send, ShieldCheck, X } from 'lucide-react';
 import type { DirectCatalog, DirectClient } from '../devices/DirectDevicesView';
 import { AgentSessions } from '../tasks/AgentSessions';
+import { HeldMessages } from './HeldMessages';
 import '../devices/devices.css';
 import './messages.css';
 
-export type MessageCommand = { operation: 'list'; session?: string } | { operation: 'send'; id: string; node: string; text: string; thread?: string; in_reply_to?: string; sender_session?: string; target_session?: string } | { operation: 'acknowledge' | 'retry' | 'archive'; id: string };
+export type MessageCommand = { operation: 'list'; session?: string } | { operation: 'send'; id: string; node: string; text: string; thread?: string; in_reply_to?: string; sender_session?: string; target_session?: string } | { operation: 'acknowledge' | 'retry' | 'archive' | 'release' | 'reject'; id: string } | { operation: 'held' };
 type Envelope = { id: string; thread: string; in_reply_to: string | null; sender: string; recipient: string; sender_session?: string | null; target_session?: string | null; text: string; created_at: number; expires_at: number };
 type Item = { message: Envelope; status: string; attempts?: number; error?: string | null };
-type Mailbox = { owner: string; incoming: Item[]; outgoing: Item[]; capacity: number; used: number; max_text_bytes: number };
+type Mailbox = { owner: string; incoming: Item[]; outgoing: Item[]; capacity: number; used: number; max_text_bytes: number; held?: number };
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 function identifier() {
   const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
@@ -93,7 +94,7 @@ export function DeviceMessagesView({ client, language = 'en', onDevices }: { cli
         {formError && <p className="direct-error" role="alert">{formError}</p>}
         <button className="direct-primary" type="submit" disabled={busy || !text.trim() || bytes > maxBytes || !targetValid || !routes.some(route => route.node === node)}><Send size={16} aria-hidden="true" />{busy ? t('正在保存…', 'Saving…') : t('保存并发送', 'Save and send')}</button>
       </form><aside className="messages-guidance"><ShieldCheck size={20} aria-hidden="true" /><div><h3>{t('消息权限单独授权', 'Separate message access')}</h3><p>{t('目标需授予本机“收发设备消息”权限；回复还需要反向连接和授权。收到消息不会运行命令或输入到终端。', 'The target must grant this device message access. Replies need a reverse connection and grant. Receiving a message does not execute a command or type into a terminal.')}</p>{onDevices && <button onClick={onDevices}>{t('配置设备与授权', 'Configure devices and access')}</button>}<p>{t('自动投递和收件查询最长持续 7 天。每台设备最多保存 256 条收发记录。', 'Delivery and receipt checks continue for up to 7 days. Each device stores up to 256 incoming and outgoing records.')}</p><p>{t('收件确认仅表示用户明确确认了消息，不代表 Agent 已完成任务。', 'Acknowledgement means the recipient explicitly confirmed receipt. It does not mean an Agent completed a task.')}</p></div></aside></div>
-      <div className="messages-feed"><div className="messages-tabs" role="group" aria-label={t('消息方向', 'Message direction')}><button aria-pressed={box === 'incoming'} onClick={() => setBox('incoming')}><Inbox size={17} aria-hidden="true" />{t('收件箱', 'Inbox')}<span>{mailbox.incoming.length}</span></button><button aria-pressed={box === 'outgoing'} onClick={() => setBox('outgoing')}><Send size={17} aria-hidden="true" />{t('发件箱', 'Outbox')}<span>{mailbox.outgoing.length}</span></button></div>
+      <div className="messages-feed"><HeldMessages client={client} language={language} count={mailbox.held || 0} refreshed={updated} onChanged={() => void load()} /><div className="messages-tabs" role="group" aria-label={t('消息方向', 'Message direction')}><button aria-pressed={box === 'incoming'} onClick={() => setBox('incoming')}><Inbox size={17} aria-hidden="true" />{t('收件箱', 'Inbox')}<span>{mailbox.incoming.length}</span></button><button aria-pressed={box === 'outgoing'} onClick={() => setBox('outgoing')}><Send size={17} aria-hidden="true" />{t('发件箱', 'Outbox')}<span>{mailbox.outgoing.length}</span></button></div>
         {notice && <p className="messages-notice" role="status">{notice}</p>}
         {items.length === 0 && <div className="direct-empty"><Inbox size={28} aria-hidden="true" /><h3>{box === 'incoming' ? t('暂无来信', 'No incoming messages') : t('暂无发出的消息', 'No outgoing messages')}</h3><p>{t('消息不会存入浏览器。重新打开页面，会从本机服务读取记录。', 'Messages are stored by the device service. Reopen this page to read saved records.')}</p></div>}
         {items.map(item => {
