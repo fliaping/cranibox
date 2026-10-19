@@ -529,11 +529,11 @@ fn rate_limit_and_agent_loop_guard() {
             .receive("caller", envelope("caller", "target"), Inbound::Accept)
             .unwrap();
     }
-    assert!(
-        store
-            .receive("caller", envelope("caller", "target"), Inbound::Accept)
-            .is_err()
-    );
+    let limited = store
+        .receive("caller", envelope("caller", "target"), Inbound::Accept)
+        .unwrap_err();
+    // Typed so the target answers 429 and the sender keeps the message queued.
+    assert!(limited.is::<RateLimited>(), "{limited:#}");
     // Other senders are unaffected.
     store
         .receive("other", envelope("other", "target"), Inbound::Accept)
