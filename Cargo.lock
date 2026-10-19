@@ -109,6 +109,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "clap",
+ "cranibox-net",
  "cranibox-node",
  "futures-util",
  "libc",

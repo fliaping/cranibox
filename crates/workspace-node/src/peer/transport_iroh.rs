@@ -141,7 +141,8 @@ fn endpoint_of(identity: &PublicIdentity) -> Option<iroh::EndpointId> {
 struct Shared {
     path: PathBuf,
     node: IrohNode,
-    relays: Vec<String>,
+    /// Learned hub relays are adopted at runtime unless relays were configured.
+    adopt_learned: bool,
     forwards: tokio::sync::Mutex<HashMap<String, (Forward, Lease)>>,
     migrate_tried: Mutex<HashMap<String, Instant>>,
 }
@@ -283,10 +284,8 @@ impl Shared {
                 tried.insert(node.clone(), Instant::now());
             }
             let mut target = iroh::EndpointAddr::new(id);
-            for relay in &self.relays {
-                if let Ok(url) = addr::normalize_relay(relay) {
-                    target = target.with_relay_url(url);
-                }
+            for url in self.node.own_relays() {
+                target = target.with_relay_url(url);
             }
             let probe =
                 tokio::time::timeout(Duration::from_secs(8), self.node.peer_connection(&target))
@@ -454,6 +453,11 @@ impl PairHost for Host {
         {
             learned.relays.insert(0, relay.clone());
             learned.relays.truncate(4);
+            if self.shared.adopt_learned
+                && let Err(error) = self.shared.node.adopt_relay(relay).await
+            {
+                eprintln!("iroh: cannot use relay {relay}: {error:#}");
+            }
         }
         learned.write(&path)?;
         Ok(())
@@ -512,6 +516,7 @@ impl Service {
         let hub = hub_options();
         let learned = Learned::read(&path);
         let mut options = Options::from_config(&config);
+        let mut adopt_learned = options.relays.is_empty();
         if options.relays.is_empty() {
             options.relays = learned.relays.clone();
         }
@@ -530,6 +535,7 @@ impl Service {
                 .push(std::fs::read(file).context("read extra relay root")?);
         }
         if let Some(extra) = std::env::var_os("CRANIBOX_IROH_RELAYS") {
+            adopt_learned = false;
             options.relays = extra
                 .to_string_lossy()
                 .split(',')
@@ -569,7 +575,7 @@ impl Service {
         let shared = Arc::new(Shared {
             path: path.clone(),
             node: node.clone(),
-            relays: options.relays.clone(),
+            adopt_learned,
             forwards: Default::default(),
             migrate_tried: Default::default(),
         });

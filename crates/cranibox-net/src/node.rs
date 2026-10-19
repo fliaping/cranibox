@@ -72,7 +72,8 @@ pub struct IrohNode {
     endpoint: Endpoint,
     pub(crate) pool: Arc<Mutex<HashMap<(EndpointId, Lane), Pooled>>>,
     stop: CancellationToken,
-    own_relays: Vec<RelayUrl>,
+    own_relays: Arc<std::sync::RwLock<Vec<RelayUrl>>>,
+    n0_fallback: bool,
     extra_roots: Arc<Vec<Vec<u8>>>,
 }
 
@@ -134,14 +135,49 @@ impl IrohNode {
             endpoint,
             pool: Arc::default(),
             stop: CancellationToken::new(),
-            own_relays,
+            own_relays: Arc::new(std::sync::RwLock::new(own_relays)),
+            n0_fallback: options.n0_fallback,
             extra_roots: Arc::new(options.extra_roots.clone()),
         };
-        if !node.own_relays.is_empty() && options.n0_fallback {
+        if !node.own_relays().is_empty() && options.n0_fallback {
             tokio::spawn(node.clone().relay_fallback());
         }
         tokio::spawn(node.clone().sweep());
         Ok(node)
+    }
+
+    /// Own relays in preference order (configured, hub, learned from pairing).
+    pub fn own_relays(&self) -> Vec<RelayUrl> {
+        self.own_relays.read().unwrap().clone()
+    }
+
+    /// Start using a relay learned at runtime (the hub's relay from a pairing
+    /// ticket) as an own relay, QAD off. A node that ran on the n0 relays only
+    /// switches to it and keeps n0 as the fallback. Returns whether it was new.
+    pub async fn adopt_relay(&self, relay: &str) -> Result<bool> {
+        let url = addr::normalize_relay(relay)?;
+        let was_empty = {
+            let mut own = self.own_relays.write().unwrap();
+            if own.contains(&url) {
+                return Ok(false);
+            }
+            own.push(url.clone());
+            own.len() == 1
+        };
+        self.endpoint
+            .insert_relay(url.clone(), Arc::new(RelayConfig::new(url.clone(), None)))
+            .await;
+        if was_empty {
+            // We were on the n0 default map: the own relay goes first now.
+            for n0 in iroh::defaults::prod::default_relay_map().urls::<Vec<_>>() {
+                self.endpoint.remove_relay(&n0).await;
+            }
+            if self.n0_fallback {
+                tokio::spawn(self.clone().relay_fallback());
+            }
+        }
+        tracing::info!("using relay {url}");
+        Ok(true)
     }
 
     pub fn endpoint(&self) -> &Endpoint {
@@ -154,7 +190,7 @@ impl IrohNode {
     pub fn addr(&self) -> IrohAddr {
         let mut out = addr::iroh_addr(&self.endpoint.addr());
         if out.relay_url.is_none() {
-            out.relay_url = self.own_relays.first().map(|u| u.to_string());
+            out.relay_url = self.own_relays().first().map(|u| u.to_string());
         }
         out
     }
@@ -187,7 +223,7 @@ impl IrohNode {
                     .home_relay_status()
                     .get()
                     .iter()
-                    .any(|s| s.is_connected() && self.own_relays.contains(s.url()));
+                    .any(|s| s.is_connected() && self.own_relays().contains(s.url()));
                 if connected {
                     since = Instant::now();
                 } else if since.elapsed() >= FALLBACK_AFTER {
@@ -208,7 +244,7 @@ impl IrohNode {
                 continue;
             }
             let mut reachable = false;
-            for url in &self.own_relays {
+            for url in &self.own_relays() {
                 reachable |= crate::relay::ping(url.as_str(), &self.extra_roots).await;
             }
             if !reachable {
