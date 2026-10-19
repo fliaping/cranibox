@@ -73,7 +73,16 @@ class RuntimeTests(unittest.TestCase):
                                "--web-upstream", f"http://127.0.0.1:{cls.legacy.server_port}")
         cls.wait_for(lambda: cls.http("/healthz", auth=False)[0] == 200)
         cls.node_processes = {node: cls.start("node", "--server", cls.ws, "--id", node, "--token-file", cls.path / f"{node}.token") for node in ["one", "two"]}
-        cls.wait_for(lambda: all(n["online"] for n in cls.http("/api/v1/nodes")[1]["nodes"]))
+        try:
+            cls.wait_for(lambda: all(n["online"] for n in cls.http("/api/v1/nodes")[1]["nodes"]))
+        except Exception:
+            # Cleanup removes these files, so retain startup failures in CI output.
+            for index, process in enumerate(cls.processes):
+                log = cls.path / f"process-{index}.log"
+                print(f"{log.name} (exit={process.poll()}):\n"
+                      f"{log.read_text(encoding='utf-8', errors='replace')[-12000:]}",
+                      file=sys.stderr)
+            raise
 
     @classmethod
     def cleanup(cls):
