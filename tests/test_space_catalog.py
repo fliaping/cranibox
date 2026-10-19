@@ -27,7 +27,7 @@ class SpaceCatalogTests(unittest.TestCase):
         self.catalog.parent.mkdir(parents=True)
         self.save()
         self.token_file = self.h.root / 'spaces.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--spaces')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_file, '--spaces')
         self.token = self.token_file.read_text().strip()
         self.port = free_port()
         self.cli('listen', '--address', f'127.0.0.1:{self.port}')
@@ -87,7 +87,7 @@ class SpaceCatalogTests(unittest.TestCase):
         self.cli('revoke', '--node', self.caller)
         self.assertEqual(self.direct('GET', base+'/spaces')[0], 401)
         other = self.h.root / 'exec-only.token'
-        self.cli('grant', '--node', self.caller, '--output-token', other, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', other, '--exec')
         self.token = other.read_text().strip()
         self.assertFalse(self.direct('GET', '/api/v1/mesh/nodes')[1]['nodes'][0]['spaces'])
         self.assertEqual(self.direct('GET', base+'/spaces')[0], 403)

@@ -171,7 +171,7 @@ class AgentRunsMcpTests(unittest.TestCase):
         self.state(run, {'running'})
         self.cli('revoke', '--node', self.caller)
         token_path = self.h.root / 'messages-only.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--messages', '--inbound', 'accept')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_path, '--messages', '--inbound', 'accept')
         self.api(operation='connect', node=self.target, url=self.url, token=token_path.read_text().strip())
         self.tool(arguments={'operation': 'list', 'node': self.target}, error=True)
         self.tool(arguments={'operation': 'start', 'node': self.target, **self.launch('pass')}, error=True)
@@ -179,7 +179,7 @@ class AgentRunsMcpTests(unittest.TestCase):
         self.assertIn('revoked', stopped['execution']['error'])
         self.cli('revoke', '--node', self.caller)
         token_path = self.h.root / 'rotated-exec.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_path, '--exec')
         self.api(operation='connect', node=self.target, url=self.url, token=token_path.read_text().strip())
         self.assertEqual(self.action('list')['executions'], [])
         self.tool(arguments={'operation': 'get', 'node': self.target, 'id': run['id']}, error=True)

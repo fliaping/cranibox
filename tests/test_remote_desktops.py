@@ -129,7 +129,7 @@ class RemoteDesktopTests(unittest.TestCase):
         self.target_config = self.h.root / 'desktop-target/settings.json'
         self.target = self.cli('identity')['node_id']
         token_file = self.h.root / 'desktop.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_file, '--desktop')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_file, '--desktop')
         self.token = token_file.read_text().strip()
         self.port = free_port()
         self.cli('desktop', '--address', self.vnc.address)
@@ -246,7 +246,7 @@ class RemoteDesktopTests(unittest.TestCase):
         self.assertEqual(self.h.post('/api/desktop/ticket', {'node':'wrong-target'})[0], 400)
         self.cli('revoke', '--node', self.caller)
         token_file = self.h.root / 'exec-only.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_file, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_file, '--exec')
         self.api(operation='connect', node=self.target, url=f'http://127.0.0.1:{self.port}', token=token_file.read_text().strip())
         self.assertFalse(self.api(operation='probe', node=self.target)['nodes'][0]['desktop'])
         self.assertEqual(self.h.post('/api/desktop/ticket', {'node':self.target})[0], 400)

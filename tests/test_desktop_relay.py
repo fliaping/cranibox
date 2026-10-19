@@ -37,7 +37,7 @@ class DesktopRelayTests(unittest.TestCase):
         token = self.h.root / (caller + '.grant')
         if token.exists():
             token = self.h.root / f'{caller}-{time.time_ns()}.grant'
-        self.cli('grant', '--node', caller, '--output-token', token, scope)
+        self.cli('grant', '--allow-unverified', '--node', caller, '--output-token', token, scope)
         return token.read_text().strip()
 
     def start_target(self):

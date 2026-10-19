@@ -27,7 +27,7 @@ class WebDirectPeersTests(unittest.TestCase):
         self.target_config = self.h.root / 'target/settings.json'
         self.target = self.cli('identity')['node_id']
         self.token_path = self.h.root / 'issued.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_path, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--exec')
         self.token = self.token_path.read_text().strip()
         self.port = free_port()
         self.url = f'http://127.0.0.1:{self.port}'
@@ -88,7 +88,7 @@ class WebDirectPeersTests(unittest.TestCase):
         self.h.stop(self.h.server)
         self.cli('revoke', '--node', self.caller)
         token_path = self.h.root / 'terminal.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--terminals')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_path, '--terminals')
         self.token = token_path.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 
@@ -151,7 +151,7 @@ class WebDirectPeersTests(unittest.TestCase):
         self.assertIn('403', value['error'])
         self.cli('revoke', '--node', self.caller)
         token_path = self.h.root / 'projects.token'
-        self.cli('grant', '--node', self.caller, '--output-token', token_path, '--projects', '--terminals')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_path, '--projects', '--terminals')
         self.token = token_path.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 
@@ -220,14 +220,14 @@ class WebDirectPeersTests(unittest.TestCase):
     def project_grant(self):
         self.cli('revoke', '--node', self.caller)
         credential = self.h.root / 'project-cache.token'
-        self.cli('grant', '--node', self.caller, '--output-token', credential, '--projects', '--terminals')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', credential, '--projects', '--terminals')
         self.token = credential.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 
     def copy_fixture(self):
         self.cli('revoke', '--node', self.caller)
         credential = self.h.root / 'copy-source.token'
-        self.cli('grant', '--node', self.caller, '--output-token', credential, '--exec', '--projects')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', credential, '--exec', '--projects')
         self.token = credential.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
         code = self.h.root / 'source-code'
@@ -246,7 +246,7 @@ class WebDirectPeersTests(unittest.TestCase):
             return json.loads(result.stdout)
         target = cli('identity')['node_id']
         token_file = self.h.root / 'copy-target.token'
-        cli('grant', '--node', self.caller, '--output-token', token_file, '--exec', '--projects')
+        cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', token_file, '--exec', '--projects')
         token = token_file.read_text().strip()
         port = free_port()
         cli('listen', '--address', f'127.0.0.1:{port}')
@@ -311,7 +311,7 @@ class WebDirectPeersTests(unittest.TestCase):
     def test_native_node_cli_copies_its_local_catalog_both_directions(self):
         _, project, _, receiver_cli, receiver, _, port, _, root = self.copy_fixture()
         credential = self.h.root / 'native-copy.token'
-        receiver_cli('grant', '--node', self.target, '--output-token', credential, '--exec', '--projects')
+        receiver_cli('grant', '--allow-unverified', '--node', self.target, '--output-token', credential, '--exec', '--projects')
         receiver_cli('copy-root', '--path', root)
         self.cli('connect', '--node', receiver, '--url', f'http://127.0.0.1:{port}', '--credential-file', credential)
         job = self.cli('copy', 'prepare', '--source', self.target, '--target', receiver, '--replica-id', project['replicas'][0]['id'])
@@ -569,7 +569,7 @@ class WebDirectPeersTests(unittest.TestCase):
         self.h.stop(self.target_process)
         self.assertEqual(self.h.post('/api/peers', {'operation': 'projects', 'node': self.target, 'command': {'operation': 'list'}})[0], 400)
         credential = self.h.root / 'replacement-project.token'
-        self.cli('grant', '--node', self.caller, '--output-token', credential, '--projects')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', credential, '--projects')
         self.token = credential.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
         self.target_process = self.h.start(NODE, '--config', self.target_config, 'peer', 'serve')
@@ -639,21 +639,21 @@ class WebDirectPeersTests(unittest.TestCase):
         self.h.stop(self.h.server)
         before = self.path.read_bytes()
         for command in [
-            {'operation': 'grant', 'node': self.caller, 'permissions': {'exec': True}},
-            {'operation': 'grant', 'node': self.target, 'permissions': {}},
-            {'operation': 'grant', 'node': 'invalid/node', 'permissions': {'exec': True}},
+            {'operation': 'grant', 'require_verified': False, 'node': self.caller, 'permissions': {'exec': True}},
+            {'operation': 'grant', 'require_verified': False, 'node': self.target, 'permissions': {}},
+            {'operation': 'grant', 'require_verified': False, 'node': 'invalid/node', 'permissions': {'exec': True}},
         ]:
             status, _ = self.h.post('/api/peers', command)
             self.assertEqual(status, 400)
             self.assertEqual(self.path.read_bytes(), before)
-        issued = self.api(operation='grant', node=self.target, permissions={'terminals': True})
+        issued = self.api(operation='grant', require_verified=False, node=self.target, permissions={'terminals': True})
         secret = issued['token']
         self.assertRegex(secret, r'^[a-fA-F0-9]{64}$')
         self.assertNotIn(secret, json.dumps(issued['catalog']))
         self.assertNotIn(secret, json.dumps(self.api(operation='list')))
         self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
         saved = self.path.read_bytes()
-        status, _ = self.h.post('/api/peers', {'operation': 'grant', 'node': self.target, 'permissions': {'exec': True}})
+        status, _ = self.h.post('/api/peers', {'operation': 'grant', 'require_verified': False, 'node': self.target, 'permissions': {'exec': True}})
         self.assertEqual(status, 400)
         self.assertEqual(self.path.read_bytes(), saved)
 
@@ -681,7 +681,7 @@ class WebDirectPeersTests(unittest.TestCase):
         result = subprocess.run([str(NODE), '--config', str(self.target_config), 'peer', 'call', '--node', self.caller, 'nodes'], capture_output=True, text=True, timeout=10)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('401', result.stderr)
-        rotated = self.api(operation='grant', node=self.target, permissions={'exec': True})
+        rotated = self.api(operation='grant', require_verified=False, node=self.target, permissions={'exec': True})
         self.assertNotEqual(rotated['token'], secret)
         self.h.stop(self.h.web)
         self.h.start_web()
@@ -694,7 +694,7 @@ class WebDirectPeersTests(unittest.TestCase):
     def test_listener_changes_preserve_jobs_and_shells_and_reject_failed_updates(self):
         self.h.stop(self.h.server)
         self.assertFalse(self.api(operation='list')['listener_runtime']['active'])
-        issued = self.api(operation='grant', node=self.target, permissions={'exec': True, 'terminals': True})
+        issued = self.api(operation='grant', require_verified=False, node=self.target, permissions={'exec': True, 'terminals': True})
         headers = {'Authorization': 'Bearer ' + issued['token'], 'X-Cranibox-Target': self.caller, 'Content-Type': 'application/json'}
         port = None
 

@@ -189,7 +189,7 @@ class RealWaylandTests(unittest.TestCase):
         self.assertEqual(code, 200, value)
         caller_id = value['node_id']
         token = self.root / 'desktop.token'
-        self.cli('grant', '--node', caller_id, '--output-token', token, '--desktop')
+        self.cli('grant', '--allow-unverified', '--node', caller_id, '--output-token', token, '--desktop')
         listener = free_port()
         self.cli('listen', '--address', f'127.0.0.1:{listener}')
         peer = self.h.start(NODE, '--config', self.config.with_name('settings.json'), 'peer', 'serve')

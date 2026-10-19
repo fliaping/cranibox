@@ -40,7 +40,7 @@ class WebHostNodeTests(unittest.TestCase):
         self.assertEqual(self.api('/api/peers', operation='identity')['node_id'], self.target)
 
     def enable_listener(self, **permissions):
-        self.token = self.api('/api/peers', operation='grant', node=self.caller,
+        self.token = self.api('/api/peers', operation='grant', require_verified=False, node=self.caller,
                               permissions=permissions)['token']
         self.port = free_port()
         result = subprocess.run([str(NODE), '--config', str(self.settings), 'peer', 'listen',

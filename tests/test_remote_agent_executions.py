@@ -81,7 +81,7 @@ class RemoteAgentExecutionsTests(unittest.TestCase):
         local = self.launch("print('local-only prompt and output')")
         self.cli('runs', '--command', json.dumps({'operation': 'start', **local}))
         other_token = self.h.root / 'other.token'
-        self.cli('grant', '--node', 'other-caller', '--output-token', other_token, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', 'other-caller', '--output-token', other_token, '--exec')
         other = other_token.read_text().strip()
         status, catalog = self.request({'operation': 'list'}, other)
         self.assertEqual(status, 200)
@@ -96,7 +96,7 @@ class RemoteAgentExecutionsTests(unittest.TestCase):
         self.assertEqual(len(self.cli('runs')['executions']), 2)
         self.cli('revoke', '--node', self.caller)
         rotated_path = self.h.root / 'rotated.token'
-        self.cli('grant', '--node', self.caller, '--output-token', rotated_path, '--exec')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', rotated_path, '--exec')
         new_token = rotated_path.read_text().strip()
         self.assertEqual(self.request({'operation': 'list'})[0], 401)
         self.assertEqual(self.request({'operation': 'list'}, new_token)[1]['executions'], [])
@@ -118,7 +118,7 @@ class RemoteAgentExecutionsTests(unittest.TestCase):
 
     def test_non_execution_grants_browser_origins_and_oversize_requests_are_rejected(self):
         other_token = self.h.root / 'read-only.token'
-        self.cli('grant', '--node', 'messages-only', '--output-token', other_token, '--messages', '--inbound', 'accept')
+        self.cli('grant', '--allow-unverified', '--node', 'messages-only', '--output-token', other_token, '--messages', '--inbound', 'accept')
         token = other_token.read_text().strip()
         run = self.launch('pass')
         for command in [{'operation': 'list'}, {'operation': 'start', **run}, {'operation': 'prepare_agent', 'agent': {'name': 'Review', 'adapter': 'codex', 'access': 'read_only', 'prompt': 'Review', 'cwd': str(self.h.root)}}]:

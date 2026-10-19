@@ -103,9 +103,11 @@ class NodeE2eTests(unittest.TestCase):
         if getattr(self, 'log', None):
             self.log.close()
 
-    def grant(self, *extra):
+    def grant(self, *extra, strict=False):
+        # Verified pairing is the default; most cases here exercise the channel itself.
+        mode = () if strict else ('--allow-unverified',)
         self.token_path = self.root / f'token-{uuid.uuid4().hex}'
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--exec', *extra)
+        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--exec', *mode, *extra)
         self.token = self.token_path.read_text().strip()
 
     def cli(self, config, *args, check=True):
@@ -197,9 +199,11 @@ class NodeE2eTests(unittest.TestCase):
         # The genuine client keeps working afterwards.
         self.run_marker()
 
-    def test_strict_grant_requires_verified_pairing_and_refuses_plaintext(self):
+    def test_default_grant_requires_verified_pairing_and_refuses_plaintext(self):
         self.cli(self.b, 'revoke', '--node', self.caller)
-        self.grant('--require-verified')
+        self.grant(strict=True)  # no flag: strict is the default
+        grant = next(g for g in self.views()[1]['grants'] if g['node'] == self.caller)
+        self.assertTrue(grant['require_verified'])
         self.serve()
         _, failed = self.run_marker(check=False)
         self.assertNotEqual(failed.returncode, 0)
@@ -244,3 +248,17 @@ class NodeE2eTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    def test_explicit_opt_out_allows_unverified_callers_and_conflicts_with_strict(self):
+        self.cli(self.b, 'revoke', '--node', self.caller)
+        both = self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.root / 'both.token', '--exec',
+                        '--allow-unverified', '--require-verified', check=False)
+        self.assertNotEqual(both.returncode, 0)
+        self.grant()  # --allow-unverified
+        grant = next(g for g in self.views()[1]['grants'] if g['node'] == self.caller)
+        self.assertFalse(grant['require_verified'])
+        self.serve()
+        self.run_marker()
+        # Compatibility: plaintext bearer still works only on an explicit opt-out grant.
+        self.assertEqual(self.bearer(), 200)
+        self.assertFalse(next(g for g in self.views()[1]['grants'] if g['node'] == self.caller)['peer']['verified'])

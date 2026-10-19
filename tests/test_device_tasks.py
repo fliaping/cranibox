@@ -18,7 +18,7 @@ class DeviceTasksTests(unittest.TestCase):
         self.config = self.h.root / 'target/settings.json'
         self.target = self.cli('identity')['node_id']
         self.token_file = self.h.root / 'tasks.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--messages', '--inbound', 'accept')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_file, '--messages', '--inbound', 'accept')
         self.token = self.token_file.read_text().strip()
         self.port = free_port()
         self.url = f'http://127.0.0.1:{self.port}'
@@ -208,7 +208,7 @@ class DeviceTasksTests(unittest.TestCase):
         self.assertEqual(self.direct('POST', base+'/tasks', {**offer, 'task':{**item['task'], 'description':'🙂'*2049}})[0], 400)
         self.assertEqual(self.direct('GET', base+f'/tasks/{task["id"]}/{task["dispatch"]}')[1]['state'], 'available')
         other = self.h.root / 'other.token'
-        self.cli('grant', '--node', 'other-device', '--output-token', other, '--messages', '--inbound', 'accept')
+        self.cli('grant', '--allow-unverified', '--node', 'other-device', '--output-token', other, '--messages', '--inbound', 'accept')
         self.assertEqual(self.direct('GET', base+f'/tasks/{task["id"]}/{task["dispatch"]}', headers={'Authorization':'Bearer '+other.read_text().strip()})[0], 400)
         caps = self.direct('GET', '/api/v1/mesh/nodes')[1]['nodes'][0]
         self.assertTrue(caps['tasks'])
@@ -315,7 +315,7 @@ class DeviceTasksTests(unittest.TestCase):
         self.agent(operation='heartbeat', id=session, revision=1, status='busy')
         self.call_worker(command, 'claim', session=session)
         self.cli('revoke', '--node', self.caller)
-        self.cli('grant', '--node', self.caller, '--output-token', self.h.root / 'projects-only.token', '--projects')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', self.h.root / 'projects-only.token', '--projects')
         no_messages = (self.h.root / 'projects-only.token').read_text().strip()
         self.assertEqual(self.direct('GET', base, headers={'Authorization':'Bearer '+no_messages})[0], 403)
 

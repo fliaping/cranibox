@@ -107,7 +107,7 @@ class RealBrowserTests(unittest.TestCase):
         self.addCleanup(page.server_close); self.addCleanup(page.shutdown)
         threading.Thread(target=page.serve_forever, daemon=True).start()
         self.cli(self.b, 'revoke', '--node', self.caller); self.token_path.unlink()
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--browser')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--browser')
         self.token = self.token_path.read_text().strip()
         self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{self.port}', '--credential-file', self.token_path)
         self.cli(self.b, 'browser', '--address', f'127.0.0.1:{port}'); self.start()

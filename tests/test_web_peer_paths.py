@@ -154,7 +154,7 @@ class WebPeerPathsTests(unittest.TestCase):
         self.h.stop(self.h.server)
         self.cli('revoke', '--node', self.caller)
         credential = self.h.root / 'paths.token'
-        self.cli('grant', '--node', self.caller, '--output-token', credential, '--exec', '--terminals')
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', credential, '--exec', '--terminals')
         self.token = credential.read_text().strip()
         primary = Relay(self.port)
         self.addCleanup(primary.close)
