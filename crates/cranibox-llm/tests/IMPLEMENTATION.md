@@ -1,6 +1,6 @@
 # WS2 / WS3 交付与验收记录
 
-日期：2026-10-19。已跟进 main `6d4a8a4`（Phase 0 契约 PR #16），Windows CI 导入修复为 `8abcd1a`，另补交 P2 厂商与 OAuth 生命周期回归。本记录仅覆盖 WS2/WS3 自有文件；同一工作目录中正在进行的 WS5、WS6、WS7 改动未包含在本轮隔离验证中。WS4 首轮观测见 [Claude cch 报告](claude/CCH-FINDINGS.md)。
+日期：2026-10-19。已跟进 main `6d4a8a4`（Phase 0 契约 PR #16），Windows CI 导入修复为 `8abcd1a`，P2 厂商与 OAuth 生命周期补充为 `0edb2e7`。本记录仅覆盖 WS2/WS3 自有文件；同一工作目录中正在进行的 WS5、WS6、WS7 改动未包含在本轮隔离验证中。WS4 首轮观测见 [Claude cch 报告](claude/CCH-FINDINGS.md)。
 
 ## 已实现
 
@@ -53,7 +53,7 @@ WS6 可实现 `route::Router::{decide,forward}`，并在验证 mesh 身份与授
 | 订阅与国内预设 | 四家登录/adapter mock；全部 33 个预设端点和认证（含 MiMo `api-key`、阶跃 Messages Bearer）；智谱 200 信封/1113；Kimi schema/设备码；新增取消/拒绝/回调释放/写失败后凭据保留回归 |
 | 显式延迟测试（120 样本/路径） | direct p50 446 µs；proxy p50 1305 µs；额外 859 µs，低于 2 ms。该值仅代表此主机和测试负载。 |
 | Claude Code 2.1.303 本地 mock | API key 3 次 + Bearer 2 次；未见 cch；真实订阅行为未证实 |
-| Windows / macOS CI | `8abcd1a` 的 GitHub Actions run `39245558504` 中，两平台均通过工作区 fmt / Clippy / test；Windows 管理客户端测试已执行。新增 DACL 回归由后续 Windows CI 执行，最新状态以 PR 检查为准。 |
+| Linux / Windows / macOS CI | `0edb2e7` 的 GitHub Actions run `39247033227` 中，三平台均通过工作区 fmt / Clippy / test；Windows 管理客户端、拒绝重复服务及受保护 owner-only DACL 回归已通过。桌面打包等其他步骤状态以 PR 检查为准。 |
 
 ## 真实账号人工验收（尚未执行）
 
