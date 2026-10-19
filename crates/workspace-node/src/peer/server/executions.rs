@@ -24,7 +24,7 @@ pub(super) async fn manage(
             ));
         }
         Store::new(&app.path, app.node)
-            .for_requester(Requester::new(caller.node, &caller.grant.token))
+            .for_requester(Requester::new(caller.node, &caller.grant.credential))
             .apply(command)
             .map(Json)
             .map_err(|error| failure(StatusCode::BAD_REQUEST, &error.to_string()))

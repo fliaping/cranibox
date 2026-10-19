@@ -51,7 +51,7 @@ impl Store {
                     &store.local_projects,
                     &owner,
                     &owner,
-                    LOCAL_OWNER,
+                    local_owner(),
                     command,
                     |root| store.local_copy_permitted(&owner, root),
                 )

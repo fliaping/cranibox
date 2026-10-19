@@ -13,7 +13,7 @@ fn permitted(app: &App, caller: &Caller, expected_root: Option<&std::path::Path>
         current
             .grants
             .get(&caller.node)
-            .is_some_and(|g| config::matches(&g.token, &caller.grant.token)
+            .is_some_and(|g| g.same_credential(&caller.grant)
                 && g.permissions.exec
                 && g.permissions.projects),
         "project and command access required for copying files"
@@ -78,7 +78,7 @@ pub(super) async fn import(
             &app.catalog,
             &node,
             &caller.node,
-            &caller.grant.token,
+            &caller.grant.credential,
             request,
             || permitted(&app, &caller, Some(&root)),
         )?;
@@ -103,7 +103,12 @@ pub(super) async fn status(
     check_target(&app, &node)?;
     permitted(&app, &caller, None).map_err(|e| failure(StatusCode::FORBIDDEN, &e.to_string()))?;
     let value = tokio::task::spawn_blocking(move || {
-        let receipt = copy::status(&app.path, &request.id, &caller.node, &caller.grant.token)?;
+        let receipt = copy::status(
+            &app.path,
+            &request.id,
+            &caller.node,
+            &caller.grant.credential,
+        )?;
         permitted(&app, &caller, None)?;
         Ok::<_, anyhow::Error>(receipt.view())
     })
@@ -133,7 +138,7 @@ pub(super) async fn transfer(
             &app.catalog,
             &node,
             &caller.node,
-            &caller.grant.token,
+            &caller.grant.credential,
             command,
             |root| permitted(&app, &caller, root),
         )

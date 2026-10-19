@@ -64,8 +64,7 @@ struct Job {
 }
 impl Job {
     fn visible(&self, caller: &Caller) -> bool {
-        self.caller.node == caller.node
-            && config::matches(&self.caller.grant.token, &caller.grant.token)
+        self.caller.node == caller.node && self.caller.grant.same_credential(&caller.grant)
     }
     fn view(&self, id: &str, node: &str) -> Value {
         json!({"id":id,"node":node,"requester":self.caller.node,"outcome":self.outcome,
@@ -96,7 +95,7 @@ impl App {
         Config::read(&self.path).is_ok_and(|configuration| {
             configuration.node_id == self.node
                 && configuration.grants.get(&caller.node).is_some_and(|grant| {
-                    config::matches(&grant.token, &caller.grant.token)
+                    grant.same_credential(&caller.grant)
                         && if terminal {
                             grant.permissions.terminals
                         } else {
@@ -151,7 +150,7 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
     let Some((node, grant)) = configuration
         .grants
         .into_iter()
-        .find(|(_, g)| config::matches(token, &g.token))
+        .find(|(_, g)| g.verifies(token))
     else {
         return failure(StatusCode::UNAUTHORIZED, "peer credential rejected").into_response();
     };
@@ -649,7 +648,11 @@ pub(crate) async fn start_with_catalog(
     stop: CancellationToken,
     catalog: agent_workspace_runtime::projects::Store,
 ) -> Result<Running> {
-    let configuration = Config::read(&path)?;
+    // Migrate plaintext grants to digests, create the node key and sign grants once.
+    let configuration = match Config::read(&path) {
+        Ok(value) if value.version == super::config::VERSION && value.identity.is_some() => value,
+        _ => Config::update(&path, |_| Ok(()))?,
+    };
     let (tcp, listener_error) = if let Some(listener) = &configuration.listener {
         match bind(listener).await {
             Ok(tcp) => (Some(tcp), None),
@@ -788,7 +791,7 @@ async fn monitor(app: App) {
                 .as_ref()
                 .and_then(|config| config.grants.get(&job.caller.node))
                 .is_some_and(|grant| {
-                    grant.permissions.exec && config::matches(&grant.token, &job.caller.grant.token)
+                    grant.permissions.exec && grant.same_credential(&job.caller.grant)
                 })
             {
                 job.cancel.cancel();

@@ -28,11 +28,11 @@ async fn access(
     tokio::task::spawn_blocking(move || {
         let _lock = config::lock_credentials(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE,"task configuration unavailable"))?;
         let current = Config::read(&app.path).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE,"task configuration unavailable"))?;
-        if current.node_id != app.node || !current.grants.get(&caller.node).is_some_and(|grant|grant.permissions.messages && config::matches(&grant.token,&caller.grant.token)) {
+        if current.node_id != app.node || !current.grants.get(&caller.node).is_some_and(|grant|grant.permissions.messages && grant.same_credential(&caller.grant)) {
             return Err(failure(StatusCode::FORBIDDEN,"device messages and task access not granted"));
         }
         let store = Store::new(&app.path,app.node);
-        let result = if let Some(offer) = offer { store.receive(&caller.node,&caller.grant.token,offer) } else { let (id,dispatch) = ids.expect("receipt route supplies IDs"); store.receipt(&caller.node,&caller.grant.token,id,dispatch) };
+        let result = if let Some(offer) = offer { store.receive(&caller.node,&caller.grant.credential,offer) } else { let (id,dispatch) = ids.expect("receipt route supplies IDs"); store.receipt(&caller.node,&caller.grant.credential,id,dispatch) };
         result.and_then(|receipt| Ok(serde_json::to_value(receipt)?)).map(Json).map_err(|_|failure(StatusCode::BAD_REQUEST,"Task or receipt unavailable. Check its identity, content, grant, lifetime and dispatch state."))
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE,"task ledger unavailable"))?
 }

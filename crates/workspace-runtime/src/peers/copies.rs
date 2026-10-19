@@ -17,7 +17,17 @@ const MAX_JOB: usize = copy::stream::MAX_MANIFEST + 65536;
 // Local ownership is authenticated by the hosting CLI, Web or native IPC. A
 // node cannot grant its own ID over HTTP, so these receipts cannot be queried
 // using a remote grant. This marker is not a network credential.
-const LOCAL_OWNER: &str = "cranibox-local-project-copy-v1";
+// Ledgers store a credential digest; keep the value earlier releases recorded.
+static LOCAL_OWNER_DIGEST: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    use sha2::Digest;
+    format!(
+        "{:x}",
+        sha2::Sha256::digest(b"cranibox-local-project-copy-v1")
+    )
+});
+fn local_owner() -> &'static str {
+    LOCAL_OWNER_DIGEST.as_str()
+}
 static LOCAL_SLOTS: OnceLock<Arc<tokio::sync::Semaphore>> = OnceLock::new();
 fn local_slot() -> Result<tokio::sync::OwnedSemaphorePermit> {
     LOCAL_SLOTS
@@ -431,7 +441,7 @@ impl Store {
         if matches!(job.state.as_str(), "sending" | "uncertain" | "copied") {
             let value = if job.target == Config::read(&self.path)?.node_id {
                 self.local_copy_permitted(&job.target, None)?;
-                let receipt = copy::status(&self.path, &id, &job.target, LOCAL_OWNER)?;
+                let receipt = copy::status(&self.path, &id, &job.target, local_owner())?;
                 self.local_copy_permitted(&job.target, None)?;
                 receipt.view()
             } else {
@@ -466,7 +476,7 @@ impl Store {
                 &store.local_projects,
                 &node,
                 &node,
-                LOCAL_OWNER,
+                local_owner(),
                 request,
                 || store.local_copy_permitted(&node, Some(&root)),
             )?;

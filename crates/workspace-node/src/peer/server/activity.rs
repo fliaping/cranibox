@@ -17,7 +17,7 @@ pub(super) async fn read(
         let current = Config::read(&app.path).map_err(|_| unavailable())?;
         if current.node_id != app.node
             || !current.grants.get(&caller.node).is_some_and(|grant| {
-                grant.permissions.activity && config::matches(&grant.token, &caller.grant.token)
+                grant.permissions.activity && grant.same_credential(&caller.grant)
             })
         {
             return Err(failure(

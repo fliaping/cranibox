@@ -9,6 +9,7 @@ pub mod config;
 mod copies;
 pub mod desktop;
 pub mod executions;
+pub mod identity;
 pub mod local_forward;
 pub mod messages;
 mod paths;
@@ -518,13 +519,9 @@ impl Store {
                             !value.grants.contains_key(&node),
                             "caller already granted; revoke before rotating its credential"
                         );
-                        value.grants.insert(
-                            node.clone(),
-                            Grant {
-                                token: token.clone(),
-                                permissions,
-                            },
-                        );
+                        value
+                            .grants
+                            .insert(node.clone(), Grant::issue(&token, permissions));
                         Ok(())
                     })?;
                     // The credential is returned only to this authenticated issuance request.
@@ -686,7 +683,7 @@ mod tests {
                 .is_err()
         );
         let saved = Config::read(&store.path).unwrap();
-        assert_eq!(saved.grants["caller"].token, secret);
+        assert!(saved.grants["caller"].verifies(secret));
         assert!(!saved.grants["caller"].permissions.exec);
         assert!(saved.grants["caller"].permissions.terminals);
         store

@@ -8,7 +8,7 @@
 
 `cranibox-node peer identity` 创建并显示本机持久 NodeID。配置保存在节点 `settings.json` 同目录的 `peers.json`；所有命令支持 `--config /path/to/settings.json` 选择隔离目录，即使该 settings 文件不存在也可以使用 `peer`。NodeID 与 IP、主机名无关，删除配置会丢失身份和授权。
 
-此 ID 是随机持久标识，当前不是公钥指纹。远端请求用目标颁发的随机 256 位 bearer 凭据认证；持有该凭据即代表对应授权方。调用方的本地 NodeID 不提供额外密码学证明，不应把这一阶段当作密钥配对、mTLS 或完整设备身份协议。
+每个节点首次运行时生成持久 Ed25519 签名密钥和独立的 X25519 Noise 密钥（私钥保存在 `peers.json` 旁的 `node-identity.json`，`0600`，不会被覆盖或导出）。新节点的 NodeID 由公钥派生（`node-` + 公钥哈希前 128 位，与旧格式同形），已有随机 NodeID 保持不变并由同一密钥自签名绑定。`peer identity` 显示公钥指纹。`peers.json` 只保存 bearer 凭据的加盐 SHA-256 摘要，授权记录由目标节点签名；手工改写权限或去掉签名会被拒绝。远端请求仍用目标颁发的 256 位凭据认证。身份、迁移和威胁模型详见[节点身份与端到端加密](node-identity-and-e2e.md)。
 
 新设备的网关注册默认使用持久 NodeID；显式保存的 `settings.id`/`--id` 继续兼容。旧注册可在 Web“远程节点”或 `cranibox runtime migrate-identity` 中显式迁移到同一设备的 NodeID，保留 Token、设备组、项目和 Shell 关联，原 ID 作为兼容别名保留。运行中的网关任务会阻止实际迁移。网关与直连共用同一节点进程中的 Shell；两边的项目目录仍是独立来源，身份迁移不会自动合并目录或复制项目文件。详见[迁移旧网关身份](project-session-catalog.md#迁移旧网关身份)。
 

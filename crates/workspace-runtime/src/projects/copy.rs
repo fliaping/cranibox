@@ -457,7 +457,7 @@ pub fn status(state: &Path, id: &str, caller: &str, token: &str) -> Result<Recei
     ensure!(file.metadata()?.len() <= 16384, "copy receipt too large");
     let receipt: Receipt = serde_json::from_reader(file)?;
     ensure!(
-        receipt.caller == caller && config::matches(&receipt.credential, &digest(token.as_bytes())),
+        receipt.caller == caller && config::matches(&receipt.credential, token),
         "copy receipt unavailable"
     );
     Ok(receipt)
@@ -511,7 +511,7 @@ pub fn receive(
     let mut receipt = Receipt {
         id: request.id,
         caller: caller.into(),
-        credential: digest(token.as_bytes()),
+        credential: token.to_owned(),
         digest: request.digest,
         project_id: request.package.project_id.clone(),
         name: request.package.name.clone(),

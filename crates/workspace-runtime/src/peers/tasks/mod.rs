@@ -417,8 +417,10 @@ pub struct Store {
     path: PathBuf,
     owner: String,
 }
-fn credential(token: &str) -> String {
-    format!("{:x}", Sha256::digest(token.as_bytes()))
+/// Grants already store a digest of the bearer secret (SHA-256 for migrated grants,
+/// which keeps existing ledger bindings valid); it is the ledger binding as-is.
+fn credential(grant_credential: &str) -> String {
+    grant_credential.to_owned()
 }
 fn current(history: &mut [Receipt], dispatch: Uuid) -> Result<&mut Receipt> {
     let receipt = history.last_mut().context("task dispatch unavailable")?;
@@ -433,7 +435,7 @@ fn authorized(configuration: &Config, incoming: &Incoming) -> bool {
         .grants
         .get(&incoming.task.sender)
         .is_some_and(|grant| {
-            grant.permissions.messages && credential(&grant.token) == incoming.credential
+            grant.permissions.messages && credential(&grant.credential) == incoming.credential
         })
 }
 

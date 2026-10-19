@@ -12,7 +12,7 @@ required-features = ["server"]
 
 [features]
 default = ["server"]
-client = ["dep:clap", "dep:reqwest", "dep:base64", "dep:futures-util", "dep:tokio-tungstenite"]
+client = ["dep:clap", "dep:reqwest", "dep:base64", "dep:futures-util", "dep:tokio-tungstenite", "dep:ed25519-dalek", "dep:snow", "dep:data-encoding"]
 server = ["client", "dep:axum", "dep:tower", "dep:base64"]
 
 [dependencies]
@@ -20,12 +20,15 @@ anyhow = "1"
 axum = { version = "0.8", features = ["ws"], optional = true }
 base64 = { version = "0.22", optional = true }
 clap = { version = "4", features = ["derive", "env"], optional = true }
+data-encoding = { version = "2", optional = true }
+ed25519-dalek = { version = "2.2", optional = true }
 fs2 = "0.4"
 futures-util = { version = "0.3", optional = true }
 rand = "0.9"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+snow = { version = "0.10", optional = true }
 sha2 = "0.10"
 subtle = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util", "io-std"] }

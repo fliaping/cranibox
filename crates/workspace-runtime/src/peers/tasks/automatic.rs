@@ -115,7 +115,7 @@ fn shape(options: &Options) -> Result<()> {
 fn policy_active(policy: &Policy, configuration: &Config, sender: &str) -> bool {
     configuration.grants.get(sender).is_some_and(|grant| {
         grant.permissions.messages
-            && policy.credentials.get(sender) == Some(&credential(&grant.token))
+            && policy.credentials.get(sender) == Some(&credential(&grant.credential))
     })
 }
 fn prepare(
@@ -144,7 +144,7 @@ fn prepare(
             .get(sender)
             .filter(|grant| grant.permissions.messages)
             .context("each sender requires a current messages grant on this device")?;
-        credentials.insert(sender.clone(), credential(&grant.token));
+        credentials.insert(sender.clone(), credential(&grant.credential));
     }
     let review = executions::Store::new(path, configuration.node_id.clone()).apply(
         executions::Command::PrepareAgent {
@@ -197,7 +197,12 @@ pub(super) fn apply(path: &Path, configuration: &Config, command: Command) -> Re
             let credentials = options
                 .senders
                 .iter()
-                .map(|node| (node.clone(), credential(&configuration.grants[node].token)))
+                .map(|node| {
+                    (
+                        node.clone(),
+                        credential(&configuration.grants[node].credential),
+                    )
+                })
                 .collect();
             settings.policy = Some(Policy {
                 generation: Uuid::new_v4(),
@@ -362,7 +367,7 @@ fn launch(
         .get(&item.task.sender)
         .context("sender grant unavailable")?;
     executions::Store::new(path, configuration.node_id.clone())
-        .for_automatic_sender(Requester::new(item.task.sender.clone(), &grant.token))
+        .for_automatic_sender(Requester::new(item.task.sender.clone(), &grant.credential))
         .start_with_session(binding.id, Some(binding.session), binding.launch)
 }
 fn settle(
