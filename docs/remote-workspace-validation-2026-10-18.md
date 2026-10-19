@@ -1470,3 +1470,15 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 本轮未修改 Rust/React、嵌入资源或依赖，没有重跑旧产品全量或安装包。真实 arm64 的完整镜像构建/启动、新产品镜像、registry 拉取与正式发布仍未验收；不能将旧镜像通过改写为当前提交发布。默认公开镜像不兼容问题保留在 P0。证据统一保存于 **/config/validation-artifacts/image-platform-gate-20261019**；凭据、原始日志、报告和辅助脚本不提交 Git。
 
 最终六份待提交文件与远端快照 SHA-256 一致，保存在 final-source-manifest.json。final-health.json 确认日常 Web PID 538744、客户端 PID 1403228、原程序摘要及 NodeID 保持；KDE/Selkies 未重启。容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，owned_processes=[]、test_package_absent=true。只清理本轮带归属标签的验收容器与卷，没有升级日常程序。
+
+### 交接时补记：产品 CI 最终成功，镜像验证仍排队
+
+Windows/macOS 桌面准备向导的完整产品提交 **f49341d107e64309f4e04d16c3acef0ff95f2e73**，矩阵 **39192461791** 已 completed/success，**7/7**；创建于 **2026-10-19T02:58:37Z**，最终更新于 **03:20:50Z**。三个平台 Rust、三个平台 Tauri 及独立 Sway/wayvnc 全部成功。同来源 Release **39192461685** 与 GitCode **39192461704** 成功；Release 只是脚本检查，不发布公开产品镜像。
+
+核对最终 Linux Rust、Linux Tauri 和 Wayland 作业日志：Rust 工作区 **185 通过、4 默认忽略**；Web **137/137，2.8 分钟**；Tauri 模拟 IPC **53/53，33.9 秒**；原生传输 **4/4**、GIO **1/1**；真实 EasyTier **2/2，16.22 秒**；真实 Chromium/官方 MCP、X11 VNC、Sway/wayvnc 各 **1/1**，资源测量与既有 Linux 服务、目录/文件、后台同步、任务和桌面/空间集成均成功。显式专项不与默认工作区或远端轮次重复累计；Windows/macOS 构建成功不代表系统 GUI、权限或多物理设备验收。
+
+API 确认 **10 份 artifact**，包含三平台服务端、独立节点 CLI、桌面安装包及 Linux 资源报告。最新 Linux 桌面包 artifact **12161225440**，未安装到日常环境；此前真实窗口和剪贴板结果继续绑定文内各自旧提交。Actions 中打开运行 **39192461791** 即可下载本次 Windows NSIS、macOS DMG、Linux DEB/AppImage。
+
+多架构门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 已推送 origin/main。手动运行 **39193919686** 参数 desktop=xfce、architecture=all、publish=false；**2026-10-19T03:21:17Z** 的最后快照为 queued，amd64/arm64 两作业均未执行。同来源 Release **39193888500** 和 GitCode **39193888594** 也 queued。仅触发不计通过，未使用发布模式或替换公开标签；下一位维护者继续核对当前运行终态。
+
+私有 **/config/validation-artifacts/image-platform-gate-20261019** 保存 product-ci-final.json、product-artifacts.json、linux-native.log、linux-desktop.log、wayland.log 与 ci-handoff.json；原始失败和此前进行中证据保持。最后收尾只更新交接和验证文档，未重跑产品测试、安装发布包或修改日常服务。功能状态和剩余 P0/P1/P2 仍以[交接入口](implementation-handoff-2026-10-18.md)为准。

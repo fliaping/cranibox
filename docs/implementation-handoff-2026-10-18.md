@@ -2,6 +2,8 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
+交接版本：最新产品代码为 **f49341d107e64309f4e04d16c3acef0ff95f2e73**，三平台 Rust、三平台 Tauri 和独立 Wayland 的矩阵 **39192461791 已 7/7 成功**，最终更新于 **2026-10-19T03:20:50Z**。随后 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 只补镜像验收门槛；其 XFCE 双架构只验证运行 **39193919686** 在 **03:21 UTC** 的交接快照仍为 queued。两者均已推送 origin/main；最后补记只改文档。下一位维护者先核对该镜像运行，再按下方 P0/P1/P2 继续；不能把排队、打包成功或交接整理计为全部需求完成。
+
 最新收尾补齐[多架构镜像验收门槛](workspace-image-release.md)：仅验证模式可选择 amd64/arm64 原生 runner，发布模式及阿里云镜像都必须按不可变候选摘要分别验收两个架构后才更新标签。检查器回归 **22/22**，指定远端既有完整 XFCE 镜像的 amd64 启动、授权与重启 **44/44**，错误的 arm64 请求在创建资源前被拒绝。该镜像来源仍是旧提交 18c3216；这不是当前产品镜像重建、真实 arm64 通过或公开发布记录。默认公开镜像的兼容性问题继续保留。
 
 收尾补充 Windows/macOS 的[桌面准备向导](remote-desktops.md#windows--macos-准备向导)：按节点系统提供 UltraVNC Server 或系统屏幕共享说明、官方文档入口、真实回环 RFB 握手检查、配置核对和设备授权入口。Web/Tauri 共用组件；握手和保存分开，保存前再次检查。它引导用户手动准备提供者与系统权限，尚未提供这两个平台的自动安装和托管，也不代表已经通过 Windows/macOS 实机桌面验收。当前测试与历史协作记录的结果分别列在下方。
@@ -67,6 +69,26 @@
 
 ## 测试情况与可信范围
 
+### 最新产品提交的最终 CI 与安装包
+
+完整来源 **f49341d107e64309f4e04d16c3acef0ff95f2e73** 的矩阵 **39192461791** 从 2026-10-19T02:58:37Z 运行至最终更新 **03:20:50Z**，completed/success，**7/7**。同来源 Release **39192461685**、GitCode **39192461704** 均成功；Release 是脚本检查，不发布公开空间镜像。已下载 Linux Rust、Linux Tauri 和 Wayland 三份最终作业日志核对。
+
+| 检查 | 当前产品 CI 结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | **185 通过、4 默认忽略** | 忽略项不计入 185；EasyTier、GIO 与资源测量另有显式执行 |
+| Web 界面全量 | **137/137，2.8 分钟** | 真实 Rust Web；新平台状态仍由夹具提供 |
+| Tauri 界面全量 | **53/53，33.9 秒** | 模拟 IPC，不是系统 GUI 验收 |
+| 原生传输 / GIO | **4/4、1/1** | GIO 启动器不等于实际登录 |
+| 真实 EasyTier 用户态组网 | **2/2，16.22 秒** | CI 内软件节点、重启与入口切换，不是物理网络 |
+| 真实 Chromium / X11 VNC / Sway Wayland | **各 1/1** | 隔离场景；不代表 Windows/macOS 提供者 |
+| 资源测量与其他 Linux 集成 | 通过 | 资源报告已上传，不代表规模和长时耐久性 |
+
+Actions 运行 **39192461791** 共 **10 份 artifact**：三平台各自的 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包，以及 resource-baseline-linux。Windows 桌面包为 NSIS .exe，macOS 为 .dmg，Linux 为 .deb/AppImage。最新 Linux 桌面 artifact 为 **12161225440**；这里只确认构建成功，未把历史真实窗口验收改写为此新包已安装。三平台系统权限、实际桌面、登录/休眠与多物理设备仍按 P0/P1 验收。
+
+镜像门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 的 Build Multi-Arch Image **39193919686** 已明确以 desktop=xfce、architecture=all、publish=false 触发；在 **2026-10-19T03:21:17Z** 快照中，amd64/arm64 两项均 queued，同来源 Release **39193888500** 与 GitCode **39193888594** 也 queued。未更新公开标签。后续运行 `gh run view 39193919686 --json headSha,status,conclusion,jobs` 查看终态，不重复触发以覆盖当前证据。
+
+最终 CI JSON、artifact 清单、上述三份日志及排队快照保存在私有 **/config/validation-artifacts/image-platform-gate-20261019**。本节仅补文档，不重跑已通过的产品检查。
+
 ### 当前：多架构镜像验收门槛（2026-10-19）
 
 本轮基于产品提交 **f49341d107e64309f4e04d16c3acef0ff95f2e73**；只修改镜像工作流、检查器、回归与文档，没有改 Rust/React 产品代码、生成资源或依赖。构建/运行仍在指定远端；Docker 启动验收由同一远端宿主机控制隔离临时容器，没有将 Docker socket 挂入日常容器。
@@ -100,7 +122,7 @@
 
 Windows/macOS 的系统状态由夹具提供，不能据此宣称这两个平台的安装包、提供者、实际认证/画面/输入、系统权限、自启或休眠恢复已验收。本轮没有重新安装 Linux 发布包或重新运行全部 Rust 工作区测试；下方旧提交的包与 CI 结论保持各自版本。安装与系统权限仍需用户手动完成，WSL2 不等于 Windows 原生桌面。
 
-最终日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 均保持；KDE/Selkies 未重启，容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，无所属测试进程或测试安装包残留。私有证据位于 **/config/validation-artifacts/desktop-platform-guide-20261019**，不提交凭据、配置、截图或原始日志。提交前核对源码、测试、生成资源与文档和远端快照一致；完整清单、四个程序摘要及健康检查保存在该目录。新提交的 CI 需按完整 headSha 单独核对，不能沿用下方 984b7af 的成功矩阵。
+最终日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 均保持；KDE/Selkies 未重启，容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，无所属测试进程或测试安装包残留。私有证据位于 **/config/validation-artifacts/desktop-platform-guide-20261019**，不提交凭据、配置、截图或原始日志。提交前核对源码、测试、生成资源与文档和远端快照一致；完整清单、四个程序摘要及健康检查保存在该目录。本段是提交前远端结果；随后 f49341d 的最终 CI 与安装包已按完整 headSha 核对并补记于本章开头，没有沿用下方 984b7af 的成功矩阵。
 
 ### 上一轮：跨设备协作记录（2026-10-19）
 
