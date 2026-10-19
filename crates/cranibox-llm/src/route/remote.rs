@@ -113,18 +113,34 @@ impl RemoteRouter {
         node: &str,
         provider: &str,
         request: CanonicalRequest,
+        count: bool,
     ) -> Result<UpstreamResponse, UpstreamError> {
         if !self.roster.is_owner_node(node) {
             return Err(UpstreamError::Network("peer is not in owner roster".into()));
         }
-        let path = match request.wire {
-            Wire::Chat => routes::LLM_CHAT,
-            Wire::Responses => routes::LLM_RESPONSES,
-            Wire::Messages => routes::LLM_MESSAGES,
+        let path = if count {
+            if request.wire != Wire::Messages {
+                return Err(UpstreamError::Unsupported);
+            }
+            routes::LLM_COUNT_TOKENS
+        } else {
+            match request.wire {
+                Wire::Chat => routes::LLM_CHAT,
+                Wire::Responses => routes::LLM_RESPONSES,
+                Wire::Messages => routes::LLM_MESSAGES,
+            }
         };
         let mut body = request.body;
-        body["model"] = format!("{provider}/{}", request.model).into();
-        body["stream"] = request.stream.into();
+        let object = body.as_object_mut().ok_or(UpstreamError::Unsupported)?;
+        object.insert(
+            "model".into(),
+            format!("{provider}/{}", request.model).into(),
+        );
+        if count {
+            object.remove("stream");
+        } else {
+            object.insert("stream".into(), request.stream.into());
+        }
         let mut builder =
             http::Request::post(routes::llm(node, path)).header("content-type", "application/json");
         if let Some(session) = request.session_id {
@@ -143,6 +159,9 @@ impl RemoteRouter {
         .map_err(|_| UpstreamError::Network("peer response headers timed out".into()))?
         .map_err(|_| UpstreamError::Network("peer unavailable".into()))?;
         let (parts, body) = response.into_parts();
+        if count && parts.status == http::StatusCode::NOT_IMPLEMENTED {
+            return Err(UpstreamError::Unsupported);
+        }
         if !parts.status.is_success() {
             return Err(UpstreamError::Network("peer proxy unavailable".into()));
         }
@@ -173,6 +192,48 @@ impl RemoteRouter {
             body: BoxBody::new(stream::once(async move { Ok(first) }).chain(body)),
         })
     }
+    async fn forward_operation(
+        &self,
+        node: &str,
+        provider: &str,
+        request: CanonicalRequest,
+        count: bool,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        let mut nodes = vec![node.to_owned()];
+        for candidate in self.candidates(provider) {
+            if !nodes.contains(&candidate) {
+                nodes.push(candidate);
+            }
+        }
+        for candidate in nodes {
+            if candidate == self.node {
+                continue;
+            }
+            match self
+                .send_one(&candidate, provider, request.clone(), count)
+                .await
+            {
+                Ok(response) => {
+                    self.health.succeeded(&candidate, crate::auth::now());
+                    return Ok(response);
+                }
+                // A missing count capability does not make a reachable peer unhealthy.
+                Err(UpstreamError::Unsupported) if count => return Err(UpstreamError::Unsupported),
+                Err(_) => self.health.failed(&candidate),
+            }
+            if provider == "claude" {
+                break;
+            }
+        }
+        Err(UpstreamError::Network(
+            if provider == "claude" {
+                "claude_node_offline"
+            } else {
+                "home_offline"
+            }
+            .into(),
+        ))
+    }
 }
 #[async_trait::async_trait]
 impl Router for RemoteRouter {
@@ -197,34 +258,14 @@ impl Router for RemoteRouter {
         provider: &str,
         request: CanonicalRequest,
     ) -> Result<UpstreamResponse, UpstreamError> {
-        let mut nodes = vec![node.to_owned()];
-        for candidate in self.candidates(provider) {
-            if !nodes.contains(&candidate) {
-                nodes.push(candidate);
-            }
-        }
-        for candidate in nodes {
-            if candidate == self.node {
-                continue;
-            }
-            match self.send_one(&candidate, provider, request.clone()).await {
-                Ok(response) => {
-                    self.health.succeeded(&candidate, crate::auth::now());
-                    return Ok(response);
-                }
-                Err(_) => self.health.failed(&candidate),
-            }
-            if provider == "claude" {
-                break;
-            }
-        }
-        Err(UpstreamError::Network(
-            if provider == "claude" {
-                "claude_node_offline"
-            } else {
-                "home_offline"
-            }
-            .into(),
-        ))
+        self.forward_operation(node, provider, request, false).await
+    }
+    async fn forward_count_tokens(
+        &self,
+        node: &str,
+        provider: &str,
+        request: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        self.forward_operation(node, provider, request, true).await
     }
 }

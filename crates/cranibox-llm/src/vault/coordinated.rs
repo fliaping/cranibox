@@ -72,6 +72,13 @@ impl Upstream for Coordinated {
     ) -> Result<UpstreamResponse, UpstreamError> {
         self.inner.send(cx, req).await
     }
+    async fn count_tokens(
+        &self,
+        cx: &UpstreamCx,
+        req: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        self.inner.count_tokens(cx, req).await
+    }
     async fn models(&self, cx: &UpstreamCx) -> Result<Vec<ModelEntry>, UpstreamError> {
         self.inner.models(cx).await
     }

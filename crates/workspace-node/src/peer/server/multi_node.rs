@@ -200,9 +200,19 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
     let upstream = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let upstream_address = upstream.local_addr().unwrap();
     let upstream_stop = stop.clone();
+    let count_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let upstream_counts = count_calls.clone();
     tokio::spawn(async move {
         let app = Router::new().route("/v1/chat/completions", post(|| async {
             Json(json!({"id":"mock-noise", "object":"chat.completion", "model":"test", "choices":[{"index":0,"message":{"role":"assistant","content":"Noise round trip"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}))
+        })).route("/v1/messages/count_tokens", post(move |Json(body): Json<Value>| {
+            let calls = upstream_counts.clone();
+            async move {
+                assert_eq!(body["model"], "test");
+                assert!(body.get("stream").is_none());
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Json(json!({"input_tokens":7}))
+            }
         }));
         let _ = axum::serve(upstream, app)
             .with_graceful_shutdown(upstream_stop.cancelled_owned())
@@ -210,10 +220,16 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
     });
     let credential = cranibox_llm::upstream::apikey::Credential {
         access_token: "fake-vault-secret-for-noise-integration".into(),
-        endpoints: [(
-            cranibox_contracts::llm::Wire::Chat,
-            format!("http://{upstream_address}/v1"),
-        )]
+        endpoints: [
+            (
+                cranibox_contracts::llm::Wire::Chat,
+                format!("http://{upstream_address}/v1"),
+            ),
+            (
+                cranibox_contracts::llm::Wire::Messages,
+                format!("http://{upstream_address}/v1"),
+            ),
+        ]
         .into(),
         models: vec!["test".into()],
         ..Default::default()
@@ -254,6 +270,47 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
             .json(&json!({"model":"custom-noise/test","messages":[{"role":"user","content":"Hello"}]}))
             .send()
     };
+    let count = |service: &Arc<crate::models::Models>| {
+        reqwest::Client::new().post(format!("http://{}/v1/messages/count_tokens", service.proxy.addresses[0]))
+            .bearer_auth("cbx-pi")
+            .json(&json!({"model":"custom-noise/test","stream":true,"messages":[{"role":"user","content":"private count request across Noise"}]}))
+            .send()
+    };
+    // No local secret: this count must reach the Hub's dedicated count endpoint.
+    let response = count(c).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"input_tokens":7})
+    );
+    // An unsupported count must survive mesh ingress as 501, without making
+    // the reachable Hub unhealthy or accidentally generating a completion.
+    let mut generation_only = credential.clone();
+    generation_only
+        .endpoints
+        .remove(&cranibox_contracts::llm::Wire::Messages);
+    a.vault
+        .put(
+            a.vault.get("noise-account").unwrap(),
+            Some(generation_only.secret()),
+        )
+        .unwrap();
+    for _ in 0..3 {
+        assert_eq!(
+            count(c).await.unwrap().status(),
+            reqwest::StatusCode::NOT_IMPLEMENTED
+        );
+    }
+    assert_eq!(
+        c.router.health.get(a.vault.node()).mode,
+        cranibox_llm::route::health::Mode::Remote
+    );
+    a.vault
+        .put(
+            a.vault.get("noise-account").unwrap(),
+            Some(credential.secret()),
+        )
+        .unwrap();
     let response = ask(c).await.unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::OK);
     assert_eq!(
@@ -285,6 +342,21 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
         response.json::<Value>().await.unwrap()["choices"][0]["message"]["content"],
         "Noise round trip"
     );
+    // The same wrapped adapter also counts locally after the Hub disappears.
+    let response = count(b).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"input_tokens":7})
+    );
+    // A third node can fall back from the stopped Hub to the newly enabled peer.
+    let response = count(c).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"input_tokens":7})
+    );
+    assert_eq!(count_calls.load(std::sync::atomic::Ordering::SeqCst), 3);
     assert_eq!(b.router.candidates("claude"), vec![c.vault.node()]);
     assert!(!a.vault.pull(PullReq::default()).unwrap().records.is_empty());
     {
@@ -294,6 +366,7 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
         for sensitive in [
             credential.access_token.as_bytes(),
             b"Private account label",
+            b"private count request across Noise",
             route_secret.as_bytes(),
         ] {
             assert!(

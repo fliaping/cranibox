@@ -328,14 +328,14 @@ impl Engine {
                         router.forward(&node, provider, request).await
                     }
                     .map_err(|e| match &e {
-                            UpstreamError::Network(code) if code == "claude_node_offline" => {
-                                CallError::Unavailable(ErrorCode::ClaudeNodeOffline)
-                            }
-                            UpstreamError::Network(code) if code == "home_offline" => {
-                                CallError::Unavailable(ErrorCode::HomeOffline)
-                            }
-                            _ => CallError::Upstream(e),
-                        });
+                        UpstreamError::Network(code) if code == "claude_node_offline" => {
+                            CallError::Unavailable(ErrorCode::ClaudeNodeOffline)
+                        }
+                        UpstreamError::Network(code) if code == "home_offline" => {
+                            CallError::Unavailable(ErrorCode::HomeOffline)
+                        }
+                        _ => CallError::Upstream(e),
+                    });
                 }
             }
         }

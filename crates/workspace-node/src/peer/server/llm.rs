@@ -183,6 +183,9 @@ async fn handle(
             Json(UnavailableBody::new(code, code.as_str(), None)),
         )
             .into_response(),
+        Err(cranibox_llm::ProxyError::Upstream(UpstreamError::Unsupported)) => {
+            failure(StatusCode::NOT_IMPLEMENTED, "model operation unsupported").into_response()
+        }
         Err(_) => failure(StatusCode::BAD_GATEWAY, "model upstream unavailable").into_response(),
     }
 }
