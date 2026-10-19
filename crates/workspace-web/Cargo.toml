@@ -23,6 +23,7 @@ url = "2"
 agent-workspace-runtime = { path = "../workspace-runtime" }
 agent-workspace-pty = { path = "../workspace-pty" }
 cranibox-node = { path = "../workspace-node" }
+cranibox-net = { path = "../cranibox-net" }
 base64 = "0.22"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
