@@ -1,5 +1,5 @@
 //! The node's iroh endpoint: identity reuse, relay order and connection pool.
-use crate::{ALPN_PAIR, ALPN_PEER_HTTP, addr};
+use crate::{ALPN_PAIR, ALPN_PEER_FWD, ALPN_PEER_HTTP, Lane, addr};
 use anyhow::{Context, Result, ensure};
 use cranibox_contracts::{config::IrohConfig, net::IrohAddr};
 use iroh::{
@@ -70,7 +70,7 @@ pub(crate) struct Pooled {
 #[derive(Clone)]
 pub struct IrohNode {
     endpoint: Endpoint,
-    pub(crate) pool: Arc<Mutex<HashMap<EndpointId, Pooled>>>,
+    pub(crate) pool: Arc<Mutex<HashMap<(EndpointId, Lane), Pooled>>>,
     stop: CancellationToken,
     own_relays: Vec<RelayUrl>,
     extra_roots: Arc<Vec<Vec<u8>>>,
@@ -94,7 +94,11 @@ impl IrohNode {
         let mut builder = Endpoint::builder(presets::N0)
             .secret_key(secret)
             .relay_mode(mode)
-            .alpns(vec![ALPN_PEER_HTTP.to_vec(), ALPN_PAIR.to_vec()]);
+            .alpns(vec![
+                ALPN_PEER_HTTP.to_vec(),
+                ALPN_PEER_FWD.to_vec(),
+                ALPN_PAIR.to_vec(),
+            ]);
         if options.no_address_lookup {
             builder = builder.clear_address_lookup();
         }
@@ -251,17 +255,22 @@ impl IrohNode {
 
     /// A pooled peer-http connection to `addr` (reused across requests and streams).
     pub async fn peer_connection(&self, addr: &EndpointAddr) -> Result<Connection> {
+        self.lane_connection(addr, Lane::Peer).await
+    }
+
+    /// A pooled connection to `addr` on `lane`.
+    pub async fn lane_connection(&self, addr: &EndpointAddr, lane: Lane) -> Result<Connection> {
         let mut pool = self.pool.lock().await;
-        if let Some(pooled) = pool.get_mut(&addr.id)
+        if let Some(pooled) = pool.get_mut(&(addr.id, lane))
             && pooled.conn.close_reason().is_none()
         {
             pooled.used = Instant::now();
             return Ok(pooled.conn.clone());
         }
         drop(pool);
-        let conn = self.connect(addr, ALPN_PEER_HTTP).await?;
+        let conn = self.connect(addr, lane.alpn()).await?;
         self.pool.lock().await.insert(
-            addr.id,
+            (addr.id, lane),
             Pooled {
                 conn: conn.clone(),
                 used: Instant::now(),
@@ -272,20 +281,23 @@ impl IrohNode {
 
     /// Path of the pooled connection to `id`, if one is open.
     pub async fn pool_path(&self, id: &EndpointId) -> Option<cranibox_contracts::net::PathInfo> {
-        self.pool
-            .lock()
-            .await
-            .get(id)
-            .filter(|p| p.conn.close_reason().is_none())
+        let pool = self.pool.lock().await;
+        [Lane::Peer, Lane::Forward]
+            .iter()
+            .filter_map(|lane| pool.get(&(*id, *lane)))
+            .find(|p| p.conn.close_reason().is_none())
             .map(|p| crate::path::info(&p.conn))
     }
 
     /// Close connections of peers that are no longer paired.
     pub async fn drop_peer(&self, id: &EndpointId) {
-        if let Some(pooled) = self.pool.lock().await.remove(id) {
-            pooled
-                .conn
-                .close(crate::close::NOT_ALLOWED.into(), b"unpaired");
+        let mut pool = self.pool.lock().await;
+        for lane in [Lane::Peer, Lane::Forward] {
+            if let Some(pooled) = pool.remove(&(*id, lane)) {
+                pooled
+                    .conn
+                    .close(crate::close::NOT_ALLOWED.into(), b"unpaired");
+            }
         }
     }
 

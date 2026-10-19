@@ -1,8 +1,8 @@
 //! Loopback forwards for out-of-process clients (CLI, MCP, the gateway).
 //!
 //! Each paired peer gets a stable `127.0.0.1:<port>` listener. Every accepted TCP
-//! connection is spliced onto a new QUIC stream of the pooled iroh connection to
-//! that peer, so the existing reqwest / WebSocket client code works unchanged.
+//! connection is spliced onto a new QUIC stream of the pooled iroh connection
+//! (ALPN [`crate::ALPN_PEER_FWD`]) to that peer, so the existing reqwest / WebSocket client code works unchanged.
 //! The forward is a dumb pipe: callers still authenticate inside it with the
 //! route's credential (bearer or Noise session), so other local users cannot
 //! borrow this node's identity by connecting to the port.
@@ -78,7 +78,7 @@ async fn serve(
             let _permit = permit;
             let _ = tcp.set_nodelay(true);
             let result = async {
-                let conn = node.peer_connection(&addr).await?;
+                let conn = node.lane_connection(&addr, crate::Lane::Forward).await?;
                 let (send, recv) = conn.open_bi().await?;
                 let mut quic = tokio::io::join(recv, send);
                 tokio::select! {

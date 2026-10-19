@@ -170,6 +170,7 @@ mod tests {
                 url: alternative.clone(),
                 allow_insecure: false,
                 local_forward_lock: None,
+                iroh: None,
             }],
             target_identity: None,
             config_path: None,

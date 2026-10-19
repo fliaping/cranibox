@@ -113,6 +113,8 @@ jobs:
       - run: cargo check --locked -p cranibox-node
       - run: cargo build --locked
       - run: cargo test --locked
+      - name: Contract snapshot (fixtures round-trip through cranibox-contracts types)
+        run: cargo test --locked -p cranibox-contracts --test fixtures
       - uses: actions/setup-node@v4
         if: runner.os == 'Linux'
         with:

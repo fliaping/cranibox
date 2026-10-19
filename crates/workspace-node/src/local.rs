@@ -72,6 +72,7 @@ impl LocalNode {
         let iroh = peer::transport_iroh::Service::start(
             path.clone(),
             peer.network_endpoint(),
+            peer.mesh_router(),
             stop.clone(),
         )
         .await;

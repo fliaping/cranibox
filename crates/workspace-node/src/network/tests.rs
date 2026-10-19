@@ -96,6 +96,8 @@ async fn real_two_node_network_authorization_and_restart() {
         messages: false,
         activity: false,
         spaces: false,
+        llm: false,
+        vault: false,
     };
     let b_grant = b
         .manage_peers(PeerCommand::Grant {
@@ -287,6 +289,8 @@ async fn real_three_node_network_entry_failover() {
                 messages: false,
                 activity: false,
                 spaces: false,
+                llm: false,
+                vault: false,
             },
         })
         .await

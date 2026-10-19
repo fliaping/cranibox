@@ -19,6 +19,7 @@ fn endpoint(
         url: origin.origin().ascii_serialization(),
         allow_insecure,
         local_forward_lock,
+        iroh: None,
     };
     value.validate()?;
     Ok(value)
@@ -290,6 +291,7 @@ mod tests {
                 url: "http://127.0.0.1:9200/".into(),
                 allow_insecure: false,
                 local_forward_lock: None,
+                iroh: None,
             });
         assert!(configuration.validate().is_err());
         assert_eq!(std::fs::read(&store.path).unwrap(), saved);

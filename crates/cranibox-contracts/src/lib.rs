@@ -35,6 +35,9 @@ pub mod vault;
 #[cfg(feature = "mock")]
 pub mod mock;
 
+/// Re-exported so implementers use the exact versions in the trait signatures.
+pub use {async_trait, bytes, http};
+
 /// Stable node identifier, `"node-<32 hex>"` (see [`roster::NODE_ID_DOMAIN`]).
 pub type NodeId = String;
 /// iroh `EndpointId`: the node's ed25519 signing public key.

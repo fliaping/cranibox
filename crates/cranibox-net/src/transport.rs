@@ -1,5 +1,5 @@
 //! Client side of ALPN `cranibox/peer-http/1`: the C2 [`PeerTransport`] over iroh.
-use crate::{node::IrohNode, path};
+use crate::{Lane, node::IrohNode, path};
 use cranibox_contracts::{
     NodeId,
     net::{BoxBody, PathInfo, PeerTransport, TransportError, TransportKind},
@@ -110,7 +110,7 @@ impl PeerTransport for IrohTransport {
         if response.is_err() && conn.close_reason().is_some() {
             // Never resend: the request may have reached the peer. Only forget the dead
             // connection so the next request dials again.
-            self.node.pool.lock().await.remove(&addr.id);
+            self.node.pool.lock().await.remove(&(addr.id, Lane::Peer));
         }
         // HTTP statuses (including 401/403) pass through with their error bodies.
         response
@@ -118,7 +118,7 @@ impl PeerTransport for IrohTransport {
     async fn path(&self, peer: &NodeId) -> Option<PathInfo> {
         let addr = (self.lookup)(peer)?;
         let pool = self.node.pool.lock().await;
-        pool.get(&addr.id)
+        pool.get(&(addr.id, Lane::Peer))
             .filter(|p| p.conn.close_reason().is_none())
             .map(|p| path::info(&p.conn))
     }

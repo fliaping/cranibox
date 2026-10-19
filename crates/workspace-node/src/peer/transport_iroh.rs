@@ -169,6 +169,7 @@ impl Shared {
         }
         drop(forwards);
         let url = format!("http://127.0.0.1:{}", entry.port);
+        let iroh_addr = entry.addr.clone();
         let lock = lock_path(&self.path, node)?;
         let present = Config::read(&self.path)?
             .routes
@@ -193,6 +194,7 @@ impl Shared {
                             url,
                             allow_insecure: false,
                             local_forward_lock: Some(lock),
+                            iroh: Some(iroh_addr),
                         },
                     );
                     endpoints.truncate(super::config::MAX_PATHS);
@@ -325,6 +327,10 @@ fn owner_permissions() -> Permissions {
         messages: true,
         activity: true,
         spaces: true,
+        // Own devices share the model proxy and the account vault (WS6 still
+        // checks roster membership).
+        llm: true,
+        vault: true,
     }
 }
 #[async_trait::async_trait]
@@ -471,13 +477,17 @@ pub struct Handle {
 }
 
 impl Service {
+    /// `router` is the node's `Running::mesh_router()`; it serves ALPN
+    /// `cranibox/peer-http/1` with `Authenticated`. `endpoint` serves forwards
+    /// (`cranibox/peer-fwd/1`), which keep the route's bearer/Noise credential.
     pub(crate) async fn start(
         path: PathBuf,
         endpoint: super::server::NetworkEndpoint,
+        router: axum::Router,
         stop: CancellationToken,
     ) -> Self {
         let stop = stop.child_token();
-        match Self::try_start(path, endpoint, stop.clone()).await {
+        match Self::try_start(path, endpoint, router, stop.clone()).await {
             Ok(service) => service,
             Err(error) => {
                 eprintln!("iroh network disabled: {error:#}");
@@ -494,6 +504,7 @@ impl Service {
     async fn try_start(
         path: PathBuf,
         endpoint: super::server::NetworkEndpoint,
+        router: axum::Router,
         stop: CancellationToken,
     ) -> Result<Self> {
         let config = iroh_config(&path)?;
@@ -534,7 +545,23 @@ impl Service {
         );
         let node = IrohNode::bind(&identity.signing_seed(), options.clone()).await?;
         let listener = endpoint.listen("127.0.0.1:0".parse()?).await?;
-        let target = MeshTarget::Tcp(listener.address());
+        let forwarded = MeshTarget::Tcp(listener.address());
+        let resolve_path = path.clone();
+        let resolve: mesh::Resolve = Arc::new(move |id: &iroh::EndpointId| {
+            let key = addr::hex_id(id);
+            let config = Config::read(&resolve_path).ok()?;
+            config
+                .grants
+                .iter()
+                .find(|(_, grant)| {
+                    grant
+                        .peer
+                        .as_ref()
+                        .is_some_and(|p| p.identity.signing_key.eq_ignore_ascii_case(&key))
+                })
+                .map(|(node, _)| node.clone())
+        });
+        let target = MeshTarget::Router { router, resolve };
         let allow = hub
             .as_ref()
             .map_or_else(Allowlist::default, |h| h.allow.clone());
@@ -589,6 +616,7 @@ impl Service {
             node.clone(),
             allow.clone(),
             target,
+            forwarded,
             pairing,
             stop.clone(),
         )));
@@ -644,6 +672,7 @@ async fn accept(
     node: IrohNode,
     allow: Allowlist,
     target: MeshTarget,
+    forwarded: MeshTarget,
     pairing: Pairing,
     stop: CancellationToken,
 ) {
@@ -656,6 +685,7 @@ async fn accept(
         let Some(incoming) = incoming else { break };
         let allow = allow.clone();
         let target = target.clone();
+        let forwarded = forwarded.clone();
         let pairing = pairing.clone();
         let stop = stop.clone();
         tokio::spawn(async move {
@@ -664,6 +694,8 @@ async fn accept(
                 pairing.handle(conn).await
             } else if conn.alpn() == cranibox_net::ALPN_PEER_HTTP {
                 mesh::serve_connection(conn, &allow, target, stop).await
+            } else if conn.alpn() == cranibox_net::ALPN_PEER_FWD {
+                mesh::serve_connection(conn, &allow, forwarded, stop).await
             } else {
                 Ok(())
             };
