@@ -1622,3 +1622,15 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 历史 a93b863 的 Release **39204312601** 于 **2026-10-19T05:42:02Z** 失败；已检查日志，脚本测试通过，update-readme-links 的 git push 因 main 已更新而 non-fast-forward 被拒绝。三平台矩阵 **39204312609** 本轮查询为 in_progress、GitCode **39204312589** 成功；这些结果不覆盖本次修改。最终提交后单独补记当前完整 headSha 与新 CI，不因旧运行排队重复触发，也不宣称公开镜像或跨平台 GUI 通过。
 
 产品已提交并推送为 **66edf1115c5bc3d6301cbecb219b5abbb522e016**。**2026-10-19 06:04 UTC** 的 GitHub API 快照确认同一完整 headSha：三平台矩阵 **39207809642**、Release **39207809787**、GitCode **39207809605** 自动触发且均 queued（创建时间 06:04:17–18 UTC）。下一位维护者直接核对这些已有运行的终态与产物；本次交接只记录排队，不声明新安装包或镜像验收成功。最后补记仅改文档，不需要重跑产品测试。
+
+## 2026-10-19：Release 只读检查与当前完整镜像交接
+
+提交 **981ff86473547bc84a7623e8be4d153dbc5d82a0** 只改 .github/workflows/release.yml 与发布说明：删除 update-readme-links 作业，并明确 contents: read。install.sh 已没有旧作业要替换的 RAW_URL，sed 实际无变更，仍向 main 推送会因检出版本落后而 non-fast-forward。a93b863 的 Release **39204312601** 原日志确认该原因；66edf11 的 **39207809787** 同样为脚本检查成功、自动推送作业失败。修正不改变镜像发布门槛、产品程序、生成资源、依赖或测试，不因此重复运行产品套件。远端静态 YAML 解析与只读/单作业检查、git diff --check 通过。
+
+当前来源的完整镜像只验证运行 **39208494283** 于 **2026-10-19T06:11:35Z** 创建，headSha 精确为上述 981ff86，参数 version=latest、desktop=all、architecture=all、publish=false。六组为 XFCE/LXQt/KDE × linux/amd64、linux/arm64；截至 **2026-10-19 06:16:52 UTC** 快照，两项 arm64 正在 Build candidate image，其余四项 queued。尚无当前镜像完整成功结果、安装包实机结果或公开标签发布。现有运行应继续核对，无需重复触发；完成后下载六份 image-startup artifact，检查 revision/platform、各 44 项通过、unready_checks=[] 及各四项容器/卷清理。只验证不会移动公开标签，正式发布与真实拉取仍是 P0。
+
+当前产品源码仍为 **66edf1115c5bc3d6301cbecb219b5abbb522e016**；从它到 981ff86 的差异仅为文档和上述 Release 工作流。产品矩阵 **39207809642** 两项 Windows 作业运行、其余五项排队，GitCode **39207809605** 已成功；新的只读 Release **39208300414** 与 GitCode **39208300409** 此时排队。历史 a93b863 的矩阵 **39204312609** 已完整成功 **7/7**，旧 2299b45 双架构 XFCE **39200391726** 也已显示成功，但本节未重新审计其 artifact，不能据此宣称当前来源已验收。
+
+另实查 2299b45 的矩阵 **39199888520** 为 **6/7**：Linux Rust 作业 **117890467476** 在 slow_viewer_keeps_upstream_drained_and_clipboard_input_live 失败，报告 superseded video delayed the clipboard by 12 frames，触发 frames < 10 断言。下载原始日志并保留在私有目录。此处实现和测试从 2c95dd4 起没有改动；较新的 a93b863 全矩阵成功不等于该问题已被修复。下一位维护者应复核上游发送、适配器接收和恢复消费的时序，确认是夹具同步还是实际排队问题，不能直接提高阈值或重跑后删除失败记录；已加入交接文档测试稳定性待办。
+
+日常健康复查通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序摘要与 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键鼠/剪贴板。私有证据目录 **/config/validation-artifacts/image-handoff-20261019** 保存带观测时间的 CI 快照、对应运行元数据、失败日志和 final-health.json。交接收尾只改文档，原始日志、辅助脚本与凭据不入 Git。
