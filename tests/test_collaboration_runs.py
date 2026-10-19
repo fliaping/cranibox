@@ -48,7 +48,7 @@ class CollaborationTests(unittest.TestCase):
             return json.loads(result.stdout)
         peer = second('identity')['node_id']
         token_file = self.h.root/'second.token'
-        second('grant', '--node', self.caller, '--messages', '--output-token', token_file)
+        second('grant', '--node', self.caller, '--messages', '--inbound', 'accept', '--output-token', token_file)
         port = free_port()
         second('listen', '--address', f'127.0.0.1:{port}')
         self.h.start(NODE, '--config', settings, 'peer', 'serve')

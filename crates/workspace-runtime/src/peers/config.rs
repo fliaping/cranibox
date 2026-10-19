@@ -90,6 +90,23 @@ impl Pinned {
 fn is_false(value: &bool) -> bool {
     !*value
 }
+/// What happens to agent-to-agent content (device messages) arriving from a peer.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Inbound {
+    /// Deliver to the local mailbox and Agents.
+    #[default]
+    Accept,
+    /// Keep in a human approval queue; Agents do not see it until released.
+    Hold,
+    /// Reject without storing.
+    Refuse,
+}
+impl Inbound {
+    fn is_accept(&self) -> bool {
+        *self == Self::Accept
+    }
+}
 /// Target-issued capability grant. Only a digest of the bearer secret is stored.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -111,6 +128,10 @@ pub struct Grant {
     /// Refuse capabilities until both owners verified the pairing code.
     #[serde(default, skip_serializing_if = "is_false")]
     pub require_verified: bool,
+    /// Inbound content policy. Grants written before this field existed accept, so
+    /// their signed bytes are unchanged; newly issued grants hold for a human.
+    #[serde(default, skip_serializing_if = "Inbound::is_accept")]
+    pub inbound: Inbound,
     /// Ed25519 signature by the issuing (target) node over this record.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -133,6 +154,7 @@ impl Grant {
             permissions,
             peer: None,
             require_verified: false,
+            inbound: Inbound::Hold,
             signature: None,
         }
     }
@@ -532,7 +554,7 @@ impl Config {
         serde_json::json!({"node_id":self.node_id, "listener":self.listener, "desktop":self.desktop, "computer":self.computer, "computer_paused":self.computer_paused, "browser":self.browser, "browser_paused":self.browser_paused, "copy_root":self.copy_root,
             "identity":self.identity.as_ref().map(|i| serde_json::json!({"fingerprint":i.fingerprint(),"key_derived_id":i.derived(),"public":i})),
             "grants":self.grants.iter().map(|(id, grant)| serde_json::json!({"node":id,"permissions":grant.permissions,
-                "require_verified":grant.require_verified,"signed":grant.signature.is_some(),
+                "require_verified":grant.require_verified,"inbound":grant.inbound,"signed":grant.signature.is_some(),
                 "peer":grant.peer.as_ref().map(|p| p.view(self.identity.as_ref()))})).collect::<Vec<_>>(),
             "routes":self.routes.iter().map(|(id, route)| serde_json::json!({"node":id,"url":route.url,"allow_private_http":route.allow_insecure,
                 "identity":route.target_identity.as_ref().map(|p| p.view(self.identity.as_ref())),

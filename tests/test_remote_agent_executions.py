@@ -118,7 +118,7 @@ class RemoteAgentExecutionsTests(unittest.TestCase):
 
     def test_non_execution_grants_browser_origins_and_oversize_requests_are_rejected(self):
         other_token = self.h.root / 'read-only.token'
-        self.cli('grant', '--node', 'messages-only', '--output-token', other_token, '--messages')
+        self.cli('grant', '--node', 'messages-only', '--output-token', other_token, '--messages', '--inbound', 'accept')
         token = other_token.read_text().strip()
         run = self.launch('pass')
         for command in [{'operation': 'list'}, {'operation': 'start', **run}, {'operation': 'prepare_agent', 'agent': {'name': 'Review', 'adapter': 'codex', 'access': 'read_only', 'prompt': 'Review', 'cwd': str(self.h.root)}}]:

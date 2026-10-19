@@ -123,9 +123,18 @@ pub enum Command {
     Grant {
         node: String,
         permissions: Permissions,
+        /// Inbound content policy; new grants hold for a human unless set.
+        #[serde(default)]
+        inbound: Option<config::Inbound>,
     },
     Revoke {
         node: String,
+    },
+    /// Set how agent-to-agent content from an authorized caller is handled:
+    /// accept, hold for human approval, or refuse.
+    Inbound {
+        node: String,
+        policy: config::Inbound,
     },
     /// Confirm a pinned peer key after both owners compared the pairing code.
     Verify {
@@ -513,7 +522,11 @@ impl Store {
             Command::Browser { node, command } => self.browser(&node, command).await,
             Command::ComputerOwner { command } => computer::owner(&self.path, command).await,
             Command::Computer { node, command } => self.computer(&node, command).await,
-            Command::Grant { node, permissions } => {
+            Command::Grant {
+                node,
+                permissions,
+                inbound,
+            } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || {
                     ensure!(valid_node_id(&node), "invalid caller node ID");
@@ -537,11 +550,32 @@ impl Store {
                         );
                         value
                             .grants
-                            .insert(node.clone(), Grant::issue(&token, permissions));
+                            .insert(node.clone(), {
+                                let mut grant = Grant::issue(&token, permissions);
+                                if let Some(inbound) = inbound {
+                                    grant.inbound = inbound;
+                                }
+                                grant
+                            });
                         Ok(())
                     })?;
                     // The credential is returned only to this authenticated issuance request.
                     Ok(json!({"catalog":value.public_view(),"node":node,"token":token}))
+                })
+                .await?
+            }
+            Command::Inbound { node, policy } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    Config::update(&path, |config| {
+                        config
+                            .grants
+                            .get_mut(&node)
+                            .context("caller is not granted on this node")?
+                            .inbound = policy;
+                        Ok(())
+                    })
+                    .map(|c| c.public_view())
                 })
                 .await?
             }
@@ -652,6 +686,7 @@ mod tests {
                 store
                     .manage(Command::Grant {
                         node: node.into(),
+                        inbound: None,
                         permissions: Permissions::default(),
                     })
                     .await
@@ -662,6 +697,7 @@ mod tests {
             store
                 .manage(Command::Grant {
                     node: identity["node_id"].as_str().unwrap().into(),
+                    inbound: None,
                     permissions: Permissions {
                         exec: true,
                         terminals: false,
@@ -674,6 +710,7 @@ mod tests {
         let issued = store
             .manage(Command::Grant {
                 node: "caller".into(),
+                inbound: None,
                 permissions: Permissions {
                     exec: false,
                     terminals: true,
@@ -691,6 +728,7 @@ mod tests {
             store
                 .manage(Command::Grant {
                     node: "caller".into(),
+                    inbound: None,
                     permissions: Permissions {
                         exec: true,
                         terminals: true,
@@ -722,6 +760,7 @@ mod tests {
         let rotated = store
             .manage(Command::Grant {
                 node: "caller".into(),
+                inbound: None,
                 permissions: Permissions {
                     exec: true,
                     terminals: false,

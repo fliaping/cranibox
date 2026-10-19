@@ -99,6 +99,7 @@ async fn real_two_node_network_authorization_and_restart() {
     let b_grant = b
         .manage_peers(PeerCommand::Grant {
             node: a.id.clone(),
+            inbound: None,
             permissions: permissions.clone(),
         })
         .await
@@ -106,6 +107,7 @@ async fn real_two_node_network_authorization_and_restart() {
     let a_grant = a
         .manage_peers(PeerCommand::Grant {
             node: b.id.clone(),
+            inbound: None,
             permissions,
         })
         .await
@@ -270,6 +272,7 @@ async fn real_three_node_network_entry_failover() {
     let grant = b
         .manage_peers(PeerCommand::Grant {
             node: c.id.clone(),
+            inbound: None,
             permissions: Permissions {
                 exec: true,
                 terminals: true,
