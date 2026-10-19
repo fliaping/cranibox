@@ -1124,7 +1124,7 @@ test('shared incoming access uses native IPC with explicit terminal permission',
   await dialog.getByRole('button', { name: '已保存，关闭', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'direct_peers' && c.payload.command.operation === 'grant'));
-  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false } } } }]);
+  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false }, require_verified: true } } }]);
   page.once('dialog', dialog => dialog.accept());
   await panel.getByRole('button', { name: '撤销授权 another-desktop', exact: true }).click();
   await expect(panel.getByLabel('已授权设备', { exact: true })).toContainText('尚未授权其他设备');
