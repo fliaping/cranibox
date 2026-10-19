@@ -15,6 +15,7 @@
 | Caddy 路由配置 | Rust；互斥写入、备份、输入校验、失败恢复 |
 | OpenClaw 更新控制 | Rust；暂存新版本、切换服务、验证进程和 HTTP，失败恢复旧服务定义 |
 | 节点命令 | 转交既有 Rust workspace-runtime，保持命令参数和退出码 |
+| 设备消息审批队列 | `messages held/release/reject/inbound` 校验参数后转交 `cranibox-node peer`（`CRANIBOX_NODE_BIN` 或 `$ROOT/bin/cranibox-node`），使用 `$ROOT/.config/cranibox-node` 中与控制中心相同的存储 |
 | 软件下载安装、容器启动 | 继续使用 manager / Bash 安装器 |
 | Web 控制中心 | 后端为 Rust，浏览器界面和 IDE 扩展保留 JavaScript |
 | 桌面桥/MCP、用户服务监督器、第三方 Agent 和浏览器 | 保留现有实现 |

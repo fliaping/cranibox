@@ -2,6 +2,7 @@
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+from pathlib import Path
 import select
 import subprocess
 import time
@@ -93,6 +94,40 @@ class DeviceMessagesTests(unittest.TestCase):
         status, value = self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', envelope)
         self.assertEqual(status, 403, value)
         self.assertNotIn(envelope['id'], json.dumps(self.cli('messages', 'held')))
+
+    def ctl(self, *args):
+        """workspacectl against the target's peer store (its config root symlinked in)."""
+        binary = Path(os.environ.get('WORKSPACE_CTL_BIN', NODE.parent / 'workspacectl'))
+        if not binary.exists():
+            self.skipTest('build workspacectl')
+        root = self.h.root / 'ctl-root'
+        (root / '.config').mkdir(parents=True, exist_ok=True)
+        link = root / '.config/cranibox-node'
+        if not link.exists():
+            link.symlink_to(self.config.parent, target_is_directory=True)
+        env = {**os.environ, 'AGENT_WORKSPACE_CONFIG_ROOT': str(root), 'CRANIBOX_NODE_BIN': str(NODE)}
+        result = subprocess.run([str(binary), 'messages', *map(str, args)], capture_output=True, text=True, timeout=10, env=env)
+        return result
+
+    def test_workspacectl_lists_releases_and_rejects_held_messages(self):
+        listed = self.ctl('inbound', self.caller, 'hold')
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        first, _ = self.send('First held message.')
+        second, _ = self.send('Second held message.')
+        self.delivered(first); self.delivered(second)
+        queue = self.ctl('held')
+        self.assertEqual(queue.returncode, 0, queue.stderr)
+        self.assertEqual(sorted(item['message']['id'] for item in json.loads(queue.stdout)['held']), sorted([first, second]))
+        self.assertEqual(self.ctl('release', first).returncode, 0)
+        self.assertEqual(self.ctl('reject', second).returncode, 0)
+        self.assertEqual(json.loads(self.ctl('held').stdout)['held'], [])
+        incoming = json.dumps(self.cli('messages', 'list')['incoming'])
+        self.assertIn(first, incoming)
+        self.assertNotIn(second, incoming)
+        for bad in [('release', 'not-a-uuid'), ('inbound', self.caller, 'maybe'), ('delete', first)]:
+            result = self.ctl(*bad)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Usage', result.stderr)
 
     def test_offline_queue_survives_restart_and_acknowledgements_are_explicit(self):
         self.h.stop(self.h.server)

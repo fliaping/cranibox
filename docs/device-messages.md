@@ -134,7 +134,8 @@ Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`�
 - 速率限制：每个发送方每分钟最多 **60** 条，超出返回错误。
 - 循环保护：同一发送方会话 10 分钟内超过 **12** 条时，后续消息转入待审批（原因 `loop guard`），防止两端 Agent 无限互相回复。
 - 不可信封装：交给 Agent 的正文包在 `<cranibox-message from=".." thread=".." trust="untrusted">…</cranibox-message>` 中，正文里的闭合标签（不区分大小写）被转义为 `<\/cranibox-message`，避免伪造边界进行提示注入。
-- `workspacectl` 暂未提供审批队列命令，使用 `cranibox-node peer messages` 或 Web。
+- `workspacectl messages held | release <消息ID> | reject <消息ID>` 与 `workspacectl messages inbound <NodeID> accept|hold|refuse` 在 Workspace 内操作同一审批队列（与控制中心共用 `~/.config/cranibox-node`）。
+- 控制中心“设备消息”页顶部显示“待审批”区：来源、暂扣原因（入站策略或循环保护）、发件 Agent 与纯文本正文，提供“放行”和“拒绝”（拒绝前确认）。仅查看不会改变任何状态。
 
 ## 验证与后续
 
