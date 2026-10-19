@@ -1357,7 +1357,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 
 ### 验收范围与交接
 
-本轮没有新功能的实际 Linux 安装包窗口、系统登录、休眠、Windows/macOS GUI、第二物理设备或真实模型调用验收；历史安装包结论继续绑定各自完整提交。没有升级日常 Web/客户端、重启 KDE/Selkies、操作桌面输入/剪贴板、安装系统 Tailscale 或发布镜像。完整账本复制、Agent 检查点/运行进程迁移仍未实现，后续优先级见[交接入口](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)。
+提交前阶段没有新功能的实际 Linux 安装包窗口验收，后续补验见本文末节；系统登录、休眠、Windows/macOS GUI、第二物理设备或真实模型调用仍未验收，历史结论继续绑定各自完整提交。没有升级日常 Web/客户端、重启 KDE/Selkies、操作桌面输入/剪贴板、安装系统 Tailscale 或发布镜像。完整账本复制、Agent 检查点/运行进程迁移仍未实现，后续优先级见[交接入口](implementation-handoff-2026-10-18.md#下一阶段优先级与验收条件)。
 
 27 份本地待提交产品源码、测试、工作流及生成资源与远端实际快照逐项 SHA-256 一致，source-binaries.json 另保存五个 Rust 程序摘要。375/768/1440 像素、明暗主题检查无横向溢出，来源选择行至少 44 像素，另审阅 375/1440 的四份元素截图。元素截图保留固定顶栏覆盖，不代替整页首屏或原生窗口验收。
 
@@ -1373,4 +1373,59 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 
 ### CI 直连授权回归修正
 
-矩阵 39186579637 的 Linux native 作业在 test_web_direct_peers.py 第 683 行失败：旧权限对象精确断言漏掉新增的 activity=false。保留独立权限默认关闭检查，补齐该字段；产品实现、依赖和生成资源不变。指定远端整组直连回归最终 16/16，无跳过，14.825 秒。首轮远端辅助脚本漏配已安装的 /config/bin/herdr，14 通过、2 项缺少 Herdr；设置 CRANIBOX_HERDR_BIN 后重跑通过，不改产品终端行为。失败日志、首轮记录和最终回归结果位于私有 linux-installer-41b8ca6。原矩阵其余终态与修正提交的 CI 后续补记，不能将原矩阵记为全绿。
+矩阵 39186579637 的 Linux native 作业在 test_web_direct_peers.py 第 683 行失败：旧权限对象精确断言漏掉新增的 activity=false。保留独立权限默认关闭检查，补齐该字段；产品实现、依赖和生成资源不变。指定远端整组直连回归最终 16/16，无跳过，14.825 秒。首轮远端辅助脚本漏配已安装的 /config/bin/herdr，14 通过、2 项缺少 Herdr；设置 CRANIBOX_HERDR_BIN 后重跑通过，不改产品终端行为。失败日志、首轮记录和最终回归结果位于私有 linux-installer-41b8ca6。原矩阵与修正提交的最终结果见下文，不能将原矩阵记为全绿。
+
+## 2026-10-19：协作记录 Linux 发布包原生补验
+
+原矩阵 **39186579637 completed/failure**，最终更新时间 2026-10-19T02:01:41Z：三平台 Tauri、Windows/macOS Rust 与 Sway/wayvnc 六项成功，仅 Linux Rust 的旧权限精确断言失败。**984b7af89c22bc7fa6f105d54fa2df660777831f** 修正该断言并补文档；从产品提交 **41b8ca6487e32837b25315e5c12bd06e54763c67** 起产品源码、生成资源与依赖未变。此节真实包绑定 41b8ca6，不把原失败矩阵当作整体通过，也不把后续测试修正写成重新构建了这两包。
+
+### 包来源
+
+下载原矩阵的 artifact **12158731694**（cranibox-node-desktop-ubuntu-latest），workflow_run.head_sha 为完整 41b8ca6，Linux 客户端作业 **117850162837 success**；API 归档摘要 sha256:e0c598cd0e80ed3cf3f179552da315ea60a1aae4710fffc72a7d49b4c2e3927b，归档 96,409,844 字节。本地和指定远端均核对实际包大小与 SHA-256：
+
+| 包 | 字节 | SHA-256 |
+| --- | --- | --- |
+| Cranibox Node_0.1.0_amd64.deb | 9,442,210 | 3baa9a4a4a49367e1f6a7da39d67b9abbae10782559d5da2f2223c26195b9854 |
+| Cranibox Node_0.1.0_amd64.AppImage | 87,607,800 | 03b04f400b4c40889c657c049309906e07b54a0ad91bee9bc6c34594b0f4ce81 |
+
+.deb 实际 dpkg 安装后的程序 SHA-256 为 377f47481afbdc187b1465d2de1946c68893e41fb1a71f8f9f143efec6e6a6f2；AppImage 使用 --appimage-extract-and-run，内部程序为 6675ff7728301755855dfe9059afedd6597a2bcc0a79576e29afaf05d30b213a。没有验证普通 FUSE 启动。
+
+### 实际窗口与结果
+
+两包均在 admin@192.168.217.6:22022 的 cranibox-validation、abc、现有 KDE 中运行，真实发布窗口、IPC 和 Rust 节点宿主。分别使用新 XDG/NodeID 与私有 D-Bus，目标和第三方发送者是同容器独立身份的真实 Rust 节点，经回环 HTTP；没有使用模拟 IPC、Web 页面或网关替代原生动作。
+
+两包都从“协作任务”进入“查看协作记录”，取消本机并选远端来源，读取任务进度、问题、回答和结果，以及第三方发送的设备消息。消息中的类 HTML 内容按文字显示。类型选“消息”后实际活动面板为一条匹配且无任务行；面板外原有本机任务列表仍保留。随后目标撤销调用方授权，点击“刷新协作记录”，确认该来源的任务和消息正文均清除，界面显示零条匹配和授权说明。任务报告由脚本 worker 通过真实接口提交，不代表模型或实际 Agent 进程执行。
+
+.deb 的两次原生搜索输入尝试均失败：WebKit search entry 未提供 org.a11y.atspi.EditableText，首次按接口过滤找不到对象，第二次直接调用也返回 No such interface。因此搜索不计原生通过；未操作全局键盘/剪贴板绕过。浏览器 134/134 与模拟 IPC 51/51 的搜索覆盖仍成立。截图审阅可见类型筛选后的消息和纯文本正文，但原生 select 弹出菜单仍未关闭；实际 React 列表已按内容断言，不把截图当作普通鼠标/键盘关闭菜单、移动端或完整首屏验收。
+
+本次未重验原生 Run 详情/分页、托盘/自启、真实登录、休眠、普通 FUSE、桌面控制/剪贴板、物理节点网络、Windows/macOS GUI。对应历史版本验收和后续 P0/P1/P2 保持边界。
+
+### 失败保留与清理
+
+最初两次 .deb 数据准备失败都发生在 GUI 前：第一次在问题同步前提交回答，第二次等待辅助脚本过早访问可省略的 questions 字段。改为等待真实报告、用可选字段读取后通过，失败身份与日志保留，所属节点进程均已停止。没有修改产品或手改账本。原生搜索的失败动作另在 deb-records.json、deb-filters.json 中保留；通过动作分别保存在 deb-third.json、deb-type-filter.json、appimage-exercise.json，acceptance.json 不将失败计入通过。
+
+两包及独立目标、发送者、启动器和所属辅助进程已退出；按程序摘要核对后卸载测试 cranibox-node 包，按来源与摘要移除本次 AppImage 解压目录。归属审计 owned_processes=[]、test_package_absent=true。日常 Web PID **538744**、客户端 PID **1403228**、各自程序摘要及 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。没有升级日常程序或发布公开镜像。
+
+私有证据 **/config/validation-artifacts/linux-installer-41b8ca6** 保存 artifact.json、package-digests.json、acceptance.json、两包阶段 JSON/失败、界面树/截图、CI 原始日志、直连回归首轮/最终结果、cleanup-audit.json 和 final-health.json。配置、令牌、正文、截图、辅助脚本和原始日志不提交 Git；仓库只保留结论、版本、摘要、失败解释与后续入口。
+
+### 修正提交的最终 CI
+
+完整来源 **984b7af89c22bc7fa6f105d54fa2df660777831f**，矩阵 **39187721392 completed/success，7/7**：三个平台 Rust、三个平台 Tauri 与独立 Sway/wayvnc；创建于 2026-10-19T01:57:56Z，最终更新于 **2026-10-19T02:25:01Z**。相同来源的 Release **39187721472**、GitCode **39187721368** 均 completed/success；Release 不发布公开空间镜像。原矩阵失败和进行中快照保留，未覆盖为成功。
+
+下载最终 Linux Rust、Linux 客户端、Wayland 三份作业日志后确认：
+
+| 检查 | 最终 CI 结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | 185 通过、4 默认忽略 | 默认忽略项不计入 185；下列专项显式执行 |
+| Web 界面全量 | 134/134，3.6 分钟 | 实际 Rust Web；新界面部分来源可控 |
+| 客户端界面全量 | 51/51，32.9 秒 | 模拟 IPC，不是 GUI 包验收 |
+| 直连授权回归 | 16/16，8.889 秒 | 修正旧权限精确断言的完整回归 |
+| 新协作记录后端 | 6/6，108.945 秒 | 实际独立 Rust 节点与 HTTP/CLI，部分受控来源 |
+| 原生传输、GIO | 4/4、1/1 | 真实 GIO 启动器仍不等于系统登录 |
+| EasyTier 用户态组网 | 2/2，16.77 秒 | CI 内真实软件/节点、重启和入口切换，非物理网络 |
+| 真实浏览器、X11 VNC、Wayland | 各 1/1 | Chromium/官方 MCP、像素/认证/输入与恢复，各自隔离场景 |
+| 资源测量 | 通过、报告已上传 | 显式执行默认忽略的传输测量；不代表规模或长时耐久性 |
+
+其他既有 Linux 服务、目录/文件复制、后台同步、任务/worker/依赖、Computer/Browser Use、桌面/空间集成也均通过；不与远端已有结果累计。Windows/macOS 原生构建和打包成功不代表 GUI、系统权限或实际多物理设备验收。
+
+最终 API 共 **10 份 artifact**：三平台 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包及 Linux 资源报告。新 Linux 桌面 artifact **12159265408**，未将本节实际使用的旧产品包 **12158731694** 改写为新包。私有 linux-installer-41b8ca6/ci-final.json、ci-correction-artifacts.json、ci-test-summary.json 和三份 ci-correction-*.log 保留完整来源、结果与测试摘要，ci-followup.json 仍保留此前进行中状态；后续仅补交接文档。
