@@ -44623,7 +44623,7 @@ function wC() {
 				strokeWidth: 1.7,
 				"aria-hidden": "true"
 			})
-		}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: "Cranibox" }), /* @__PURE__ */ (0, B.jsx)("small", { children: "AGENT WORKSPACE" })] })]
+		}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: "Cranibox" }), /* @__PURE__ */ (0, B.jsx)("small", { children: "AGENT NODE NETWORK" })] })]
 	});
 }
 var TC = location.hash.slice(1);
