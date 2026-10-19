@@ -5,7 +5,7 @@
 //! the legacy random IDs so every existing validator keeps working), signs the Noise key
 //! binding, and signs target-issued grant records. Legacy random NodeIDs keep their value
 //! and are bound to a key by the same self-signature, so existing routes and grants keep
-//! working; peers pin the key on first contact either way.
+//! working. The pairing protocol pins remote keys and supports pairing-code confirmation.
 //! Private key material stays in `node-identity.json` (0600) and is never exported.
 use crate::{config, protocol::valid_node_id};
 use anyhow::{Context, Result, ensure};
@@ -14,6 +14,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use snow::resolvers::CryptoResolver;
 use std::path::{Path, PathBuf};
 
 pub const FILE: &str = "node-identity.json";
@@ -147,6 +148,12 @@ struct Secret {
     noise_private: String,
     noise_public: String,
     created_at: u64,
+    /// Old key files predate the signed-configuration migration checkpoint.
+    #[serde(default = "legacy_config_version")]
+    minimum_config_version: u32,
+}
+fn legacy_config_version() -> u32 {
+    1
 }
 
 /// Private identity. Only the owning node process loads it.
@@ -154,6 +161,8 @@ pub struct Identity {
     signing: SigningKey,
     noise_private: [u8; 32],
     public: PublicIdentity,
+    created_at: u64,
+    minimum_config_version: u32,
 }
 impl Identity {
     fn assemble(
@@ -163,6 +172,14 @@ impl Identity {
         noise_public: [u8; 32],
     ) -> Result<Self> {
         ensure!(valid_node_id(&node_id), "invalid node ID");
+        let mut dh = snow::resolvers::DefaultResolver
+            .resolve_dh(&snow::params::DHChoice::Curve25519)
+            .context("X25519 provider unavailable")?;
+        dh.set(&noise_private);
+        ensure!(
+            dh.pubkey() == noise_public.as_slice(),
+            "node identity Noise key pair does not match; existing data was preserved"
+        );
         let signing = SigningKey::from_bytes(&seed);
         let key = signing.verifying_key().to_bytes();
         let signature = signing.sign(&PublicIdentity::binding(&node_id, &key, &noise_public));
@@ -178,6 +195,8 @@ impl Identity {
             signing,
             noise_private,
             public,
+            created_at: now(),
+            minimum_config_version: 1,
         })
     }
     fn generate(node_id: Option<&str>) -> Result<Self> {
@@ -212,17 +231,30 @@ impl Identity {
     pub fn sign(&self, message: &[u8]) -> String {
         hex(&self.signing.sign(message).to_bytes())
     }
-    fn write(&self, path: &Path) -> Result<()> {
+    fn write(&self, path: &Path, overwrite: bool) -> Result<()> {
         let secret = Secret {
             version: 1,
             node_id: self.public.node_id.clone(),
             signing_seed: hex(&self.signing.to_bytes()),
             noise_private: hex(&self.noise_private),
             noise_public: self.public.noise_key.clone(),
-            created_at: now(),
+            created_at: self.created_at,
+            minimum_config_version: self.minimum_config_version,
         };
-        // Never replace an existing key: a mismatch must stay visible for repair.
-        config::write_private(path, &serde_json::to_vec_pretty(&secret)?, false)
+        config::write_private(path, &serde_json::to_vec_pretty(&secret)?, overwrite)
+    }
+    pub(super) fn minimum_config_version(&self) -> u32 {
+        self.minimum_config_version
+    }
+    /// Checkpoint only after the signed configuration has been saved. A crash before
+    /// that save must still allow a legacy configuration to finish its migration.
+    pub(super) fn record_config_version(&mut self, config_path: &Path, version: u32) -> Result<()> {
+        if version > self.minimum_config_version {
+            self.minimum_config_version = version;
+            self.write(&path_for(config_path), true)
+                .context("save signed configuration checkpoint in node identity")?;
+        }
+        Ok(())
     }
     pub fn load(path: &Path) -> Result<Self> {
         let file = std::fs::File::open(path).context("read node identity")?;
@@ -232,12 +264,19 @@ impl Identity {
         );
         let secret: Secret = serde_json::from_reader(file).context("invalid node identity file")?;
         ensure!(secret.version == 1, "unsupported node identity file");
-        Self::assemble(
+        ensure!(
+            matches!(secret.minimum_config_version, 1 | 2),
+            "unsupported node identity configuration checkpoint"
+        );
+        let mut identity = Self::assemble(
             secret.node_id,
             unhex::<32>(&secret.signing_seed)?,
             unhex::<32>(&secret.noise_private)?,
             unhex::<32>(&secret.noise_public)?,
-        )
+        )?;
+        identity.created_at = secret.created_at;
+        identity.minimum_config_version = secret.minimum_config_version;
+        Ok(identity)
     }
     /// Load the identity bound to `node_id`, creating a key for a legacy NodeID once.
     /// Callers hold the peer configuration lock.
@@ -252,7 +291,8 @@ impl Identity {
             return Ok(identity);
         }
         let identity = Self::generate(Some(node_id))?;
-        identity.write(&path)?;
+        // Never replace an existing key: a mismatch must stay visible for repair.
+        identity.write(&path, false)?;
         Ok(identity)
     }
     /// A brand new node: create the key first and derive its NodeID from it.
@@ -263,7 +303,7 @@ impl Identity {
             return Self::load(&path);
         }
         let identity = Self::generate(None)?;
-        identity.write(&path)?;
+        identity.write(&path, false)?;
         Ok(identity)
     }
 }
@@ -331,6 +371,29 @@ mod tests {
                 "private key must not be group/world readable"
             );
         }
+    }
+    #[test]
+    fn mismatched_noise_key_material_is_rejected_without_replacement() {
+        let root = tempfile::tempdir().unwrap();
+        let config = root.path().join("peers.json");
+        Identity::ensure(&config, "node-legacy").unwrap();
+        let path = path_for(&config);
+        let original = std::fs::read(&path).unwrap();
+        let other = Identity::generate(None).unwrap();
+        for (field, replacement) in [
+            ("noise_private", hex(other.noise_private())),
+            ("noise_public", other.public().noise_key.clone()),
+        ] {
+            let mut secret: serde_json::Value = serde_json::from_slice(&original).unwrap();
+            secret[field] = replacement.into();
+            let bytes = serde_json::to_vec(&secret).unwrap();
+            std::fs::write(&path, &bytes).unwrap();
+            assert!(Identity::load(&path).is_err());
+            assert!(Identity::ensure(&config, "node-legacy").is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        }
+        std::fs::write(&path, original).unwrap();
+        assert!(Identity::load(&path).is_ok());
     }
     #[test]
     fn pairing_code_is_symmetric_and_key_bound() {

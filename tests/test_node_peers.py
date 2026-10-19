@@ -321,6 +321,51 @@ class PeerTests(unittest.TestCase):
         path.write_bytes(original)
         self.assertEqual(self.http('GET', '/nodes')[0], 200)
 
+    def test_legacy_grants_migrate_on_start_and_identity_loss_fails_closed(self):
+        path = self.b.with_name('peers.json')
+        key_path = path.with_name('node-identity.json')
+        legacy = json.loads(path.read_text())
+        legacy['version'] = 1
+        legacy.pop('identity')
+        permissions = legacy['grants'][self.caller]['permissions']
+        legacy['grants'][self.caller] = {'token': self.token, 'permissions': permissions}
+        path.write_text(json.dumps(legacy))
+        key_path.unlink()
+        process = self.start()
+        saved = path.read_bytes()
+        configuration = json.loads(saved)
+        key = key_path.read_bytes()
+        self.assertEqual(configuration['version'], 2)
+        self.assertEqual(configuration['node_id'], self.target)
+        self.assertEqual(configuration['grants'][self.caller]['credential'],
+                         hashlib.sha256(self.token.encode()).hexdigest())
+        self.assertNotIn(self.token, saved.decode())
+        self.assertEqual(json.loads(key)['minimum_config_version'], 2)
+        self.assertEqual(self.finished(self.execute('print("MIGRATED")')[1]['id'])['stdout'], 'MIGRATED\n')
+
+        key_path.unlink()
+        self.assertEqual(self.http('GET', '/nodes')[0], 503)
+        self.assertNotEqual(self.cli(self.b, 'identity', check=False).returncode, 0)
+        self.assertFalse(key_path.exists(), 'a missing key must not be silently replaced')
+        self.assertEqual(path.read_bytes(), saved)
+        key_path.write_bytes(key)
+        key_path.chmod(0o600)
+        self.assertEqual(self.http('GET', '/nodes')[0], 200)
+
+        downgraded = json.dumps(legacy).encode()
+        path.write_bytes(downgraded)
+        self.assertEqual(self.http('GET', '/nodes')[0], 503)
+        self.assertNotEqual(self.cli(self.b, 'identity', check=False).returncode, 0)
+        self.assertEqual(path.read_bytes(), downgraded)
+        self.assertEqual(key_path.read_bytes(), key)
+        path.write_bytes(saved)
+        self.stop(process)
+        self.start()
+        view = self.cli(self.b, 'identity')
+        self.assertEqual(view['identity']['public'], configuration['identity'])
+        self.assertEqual(self.finished(self.execute('print("RESTORED")')[1]['id'])['stdout'], 'RESTORED\n')
+        self.assertEqual(key_path.read_bytes(), key)
+
     @unittest.skipUnless(CORE.exists(), 'build cranibox server')
     def test_gateway_and_direct_share_shell_and_capacity_and_work_when_server_stops(self):
         h = Harness(unified=True, node_env={'CRANIBOX_HERDR_BIN':'/missing-herdr'})
