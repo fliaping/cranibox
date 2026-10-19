@@ -17,8 +17,11 @@ from workspace_web_harness import NODE, free_port, sockets_allowed, until
 class RecordingProxy:
     """A relay that forwards TCP bytes and records everything it sees, like a gateway would."""
 
-    def __init__(self, upstream):
+    def __init__(self, upstream, tamper_streams=False):
         self.upstream = upstream
+        # Flip one bit of the first target-to-caller chunk after a WebSocket upgrade.
+        self.tamper_streams = tamper_streams
+        self.tampered = 0
         self.seen = bytearray()
         self.lock = threading.Lock()
         self.server = socket.socket()
@@ -36,14 +39,24 @@ class RecordingProxy:
             except OSError:
                 return
             upstream = socket.create_connection(('127.0.0.1', self.upstream))
-            for a, b in ((client, upstream), (upstream, client)):
-                threading.Thread(target=self.pipe, args=(a, b), daemon=True).start()
+            for a, b, back in ((client, upstream, False), (upstream, client, True)):
+                threading.Thread(target=self.pipe, args=(a, b, back), daemon=True).start()
 
-    def pipe(self, source, sink):
+    def pipe(self, source, sink, back=False):
+        upgraded = False
         try:
             while data := source.recv(65536):
                 with self.lock:
                     self.seen += data
+                if back and upgraded and self.tamper_streams and not self.tampered:
+                    data = data[:-1] + bytes([data[-1] ^ 1])
+                    self.tampered += 1
+                if back and not upgraded and data.startswith(b'HTTP/1.1 101'):
+                    upgraded = True
+                    head, _, rest = data.partition(b'\r\n\r\n')
+                    if rest and self.tamper_streams and not self.tampered:
+                        data = head + b'\r\n\r\n' + rest[:-1] + bytes([rest[-1] ^ 1])
+                        self.tampered += 1
                 sink.sendall(data)
         except OSError:
             pass
