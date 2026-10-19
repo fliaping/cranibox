@@ -21,7 +21,7 @@ class DeviceMessagesTests(unittest.TestCase):
         self.config = self.h.root / 'target/settings.json'
         self.target = self.cli('identity')['node_id']
         self.token_file = self.h.root / 'messages.token'
-        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--messages')
+        self.cli('grant', '--node', self.caller, '--output-token', self.token_file, '--messages', '--inbound', 'accept')
         self.token = self.token_file.read_text().strip()
         self.port = free_port()
         self.url = f'http://127.0.0.1:{self.port}'
@@ -70,6 +70,29 @@ class DeviceMessagesTests(unittest.TestCase):
         message_id = str(uuid.uuid4())
         return dict(id=message_id, thread=message_id, in_reply_to=None, sender=self.caller,
                     recipient=self.target, text='Untrusted plain text', created_at=created, expires_at=created+7*24*3600)
+
+    def test_inbound_policy_holds_for_owner_approval_and_refuses(self):
+        self.cli('inbound', '--node', self.caller, '--policy', 'hold')
+        held_id, _ = self.send('Held until the owner approves.')
+        self.delivered(held_id)
+        listed = self.cli('messages', 'list')
+        self.assertNotIn(held_id, json.dumps(listed['incoming']))
+        self.assertEqual(listed['held'], 1)
+        queue = self.cli('messages', 'held')
+        self.assertEqual(queue['held'][0]['message']['id'], held_id)
+        rejected_id, _ = self.send('Rejected by the owner.')
+        self.delivered(rejected_id)
+        self.cli('messages', 'reject', '--message-id', rejected_id)
+        self.cli('messages', 'release', '--message-id', held_id)
+        incoming = json.dumps(self.cli('messages', 'list')['incoming'])
+        self.assertIn(held_id, incoming)
+        self.assertNotIn(rejected_id, incoming)
+        self.assertEqual(self.cli('messages', 'held')['held'], [])
+        self.cli('inbound', '--node', self.caller, '--policy', 'refuse')
+        envelope = self.envelope()
+        status, value = self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', envelope)
+        self.assertEqual(status, 403, value)
+        self.assertNotIn(envelope['id'], json.dumps(self.cli('messages', 'held')))
 
     def test_offline_queue_survives_restart_and_acknowledgements_are_explicit(self):
         self.h.stop(self.h.server)
@@ -151,7 +174,7 @@ class DeviceMessagesTests(unittest.TestCase):
         self.assertFalse(self.config.with_name('device-messages.json').exists())
         self.assertEqual(self.direct('POST', path, message)[0], 200)
         other = self.h.root / 'other-sender.token'
-        self.cli('grant', '--node', 'other-sender', '--output-token', other, '--messages')
+        self.cli('grant', '--node', 'other-sender', '--output-token', other, '--messages', '--inbound', 'accept')
         self.assertEqual(self.direct('GET', path+'/'+message['id'], headers={'Authorization':'Bearer '+other.read_text().strip()})[0], 400)
 
     def test_changed_credentials_block_queued_messages_instead_of_sending_to_new_route(self):
@@ -172,7 +195,7 @@ class DeviceMessagesTests(unittest.TestCase):
         message_id, original = self.send('Can you review this?', sender_session=source_session, target_session=target_session)
         self.delivered(message_id)
         grant = self.api(operation='grant', node=self.target, permissions={
-            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True})
+            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True}, inbound='accept')
         listener = self.api(operation='listener', listener={'address':'127.0.0.1:0','allow_insecure':False})
         address = listener['listener_runtime']['address']
         reverse = self.h.root / 'reverse.token'
@@ -243,7 +266,7 @@ class DeviceMessagesTests(unittest.TestCase):
     def test_standalone_mcp_delivers_and_checks_acknowledgements_without_a_node_daemon(self):
         self.h.stop(self.h.server)
         grant = self.api(operation='grant', node=self.target, permissions={
-            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True})
+            'exec':False, 'terminals':False, 'projects':False, 'desktop':False, 'messages':True}, inbound='accept')
         listener = self.api(operation='listener', listener={'address':'127.0.0.1:0','allow_insecure':False})
         reverse = self.h.root / 'mcp-reverse.token'
         reverse.write_text(grant['token'])

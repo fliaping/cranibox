@@ -94,6 +94,8 @@ mod tests {
         let token = root.path().join("target.token");
         crate::config::write_private(&token, crate::config::token().as_bytes(), false).unwrap();
         let route = super::super::config::Route {
+            target_identity: None,
+            config_path: None,
             alternatives: vec![],
             url: "http://127.0.0.1:9".into(),
             token_file: token,
@@ -169,6 +171,8 @@ mod tests {
                 allow_insecure: false,
                 local_forward_lock: None,
             }],
+            target_identity: None,
+            config_path: None,
         };
         let value = route.api("remote").unwrap().probe().await.unwrap();
         assert_eq!(value["connection"]["url"], alternative);

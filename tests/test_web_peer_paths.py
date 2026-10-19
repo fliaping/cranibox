@@ -76,7 +76,7 @@ class Relay:
 
 
 class HttpPath:
-    def __init__(self, target):
+    def __init__(self, target, legacy=False):
         self.mode = 'forward'
         self.calls = []
         owner = self
@@ -92,6 +92,13 @@ class HttpPath:
                 self.forward()
 
             def forward(self):
+                if legacy and self.path.endswith('/api/v1/mesh/keys'):
+                    # Method-based fault injection needs plaintext requests, so this path
+                    # poses as an older target without end-to-end keys (bearer fallback).
+                    self.send_response(404)
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                    return
                 owner.calls.append((self.command, self.path))
                 failures = {
                     'denied': (401, b'{"error":"grant denied"}'),
@@ -107,7 +114,7 @@ class HttpPath:
                     try:
                         connection.request(self.command, self.path, body, {
                             key: value for key, value in self.headers.items()
-                            if key.lower() in ('authorization', 'x-cranibox-target', 'content-type')
+                            if key.lower() in ('authorization', 'x-cranibox-target', 'content-type', 'x-cranibox-session')
                         })
                         response = connection.getresponse()
                         status, body = response.status, response.read()
@@ -195,7 +202,7 @@ class WebPeerPathsTests(unittest.TestCase):
         self.assertTrue(Path('/proc/' + pid).exists())
 
     def test_lost_exec_response_never_replays_on_an_alternative(self):
-        primary = HttpPath(self.port)
+        primary = HttpPath(self.port, legacy=True)
         self.addCleanup(primary.close)
         self.api(operation='connect', node=self.target, url=primary.url, token=self.token)
         self.add_path(self.url)

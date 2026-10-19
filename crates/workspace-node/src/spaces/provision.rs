@@ -309,6 +309,8 @@ impl Store {
                 "space Docker address is not private"
             );
             Route {
+                target_identity: None,
+                config_path: None,
                 alternatives: vec![],
                 url: format!("http://{ip}:9020"),
                 token_file: credential,
@@ -317,6 +319,8 @@ impl Store {
             }
         } else {
             Route {
+                target_identity: None,
+                config_path: None,
                 alternatives: vec![],
                 url: format!("http://127.0.0.1:{peer_port}"),
                 token_file: credential,

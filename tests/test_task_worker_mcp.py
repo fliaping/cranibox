@@ -281,7 +281,7 @@ finally:
         self.assertIn('revoked', rejected['content'][0]['text'])
         channel.tool(operation='get', error=True)
         channel.tool(operation='progress', text='Must not write after revocation.', error=True)
-        self.cli('grant', '--node', self.caller, '--output-token', self.h.root/'rotated.token', '--messages')
+        self.cli('grant', '--node', self.caller, '--output-token', self.h.root/'rotated.token', '--messages', '--inbound', 'accept')
         channel.tool(operation='get', error=True)
         self.assertEqual(self.run_task(task, 'get')['execution']['state'], 'running')
         self.assertIsNone(self.run_task(task, 'get')['run']['proposal'])

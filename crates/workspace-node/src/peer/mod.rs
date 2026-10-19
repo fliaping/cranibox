@@ -113,6 +113,28 @@ pub enum Command {
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
+        /// Strict mode: accept only end-to-end sessions from the pinned key, and refuse every
+        /// capability until both owners compared the pairing code (peer verify).
+        #[arg(long)]
+        require_verified: bool,
+        /// Agent-to-agent content from this caller: hold (default, human approval queue),
+        /// accept, or refuse.
+        #[arg(long, value_enum, default_value = "hold")]
+        inbound: InboundPolicy,
+    },
+    /// Change how agent-to-agent content from an authorized caller is handled.
+    Inbound {
+        #[arg(long)]
+        node: String,
+        #[arg(long, value_enum)]
+        policy: InboundPolicy,
+    },
+    /// Mark a paired key as verified after comparing the pairing code shown on both devices.
+    Verify {
+        #[arg(long)]
+        node: String,
+        #[arg(long)]
+        code: String,
     },
     /// Revoke a caller on THIS target; running direct commands and attachments are cancelled.
     Revoke {
@@ -216,6 +238,18 @@ pub enum Paths {
 }
 #[derive(Debug, Subcommand)]
 pub enum Messages {
+    /// Owner approval queue: messages held by inbound policy or the Agent loop guard.
+    Held,
+    /// Deliver a held message to this device's mailbox and Agents.
+    Release {
+        #[arg(long = "message-id")]
+        message_id: uuid::Uuid,
+    },
+    /// Discard a held message without delivering it.
+    Reject {
+        #[arg(long = "message-id")]
+        message_id: uuid::Uuid,
+    },
     List {
         /// Route by this Agent UUID: addressed inbox and self-reported outbox.
         #[arg(long)]
@@ -481,6 +515,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 Messages::Acknowledge { message_id } => Message::Acknowledge { id: message_id },
                 Messages::Retry { message_id } => Message::Retry { id: message_id },
                 Messages::Archive { message_id } => Message::Archive { id: message_id },
+                Messages::Held => Message::Held,
+                Messages::Release { message_id } => Message::Release { id: message_id },
+                Messages::Reject { message_id } => Message::Reject { id: message_id },
             };
             client::print(store.messages(command).await?);
         }
@@ -553,6 +590,8 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             messages,
             activity,
             spaces,
+            require_verified,
+            inbound,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
             ensure!(
@@ -588,7 +627,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 );
                 ensure!(value.grants.len() < 128, "peer limit reached");
                 secrets::write_private(&token_file, format!("{token}\n").as_bytes(), false)?;
-                let grant = Grant::issue(
+                let mut grant = Grant::issue(
                     &token,
                     Permissions {
                         exec,
@@ -602,11 +641,26 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         spaces,
                     },
                 );
+                grant.require_verified = require_verified;
+                grant.inbound = inbound.into();
                 value.grants.insert(node, grant);
                 Ok(())
             })?;
             client::print(value.public_view());
         }
+        Command::Inbound { node, policy } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::Inbound {
+                    node,
+                    policy: policy.into(),
+                })
+                .await?,
+        ),
+        Command::Verify { node, code } => client::print(
+            agent_workspace_runtime::peers::Store::new(path.clone())
+                .manage(agent_workspace_runtime::peers::Command::Verify { node, code })
+                .await?,
+        ),
         Command::Revoke { node } => client::print(
             Config::update(&path, |value| {
                 ensure!(
@@ -701,6 +755,8 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             ensure!(valid_node_id(&node), "invalid target node ID");
             secrets::read_token(&token_file)?;
             let route = Route {
+                target_identity: None,
+                config_path: None,
                 alternatives: vec![],
                 url,
                 token_file: std::fs::canonicalize(token_file)?,
@@ -710,7 +766,18 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             route.api(&node)?;
             client::print(
                 Config::update(&path, |value| {
-                    value.routes.insert(node, route);
+                    // Reconnecting keeps a pinned target key: a changed key must be re-paired.
+                    let pinned = value
+                        .routes
+                        .get(&node)
+                        .and_then(|old| old.target_identity.clone());
+                    value.routes.insert(
+                        node,
+                        Route {
+                            target_identity: pinned,
+                            ..route
+                        },
+                    );
                     Ok(())
                 })?
                 .public_view(),
@@ -965,4 +1032,20 @@ async fn call(path: &Path, node: &str, action: Action) -> Result<()> {
     };
     client::print(value);
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum InboundPolicy {
+    Accept,
+    Hold,
+    Refuse,
+}
+impl From<InboundPolicy> for agent_workspace_runtime::peers::config::Inbound {
+    fn from(value: InboundPolicy) -> Self {
+        match value {
+            InboundPolicy::Accept => Self::Accept,
+            InboundPolicy::Hold => Self::Hold,
+            InboundPolicy::Refuse => Self::Refuse,
+        }
+    }
 }

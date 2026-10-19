@@ -38,6 +38,13 @@ class ProjectStreamingTests(unittest.TestCase):
 
         class Proxy(http.server.BaseHTTPRequestHandler):
             def forward(self):
+                if self.path.endswith('/api/v1/mesh/keys'):
+                    # This fault injector reads plaintext operations, so it poses as an
+                    # older target without end-to-end keys (bearer fallback).
+                    self.send_response(404)
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                    return
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 command = json.loads(body) if body else {}
                 requests.append({key: command[key] for key in ('operation', 'index', 'offset') if key in command} | ({'offset': command['chunk']['offset']} if 'chunk' in command else {}))

@@ -42,6 +42,12 @@ pub(crate) fn not_found(error: &anyhow::Error) -> bool {
 
 /// Only transport outages and explicit upstream outages may use an offline
 /// catalog. Authorization, identity and protocol failures must remain failures.
+/// The target asked us to slow down (HTTP 429); the same request may be retried later.
+pub(crate) fn rate_limited(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<HttpError>()
+        .is_some_and(|e| e.status == 429)
+}
 pub(crate) fn unavailable(error: &anyhow::Error) -> bool {
     error.is::<PathsUnavailable>()
         || error.is::<crate::peers::local_forward::Unavailable>()
@@ -70,7 +76,25 @@ pub struct Api {
     mesh: bool,
     target: Option<String>,
     endpoints: Vec<crate::peers::config::Endpoint>,
+    e2e: Option<Box<E2e>>,
 }
+/// Local identity and the pinned target key for end-to-end encrypted direct calls.
+#[derive(Clone)]
+struct E2e {
+    config_path: PathBuf,
+    pinned: Option<crate::peers::config::Pinned>,
+}
+type SessionKey = (PathBuf, String, String);
+static SESSIONS: std::sync::LazyLock<
+    std::sync::Mutex<
+        std::collections::HashMap<SessionKey, std::sync::Arc<crate::peers::e2e::ClientSession>>,
+    >,
+> = std::sync::LazyLock::new(Default::default);
+/// Targets that answered without end-to-end support (older nodes), rechecked later.
+static LEGACY: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<SessionKey, std::time::Instant>>,
+> = std::sync::LazyLock::new(Default::default);
+const LEGACY_RECHECK: Duration = Duration::from_secs(120);
 impl Api {
     pub fn new(options: ApiOptions) -> Result<Self> {
         let url = config::check_url(&options.url, false, options.allow_insecure)?;
@@ -94,6 +118,7 @@ impl Api {
             mesh: false,
             target: None,
             endpoints,
+            e2e: None,
         })
     }
     pub fn mesh(options: ApiOptions) -> Result<Self> {
@@ -107,6 +132,252 @@ impl Api {
         let mut api = Self::mesh(options)?;
         api.target = Some(target);
         Ok(api)
+    }
+    /// Enable end-to-end encryption for a direct target when it supports it. A pinned
+    /// target key makes encryption mandatory (no plaintext fallback).
+    pub fn with_identity(
+        mut self,
+        config_path: PathBuf,
+        pinned: Option<crate::peers::config::Pinned>,
+    ) -> Self {
+        if self.target.is_some() {
+            self.e2e = Some(Box::new(E2e {
+                config_path,
+                pinned,
+            }));
+        }
+        self
+    }
+    fn session_key(&self, e2e: &E2e, endpoint: &crate::peers::config::Endpoint) -> SessionKey {
+        (
+            e2e.config_path.clone(),
+            self.target.clone().unwrap_or_default(),
+            endpoint.url.clone(),
+        )
+    }
+    /// The target's verified public identity, or None for an older target.
+    async fn target_key(
+        &self,
+        e2e: &E2e,
+        endpoint: &crate::peers::config::Endpoint,
+    ) -> Result<Option<crate::peers::identity::PublicIdentity>> {
+        if let Some(pinned) = &e2e.pinned {
+            return Ok(Some(pinned.identity.clone()));
+        }
+        let key = self.session_key(e2e, endpoint);
+        if LEGACY
+            .lock()
+            .unwrap()
+            .get(&key)
+            .is_some_and(|at| at.elapsed() < LEGACY_RECHECK)
+        {
+            return Ok(None);
+        }
+        let target = self.target.clone().unwrap_or_default();
+        let response = self
+            .client
+            .get(format!(
+                "{}/api/v1/mesh/keys",
+                endpoint.url.trim_end_matches('/')
+            ))
+            .header("x-cranibox-target", &target)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            // Older target (no key endpoint). Only reachable while no key is pinned.
+            LEGACY
+                .lock()
+                .unwrap()
+                .insert(key, std::time::Instant::now());
+            return Ok(None);
+        }
+        let bytes = Self::bounded(response, 4096).await?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+        if value.get("signing_key").is_none() || value.get("noise_key").is_none() {
+            // Not a Cranibox key response (older node or a plain HTTP service): no E2E yet.
+            // Once a key is pinned this path is never taken, so it cannot be used to downgrade.
+            LEGACY
+                .lock()
+                .unwrap()
+                .insert(key, std::time::Instant::now());
+            return Ok(None);
+        }
+        let identity: crate::peers::identity::PublicIdentity = serde_json::from_value(value)?;
+        identity.verify()?;
+        anyhow::ensure!(identity.node_id == target, "unexpected target identity");
+        // Trust on first use: pin the key; later changes are refused until re-paired.
+        let path = e2e.config_path.clone();
+        let pinned = identity.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::peers::config::Config::update(&path, |config| {
+                if let Some(route) = config.routes.get_mut(&target) {
+                    match &route.target_identity {
+                        Some(existing) => anyhow::ensure!(
+                            existing.identity.same_keys(&pinned),
+                            "target key changed; verify the device and pair again"
+                        ),
+                        None => {
+                            route.target_identity =
+                                Some(crate::peers::config::Pinned::new(pinned.clone()))
+                        }
+                    }
+                }
+                Ok(())
+            })
+        })
+        .await??;
+        Ok(Some(identity))
+    }
+    async fn bounded(mut response: reqwest::Response, limit: usize) -> Result<Vec<u8>> {
+        let mut bytes = vec![];
+        while let Some(chunk) = response.chunk().await? {
+            anyhow::ensure!(
+                bytes.len() + chunk.len() <= limit,
+                "response exceeds allowed size"
+            );
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    }
+    async fn session(
+        &self,
+        e2e: &E2e,
+        target: &crate::peers::identity::PublicIdentity,
+        endpoint: &crate::peers::config::Endpoint,
+    ) -> Result<std::sync::Arc<crate::peers::e2e::ClientSession>> {
+        let secret = self.token(endpoint)?;
+        let mut key = self.session_key(e2e, endpoint);
+        // A rotated credential must open a new session rather than reuse the old one.
+        key.2 = format!(
+            "{}#{:x}",
+            key.2,
+            <sha2::Sha256 as sha2::Digest>::digest(secret.as_bytes())
+        );
+        if let Some(session) = SESSIONS.lock().unwrap().get(&key).filter(|s| s.fresh()) {
+            return Ok(session.clone());
+        }
+        let path = e2e.config_path.clone();
+        let local = tokio::task::spawn_blocking(move || {
+            let file = crate::peers::identity::path_for(&path);
+            if !file.try_exists()? {
+                // Older configuration: migrate it, which creates the node key once.
+                crate::peers::config::Config::update(&path, |_| Ok(()))?;
+            }
+            crate::peers::config::Config::identity(&path)
+        })
+        .await??;
+        let (initiator, hello) = crate::peers::e2e::Initiator::start(&local, target, &secret)?;
+        let response = self
+            .client
+            .post(format!(
+                "{}/api/v1/mesh/nodes/{}/e2e/handshake",
+                endpoint.url.trim_end_matches('/'),
+                target.node_id
+            ))
+            .header("x-cranibox-target", &target.node_id)
+            .header("content-type", "application/octet-stream")
+            .timeout(Duration::from_secs(15))
+            .body(hello)
+            .send()
+            .await?;
+        let status = response.status();
+        let bytes = Self::bounded(response, crate::peers::e2e::MAX_HANDSHAKE).await?;
+        if !status.is_success() {
+            return Err(Self::http_error(status.as_u16(), &bytes));
+        }
+        let session = std::sync::Arc::new(initiator.finish(&bytes)?);
+        SESSIONS.lock().unwrap().insert(key, session.clone());
+        Ok(session)
+    }
+    fn http_error(status: u16, bytes: &[u8]) -> anyhow::Error {
+        HttpError {
+            status,
+            message: serde_json::from_slice::<Value>(bytes)
+                .ok()
+                .and_then(|v| v["error"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| "request failed".into()),
+        }
+        .into()
+    }
+    /// Header authorizing a WebSocket upgrade through an end-to-end session, if any.
+    async fn stream_auth(
+        &self,
+        endpoint: &crate::peers::config::Endpoint,
+        path: &str,
+    ) -> Result<Option<String>> {
+        let Some(e2e) = &self.e2e else {
+            return Ok(None);
+        };
+        let Some(target) = self.target_key(e2e, endpoint).await? else {
+            return Ok(None);
+        };
+        let session = self.session(e2e, &target, endpoint).await?;
+        Ok(Some(format!(
+            "{}.{}",
+            session.id,
+            session.stream_proof(path)?
+        )))
+    }
+    async fn sealed(
+        &self,
+        (e2e, target, endpoint): (
+            &E2e,
+            &crate::peers::identity::PublicIdentity,
+            &crate::peers::config::Endpoint,
+        ),
+        method: reqwest::Method,
+        path: &str,
+        body: Option<Value>,
+        limit: usize,
+        timeout: Option<Duration>,
+    ) -> Result<Value> {
+        let inner = crate::peers::e2e::Inner {
+            method: method.as_str().to_owned(),
+            path: path.replacen("/api/v1", "/api/v1/mesh", 1),
+            body: match &body {
+                Some(body) => serde_json::to_vec(body)?,
+                None => vec![],
+            },
+        };
+        for attempt in 0..2 {
+            let session = self.session(e2e, target, endpoint).await?;
+            let (nonce, frame) = session.seal_request(&inner)?;
+            let mut request = self
+                .client
+                .post(format!(
+                    "{}/api/v1/mesh/nodes/{}/e2e/call",
+                    endpoint.url.trim_end_matches('/'),
+                    target.node_id
+                ))
+                .header("x-cranibox-target", &target.node_id)
+                .header(crate::peers::e2e::SESSION_HEADER, &session.id)
+                .header("content-type", "application/octet-stream")
+                .body(frame);
+            if let Some(timeout) = timeout {
+                request = request.timeout(timeout);
+            } else if limit > 1024 * 1024 {
+                request = request.timeout(Duration::from_secs(120));
+            }
+            let response = request.send().await?;
+            let status = response.status().as_u16();
+            if status == crate::peers::e2e::SESSION_GONE && attempt == 0 {
+                // The target could not decrypt, so nothing ran: redo the handshake once.
+                SESSIONS.lock().unwrap().retain(|_, s| s.id != session.id);
+                continue;
+            }
+            let bytes = Self::bounded(response, limit + limit / 32 + 64 * 1024).await?;
+            if status != 200 {
+                return Err(Self::http_error(status, &bytes));
+            }
+            let (status, bytes) = session.open_response(nonce, &bytes)?;
+            anyhow::ensure!(bytes.len() <= limit, "response exceeds allowed size");
+            if !(200..300).contains(&status) {
+                return Err(Self::http_error(status, &bytes));
+            }
+            return Ok(serde_json::from_slice(&bytes)?);
+        }
+        anyhow::bail!("end-to-end session could not be renewed")
     }
     fn token(&self, endpoint: &crate::peers::config::Endpoint) -> Result<String> {
         if let Some(lease) = &endpoint.local_forward_lock {
@@ -233,10 +504,8 @@ impl Api {
             .append_pair("rows", &rows.to_string())
             .append_pair("takeover", &takeover.to_string());
         let mut request = url.as_str().into_client_request()?;
-        request.headers_mut().insert(
-            "authorization",
-            format!("Bearer {}", self.token(endpoint)?).parse()?,
-        );
+        self.authorize_stream(&mut request, endpoint, url.path())
+            .await?;
         if let Some(target) = &self.target {
             request
                 .headers_mut()
@@ -260,10 +529,8 @@ impl Api {
         let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
         url.set_path(&format!("{prefix}/nodes/{node}/desktop/ws"));
         let mut request = url.as_str().into_client_request()?;
-        request.headers_mut().insert(
-            "authorization",
-            format!("Bearer {}", self.token(endpoint)?).parse()?,
-        );
+        self.authorize_stream(&mut request, endpoint, url.path())
+            .await?;
         if let Some(target) = &self.target {
             request
                 .headers_mut()
@@ -285,14 +552,32 @@ impl Api {
             .map_err(|_| anyhow::anyhow!("invalid browser URL"))?;
         url.set_path(&format!("/api/v1/mesh/nodes/{node}/browser/ws"));
         let mut request = url.as_str().into_client_request()?;
-        request.headers_mut().insert(
-            "authorization",
-            format!("Bearer {}", self.token(endpoint)?).parse()?,
-        );
+        self.authorize_stream(&mut request, endpoint, url.path())
+            .await?;
         request
             .headers_mut()
             .insert("x-cranibox-target", node.parse()?);
         crate::peers::browser::connect(request).await
+    }
+    /// Session-bound proof for end-to-end targets (the bearer secret stays off the wire),
+    /// or the bearer secret for gateways and older targets.
+    async fn authorize_stream(
+        &self,
+        request: &mut tokio_tungstenite::tungstenite::handshake::client::Request,
+        endpoint: &crate::peers::config::Endpoint,
+        path: &str,
+    ) -> Result<()> {
+        if let Some(proof) = self.stream_auth(endpoint, path).await? {
+            request
+                .headers_mut()
+                .insert(crate::peers::e2e::STREAM_AUTH_HEADER, proof.parse()?);
+        } else {
+            request.headers_mut().insert(
+                "authorization",
+                format!("Bearer {}", self.token(endpoint)?).parse()?,
+            );
+        }
+        Ok(())
     }
     async fn request(
         &self,
@@ -322,6 +607,16 @@ impl Api {
         endpoint: &crate::peers::config::Endpoint,
         timeout: Option<Duration>,
     ) -> Result<Value> {
+        if let Some(e2e) = &self.e2e
+            && let Some(target) = self.target_key(e2e, endpoint).await?
+        {
+            if let Some(lease) = &endpoint.local_forward_lock {
+                crate::peers::local_forward::ensure_running(lease)?;
+            }
+            return self
+                .sealed((e2e, &target, endpoint), method, path, body, limit, timeout)
+                .await;
+        }
         let mut request = self
             .client
             .request(

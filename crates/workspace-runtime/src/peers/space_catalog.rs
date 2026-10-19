@@ -93,7 +93,7 @@ impl Store {
                 .context("direct route is not configured")?;
             let binding = serde_json::to_vec(&(
                 &configuration.node_id,
-                route,
+                route.binding_view(),
                 config::read_token(&route.token_file)?,
             ))?;
             Ok((route.clone(), binding))
@@ -118,7 +118,7 @@ impl Store {
                 binding
                     == serde_json::to_vec(&(
                         &current.node_id,
-                        route,
+                        route.binding_view(),
                         config::read_token(&route.token_file)?
                     ))?,
                 "direct connection changed; refresh the space catalog"

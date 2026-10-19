@@ -8,6 +8,7 @@ pub mod computer;
 pub mod config;
 mod copies;
 pub mod desktop;
+pub mod e2e;
 pub mod executions;
 pub mod identity;
 pub mod local_forward;
@@ -128,9 +129,23 @@ pub enum Command {
     Grant {
         node: String,
         permissions: Permissions,
+        /// Inbound content policy; new grants hold for a human unless set.
+        #[serde(default)]
+        inbound: Option<config::Inbound>,
     },
     Revoke {
         node: String,
+    },
+    /// Set how agent-to-agent content from an authorized caller is handled:
+    /// accept, hold for human approval, or refuse.
+    Inbound {
+        node: String,
+        policy: config::Inbound,
+    },
+    /// Confirm a pinned peer key after both owners compared the pairing code.
+    Verify {
+        node: String,
+        code: String,
     },
     Connect {
         node: String,
@@ -190,6 +205,44 @@ pub enum Command {
     ProjectSync {
         command: project_sync::Command,
     },
+}
+
+/// Mark pinned keys for `node` as verified when `code` equals their pairing code.
+fn verify_pairing(path: &Path, node: &str, code: &str) -> Result<Value> {
+    ensure!(valid_node_id(node), "invalid node ID");
+    let code = identity::normalize_code(code);
+    ensure!(code.len() == 12, "enter the 12-digit pairing code");
+    let mut verified = vec![];
+    let value = Config::update(path, |config| {
+        let own = config
+            .identity
+            .clone()
+            .context("node identity unavailable")?;
+        let matches = |pinned: &config::Pinned| {
+            identity::normalize_code(&identity::pairing_code(&own, &pinned.identity)) == code
+        };
+        if let Some(pinned) = config.grants.get_mut(node).and_then(|g| g.peer.as_mut())
+            && matches(pinned)
+        {
+            pinned.verified = true;
+            verified.push("grant");
+        }
+        if let Some(pinned) = config
+            .routes
+            .get_mut(node)
+            .and_then(|r| r.target_identity.as_mut())
+            && matches(pinned)
+        {
+            pinned.verified = true;
+            verified.push("route");
+        }
+        ensure!(
+            !verified.is_empty(),
+            "pairing code does not match a key paired with this node; nothing was changed"
+        );
+        Ok(())
+    })?;
+    Ok(json!({"node":node,"verified":verified,"catalog":value.public_view()}))
 }
 
 #[derive(Clone)]
@@ -326,6 +379,8 @@ impl Store {
                             .then(|| existing.and_then(|route| route.local_forward_lock.clone()))
                             .flatten()
                     }),
+                    target_identity: None,
+                    config_path: None,
                 },
             );
             value.validate()?;
@@ -496,7 +551,11 @@ impl Store {
             Command::Browser { node, command } => self.browser(&node, command).await,
             Command::ComputerOwner { command } => computer::owner(&self.path, command).await,
             Command::Computer { node, command } => self.computer(&node, command).await,
-            Command::Grant { node, permissions } => {
+            Command::Grant {
+                node,
+                permissions,
+                inbound,
+            } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || {
                     ensure!(valid_node_id(&node), "invalid caller node ID");
@@ -521,13 +580,38 @@ impl Store {
                         );
                         value
                             .grants
-                            .insert(node.clone(), Grant::issue(&token, permissions));
+                            .insert(node.clone(), {
+                                let mut grant = Grant::issue(&token, permissions);
+                                if let Some(inbound) = inbound {
+                                    grant.inbound = inbound;
+                                }
+                                grant
+                            });
                         Ok(())
                     })?;
                     // The credential is returned only to this authenticated issuance request.
                     Ok(json!({"catalog":value.public_view(),"node":node,"token":token}))
                 })
                 .await?
+            }
+            Command::Inbound { node, policy } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || {
+                    Config::update(&path, |config| {
+                        config
+                            .grants
+                            .get_mut(&node)
+                            .context("caller is not granted on this node")?
+                            .inbound = policy;
+                        Ok(())
+                    })
+                    .map(|c| c.public_view())
+                })
+                .await?
+            }
+            Command::Verify { node, code } => {
+                let path = self.path.clone();
+                tokio::task::spawn_blocking(move || verify_pairing(&path, &node, &code)).await?
             }
             Command::Revoke { node } => {
                 let path = self.path.clone();
@@ -634,6 +718,7 @@ mod tests {
                 store
                     .manage(Command::Grant {
                         node: node.into(),
+                        inbound: None,
                         permissions: Permissions::default(),
                     })
                     .await
@@ -644,6 +729,7 @@ mod tests {
             store
                 .manage(Command::Grant {
                     node: identity["node_id"].as_str().unwrap().into(),
+                    inbound: None,
                     permissions: Permissions {
                         exec: true,
                         terminals: false,
@@ -656,6 +742,7 @@ mod tests {
         let issued = store
             .manage(Command::Grant {
                 node: "caller".into(),
+                inbound: None,
                 permissions: Permissions {
                     exec: false,
                     terminals: true,
@@ -673,6 +760,7 @@ mod tests {
             store
                 .manage(Command::Grant {
                     node: "caller".into(),
+                    inbound: None,
                     permissions: Permissions {
                         exec: true,
                         terminals: true,
@@ -704,6 +792,7 @@ mod tests {
         let rotated = store
             .manage(Command::Grant {
                 node: "caller".into(),
+                inbound: None,
                 permissions: Permissions {
                     exec: true,
                     terminals: false,
@@ -725,6 +814,8 @@ mod tests {
             config.routes.insert(
                 "remote".into(),
                 Route {
+                    target_identity: None,
+                    config_path: None,
                     alternatives: vec![],
                     url: "https://remote.example.com".into(),
                     token_file: credential.clone(),

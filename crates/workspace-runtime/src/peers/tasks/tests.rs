@@ -408,6 +408,8 @@ fn outgoing_retries_are_idempotent_and_do_not_treat_outages_as_failure() {
     configuration.routes.insert(
         "target".into(),
         Route {
+            target_identity: None,
+            config_path: None,
             alternatives: vec![],
             url: "http://127.0.0.1:9000".into(),
             token_file,
@@ -645,6 +647,8 @@ fn queued_answers_survive_reload_and_cannot_be_replaced_or_cross_dispatches() {
     configuration.routes.insert(
         "sender".into(),
         Route {
+            target_identity: None,
+            config_path: None,
             alternatives: vec![],
             url: "http://127.0.0.1:9000".into(),
             token_file,
