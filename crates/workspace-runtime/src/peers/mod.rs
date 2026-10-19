@@ -5,6 +5,7 @@ pub mod computer;
 pub mod config;
 mod copies;
 pub mod desktop;
+pub mod discovery;
 pub mod e2e;
 pub mod executions;
 pub mod identity;
