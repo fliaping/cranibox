@@ -1370,3 +1370,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 产品提交 **41b8ca6487e32837b25315e5c12bd06e54763c67** 已推送 origin/main；提交前全部 **33 份文件**与远端 SHA-256 一致，final-source-manifest.json 包含产品、测试、工作流、生成资源和六份文档。之后 CI 补记仅改文档。
 
 2026-10-19 **01:43:21 UTC** 核对相同完整 headSha：矩阵 **39186579637 in_progress**，三平台 Rust、三平台 Tauri 及 Sway/wayvnc 七项均运行中，**尚未通过**；Release **39186579662 completed/success**（README 链接和脚本检查，不代表安装包完成或公开镜像发布）；GitCode **39186579640 completed/success**。三项创建时间均为 2026-10-19T01:42:32Z。私有 ci-handoff.json 保存当时完整作业/步骤；下一位维护者继续核对矩阵终态与同提交安装包，再按交接入口 P0/P1/P2 继续。
+
+### CI 直连授权回归修正
+
+矩阵 39186579637 的 Linux native 作业在 test_web_direct_peers.py 第 683 行失败：旧权限对象精确断言漏掉新增的 activity=false。保留独立权限默认关闭检查，补齐该字段；产品实现、依赖和生成资源不变。指定远端整组直连回归最终 16/16，无跳过，14.825 秒。首轮远端辅助脚本漏配已安装的 /config/bin/herdr，14 通过、2 项缺少 Herdr；设置 CRANIBOX_HERDR_BIN 后重跑通过，不改产品终端行为。失败日志、首轮记录和最终回归结果位于私有 linux-installer-41b8ca6。原矩阵其余终态与修正提交的 CI 后续补记，不能将原矩阵记为全绿。
