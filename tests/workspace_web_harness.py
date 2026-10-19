@@ -121,7 +121,13 @@ class Harness:
             raise
 
     def initialize(self):
-        self.web_port, self.gateway_port = free_port(), free_port()
+        # Keep both reservations open while allocating: releasing the first
+        # socket before the second bind can return the same ephemeral port.
+        with socket.socket() as web_socket, socket.socket() as gateway_socket:
+            web_socket.bind(('127.0.0.1', 0))
+            gateway_socket.bind(('127.0.0.1', 0))
+            self.web_port = web_socket.getsockname()[1]
+            self.gateway_port = gateway_socket.getsockname()[1]
         self.credentials = self.root / '.config/agent-workspace/runtime.json'
         self.credentials.parent.mkdir(parents=True)
         self.cli('init', '--credentials', self.credentials)
