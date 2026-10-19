@@ -62,7 +62,7 @@ async function stop(code = 0) {
   process.exit(code);
 }
 function start(command, args) {
-  const environment = { ...process.env, PATH: directory + path.delimiter + (process.env.PATH || '') };
+  const environment = { ...process.env, CRANIBOX_APP_MOCK: "1", PATH: directory + path.delimiter + (process.env.PATH || '') };
   const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...environment, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : environment });
   processes.push(child);
   child.on('error', error => { console.error(error.message); void stop(1); });

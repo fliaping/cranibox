@@ -13,7 +13,7 @@ required-features = ["desktop"]
 [features]
 default = []
 custom-protocol = ["tauri?/custom-protocol"]
-desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-autostart", "dep:tauri-plugin-single-instance"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-autostart", "dep:tauri-plugin-single-instance", "dep:tauri-plugin-notification"]
 
 [dependencies]
 cranibox-node = { path = "../../../crates/workspace-node" }
@@ -27,6 +27,7 @@ url = "2"
 tauri = { version = "2", features = ["tray-icon", "image-png"], optional = true }
 tauri-plugin-autostart = { version = "2", optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true }
+tauri-plugin-notification = { version = "2", optional = true }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [], optional = true }

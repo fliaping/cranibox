@@ -1,0 +1,4 @@
+{
+  ".codex/config.toml": "model_provider = \"cranibox\"\nmodel = \"test/model\"\nmodel_catalog_json = \"$HOME/.codex/cranibox-models.json\"\n\n[model_providers]\ncranibox = { base_url = \"http://127.0.0.1:3424/v1\", experimental_bearer_token = \"cbx-codex\", name = \"Cranibox\", wire_api = \"responses\" }\n",
+  ".codex/cranibox-models.json": "{\n  \"models\": []\n}\n"
+}

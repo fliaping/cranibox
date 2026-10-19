@@ -382,6 +382,7 @@ struct SocketGuard {
     path: PathBuf,
     device: u64,
     inode: u64,
+    _lock: std::fs::File,
 }
 #[cfg(unix)]
 impl Drop for SocketGuard {
@@ -398,7 +399,7 @@ impl Drop for SocketGuard {
 #[cfg(unix)]
 impl Listener {
     pub async fn bind(path: &FsPath) -> anyhow::Result<Self> {
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
         let parent = path
             .parent()
             .ok_or_else(|| anyhow::anyhow!("management socket needs a private run directory"))?;
@@ -409,13 +410,46 @@ impl Listener {
             "run directory must be a real directory"
         );
         std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
-        // Never unlink another process's live/stale socket automatically.
+        // Serialize ownership across bind, stale-socket recovery and shutdown.
+        // The OS releases this lock even after SIGKILL; a pathname alone does
+        // not tell us whether a crashed service still owns a listener.
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .mode(0o600)
+            .open(path.with_extension("lock"))?;
+        fs2::FileExt::try_lock_exclusive(&lock)?;
+        if let Ok(before) = std::fs::symlink_metadata(path) {
+            anyhow::ensure!(
+                before.file_type().is_socket(),
+                "management path is not a socket"
+            );
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(250),
+                tokio::net::UnixStream::connect(path),
+            )
+            .await
+            {
+                Ok(Err(e)) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+                    let after = std::fs::symlink_metadata(path)?;
+                    anyhow::ensure!(
+                        before.dev() == after.dev() && before.ino() == after.ino(),
+                        "management socket changed during recovery"
+                    );
+                    std::fs::remove_file(path)?;
+                }
+                _ => anyhow::bail!("management socket is already in use"),
+            }
+        }
         let inner = tokio::net::UnixListener::bind(path)?;
         let meta = std::fs::symlink_metadata(path)?;
         let guard = SocketGuard {
             path: path.into(),
             device: meta.dev(),
             inode: meta.ino(),
+            _lock: lock,
         };
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
         Ok(Self { inner, guard })
@@ -449,7 +483,7 @@ impl Client {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
-    async fn call<T: serde::de::DeserializeOwned>(
+    pub async fn call<T: serde::de::DeserializeOwned>(
         &self,
         method: http::Method,
         path: &str,
@@ -580,5 +614,31 @@ impl LlmMgmt for Client {
     }
     async fn presets(&self) -> Result<Vec<Preset>, MgmtError> {
         self.call(http::Method::GET, PRESETS, None).await
+    }
+}
+
+#[cfg(all(test, unix))]
+mod listener_tests {
+    use super::Listener;
+    #[tokio::test]
+    async fn recovers_crashed_socket_but_preserves_live_listener_and_user_files() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("run/llm.sock");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let stale = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        drop(stale); // SIGKILL leaves the same pathname behind.
+        let live = Listener::bind(&path).await.unwrap();
+        assert!(Listener::bind(&path).await.is_err());
+        assert!(tokio::net::UnixStream::connect(&path).await.is_ok());
+        drop(live);
+        assert!(!path.exists());
+        // Also protect a listener from a pre-lock implementation.
+        let external = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        assert!(Listener::bind(&path).await.is_err());
+        drop(external);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, "user data").unwrap();
+        assert!(Listener::bind(&path).await.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "user data");
     }
 }

@@ -1,0 +1,4 @@
+{
+  ".pi/agent/models.json": "{\n  \"providers\": {\n    \"cranibox\": {\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"cbx-pi\",\n      \"baseUrl\": \"http://127.0.0.1:3424/v1\",\n      \"compat\": {\n        \"sendSessionAffinityHeaders\": true\n      },\n      \"models\": [],\n      \"name\": \"Cranibox\"\n    }\n  }\n}\n",
+  ".pi/agent/settings.json": "{\n  \"defaultModel\": \"test/model\",\n  \"defaultProvider\": \"cranibox\"\n}\n"
+}

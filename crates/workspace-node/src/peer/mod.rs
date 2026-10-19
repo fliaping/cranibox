@@ -1,5 +1,5 @@
 //! Opt-in target-authorized direct transport, independent of the Workspace gateway.
-mod browser_proxy;
+pub(crate) mod browser_proxy;
 pub mod config;
 pub(crate) mod hook;
 pub(crate) mod secure_ws;

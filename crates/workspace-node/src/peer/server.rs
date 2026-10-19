@@ -37,6 +37,8 @@ mod executions;
 mod llm;
 mod messages;
 use crate::peer::secure_ws::SecureSocket;
+#[cfg(test)]
+mod multi_node;
 mod projects;
 mod spaces;
 mod tasks;
@@ -92,8 +94,16 @@ pub(crate) struct App {
     tasks: Arc<Mutex<tokio::task::JoinSet<()>>>,
     identity: Arc<agent_workspace_runtime::peers::identity::Identity>,
     sessions: Arc<std::sync::Mutex<agent_workspace_runtime::peers::e2e::Sessions>>,
+    models: Arc<tokio::sync::OnceCell<Arc<crate::models::Models>>>,
 }
 impl App {
+    async fn models(&self) -> Result<Arc<crate::models::Models>> {
+        Ok(self
+            .models
+            .get_or_try_init(|| crate::models::Models::start(self.path.clone(), self.stop.clone()))
+            .await?
+            .clone())
+    }
     fn permitted(&self, caller: &Caller, terminal: bool) -> bool {
         Config::read(&self.path).is_ok_and(|configuration| {
             configuration.node_id == self.node
@@ -108,6 +118,8 @@ impl App {
         })
     }
 }
+#[derive(Clone)]
+struct Encrypted;
 async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Response {
     if app.connections.is_cancelled() {
         return failure(StatusCode::SERVICE_UNAVAILABLE, "listener stopped").into_response();
@@ -142,11 +154,15 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
             return failure(StatusCode::UNAUTHORIZED, "peer identity not authorized")
                 .into_response();
         };
+        if authenticated.e2e {
+            request.extensions_mut().insert(Encrypted);
+        }
         request.extensions_mut().insert(caller);
         return next.run(request).await;
     }
     if let Some(e2e::Sealed(caller)) = request.extensions_mut().remove::<e2e::Sealed>() {
         // Decrypted by the end-to-end channel, which already re-checked the grant.
+        request.extensions_mut().insert(Encrypted);
         request.extensions_mut().insert(caller);
         return next.run(request).await;
     }
@@ -167,6 +183,7 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
         request.extensions_mut().insert(caller);
         // Data frames of this stream are encrypted end to end with this secret.
         request.extensions_mut().insert(secret);
+        request.extensions_mut().insert(Encrypted);
         return next.run(request).await;
     }
     let Some(token) = request
@@ -577,6 +594,9 @@ impl Transport {
     }
 }
 impl Running {
+    pub async fn models(&self) -> Result<Arc<crate::models::Models>> {
+        self.app.models().await
+    }
     pub(crate) fn computer_owner(
         &self,
         command: agent_workspace_runtime::peers::computer::OwnerCommand,
@@ -764,6 +784,7 @@ pub(crate) async fn start_with_catalog(
         tasks: Arc::new(Mutex::new(tokio::task::JoinSet::new())),
         identity,
         sessions: Arc::default(),
+        models: Arc::default(),
     };
     let listener = tcp
         .zip(configuration.listener)
@@ -1021,7 +1042,7 @@ mod mesh_tests {
     }
 
     #[tokio::test]
-    async fn llm_and_vault_mounts_are_placeholders_behind_auth() {
+    async fn model_routes_require_roster_membership_as_well_as_a_grant() {
         let f = fixture(
             Permissions {
                 llm: true,
@@ -1034,8 +1055,8 @@ mod mesh_tests {
         let chat = format!("/api/v1/mesh/nodes/{}/llm/v1/chat/completions", f.target);
         let vault = format!("/api/v1/mesh/nodes/{}/vault/pull", f.target);
         let auth = || iroh(&f.caller, f.caller_key);
-        assert_eq!(call(&f, &llm, auth()).await, StatusCode::NOT_IMPLEMENTED);
-        assert_eq!(call(&f, &chat, auth()).await, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(call(&f, &llm, auth()).await, StatusCode::FORBIDDEN);
+        assert_eq!(call(&f, &chat, auth()).await, StatusCode::FORBIDDEN);
         // Granted llm only: vault is forbidden.
         assert_eq!(call(&f, &vault, auth()).await, StatusCode::FORBIDDEN);
         // Existing routes see the same caller.

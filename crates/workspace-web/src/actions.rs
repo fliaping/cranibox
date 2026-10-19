@@ -4,14 +4,12 @@ use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::OnceLock;
 
-const AGENTS: &[&str] = &[
-    "codex",
-    "claude-code",
-    "hermes",
-    "deepseek-harness",
-    "openclaw",
-];
-const MCP_AGENTS: &[&str] = &["codex", "claude-code", "hermes", "deepseek-harness"];
+fn agent_ids() -> Vec<&'static str> {
+    cranibox_agents::registry()
+        .iter()
+        .map(|a| a.id().as_str())
+        .collect()
+}
 const ACTIONS: &[&str] = &[
     "installRuntime",
     "installAgent",
@@ -65,7 +63,7 @@ pub fn validate(body: &Value) -> Result<()> {
         }
     }
     match action {
-        "installAgent" => ensure!(AGENTS.contains(&text(body, "id")), "Unknown Agent"),
+        "installAgent" => ensure!(agent_ids().contains(&text(body, "id")), "Unknown Agent"),
         "serviceAction" => {
             ensure!(valid_name(text(body, "id")), "Invalid service");
             ensure!(
@@ -563,7 +561,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             else {
                 return Ok(());
             };
-            let items:Vec<_>=snapshot["mcp"]["agents"].as_array().into_iter().flatten().filter(|a|a["installed"]==true && a["id"].as_str().is_some_and(|id|MCP_AGENTS.contains(&id))).map(|a|json!({"id":a["id"],"label":a["label"],"picked":true,"description":format!("{} configured",a["configured"])})).collect();
+            let items:Vec<_>=snapshot["mcp"]["agents"].as_array().into_iter().flatten().filter(|a|a["installed"]==true && a["id"].as_str().is_some_and(|id|agent_ids().contains(&id))).map(|a|json!({"id":a["id"],"label":a["label"],"picked":true,"description":format!("{} configured",a["configured"])})).collect();
             ensure!(
                 !items.is_empty(),
                 "Install at least one Agent before adding an MCP server"
@@ -615,7 +613,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
         "removeMcp" => {
             let agents = text(&body, "agents")
                 .split(',')
-                .filter(|id| MCP_AGENTS.contains(id))
+                .filter(|id| agent_ids().contains(id))
                 .collect::<Vec<_>>()
                 .join(",");
             if agents.is_empty() {

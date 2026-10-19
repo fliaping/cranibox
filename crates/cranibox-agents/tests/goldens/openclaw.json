@@ -1,0 +1,3 @@
+{
+  ".openclaw/openclaw.json": "{\n  \"agents\": {\n    \"defaults\": {\n      \"model\": {\n        \"primary\": \"cranibox/test/model\"\n      }\n    }\n  },\n  \"models\": {\n    \"mode\": \"merge\",\n    \"providers\": {\n      \"cranibox\": {\n        \"api\": \"openai-completions\",\n        \"apiKey\": \"cbx-openclaw\",\n        \"baseUrl\": \"http://127.0.0.1:3424/v1\",\n        \"models\": []\n      }\n    }\n  }\n}\n"
+}

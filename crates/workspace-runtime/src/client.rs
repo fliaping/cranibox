@@ -526,6 +526,127 @@ impl Api {
         }
         crate::peers::terminal::Terminal::connect_request(request, cipher).await
     }
+    /// Encrypted, backpressured model stream. A pinned Noise identity is mandatory.
+    pub async fn model_request(
+        &self,
+        req: cranibox_contracts::http::Request<cranibox_contracts::net::BoxBody>,
+    ) -> Result<cranibox_contracts::http::Response<cranibox_contracts::net::BoxBody>> {
+        use anyhow::Context;
+        use cranibox_contracts::{http, net::BoxBody};
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
+        let node = self
+            .target
+            .as_deref()
+            .context("bound model target required")?;
+        anyhow::ensure!(
+            self.e2e
+                .as_ref()
+                .and_then(|e| e.pinned.as_ref())
+                .is_some_and(|p| p.verified),
+            "verified model target required"
+        );
+        let endpoint = self.select_endpoint().await?;
+        let mut url = config::check_url(&endpoint.url, false, endpoint.allow_insecure)?;
+        let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
+        url.set_scheme(scheme)
+            .map_err(|_| anyhow::anyhow!("invalid stream URL"))?;
+        url.set_path(&format!("/api/v1/mesh/nodes/{node}/llm/stream"));
+        let mut upgrade = url.as_str().into_client_request()?;
+        let cipher = self
+            .authorize_stream(&mut upgrade, endpoint, url.path())
+            .await?
+            .context("encrypted model stream required")?;
+        upgrade
+            .headers_mut()
+            .insert("x-cranibox-target", node.parse()?);
+        let (parts, body) = req.into_parts();
+        let prefix = format!("/api/v1/mesh/nodes/{node}/llm");
+        let path = parts
+            .uri
+            .path()
+            .strip_prefix(&prefix)
+            .context("model target mismatch")?;
+        let mut input = body.into_stream();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = input.next().await {
+            let chunk = chunk.map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            anyhow::ensure!(
+                bytes.len() + chunk.len() <= 32 * 1024 * 1024,
+                "model request too large"
+            );
+            bytes.extend_from_slice(&chunk);
+        }
+        let body: Value = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes)?
+        };
+        let headers: Vec<_> = parts
+            .headers
+            .iter()
+            .filter(|(k, _)| k.as_str() == "x-session-id")
+            .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str(), v)))
+            .collect();
+        let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
+            .max_message_size(Some(1024 * 1024));
+        let (raw, _) = tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio_tungstenite::connect_async_with_config(upgrade, Some(config), false),
+        )
+        .await??;
+        let mut socket = crate::peers::e2e::socket::SecureSocket::new(raw, Some(cipher));
+        let frame = serde_json::json!({"method":parts.method.as_str(),"path":path,"headers":headers,"body":body});
+        socket
+            .send(Message::Text(serde_json::to_string(&frame)?.into()))
+            .await?;
+        let head = tokio::time::timeout(Duration::from_secs(90), async {
+            loop {
+                match socket.next().await {
+                    Some(Ok(Message::Text(text))) => {
+                        break Ok::<Value, anyhow::Error>(serde_json::from_str(text.as_str())?);
+                    }
+                    Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
+                    _ => break Err(anyhow::anyhow!("model stream ended before headers")),
+                }
+            }
+        })
+        .await??;
+        let status = head["status"]
+            .as_u64()
+            .and_then(|s| u16::try_from(s).ok())
+            .context("invalid model response status")?;
+        let mut response = http::Response::builder().status(status);
+        if let Some(headers) = head["headers"].as_array() {
+            for pair in headers {
+                if let (Some(k), Some(v)) = (pair[0].as_str(), pair[1].as_str())
+                    && matches!(k, "content-type" | "cache-control" | "retry-after")
+                {
+                    response = response.header(k, v);
+                }
+            }
+        }
+        let stream = futures_util::stream::try_unfold(socket, |mut socket| async move {
+            loop {
+                match tokio::time::timeout(Duration::from_secs(90), socket.next()).await {
+                    Ok(Some(Ok(Message::Binary(bytes)))) => return Ok(Some((bytes, socket))),
+                    Ok(Some(Ok(Message::Text(text)))) if text.as_str() == "{\"end\":true}" => {
+                        return Ok(None);
+                    }
+                    Ok(Some(Ok(Message::Ping(_) | Message::Pong(_)))) => continue,
+                    _ => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "model stream interrupted",
+                        ));
+                    }
+                }
+            }
+        });
+        Ok(response.body(BoxBody::new(stream.map(|item| {
+            item.map_err(|e| Box::new(e) as cranibox_contracts::net::BodyError)
+        })))?)
+    }
     /// Use a bound direct target, or a gateway with authenticated caller identity.
     pub async fn desktop(&self, node: &str) -> Result<crate::peers::desktop::Stream> {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -603,7 +724,7 @@ impl Api {
     ) -> Result<Value> {
         self.request_bounded(method, path, body, 1024 * 1024).await
     }
-    async fn request_bounded(
+    pub(crate) async fn request_bounded(
         &self,
         method: reqwest::Method,
         path: &str,

@@ -38,6 +38,13 @@ impl Handle {
     ) -> Result<UpstreamResponse, crate::ProxyError> {
         self.engine.send_local(provider, request, false).await
     }
+    pub async fn dispatch_count_local(
+        &self,
+        provider: &str,
+        request: CanonicalRequest,
+    ) -> Result<UpstreamResponse, crate::ProxyError> {
+        self.engine.send_local(provider, request, true).await
+    }
     pub async fn shutdown(mut self) {
         self.cancel.cancel();
         for mut task in self.tasks.drain(..) {

@@ -4,12 +4,18 @@ use futures_util::{StreamExt, stream};
 use serde_json::{Map, Value, json};
 use std::{collections::BTreeMap, env, fs, path::Path, time::UNIX_EPOCH};
 
-pub const AGENTS: [(&str, &str, &str); 4] = [
-    ("codex", "Codex", "codex"),
-    ("claude-code", "Claude Code", "claude"),
-    ("hermes", "Hermes Agent", "hermes"),
-    ("deepseek-harness", "DeepSeek Harness", "deepseek-harness"),
-];
+pub fn agent_catalog() -> Vec<(&'static str, String, &'static str)> {
+    cranibox_agents::registry()
+        .iter()
+        .map(|a| {
+            (
+                a.id().as_str(),
+                a.display().name,
+                cranibox_agents::binary(a.id()),
+            )
+        })
+        .collect()
+}
 pub fn text(value: &Value) -> &str {
     value.as_str().unwrap_or("")
 }
@@ -179,19 +185,50 @@ pub async fn workspace(ctx: &Context) -> Value {
     json!({"user":username,"uid":uid,"gid":gid,"home":env::var("HOME").unwrap_or_else(|_| ctx.root.display().to_string()),"root":ctx.workspace,"persistent_root":ctx.root,"writable":writable(&ctx.root),"sudo":{"available":sudo,"label":if sudo {"Passwordless container administration"} else {"Unavailable"}},"docker":{"mode":mode,"state":state,"label":label,"detail":detail,"cli":docker,"daemon_reachable":reachable,"risk":risk}})
 }
 pub async fn agents(ctx: &Context) -> Value {
-    let mut definitions = vec![
-        json!({"id":"codex","label":"Codex","binary":"codex","install_name":"codex","launch":"codex","accent":"violet"}),
-        json!({"id":"claude-code","label":"Claude Code","binary":"claude","install_name":"claude-code","launch":"claude","accent":"amber"}),
-        json!({"id":"hermes","label":"Hermes Agent","binary":"hermes","install_name":"hermes","launch":"hermes setup --portal","accent":"cyan","web_label":"Dashboard","web_path":"/proxy/9119/","web_target":"127.0.0.1:9119","web_service":"hermes-dashboard"}),
-        json!({"id":"deepseek-harness","label":"DeepSeek Harness","binary":"deepseek-harness","install_name":"deepseek-harness","launch":"deepseek-harness web --no-open --port 3080","accent":"green","surface":"web","web_label":"Web UI","web_path":"/proxy/3080/","web_target":"127.0.0.1:3080","service":"deepseek-harness","web_service":"deepseek-harness"}),
-        json!({"id":"openclaw","label":"OpenClaw","binary":"openclaw","install_name":"openclaw","launch":"openclaw onboard","accent":"rose","surface":"web","web_label":"Control UI","web_path":"/proxy/18789/","web_target":"127.0.0.1:18789","service":"openclaw-gateway","web_service":"openclaw-gateway"}),
-    ];
+    let mut definitions: Vec<Value> = cranibox_agents::registry().iter().map(|a| {
+        let id=a.id();
+        let mut row=json!({"id":id.as_str(),"label":a.display().name,"binary":cranibox_agents::binary(id),"install_name":id.as_str(),"launch":cranibox_agents::binary(id),"accent":"green","recommended":a.display().recommended});
+        match id {
+            cranibox_agents::AgentId::DeepseekHarness => {
+                row["surface"] = json!("web");
+                row["launch"] = json!("deepseek-harness web --no-open --port 3080");
+                row["web_label"] = json!("Web UI");
+                row["web_path"] = json!("/proxy/3080/");
+                row["web_target"] = json!("127.0.0.1:3080");
+                row["service"] = json!("deepseek-harness");
+                row["web_service"] = json!("deepseek-harness");
+            }
+            cranibox_agents::AgentId::Codex => row["accent"] = json!("violet"),
+            cranibox_agents::AgentId::ClaudeCode => row["accent"] = json!("amber"),
+            cranibox_agents::AgentId::Hermes => {
+                row["accent"] = json!("cyan");
+                row["web_label"] = json!("Dashboard");
+                row["web_path"] = json!("/proxy/9119/");
+                row["web_target"] = json!("127.0.0.1:9119");
+                row["web_service"] = json!("hermes-dashboard");
+                row["launch"] = json!("hermes setup --portal");
+            }
+            cranibox_agents::AgentId::Openclaw => {
+                row["accent"] = json!("rose");
+                row["surface"] = json!("web");
+                row["web_label"] = json!("Control UI");
+                row["web_path"] = json!("/proxy/18789/");
+                row["web_target"] = json!("127.0.0.1:18789");
+                row["web_service"] = json!("openclaw-gateway");
+                row["service"] = json!("openclaw-gateway");
+                row["launch"] = json!("openclaw onboard");
+            }
+            cranibox_agents::AgentId::Pi => {}
+        }
+        row
+    }).collect();
     let paths = definitions
         .iter()
         .map(|row| command_path(text(&row["binary"])))
         .collect::<Vec<_>>();
     let versions = versions(ctx, &paths).await;
-    let selected = env::var("AGENT_WORKSPACE_AGENT").unwrap_or_default();
+    let selected = env::var("AGENT_WORKSPACE_AGENT")
+        .unwrap_or_else(|_| cranibox_agents::DEFAULT_AGENT.as_str().into());
     for ((row, path), version) in definitions.iter_mut().zip(paths).zip(versions) {
         row["state"] = json!(if path.is_empty() { "missing" } else { "ready" });
         row["installed"] = json!(!path.is_empty());
@@ -263,7 +300,7 @@ pub fn skills(ctx: &Context) -> Value {
         row["agents"]
             .as_array_mut()
             .unwrap()
-            .sort_by_key(|id| AGENTS.iter().position(|(agent, _, _)| id == agent));
+            .sort_by_key(|id| agent_catalog().iter().position(|(agent, _, _)| id == agent));
     }
     json!({"manager":"npx skills","root":ctx.root.join(".agents/skills"),"count":rows.len(),"shared_count":rows.iter().filter(|row| row["shared"] == true).count(),"items":rows})
 }
@@ -275,21 +312,52 @@ pub fn mcp_configs(ctx: &Context) -> Vec<Map<String, Value>> {
         .unwrap_or(Value::Null);
     let hermes: Value =
         serde_yaml::from_str(&read(ctx.root.join(".hermes/config.yaml"))).unwrap_or(Value::Null);
-    vec![
-        object(codex["mcp_servers"].clone()),
-        object(json_file(ctx.root.join(".claude.json"))["mcpServers"].clone()),
-        object(hermes["mcp_servers"].clone()),
-        object(
-            json_file(
-                ctx.root
-                    .join(".local/share/agent-workspace/deepseek-mcp.json"),
-            )["servers"]
-                .clone(),
-        ),
-    ]
+    agent_catalog()
+        .iter()
+        .map(|(id, _, _)| match *id {
+            "codex" => object(codex["mcp_servers"].clone()),
+            "claude-code" => object(json_file(ctx.root.join(".claude.json"))["mcpServers"].clone()),
+            "hermes" => object(hermes["mcp_servers"].clone()),
+            "deepseek-harness" => {
+                let mut servers = object(
+                    json_file(
+                        ctx.root
+                            .join(".local/share/agent-workspace/deepseek-mcp.json"),
+                    )["servers"]
+                        .clone(),
+                );
+                let patch: Value = serde_yaml::from_str(&read(
+                    ctx.root.join(".dsh/agent-workspace-mcp.cordis.yml"),
+                ))
+                .unwrap_or(Value::Null);
+                for entry in patch
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|p| p["insert"].as_array().into_iter().flatten())
+                {
+                    let config = &entry["config"];
+                    if entry["name"] == "@deepseek-ai/dsh-mcp-client"
+                        && let Some(name) = config["serverName"].as_str()
+                    {
+                        servers.insert(name.to_owned(), config.clone());
+                    }
+                }
+                servers
+            }
+            "pi" => object(json_file(ctx.root.join(".pi/agent/mcp.json"))["mcpServers"].clone()),
+            "openclaw" => {
+                let config: Value =
+                    json5::from_str(&read(ctx.root.join(".openclaw/openclaw.json")))
+                        .unwrap_or(Value::Null);
+                object(config["mcp"]["servers"].clone())
+            }
+            _ => Map::new(),
+        })
+        .collect()
 }
 pub fn mcp_agents(ctx: &Context, name: &str) -> Vec<&'static str> {
-    AGENTS
+    agent_catalog()
         .iter()
         .zip(mcp_configs(ctx))
         .filter(|(_, configs)| configs.contains_key(name))
@@ -312,7 +380,7 @@ pub fn safe_url(value: &str) -> String {
 pub fn mcp(ctx: &Context) -> Value {
     let mut rows: BTreeMap<String, Value> = BTreeMap::new();
     let mut support = Vec::new();
-    for ((id, label, binary), configs) in AGENTS.iter().zip(mcp_configs(ctx)) {
+    for ((id, label, binary), configs) in agent_catalog().iter().zip(mcp_configs(ctx)) {
         support.push(json!({"id":id,"label":label,"installed":!command_path(binary).is_empty(),"configured":configs.len()}));
         for (name, config) in configs {
             if !valid_name(&name) {
@@ -775,7 +843,8 @@ fn capabilities(ctx: &Context) -> Value {
 }
 fn bootstrap(ctx: &Context) -> Value {
     let target = env::var("AGENT_WORKSPACE_BOOTSTRAP").unwrap_or_else(|_| "remote".into());
-    let selected = env::var("AGENT_WORKSPACE_AGENT").unwrap_or_else(|_| "codex".into());
+    let selected = env::var("AGENT_WORKSPACE_AGENT")
+        .unwrap_or_else(|_| cranibox_agents::DEFAULT_AGENT.as_str().into());
     let marker = ctx.state().join("onboarding-v1.complete");
     json!({"target":target,"foundation_ready":ctx.state().join(format!("bootstrap-{target}.complete")).is_file(),"selected_agent":selected,"agent_ready":selected == "none" || ctx.state().join(format!("agent-{selected}.complete")).is_file(),"onboarding":{"version":1,"complete":marker.is_file(),"marker":marker}})
 }

@@ -242,7 +242,7 @@ impl Store {
                 )
                 .await?;
             let environment = format!(
-                "PUID=1000\nPGID=1000\nCUSTOM_USER=agent\nPASSWORD={}\nAGENT_WORKSPACE_BOOTSTRAP=remote\nAGENT_WORKSPACE_AGENT=codex\nCODE_SERVER_BIND=0.0.0.0:8443\nCODE_SERVER_AUTH=password\nCODE_SERVER_CERT=true\nCODE_SERVER_RECONFIGURE=true\nSTART_DOCKER=false\nTZ=Etc/UTC\n",
+                "PUID=1000\nPGID=1000\nCUSTOM_USER=agent\nPASSWORD={}\nAGENT_WORKSPACE_BOOTSTRAP=remote\nAGENT_WORKSPACE_AGENT=deepseek-harness\nCODE_SERVER_BIND=0.0.0.0:8443\nCODE_SERVER_AUTH=password\nCODE_SERVER_CERT=true\nCODE_SERVER_RECONFIGURE=true\nSTART_DOCKER=false\nTZ=Etc/UTC\n",
                 space.password
             );
             let env_file = self.directory.join(format!("{id}.env"));

@@ -11,3 +11,8 @@ pub mod settings;
 pub mod spaces;
 mod supervisor;
 mod task_worker;
+
+pub mod models;
+
+pub mod app;
+pub mod app_mcp;

@@ -29,6 +29,10 @@ struct Args {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    run_from(std::env::args().collect()).await
+}
+
+pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     if agent_workspace_runtime::peers::tasks::worker::maybe_serve(
         &std::env::args().collect::<Vec<_>>(),
     )
@@ -36,9 +40,12 @@ pub async fn run() -> anyhow::Result<()> {
     {
         return Ok(());
     }
-    let args = Args::parse();
+    let args = Args::parse_from(args);
     let peer_path = crate::peer::config::path_for(&args.config);
     let command = match args.command {
+        Some(agent::Command::AppMcp { data, service }) => {
+            return crate::app_mcp::run(peer_path, data, &service).await;
+        }
         Some(agent::Command::Space { command }) => {
             let result = crate::spaces::Store::new(peer_path)
                 .manage(command, false)

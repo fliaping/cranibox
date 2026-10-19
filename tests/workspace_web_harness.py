@@ -102,7 +102,10 @@ class EventStream:
 class Harness:
     def __init__(self, unified=False, node_env=None, web_env=None):
         self.unified = unified
-        self.node_env = node_env or {}
+        # Simulated remote devices share this host network with the Web node.
+        # Model routing is exercised by the Rust three-node integration test;
+        # skip the fixed model listener on this simulated gateway client.
+        self.node_env = {"CRANIBOX_APP_MOCK": "1", **(node_env or {})}
         self.web_env = web_env or {}
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-operations-')
         self.root = Path(self.temp.name)
@@ -178,7 +181,11 @@ else:
             self.server = self.web
         else:
             self.web = self.start(WEB, '--config-root', self.root, '--command', self.command)
-        until(lambda: self.http('GET', '/healthz')[0] == 200)
+        try:
+            until(lambda: self.http('GET', '/healthz')[0] == 200)
+        except AssertionError as error:
+            path = self.root / f'process-{len(self.logs) - 1}.log'
+            raise AssertionError(f'{error}\n{path.read_text(errors="replace")}') from error
 
     def start_gateway(self):
         self.server = self.start(RUNTIME, 'serve', '--credentials', self.credentials,

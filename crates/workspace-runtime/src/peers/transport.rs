@@ -17,7 +17,7 @@ use cranibox_contracts::{
 };
 use futures_util::StreamExt;
 
-const MAX_BODY: usize = 1024 * 1024;
+const MAX_BODY: usize = 8 * 1024 * 1024;
 
 /// Existing HTTP/Noise routes from `peers.json` as a [`PeerTransport`].
 #[derive(Clone)]
@@ -65,9 +65,19 @@ impl PeerTransport for DirectTransport {
             .store
             .route(peer)
             .map_err(|_| TransportError::Unreachable)?;
+        let sensitive = req.uri().path().contains("/llm/") || req.uri().path().contains("/vault/");
+        if sensitive && !route.target_identity.as_ref().is_some_and(|p| p.verified) {
+            return Err(TransportError::Unauthorized);
+        }
         let api = route
             .api(peer)
             .map_err(|e| TransportError::Other(e.to_string()))?;
+        if req.uri().path().contains("/llm/") {
+            return api
+                .model_request(req)
+                .await
+                .map_err(|e| TransportError::Other(format!("{e:#}")));
+        }
         let (parts, body) = req.into_parts();
         let path = parts
             .uri
@@ -80,7 +90,10 @@ impl PeerTransport for DirectTransport {
         let api_path = format!("/api/v1{rest}");
         let bytes = collect(body).await?;
         let result = match parts.method {
-            http::Method::GET => api.get(&api_path).await,
+            http::Method::GET => {
+                api.request_bounded(http::Method::GET, &api_path, None, MAX_BODY)
+                    .await
+            }
             http::Method::POST => {
                 let body = if bytes.is_empty() {
                     serde_json::json!({})
@@ -88,7 +101,8 @@ impl PeerTransport for DirectTransport {
                     serde_json::from_slice(&bytes)
                         .map_err(|_| TransportError::Other("JSON bodies only".into()))?
                 };
-                api.post(&api_path, body).await
+                api.request_bounded(http::Method::POST, &api_path, Some(body), MAX_BODY)
+                    .await
             }
             _ => return Err(TransportError::Other("method not supported".into())),
         };

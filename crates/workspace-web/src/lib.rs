@@ -34,7 +34,11 @@ struct Args {
     gateway_port: u16,
 }
 
-pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
+pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
+    if arguments.get(1).is_some_and(|arg| arg == "node") {
+        arguments.remove(1);
+        return cranibox_node::cli::run_from(arguments).await;
+    }
     if agent_workspace_runtime::peers::tasks::worker::maybe_serve(&arguments).await? {
         return Ok(());
     }
@@ -66,6 +70,9 @@ pub async fn run(arguments: Vec<String>, integrated: bool) -> Result<()> {
         )
         .await?,
     ));
+    if std::env::var("CRANIBOX_APP_MOCK").as_deref() != Ok("1") {
+        state.local.as_ref().expect("local node").models().await?;
+    }
     if integrated {
         let path = args
             .config_root

@@ -26,3 +26,13 @@ DeepSeek Harness natively discovers shared Skills under
 `/config/.agents/skills`. Global MCP entries selected for this Agent are
 rendered into `/config/.dsh/agent-workspace-mcp.cordis.yml` and loaded by the
 wrapper without overwriting user-owned Harness profile patches.
+
+### Reviewed runtime version
+
+Cranibox defaults to DeepSeek Harness. The installer and cranibox-agents pin
+@deepseek-ai/dsh@0.1.1-rc.2 with SHA-256
+47ec05f45ada5ab87779ae18a90456b5ebff5421dc0ff5c179677d65e1c16057.
+The installer verifies the downloaded tarball before running installation scripts.
+To upgrade, review the official release and configuration format, download the
+exact npm tarball, compute its SHA-256, update both constants, and run adapter
+round-trip tests and a headless conversation against a mock model before release.

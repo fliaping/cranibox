@@ -37,10 +37,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         # Screen 1
         "select_title":        "Agent Workspace - Setup Wizard",
         "select_hint":         "Select agents to install:",
-        "select_keys":         "(1-7=toggle  a=all  ↑↓=move)",
+        "select_keys":         "(1-8=toggle  a=all  ↑↓=move)",
         "key_next":            "Next",
         "key_cancel":          "Cancel",
-        "key_toggle":          "1-7 Toggle",
+        "key_toggle":          "1-8 Toggle",
         "key_select_all":      "All",
         "key_move":            "↑↓ Move",
         "no_agent_selected":   "Please select at least one agent",
@@ -88,6 +88,7 @@ _TEXTS: dict[str, dict[str, str]] = {
         "desc_hermes":         "General autonomous agent (native CLI)",
         "desc_deepseek_harness": "DeepSeek's official plugin-based coding Agent (Web UI)",
         "desc_openclaw":       "AI assistant gateway (npm)",
+        "desc_pi":             "Pi coding agent (npm)",
         "desc_openfang":       "Rust Agent OS (cargo)",
         "desc_zeroclaw":       "Ultra-light runtime (brew)",
     },
@@ -96,10 +97,10 @@ _TEXTS: dict[str, dict[str, str]] = {
         "app_subtitle":        "安装向导",
         "select_title":        "Agent 工作区 - 安装向导",
         "select_hint":         "选择要安装的 Agent：",
-        "select_keys":         "(1-7=切换  a=全选  ↑↓=移动)",
+        "select_keys":         "(1-8=切换  a=全选  ↑↓=移动)",
         "key_next":            "下一步",
         "key_cancel":          "取消",
-        "key_toggle":          "1-7 切换",
+        "key_toggle":          "1-8 切换",
         "key_select_all":      "全选",
         "key_move":            "↑↓ 移动",
         "no_agent_selected":   "请至少选择一个 Agent",
@@ -142,6 +143,7 @@ _TEXTS: dict[str, dict[str, str]] = {
         "desc_hermes":         "通用自主 Agent（原生 CLI）",
         "desc_deepseek_harness": "DeepSeek 官方插件化编程 Agent（Web UI）",
         "desc_openclaw":       "AI 助手网关 (npm)",
+        "desc_pi":             "Pi 编程 Agent (npm)",
         "desc_openfang":       "Rust Agent 操作系统 (cargo)",
         "desc_zeroclaw":       "超轻量 Agent 运行时 (brew)",
     },
@@ -235,6 +237,11 @@ AGENTS = {
     },
 }
 
+AGENTS["pi"] = {
+    "label": "Pi", "desc_key": "desc_pi", "mode": "cli",
+    "binary": "pi", "install_type": "npm",
+    "package": "@mariozechner/pi-coding-agent", "onboard": "pi",
+}
 AGENT_KEYS = list(AGENTS.keys())
 
 FULL_PATH = (
@@ -321,7 +328,8 @@ def build_install_command(agent: str) -> list[str]:
         installer = Path(__file__).resolve().parent.parent / "addons/deepseek-harness/install.sh"
         return ["bash", str(installer)]
     elif info["install_type"] == "npm":
-        cmd = f"npm install -g {agent}@latest {get_npm_registry()}"
+        package = info.get("package", agent)
+        cmd = f"npm install -g {package}@latest {get_npm_registry()}"
         return ["bash", "-c", cmd]
     elif info["install_type"] == "cargo":
         return ["bash", "-c",
@@ -596,6 +604,7 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
             Binding("5", "toggle('openclaw')", show=False),
             Binding("6", "toggle('openfang')", show=False),
             Binding("7", "toggle('zeroclaw')", show=False),
+            Binding("8", "toggle('pi')", show=False),
             Binding("a", "toggle_all", t("key_select_all"), show=True),
             Binding("up", "focus_prev", t("key_move"), show=True),
             Binding("down", "focus_next", show=False),
@@ -1214,7 +1223,7 @@ def main() -> None:
         choices=list(AGENTS.keys()),
         default=[],
         help=(
-            "Agents to install (codex, claude-code, hermes, deepseek-harness, "
+            "Agents to install (deepseek-harness, codex, claude-code, pi, hermes, "
             "openclaw, openfang, zeroclaw)"
         ),
     )

@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 pub struct LocalNode {
     pub id: String,
+    app: tokio::sync::OnceCell<Arc<crate::app::Service>>,
     path: PathBuf,
     catalog: Store,
     pub(crate) engine: Engine,
@@ -69,6 +70,7 @@ impl LocalNode {
         let network =
             crate::network::Service::start(path.clone(), peer.network_endpoint(), stop.clone());
         Ok(Self {
+            app: tokio::sync::OnceCell::new(),
             id: config.node_id,
             path,
             catalog,
@@ -84,6 +86,29 @@ impl LocalNode {
             peer: Mutex::new(Some(peer)),
             _lock: lock,
         })
+    }
+    pub async fn app(self: &Arc<Self>) -> Result<Arc<crate::app::Service>> {
+        self.app
+            .get_or_try_init(|| async {
+                Ok(Arc::new(crate::app::Service::new(
+                    Arc::downgrade(self),
+                    self.models().await?,
+                )))
+            })
+            .await
+            .cloned()
+    }
+    pub fn config_path(&self) -> &std::path::Path {
+        &self.path
+    }
+    pub async fn models(&self) -> Result<Arc<crate::models::Models>> {
+        self.peer
+            .lock()
+            .await
+            .as_ref()
+            .context("local node is stopping")?
+            .models()
+            .await
     }
     pub async fn manage_peers(
         &self,

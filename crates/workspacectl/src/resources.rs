@@ -51,13 +51,18 @@ pub enum McpAction {
 pub fn parse_agents(value: &str) -> Result<Vec<&str>> {
     let mut ids = Vec::new();
     for id in if value == "all" {
-        inspect::AGENTS.iter().map(|(id, _, _)| *id).collect()
+        inspect::agent_catalog()
+            .iter()
+            .map(|(id, _, _)| *id)
+            .collect()
     } else {
         value.split(',').map(str::trim).collect::<Vec<_>>()
     } {
         ensure!(
-            inspect::AGENTS.iter().any(|(known, _, _)| *known == id),
-            "agents must be all or a comma-separated subset of codex,claude-code,hermes,deepseek-harness"
+            inspect::agent_catalog()
+                .iter()
+                .any(|(known, _, _)| *known == id),
+            "agents must be all or a comma-separated subset of deepseek-harness,codex,claude-code,pi,hermes,openclaw"
         );
         if !ids.contains(&id) {
             ids.push(id);
@@ -117,15 +122,63 @@ pub fn deepseek_patch(ctx: &Context, servers: &Map<String, Value>) -> Result<()>
         0o600,
     )?;
     let path = ctx.root.join(".dsh/agent-workspace-mcp.cordis.yml");
-    if servers.is_empty() {
-        if path.exists() {
-            std::fs::remove_file(path)?;
+    // Native Cranibox MCP and approval hooks share this overlay. Replace only
+    // the legacy resource-manager rows; retain unrelated blocks byte for byte.
+    let existing = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let mut content = String::new();
+    let mut block = String::new();
+    let retain = |block: &str| -> Result<bool> {
+        if block.trim() == "[]" {
+            return Ok(false);
         }
-        return Ok(());
+        if block
+            .lines()
+            .all(|l| l.trim().is_empty() || l.trim_start().starts_with('#'))
+        {
+            return Ok(true);
+        }
+        let rows: Vec<Value> = serde_yaml::from_str(block)?;
+        let inserts = rows
+            .iter()
+            .filter_map(|r| r["insert"].as_array())
+            .flatten()
+            .collect::<Vec<_>>();
+        let managed = inserts
+            .iter()
+            .filter(|r| {
+                r["id"]
+                    .as_str()
+                    .is_some_and(|s| s.starts_with("agent-workspace-mcp-"))
+            })
+            .count();
+        ensure!(
+            managed == 0 || managed == inserts.len(),
+            "Mixed user and managed DSH insertions; review the overlay first"
+        );
+        Ok(managed == 0)
+    };
+    for line in existing.split_inclusive('\n') {
+        if line.starts_with("- ") && !block.is_empty() {
+            if retain(&block)? {
+                content.push_str(&block);
+            }
+            block.clear();
+        }
+        block.push_str(line);
     }
-    let mut content =
-        "# Managed by Agent Workspace. User profile patches remain separate.\n- insert:\n"
-            .to_owned();
+    if !block.trim().is_empty() && retain(&block)? {
+        content.push_str(&block);
+    }
+    if !servers.is_empty() {
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str("- insert:\n");
+    }
     for (name, config) in servers {
         content += &format!(
             "    - id: {}\n      name: \"@deepseek-ai/dsh-mcp-client\"\n      config:\n        serverName: {}\n",
@@ -146,7 +199,14 @@ pub fn deepseek_patch(ctx: &Context, servers: &Map<String, Value>) -> Result<()>
             );
         }
     }
-    atomic_write(&path, content, 0o600)
+    if content.trim().is_empty() {
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+        Ok(())
+    } else {
+        atomic_write(&path, content, 0o600)
+    }
 }
 async fn deepseek(ctx: &Context, name: &str, config: Option<Value>) -> Result<()> {
     let state = ctx
@@ -193,13 +253,46 @@ async fn agent_mcp(
     name: &str,
     config: Option<(&str, &str, &[String])>,
 ) -> Probe {
-    let binary = inspect::AGENTS
+    let binary = inspect::agent_catalog()
         .iter()
         .find(|(known, _, _)| *known == id)
         .map(|(_, _, binary)| command_path(binary))
         .unwrap_or_default();
     if binary.is_empty() {
         return Probe::failed("Agent CLI is not installed");
+    }
+    if id == "pi" {
+        let env =
+            cranibox_agents::environment(ctx.root.clone(), ctx.state().join("agent-adapters"));
+        let result = match config {
+            Some(("stdio", _, args)) if !args.is_empty() => {
+                cranibox_agents::adapter(cranibox_agents::AgentId::Pi)
+                    .unwrap()
+                    .register_mcp(
+                        &env,
+                        &cranibox_agents::McpSpec {
+                            name: name.into(),
+                            command: args[0].clone(),
+                            args: args[1..].to_vec(),
+                            env: Default::default(),
+                        },
+                    )
+                    .map(|_| ())
+            }
+            Some(_) => Err(cranibox_agents::AgentError::Io(
+                "Pi MCP requires a stdio command; use an HTTP-to-stdio bridge".into(),
+            )),
+            None => cranibox_agents::unregister_mcp(cranibox_agents::AgentId::Pi, &env, name)
+                .map(|_| ()),
+        };
+        return match result {
+            Ok(()) => Probe {
+                code: 0,
+                stdout: "Pi MCP extension updated".into(),
+                stderr: String::new(),
+            },
+            Err(e) => Probe::failed(e),
+        };
     }
     if id == "deepseek-harness" {
         let config = config.map(|(transport, url, args)| {
@@ -236,6 +329,11 @@ async fn agent_mcp(
                 args.push("--url".into());
             }
             args.push(url.into());
+        } else if id == "openclaw" {
+            args.extend(["--command".into(), command[0].clone()]);
+            for arg in &command[1..] {
+                args.extend(["--arg".into(), arg.clone()]);
+            }
         } else if id == "hermes" {
             args.extend(["--command".into(), command[0].clone(), "--args".into()]);
             args.extend_from_slice(&command[1..]);

@@ -101,6 +101,15 @@ AGENT_DEFINITIONS = (
         "web_service": "openclaw-gateway",
     },
 )
+_AGENTS_BY_ID = {item["id"]: item for item in AGENT_DEFINITIONS}
+_AGENTS_BY_ID["pi"] = {
+    "id": "pi", "label": "Pi", "binary": "pi", "install_name": "pi",
+    "launch": "pi", "accent": "green",
+}
+AGENT_DEFINITIONS = tuple(
+    dict(_AGENTS_BY_ID[agent_id], recommended=agent_id == "deepseek-harness")
+    for agent_id in ("deepseek-harness", "codex", "claude-code", "pi", "hermes", "openclaw")
+)
 
 
 def run(
@@ -297,7 +306,7 @@ def workspace_info() -> dict[str, Any]:
 
 
 def agents() -> list[dict[str, Any]]:
-    selected = os.environ.get("AGENT_WORKSPACE_AGENT", "")
+    selected = os.environ.get("AGENT_WORKSPACE_AGENT", "deepseek-harness")
     discovered = [
         (definition, command_path(str(definition["binary"])))
         for definition in AGENT_DEFINITIONS
@@ -393,7 +402,7 @@ def global_skills() -> dict[str, Any]:
             if not row["description"] and description:
                 row["description"] = description
 
-    agent_order = {"codex": 0, "claude-code": 1, "hermes": 2, "deepseek-harness": 3}
+    agent_order = {row["id"]: index for index, row in enumerate(AGENT_DEFINITIONS)}
     result = sorted(rows.values(), key=lambda item: item["name"].lower())
     for row in result:
         row["agents"].sort(key=lambda item: agent_order[item])
@@ -526,23 +535,51 @@ def load_deepseek_mcp() -> dict[str, Any]:
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
+        loaded = {}
     servers = loaded.get("servers", {}) if isinstance(loaded, dict) else {}
-    return servers if isinstance(servers, dict) else {}
+    servers = dict(servers) if isinstance(servers, dict) else {}
+    try:
+        import yaml
+        patch = yaml.safe_load((CONFIG_ROOT / ".dsh/agent-workspace-mcp.cordis.yml").read_text())
+        for item in patch if isinstance(patch, list) else []:
+            for entry in item.get("insert", []):
+                config = entry.get("config", {})
+                if entry.get("name") == "@deepseek-ai/dsh-mcp-client" and config.get("serverName"):
+                    servers[config["serverName"]] = config
+    except (ImportError, OSError, AttributeError, TypeError, ValueError):
+        pass
+    return servers
+
+
+def load_pi_mcp() -> dict[str, Any]:
+    try:
+        value = json.loads((CONFIG_ROOT / ".pi/agent/mcp.json").read_text())
+        servers = value.get("mcpServers", {})
+        return servers if isinstance(servers, dict) else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def load_openclaw_mcp() -> dict[str, Any]:
+    try:
+        try:
+            import json5
+            parse = json5.loads
+        except ImportError:
+            parse = json.loads
+        value = parse((CONFIG_ROOT / ".openclaw/openclaw.json").read_text())
+        servers = value.get("mcp", {}).get("servers", {})
+        return servers if isinstance(servers, dict) else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
 
 
 def global_mcp() -> dict[str, Any]:
-    definitions = (
-        ("codex", "Codex", "codex", load_codex_mcp()),
-        ("claude-code", "Claude Code", "claude", load_claude_mcp()),
-        ("hermes", "Hermes Agent", "hermes", load_hermes_mcp()),
-        (
-            "deepseek-harness",
-            "DeepSeek Harness",
-            "deepseek-harness",
-            load_deepseek_mcp(),
-        ),
-    )
+    loaders = {"deepseek-harness": load_deepseek_mcp, "codex": load_codex_mcp,
+               "claude-code": load_claude_mcp, "pi": load_pi_mcp,
+               "hermes": load_hermes_mcp, "openclaw": load_openclaw_mcp}
+    definitions = tuple((row["id"], row["label"], row["binary"], loaders[row["id"]]())
+                        for row in AGENT_DEFINITIONS)
     rows: dict[str, dict[str, Any]] = {}
     support = []
     for agent_id, label, binary, configs in definitions:
@@ -1122,7 +1159,7 @@ def capability_state() -> list[dict[str, Any]]:
 
 def bootstrap_state() -> dict[str, Any]:
     target = os.environ.get("AGENT_WORKSPACE_BOOTSTRAP", "remote")
-    selected_agent = os.environ.get("AGENT_WORKSPACE_AGENT", "codex")
+    selected_agent = os.environ.get("AGENT_WORKSPACE_AGENT", "deepseek-harness")
     foundation_marker = STATE_ROOT / f"bootstrap-{target}.complete"
     agent_marker = STATE_ROOT / f"agent-{selected_agent}.complete"
     onboarding_marker = STATE_ROOT / "onboarding-v1.complete"

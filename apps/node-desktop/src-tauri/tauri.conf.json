@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{ "label": "main", "title": "Cranibox Node", "width": 880, "height": 720, "minWidth": 440, "minHeight": 560, "visible": false }],
-    "security": { "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; script-src 'self'" }
+    "security": { "csp": "default-src 'self'; frame-src 'self' http://127.0.0.1:3080; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; script-src 'self'" }
   },
   "bundle": {
     "active": true,

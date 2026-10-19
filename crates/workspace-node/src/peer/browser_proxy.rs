@@ -107,7 +107,7 @@ pub(crate) async fn relay(
     result
 }
 
-pub(super) async fn run(path: PathBuf, node: String, mcp: bool) -> Result<()> {
+pub(crate) async fn run(path: PathBuf, node: String, mcp: bool) -> Result<()> {
     let store = Store::new(path);
     let status = store.browser(&node, browser::Request::Status {}).await?;
     ensure!(

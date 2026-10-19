@@ -6,6 +6,7 @@ license = "Apache-2.0"
 rust-version = "1.89"
 
 [dependencies]
+cranibox-node = { path = "../workspace-node" }
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 agent-workspacectl = { path = "../workspacectl" }
