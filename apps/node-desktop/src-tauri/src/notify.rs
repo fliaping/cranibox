@@ -1,0 +1,32 @@
+//! Owner notification for the tray: messages waiting in the inbound approval queue.
+//! Reads the existing mailbox count; approving still happens in the Web UI or CLI.
+use std::path::PathBuf;
+
+/// Messages held for the owner, or 0 when the mailbox is unavailable.
+pub async fn held(path: PathBuf) -> u64 {
+    use agent_workspace_runtime::peers::{Store, messages::Command};
+    Store::new(path)
+        .messages(Command::Held)
+        .await
+        .ok()
+        .and_then(|view| view["held"].as_array().map(|held| held.len() as u64))
+        .unwrap_or(0)
+}
+
+/// Tray tooltip for the node status and the approval queue.
+pub fn tooltip(status: &str, held: u64) -> String {
+    match held {
+        0 => format!("Cranibox Node — {status}"),
+        n => format!("Cranibox Node — {status} · {n} 条消息待批准 / {n} awaiting approval"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn tooltip_mentions_the_queue_only_when_messages_wait() {
+        assert_eq!(tooltip("运行中", 0), "Cranibox Node — 运行中");
+        assert!(tooltip("运行中", 2).ends_with("2 条消息待批准 / 2 awaiting approval"));
+    }
+}

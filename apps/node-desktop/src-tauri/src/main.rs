@@ -578,8 +578,14 @@ fn main() -> anyhow::Result<()> {
                                 .into(),
                             )
                     };
+                    let held = cranibox_node_desktop::notify::held(
+                        cranibox_node::peer::config::path_for(&settings::default_path()),
+                    )
+                    .await;
                     if let Some(tray) = handle.tray_by_id("node") {
-                        let _ = tray.set_tooltip(Some(format!("Cranibox Node — {status}")));
+                        let _ = tray.set_tooltip(Some(cranibox_node_desktop::notify::tooltip(
+                            &status, held,
+                        )));
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }
