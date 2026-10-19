@@ -2,6 +2,8 @@
 
 发布入口为 `.github/workflows/build-webtop.yml`，GitHub Actions 中的名称是 **Build Multi-Arch Image**。普通 `main` 提交触发的 **Release** 只运行检查，不发布容器镜像。
 
+Release 使用只读仓库权限，不修改或推送源码。安装脚本中的上游地址随代码审阅更新；原自动替换作业查找的 RAW_URL 变量已不存在，而且会从旧 checkout 执行无变更 git push，导致较旧运行被新提交拒绝，因此移除。这个调整不改变安装脚本、镜像标签或发布入口。
+
 ## 手动验证与发布
 
 先用 `workflow_dispatch` 选择目标分支、`desktop=xfce`、`architecture=all`、`version=latest`、`publish=false`。这是默认模式：分别使用 amd64 和 arm64 原生 Linux runner 构建并加载对应镜像，在工作流内运行首次启动、节点授权及重启验收，不登录镜像仓库，也不修改公开标签。`architecture=amd64` 或 `arm64` 可只检查一个架构；`desktop=all` 同时检查 XFCE、LXQt 和 KDE。缓存按桌面与构建架构隔离，避免两个验证作业覆盖彼此的缓存。

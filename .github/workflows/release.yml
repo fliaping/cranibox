@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test-scripts:
     runs-on: ubuntu-latest
@@ -34,23 +37,3 @@ jobs:
         scandir: '.'
         severity: warning
       continue-on-error: true
-
-  update-readme-links:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Update raw URLs in scripts
-      run: |
-        REPO_URL="https://raw.githubusercontent.com/${{ github.repository }}/main"
-        sed -i "s|RAW_URL=.*|RAW_URL=\"$REPO_URL\"|" install.sh || true
-    
-    - name: Commit changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git diff --quiet && git diff --staged --quiet || git commit -am "Update script URLs"
-        git push
