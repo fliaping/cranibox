@@ -26,6 +26,7 @@ use std::{
 };
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio_util::sync::CancellationToken;
+mod activity;
 mod agent_sessions;
 mod browser;
 mod computer;
@@ -225,6 +226,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "computer":caller.grant.permissions.computer && Config::read(&app.path).is_ok_and(|c| c.computer.is_some()),
         "browser":caller.grant.permissions.browser && Config::read(&app.path).is_ok_and(|c| c.browser.is_some()),
         "messages":caller.grant.permissions.messages,
+        "activity":caller.grant.permissions.activity,
         "spaces":caller.grant.permissions.spaces,
         "tasks":caller.grant.permissions.messages,
         "executions":caller.grant.permissions.exec,
@@ -772,6 +774,7 @@ fn transport(
         .route("/nodes/{node}/projects", post(projects::manage))
         .route("/nodes/{node}/projects/sync", post(projects::sync))
         .route("/nodes/{node}/messages", post(messages::receive))
+        .route("/nodes/{node}/activity", get(activity::read))
         .route("/nodes/{node}/messages/{id}", get(messages::receipt))
         .route("/nodes/{node}/tasks", post(tasks::receive))
         .route("/nodes/{node}/tasks/{id}/{dispatch}", get(tasks::receipt))

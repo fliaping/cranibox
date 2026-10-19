@@ -22,6 +22,7 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
   const [error, setError] = useState(''), [types, setTypes] = useState<string[]>([]), [credentials, setCredentials] = useState<Record<string, string>>({});
   const [viewOnly, setViewOnly] = useState(false), [keyboard, setKeyboard] = useState(false);
   const [clipboardOpen, setClipboardOpen] = useState(false), [clipboard, setClipboard] = useState<string | null>(null), [clipboardError, setClipboardError] = useState('');
+  const [clipboardVersion, setClipboardVersion] = useState(0);
   const [enabled, setEnabled] = useState(true);
   const [text, setText] = useState(''), composing = useRef(false);
   useEffect(() => {
@@ -58,8 +59,9 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
             if (typeof text !== 'string') throw Error('Invalid clipboard text');
             clipboardBytes(text); setClipboard(text); setClipboardError('');
           } catch { setClipboard(null); setClipboardError('invalid'); }
+          setClipboardVersion(value => value + 1);
         });
-        viewer.addEventListener('clipboarderror', () => { if (!disposed) { setClipboard(null); setClipboardError('invalid'); } });
+        viewer.addEventListener('clipboarderror', () => { if (!disposed) { setClipboard(null); setClipboardError('invalid'); setClipboardVersion(value => value + 1); } });
       } catch (error) {
         if (!disposed) { setError(error instanceof Error ? error.message : String(error)); setPhase('closed'); }
       }
@@ -89,7 +91,7 @@ export function VncViewer({ target, connect, language = 'en' }: { target: Deskto
     </div></div>
     {keyboard && phase === 'connected' && !viewOnly && <div className="vnc-keyboard"><label>{t('输入文字', 'Type text')}<input autoComplete="off" autoCapitalize="off" spellCheck={false} aria-label={t('远程键盘输入', 'Remote keyboard input')} value={text} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={event => { composing.current = false; sendText(event.currentTarget.value); }} onChange={event => { setText(event.target.value); if (!composing.current) sendText(event.target.value); }} /></label><div className="direct-actions">{[['Esc', 0xff1b], ['Tab', 0xff09], ['Enter', 0xff0d], ['Backspace', 0xff08]] .map(([name, code]) => <button key={name} onClick={() => rfb.current?.sendKey(Number(code))}>{name}</button>)}<button onClick={() => rfb.current?.sendCtrlAltDel()}>Ctrl · Alt · Del</button></div></div>}
     {error && <p className="direct-error" role="alert">{error}</p>}
-    {clipboardOpen && phase === 'connected' && <DesktopClipboard viewer={rfb.current} received={clipboard} receiveError={clipboardError} viewOnly={viewOnly} language={language} />}
+    {clipboardOpen && phase === 'connected' && <DesktopClipboard viewer={rfb.current} received={clipboard} receiveError={clipboardError} receiveVersion={clipboardVersion} viewOnly={viewOnly} language={language} />}
     {!!types.length && <form className="vnc-auth" onSubmit={authenticate}><h3>{t('VNC 身份验证', 'VNC authentication')}</h3><p className="direct-note">{t('凭据只用于本次连接，不会保存。', 'Credentials are used for this connection only and are never saved.')}</p>{types.filter(type => ['username', 'password', 'target'].includes(type)).map(type => <label key={type}>{type === 'password' ? t('VNC 密码', 'VNC password') : type === 'username' ? t('用户名', 'Username') : t('认证目标', 'Authentication target')}<input autoFocus={type === types[0]} type={type === 'password' ? 'password' : 'text'} required autoComplete={type === 'password' ? 'current-password' : 'username'} value={credentials[type] || ''} onChange={event => setCredentials({ ...credentials, [type]: event.target.value })} /></label>)}<button type="submit" className="direct-primary">{t('验证并连接', 'Authenticate')}</button></form>}
     <div className="vnc-screen" ref={host} aria-label={t('远程桌面画面', 'Remote desktop display')} />
     {phase !== 'connected' && !types.length && <div className="vnc-placeholder"><Monitor size={36} aria-hidden="true" /><p>{phase === 'connecting' ? t('正在建立桌面连接', 'Opening desktop connection') : t('桌面仍在目标设备运行', 'The desktop keeps running on the target')}</p></div>}

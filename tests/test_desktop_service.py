@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from workspace_web_harness import Harness, CORE, NODE, ROOT, RUNTIME, WEB, free_port, sockets_allowed, until
 from test_cranibox_terminal import Socket
+from test_remote_desktops import DesktopServer, SelkiesServer
 
 
 @unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
@@ -115,6 +116,31 @@ class DesktopServiceTests(unittest.TestCase):
         self.assertEqual(len(self.started()), 3)
         self.assertIsNone(json.loads(self.config.read_text())['desktop'])
 
+    def test_installation_restart_and_unreadable_record_do_not_enable_or_replay_sharing(self):
+        journal = self.config.with_name('desktop-setup.json')
+        for previous in [
+            json.dumps(dict(phase='running', provider='x11vnc', error=None)).encode(),
+            b'x' * 8193,
+        ]:
+            with self.subTest(previous=previous[:64]):
+                self.h.stop(self.h.web)
+                journal.write_bytes(previous)
+                self.h.start_web()
+                self.h.login()
+                status = self.service(operation='status')
+                self.assertEqual(status['installation']['phase'], 'interrupted')
+                self.assertIn('package manager', status['installation']['error'])
+                self.assertEqual(status['phase'], 'failed')
+                self.assertFalse(status['enabled'] or status['running'])
+                self.assertEqual(self.started(), [])
+                self.service(operation='stop')
+                self.assertEqual(self.service(operation='status')['installation']['phase'], 'interrupted')
+                self.assertEqual(journal.read_bytes(), previous)
+                for command in [dict(operation='install'), dict(operation='install', plan_id='unreviewed')]:
+                    self.assertEqual(self.h.post('/api/desktop/service', command)[0], 400)
+                self.assertEqual(journal.read_bytes(), previous)
+                self.assertFalse(self.config.with_name('desktop-service.json').exists())
+                self.assertFalse(self.config.with_name('desktop-vnc.password').exists())
     def test_failures_preserve_configuration_and_external_disable_stops_service(self):
         for display, port in [('remote:0', 5900), (':65536', 5900), (':0', 80), (':0;touch /tmp/unwanted', 5900)]:
             self.assertEqual(self.h.post('/api/desktop/service', {'operation': 'start', 'display': display, 'port': port})[0], 400)
@@ -155,6 +181,60 @@ class DesktopServiceTests(unittest.TestCase):
         for address in ('0.0.0.0:5900', '192.168.1.2:5900', '127.0.0.1:0'):
             self.assertEqual(self.h.post(endpoint, {'operation': 'check', 'address': address})[0], 400)
         self.assertFalse(self.service(operation='check', address=f'127.0.0.1:{free_port()}')['ready'])
+        self.assertEqual(self.h.post(endpoint, {'operation': 'discover', 'address': '192.168.1.2:5900'})[0], 400)
+
+    def test_discovery_reads_vnc_greetings_and_keeps_sharing_disabled(self):
+        # Fixed, conventional ports are intentional: discovery accepts no scan range.
+        try:
+            server = DesktopServer(port=5900)
+        except OSError as error:
+            self.skipTest(f'Loopback VNC discovery port is unavailable: {error}')
+        self.addCleanup(server.close)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 4)
+        self.assertIn({'address': server.address, 'protocol': 'vnc', 'configured': False}, found['services'])
+        until(lambda: server.active == 0)
+        self.assertEqual(server.received, [])  # No authentication or viewer bytes.
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertFalse(self.config.with_name('desktop-service.json').exists())
+        self.assertFalse(self.config.with_name('desktop-vnc.password').exists())
+        self.assertEqual(self.started(), [])
+        for banner in (b'HTTP/1.1 200 OK\r\n', b''):
+            server.banner = banner
+            started = time.monotonic()
+            found = self.service(operation='discover')
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertNotIn(server.address, [item['address'] for item in found['services']])
+            self.assertEqual(self.config.read_bytes(), before)
+        server.banner = DesktopServer.banner
+        self.assertIn(server.address, [item['address'] for item in self.service(operation='discover')['services']])
+
+    def test_discovery_includes_saved_custom_selkies_without_taking_control(self):
+        server = SelkiesServer()
+        self.addCleanup(server.close)
+        self.assertEqual(self.h.post('/api/peers', {'operation': 'desktop', 'desktop': {'address': server.address, 'protocol': 'selkies'}})[0], 200)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 5)
+        self.assertEqual(found['services'][0], {'address': server.address, 'protocol': 'selkies', 'configured': True})
+        until(lambda: server.active == 0)
+        self.assertEqual(server.received, [])  # In particular, no SETTINGS takeover.
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertEqual(self.started(), [])
+        self.assertFalse(self.config.with_name('desktop-service.json').exists())
+
+    def test_discovery_finds_ipv6_vnc_without_enabling_sharing(self):
+        try:
+            server = DesktopServer(host='::1', port=5900)
+        except OSError as error:
+            self.skipTest(f'IPv6 loopback discovery port is unavailable: {error}')
+        self.addCleanup(server.close)
+        before = self.config.read_bytes()
+        found = self.service(operation='discover')
+        self.assertEqual(found['checked'], 4)
+        self.assertIn({'address': server.address, 'protocol': 'vnc', 'configured': False}, found['services'])
+        self.assertEqual(self.config.read_bytes(), before)
 
     def test_selkies_background_service_does_not_offer_xwayland_as_an_x11_desktop(self):
         self.h.stop(self.h.web)
@@ -173,7 +253,7 @@ class DesktopServiceTests(unittest.TestCase):
         for command in (
             dict(operation='start', display=':42', port=free_port()),
             dict(operation='start', provider='wayvnc', display='wayland-0', port=free_port()),
-            dict(operation='plan'), dict(operation='install'),
+            dict(operation='plan'), dict(operation='install', plan_id='unreviewed'),
         ):
             code, body = self.h.post('/api/desktop/service', command)
             self.assertEqual(code, 400, body)
@@ -305,7 +385,7 @@ class WaylandDesktopServiceTests(unittest.TestCase):
             self.assertEqual(status['provider'], 'wayvnc')
             self.assertFalse(status['supported'])
             self.assertIn('does not support', status['unsupported_reason'])
-            for command in [dict(operation='start', provider='wayvnc', display='wayland-42', port=free_port()), dict(operation='plan'), dict(operation='install')]:
+            for command in [dict(operation='start', provider='wayvnc', display='wayland-42', port=free_port()), dict(operation='plan'), dict(operation='install', plan_id='unreviewed')]:
                 code, value = self.h.post('/api/desktop/service', command)
                 self.assertEqual(code, 400, value)
             self.assertFalse(self.service(operation='status')['running'])

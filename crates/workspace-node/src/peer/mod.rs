@@ -28,6 +28,11 @@ use tokio_util::sync::CancellationToken;
 pub enum Command {
     /// Create or show this device's persistent direct identity, without secrets.
     Identity,
+    /// Read active tasks, messages and collaborations; remote nodes require a separate activity grant.
+    Activity {
+        #[arg(long)]
+        node: Option<String>,
+    },
     /// Durable device text messages. Receiving a message never runs a command.
     Messages {
         #[command(subcommand)]
@@ -42,6 +47,16 @@ pub enum Command {
     /// Configure this node's background project catalog pulls; no remote changes.
     ProjectSync {
         /// Typed JSON command; omitted means {"operation":"status"}.
+        #[arg(long)]
+        command: Option<String>,
+    },
+    /// Configure background public Agent directory pulls; separate from project sync.
+    AgentSync {
+        #[arg(long)]
+        command: Option<String>,
+    },
+    /// Opt in to background read-only collaboration snapshots; activity access is required.
+    ActivitySync {
         #[arg(long)]
         command: Option<String>,
     },
@@ -93,6 +108,9 @@ pub enum Command {
         browser: bool,
         #[arg(long)]
         messages: bool,
+        /// Read all active task/message/collaboration content, including other senders. No writes.
+        #[arg(long)]
+        activity: bool,
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
@@ -392,6 +410,11 @@ pub enum Sessions {
 
 pub async fn run(path: PathBuf, command: Command) -> Result<()> {
     match command {
+        Command::Activity { node } => client::print(
+            agent_workspace_runtime::peers::Store::new(path)
+                .activity(node)
+                .await?,
+        ),
         Command::Identity => client::print(Config::update(&path, |_| Ok(()))?.public_view()),
         Command::Tasks { command } => {
             let command =
@@ -407,6 +430,24 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
             client::print(agent_workspace_runtime::peers::project_sync::manage(
                 &path, command,
+            )?);
+        }
+        Command::AgentSync { command } => {
+            let command =
+                serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
+            client::print(agent_workspace_runtime::peers::project_sync::manage_kind(
+                &path,
+                command,
+                agent_workspace_runtime::peers::project_sync::Kind::Agents,
+            )?);
+        }
+        Command::ActivitySync { command } => {
+            let command =
+                serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
+            client::print(agent_workspace_runtime::peers::project_sync::manage_kind(
+                &path,
+                command,
+                agent_workspace_runtime::peers::project_sync::Kind::Activity,
             )?);
         }
         Command::AgentSessions { node, command } => {
@@ -548,6 +589,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             computer,
             browser,
             messages,
+            activity,
             spaces,
             require_verified,
             inbound,
@@ -560,8 +602,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                     || computer
                     || browser
                     || messages
+                    || activity
                     || spaces,
-                "choose --exec, --terminals, --projects, --desktop, --computer, --browser, --messages and/or --spaces"
+                "choose --exec, --terminals, --projects, --desktop, --computer, --browser, --messages, --activity and/or --spaces"
             );
             let token = secrets::token();
             let value = Config::update(&path, |value| {
@@ -595,6 +638,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         computer,
                         browser,
                         messages,
+                        activity,
                         spaces,
                     },
                 );

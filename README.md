@@ -23,7 +23,7 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 
 技术上它基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）构建。一个 `/config` 数据卷即可持久化桌面、code-server、Agent、MCP、Skills 和自定义服务，适合在服务器、NAS 或 WSL2 上长期运行 Codex、Claude Code、Hermes 等 AI Agent。
 
-当前实现、测试证据和未完成项见 [功能与交接记录（2026-10-18）](docs/implementation-handoff-2026-10-18.md)。
+当前实现、测试证据和未完成项见 [功能与交接记录（更新于 2026-10-19）](docs/implementation-handoff-2026-10-18.md)。
 
 ## 界面截图
 
@@ -615,3 +615,7 @@ docker start agent-workspace
 - [GitHub](https://github.com/fliaping/cranibox)
 
 浏览器终端与统一 Rust 服务端：[React + xterm.js、服务端 herdr 与客户端原生 PTY](docs/web-terminal-and-unified-server.md).
+
+## 许可证
+
+Cranibox 源代码采用 [Apache License 2.0](LICENSE) 授权，版权所有 © 2026 fliaping（见 [NOTICE](NOTICE)）。镜像与桌面包中捆绑的第三方组件保留各自的许可证，见 [docs/licenses](docs/licenses/)。
