@@ -1554,3 +1554,19 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 最终健康检查：容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要及 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有所属浏览器/服务残留，也未操作全局键鼠或剪贴板。
 
 私有证据 **/config/validation-artifacts/space-setup-lifecycle-20261019** 保存各轮命令、耗时、日志、源码摘要、六份截图和 final-health.json；最终待提交源码、测试、生成资源及文档与远端快照逐项核对，清单为 final-source-manifest.json。配置、凭据、截图、原始日志与辅助脚本不入 Git。
+
+## 2026-10-19：当前产品完整 XFCE 镜像与最终交接
+
+产品来源固定为 **2299b4559846eb1019a2b9e5faa6ba3b17f7e0bd**，已在 origin/main。收尾仅整理文档，没有修改 Rust/React、生成资源、依赖或测试，也没有重跑已经通过的 187 项 Rust、140 项 Web、55 项模拟 IPC 检查。源码 git archive 的本机与远端 SHA-256 均为 **60668e0850e61acff937694bf20813ccee6f7bc993c5295764f743a42be3c925**。
+
+完整构建与 Docker 运行使用指定远端 admin@192.168.217.6:22022 的宿主机，日常 cranibox-validation 仍没有宿主 socket。复用原有限额 builder（2 核、6 GiB、并发 2），从归档按完整 Dockerfile 以 DESKTOP=xfce、linux/amd64、--pull --load 和明确 revision 标签构建 **cranibox-image-validation:2299b45-xfce**。构建退出 0，耗时 **496.775 秒**；镜像 ID **sha256:fe9acab830119b53c3c8bdc775a9ee692fae178e91d8491a1c090469463095b8**，builder 已停止。没有推送仓库、修改公开标签或升级日常程序。
+
+同一归档中的 scripts/verify-workspace-image.py 对本地镜像显式指定 --platform linux/amd64 和完整 --revision 运行，退出 0、**44/44，90.315 秒**。报告中的平台和来源匹配，unready_checks=[]；空配置与预置空间身份两种场景的首次启动、Rust/Web/静态资源、默认服务/私有凭据、桌面登录保护、正确和错误节点令牌、真实命令执行，以及重启后的身份/凭据/文件保留通过。两个所属容器和两个卷均 removed=true。此项不覆盖完整空间创建 UI、真实桌面输入、当前产品 arm64 或公开镜像拉取。
+
+**2026-10-19T04:41:58Z** 从 Docker Hub 默认 xuping/agent-workspace:ubuntu-xfce 读取 index、唯一平台 manifest 与配置，并核对配置/manifest 摘要及 OS/架构。index 为 **sha256:f2e58c4fffd5652e6b3736f6af432a81ededd3349f04c53195d87169f6eb06fa**；amd64/arm64 均为旧来源 **c56508ce5008180e067a9c489f4527aa30b80b31**，均缺少 io.cranibox.space-protocol=1。仅元数据读取，没有拉取层或启动公开镜像。默认镜像不能创建新空间的 P0 继续保留，不能以本地构建成功或协议保护被删除来宣布解决。
+
+当前来源的双架构只验证运行 **39200391726** 于 **2026-10-19T04:37:23Z** 创建，参数 desktop=xfce、architecture=all、version=latest、publish=false；没有重复触发旧来源运行。**04:46:46 UTC** 最后核对：当前来源三平台矩阵 **39199888520** 七项 queued；39200391726 为 pending、无已启动 job，等待前一 d5beb23 镜像运行 **39197807627**，后者两项 queued。上一产品 55fbe2a 的矩阵 **39196468666** 已有 Wayland、Linux Tauri、Windows Rust、macOS Rust 四项成功，其余三项 queued；仍不是完整成功，也不能沿用到 2299b45。下一位维护者直接查看现有运行的 headSha、终态及 artifact，不因排队重复触发。
+
+最终健康核对通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有安装测试包、操作全局键鼠/剪贴板或留下所属测试服务。
+
+私有证据 **/config/validation-artifacts/image-head-2299b45-20261019** 保存源码归档、源码展开目录、build.log、build.json、build-metadata.json、startup.log、startup.json、startup-summary.json、public-metadata.json、ci-snapshot-044646.json、final-health.json 与 evidence-audit.json。最终复核来源/平台/镜像/检查器摘要、44 项检查及四项清理，并实际确认容器/卷已不存在、builder 已停止；证据文件 SHA-256 保存在 audit 中。功能需求、测试边界、后续优先级和复现入口集中在[交接文档](implementation-handoff-2026-10-18.md)；本轮精简其首页，保留历史结果与版本限制，便于下一位模型继续。原始证据与辅助脚本不入 Git。
