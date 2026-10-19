@@ -49,7 +49,7 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 - **会话**：每次握手产生新的临时密钥，提供会话级前向保密。会话有效 1 小时、空闲 10 分钟过期，每节点最多 512 个；目标重启或会话失效时返回 410，客户端只重新握手一次（目标未解密，请求未执行）。
 - **帧**：`POST /api/v1/mesh/nodes/{node}/e2e/call`，显式 64 位 nonce，4096 条滑动重放窗口。大请求分块（每块最多 65000 字节明文，带结束标记）并绑定到请求 nonce，防止截断、重排和跨请求拼接。内部请求只能指向 `/api/v1/mesh/` 下的普通接口，不能嵌套 `/e2e/`。
 - **授权复查**：每个加密请求都重新读取授权，撤销或轮换后旧会话立即失效（410 后用当前凭据重新握手）。
-- **WebSocket**：终端、桌面、浏览器的升级请求使用 `x-cranibox-e2e-auth: <会话>.<证明>`，证明绑定请求路径、一次性、限时，不再发送 bearer。注意：**升级后的 WebSocket 数据帧目前仍只受下层传输保护**，尚未端到端加密。
+- **WebSocket**：终端、桌面、浏览器的升级请求使用 `x-cranibox-e2e-auth: <会话>.<证明>`，证明绑定请求路径、一次性、限时，不再发送 bearer。证明内还携带调用方新生成的 32 字节流密钥（随会话加密传输，中继无法读取）。升级后每个文本/二进制数据帧都用 ChaCha20-Poly1305 加密：两个方向各用由流密钥与请求路径派生的独立密钥，nonce 为各方向隐式递增计数器，因此篡改、重放、丢帧、乱序或反射都会认证失败并关闭连接；端到端流上收到明文数据帧也会关闭。Ping/Pong/Close 控制帧不含应用数据、不加密，加密流上的 Close 不携带原因文本。使用 bearer 的旧目标与网关流保持原样。
 - **公开端点**：`GET /api/v1/mesh/keys`（需 `x-cranibox-target`）返回签名的公开身份；握手端点不需要 bearer。
 
 ### 密钥固定与配对码
@@ -81,7 +81,7 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 | 会话密钥泄露 | 每会话临时密钥，不影响其他会话 |
 | 目标长期 Noise 私钥泄露 | IK 握手消息 1 的载荷（包括 bearer 凭据）对此不具前向保密；需撤销授权、重新生成身份 |
 | 降级到明文 | 固定后不回退；严格授权在服务端拒绝明文 |
-| WebSocket 数据帧 | **未端到端加密**（只有升级鉴权受保护），后续工作 |
+| WebSocket 数据帧 | 每帧 ChaCha20-Poly1305，方向独立密钥、隐式计数器；篡改/重放/乱序即断开（控制帧与帧长度、时序仍可见） |
 | 元数据 | 中继仍可见目标 NodeID、请求大小和时序 |
 
 ## 入站策略与威胁模型（阶段 3）
@@ -114,8 +114,8 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 - **Pinning.** Keys are pinned trust-on-first-use on both sides. A changed key fails closed and never downgrades.
   - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified.
   - `grant --require-verified` refuses capabilities until both sides are verified, and always refuses plaintext bearer requests.
+- **WebSocket frames.** The single-use stream proof also carries a fresh 32-byte stream secret, sealed by the Noise session. Every text and binary frame on terminal, desktop and browser streams is then encrypted with ChaCha20-Poly1305, using per-direction keys derived from that secret and the request path, with implicit per-direction counters. A tampered, replayed, dropped, reordered or reflected frame, or a plaintext data frame, closes the stream. Ping, pong and close control frames carry no application data and are not encrypted.
 - **Known gaps:**
-  - WebSocket payload frames are not yet E2E; only the upgrade is authorized via a single-use proof.
   - The first contact is TOFU.
   - The IK message-1 payload is not forward-secret against compromise of the target's static key.
   - Metadata (target NodeID, sizes, timing) stays visible.

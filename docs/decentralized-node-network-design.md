@@ -1,6 +1,6 @@
 # 对等节点组网与远程能力设计
 
-设计日期：2026-10-14；实现进度更新：2026-10-18。状态：整体方案仍在交付中。已实现持久 Ed25519 节点身份（新 NodeID 由公钥派生，旧随机 ID 由签名绑定）、只存加盐摘要的签名授权、Noise IK 节点间端到端加密与配对码核对（[节点身份与端到端加密](node-identity-and-e2e.md)）、目标本地授权与独立直连 HTTP/WebSocket（[配置与边界](direct-node-peers.md)）、[VNC/noVNC 桌面](remote-desktops.md)、[虚拟空间](virtual-spaces.md)，以及 Web/Tauri 共用的 [EasyTier 用户态托管、节点发现和授权连接、系统 Tailscale 状态与登录](device-networks.md)。EasyTier 已支持 Workspace 地址加短期单次邀请引导，以及多个入网地址；自动多路径与目录同步尚未实现。旧网关继续兼容，实际行为见[托盘客户端与 Agent 设备组网](node-desktop-and-device-mesh.md)。下文的 v2 API 仍是设计目标；公钥身份以 node-identity-and-e2e.md 描述的实现为准。
+设计日期：2026-10-14；实现进度更新：2026-10-18。状态：整体方案仍在交付中。已实现持久 Ed25519 节点身份（新 NodeID 由公钥派生，旧随机 ID 由签名绑定）、只存加盐摘要的签名授权、Noise IK 节点间端到端加密（含 WebSocket 数据帧）与配对码核对（[节点身份与端到端加密](node-identity-and-e2e.md)）、目标本地授权与独立直连 HTTP/WebSocket（[配置与边界](direct-node-peers.md)）、[VNC/noVNC 桌面](remote-desktops.md)、[虚拟空间](virtual-spaces.md)，以及 Web/Tauri 共用的 [EasyTier 用户态托管、节点发现和授权连接、系统 Tailscale 状态与登录](device-networks.md)。EasyTier 已支持 Workspace 地址加短期单次邀请引导，以及多个入网地址；自动多路径与目录同步尚未实现。旧网关继续兼容，实际行为见[托盘客户端与 Agent 设备组网](node-desktop-and-device-mesh.md)。下文的 v2 API 仍是设计目标；公钥身份以 node-identity-and-e2e.md 描述的实现为准。
 
 维护者已明确先满足自己的日常多设备使用。产品主线、项目/Agent 会话模型、消息协作与迁移边界见[多设备项目与 Agent 工作空间](distributed-agent-workspace-design.md)。先形成统一项目视图、对等连接、跨机 Agent 协作与手动迁移闭环，再扩展远程桌面等能力；本文保留底层组网和能力接入细节。
 
