@@ -92,7 +92,7 @@ test('space directory access can be granted without execution, credentials or ot
   await submit.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Saved, close', exact: true }).click();
   await expect(panel.locator('.direct-grant-list')).toContainText('Space catalog');
-  expect(commands.find(command => command.operation === 'grant')).toEqual({ operation: 'grant', node: 'viewer', permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: true } });
+  expect(commands.find(command => command.operation === 'grant')).toEqual({ operation: 'grant', node: 'viewer', require_verified: true, permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: true } });
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
   await expect(panel.getByRole('checkbox', { name: 'View virtual spaces managed by this device', exact: true })).not.toBeChecked();
   await expect(submit).toBeDisabled();
@@ -302,7 +302,7 @@ test('incoming access issues tokens once, keeps scopes explicit and supports key
   await expect(dialog.getByLabel('New access token', { exact: true })).toHaveValue(token);
   await expect(dialog).toContainText('target-direct-id');
   await expect(dialog).toContainText('caller-direct-id');
-  expect(actions.find(a => a.operation === 'grant')).toEqual({ operation: 'grant', node: 'caller-direct-id', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false } });
+  expect(actions.find(a => a.operation === 'grant')).toEqual({ operation: 'grant', node: 'caller-direct-id', require_verified: true, permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false } });
   await dialog.getByRole('button', { name: 'Copy token', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('selected for manual copying');
   expect(await dialog.getByLabel('New access token', { exact: true }).evaluate((element: HTMLTextAreaElement) => element.selectionEnd - element.selectionStart)).toBe(64);

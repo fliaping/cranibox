@@ -137,7 +137,7 @@ test('message access can be granted without command, desktop or terminal access'
   await expect(permission).not.toBeChecked(); await permission.check();
   await panel.getByRole('button', { name: 'Create access token', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Save access token', exact: true })).toBeVisible();
-  expect(actions.find(action => action.operation === 'grant')).toEqual({ operation: 'grant', node: 'another-device', permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: true, spaces: false } });
+  expect(actions.find(action => action.operation === 'grant')).toEqual({ operation: 'grant', node: 'another-device', require_verified: true, permissions: { exec: false, terminals: false, projects: false, desktop: false, computer: false, browser: false, messages: true, spaces: false } });
 });
 
 test('addressed messages preserve the selected Agent and ID after an interrupted response', async ({ page }) => {
