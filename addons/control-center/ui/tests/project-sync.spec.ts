@@ -82,6 +82,6 @@ test('sync controls fit mobile and desktop themes with touch sized checkbox rows
 test('sync policy with a mismatched owner cannot be edited', async ({ page }) => {
   const { control } = await fixture(page); control.wrongOwner = true;
   await page.goto('/#/projects'); const panel = page.locator('.project-sync'); await panel.locator(':scope > summary').click();
-  await expect(panel.getByRole('alert')).toContainText('Unexpected project sync settings');
+  await expect(panel.getByRole('alert')).toContainText('Unexpected catalog sync settings');
   await expect(panel.getByRole('button', { name: 'Set up background sync', exact: true })).toHaveCount(0);
 });

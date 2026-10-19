@@ -94,6 +94,7 @@ async fn real_two_node_network_authorization_and_restart() {
         computer: false,
         browser: false,
         messages: false,
+        activity: false,
         spaces: false,
     };
     let b_grant = b
@@ -281,6 +282,7 @@ async fn real_three_node_network_entry_failover() {
                 computer: false,
                 browser: false,
                 messages: false,
+                activity: false,
                 spaces: false,
             },
         })

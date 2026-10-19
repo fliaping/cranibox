@@ -676,6 +676,15 @@ impl Api {
     pub async fn get(&self, path: &str) -> Result<Value> {
         self.request(reqwest::Method::GET, path, None).await
     }
+    pub(crate) async fn activity(&self, path: &str) -> Result<Value> {
+        self.request_bounded(
+            reqwest::Method::GET,
+            path,
+            None,
+            crate::peers::activity::MAX_WIRE,
+        )
+        .await
+    }
     pub async fn post(&self, path: &str, body: Value) -> Result<Value> {
         self.request(reqwest::Method::POST, path, Some(body)).await
     }

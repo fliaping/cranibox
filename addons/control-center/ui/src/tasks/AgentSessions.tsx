@@ -35,7 +35,7 @@ export function AgentSessions({ client, node, language, paused, selected = '', o
   const active = (agent: Agent) => !!snapshot && currentAgent(agent, snapshot, clock);
   const valid = !selected || !error && sessions.some(agent => agent.id === selected && active(agent));
   useEffect(() => { onValidChange?.(valid); }, [valid, selected, node, onValidChange]);
-  const status = (agent: Agent) => agent.status === 'ended' ? t('已结束登记', 'Registration ended') : !active(agent) ? t('登记已过期', 'Report expired') : ({ ready: t('报告空闲', 'Reports ready'), busy: t('报告忙碌', 'Reports busy'), waiting: t('报告等待中', 'Reports waiting') } as Record<string, string>)[agent.status];
+  const status = (agent: Agent) => snapshot?.catalog.sync?.state === 'offline' ? t('离线记录 · 状态未确认', 'Offline report · unconfirmed') : agent.status === 'ended' ? t('已结束登记', 'Registration ended') : !active(agent) ? t('登记已过期', 'Report expired') : ({ ready: t('报告空闲', 'Reports ready'), busy: t('报告忙碌', 'Reports busy'), waiting: t('报告等待中', 'Reports waiting') } as Record<string, string>)[agent.status];
   async function copyInstructions() {
     try {
       await navigator.clipboard.writeText(agentRegistrationInstructions(language));
@@ -50,6 +50,7 @@ export function AgentSessions({ client, node, language, paused, selected = '', o
     </select></label>
     <div className="direct-actions"><button type="button" disabled={reading} onClick={() => read.current()}><RefreshCw size={15} aria-hidden="true" />{t('刷新 Agent', 'Refresh Agents')}</button><small>{error ? t('当前目录未确认', 'Current directory unconfirmed') : reading && !snapshot ? t('正在读取会话…', 'Reading sessions…') : sessions.filter(active).length + ' ' + t('条有效登记', 'current registrations')}</small></div>
     {error && <p className="direct-error" role="alert">{error}</p>}
+    {snapshot?.catalog.sync?.state === 'offline' && <p className="direct-note" role="status">{t('当前为离线快照，请恢复连接并刷新后再选择 Agent。', 'Showing an offline snapshot. Reconnect and refresh before selecting an Agent.')}</p>}
     {!valid && <p className="direct-error">{purpose === 'message' ? t('所选会话未确认或已过期。请刷新或等待续期；取消回复后可另发设备消息。', 'The selected session is unconfirmed or expired. Refresh or wait for renewal. Cancel a reply to compose a separate device message.') : t('所选会话未确认或已过期。请刷新、等待其续期，或明确改选设备级委托。', 'The selected session is unconfirmed or expired. Refresh, wait for renewal, or explicitly choose device delegation.')}</p>}
     <p className="direct-note">{purpose === 'message' ? t('消息保留所选会话地址，不会自动唤醒 Agent。会话 UUID 用于筛选收件，不是访问权限；本机仍能读取完整收件箱。', 'The message keeps its session address and does not wake an Agent. Session UUIDs filter messages; they do not restrict access to the local mailbox.') : t('状态由 Agent 主动报告，5 分钟未续期即过期。定向委托仅允许该会话领取，不会自动启动 Agent。', 'Agents report their own state; reports expire after 5 minutes. A targeted task can only be claimed by that session and does not launch an Agent.')}</p>
   </div>;

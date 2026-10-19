@@ -98,7 +98,7 @@ pub struct Catalog {
     pub sessions: Vec<Session>,
 }
 impl Catalog {
-    fn validate(&self, owner: &str) -> Result<()> {
+    pub(super) fn validate(&self, owner: &str) -> Result<()> {
         ensure!(
             self.owner == owner
                 && valid_node_id(owner)
@@ -293,14 +293,7 @@ impl Peers {
                 matches!(command, Command::List {}),
                 "remote Agent registrations are read-only"
             );
-            let catalog: Catalog = serde_json::from_value(
-                self.route(&node)?
-                    .api(&node)?
-                    .get(&format!("/api/v1/nodes/{node}/agent-sessions"))
-                    .await?,
-            )?;
-            catalog.validate(&node)?;
-            return Ok(serde_json::to_value(catalog)?);
+            return self.remote_agents(node, None).await;
         }
         let peers = self.clone();
         tokio::task::spawn_blocking(move || {
@@ -326,7 +319,7 @@ impl Peers {
     }
 }
 pub(crate) fn tools() -> Value {
-    json!([{"name":"device_agent_sessions","description":"Register this Agent with a stable UUID, name and harness on this device. Registrations are explicit reports, not process discovery or execution authority. List with optional node reads an authorized connected device; remote writes are forbidden. Register is idempotent and does not renew an existing lease. Every two minutes call heartbeat with the current revision and ready/busy/waiting status; reports expire after five minutes. After an uncertain heartbeat, reuse its revision and status. Read before changing status. End permanently closes this ID; it does not stop a process or finish tasks. Reports include only public labels and status, never a path, transcript or credential. Receiving a task never starts an Agent; targeted tasks can only be claimed using their registered session UUID.","inputSchema":{"type":"object","oneOf":[
+    json!([{"name":"device_agent_sessions","description":"Register this Agent with a stable UUID, name and harness on this device. Registrations are explicit reports, not process discovery or execution authority. List with optional node reads an authorized connected device and may return an explicitly marked offline snapshot (never a current registration); remote writes are forbidden. Register is idempotent and does not renew an existing lease. Every two minutes call heartbeat with the current revision and ready/busy/waiting status; reports expire after five minutes. After an uncertain heartbeat, reuse its revision and status. Read before changing status. End permanently closes this ID; it does not stop a process or finish tasks. Reports include only public labels and status, never a path, transcript or credential. Receiving a task never starts an Agent; targeted tasks can only be claimed using their registered session UUID.","inputSchema":{"type":"object","oneOf":[
         {"type":"object","properties":{"operation":{"const":"list"},"node":{"type":"string"}},"required":["operation"],"additionalProperties":false},
         {"type":"object","properties":{"operation":{"const":"register"},"id":{"type":"string","format":"uuid"},"name":{"type":"string","maxLength":120},"harness":{"type":"string","maxLength":80}},"required":["operation","id","name","harness"],"additionalProperties":false},
         {"type":"object","properties":{"operation":{"const":"heartbeat"},"id":{"type":"string","format":"uuid"},"revision":{"type":"integer","minimum":1},"status":{"type":"string","enum":["ready","busy","waiting"]}},"required":["operation","id","revision","status"],"additionalProperties":false},
