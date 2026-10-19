@@ -2,7 +2,7 @@
 use crate::{
     Config, catalog, proto,
     route::local::{Pool, retryable},
-    upstream::apikey::{ApiKey, Credential},
+    upstream::apikey::Credential,
 };
 use cranibox_contracts::{
     error::ErrorCode, llm::mgmt::MgmtEvent, llm::*, net::BoxBody, vault::AccountStore,
@@ -309,9 +309,12 @@ impl Engine {
     pub async fn send(
         self: &Arc<Self>,
         provider: &str,
-        request: CanonicalRequest,
+        mut request: CanonicalRequest,
         count: bool,
     ) -> Result<UpstreamResponse, CallError> {
+        if count {
+            Self::normalize_count(&mut request)?;
+        }
         if let Some(router) = &self.routing {
             match router.decide(provider, &request).await {
                 crate::route::RouteDecision::Local => {}
@@ -319,13 +322,12 @@ impl Engine {
                     return Err(CallError::Unavailable(code));
                 }
                 crate::route::RouteDecision::Remote { node } => {
-                    if count {
-                        return Err(CallError::Upstream(UpstreamError::Unsupported));
+                    return if count {
+                        router.forward_count_tokens(&node, provider, request).await
+                    } else {
+                        router.forward(&node, provider, request).await
                     }
-                    return router
-                        .forward(&node, provider, request)
-                        .await
-                        .map_err(|e| match &e {
+                    .map_err(|e| match &e {
                             UpstreamError::Network(code) if code == "claude_node_offline" => {
                                 CallError::Unavailable(ErrorCode::ClaudeNodeOffline)
                             }
@@ -339,12 +341,27 @@ impl Engine {
         }
         self.send_local(provider, request, count).await
     }
+    fn normalize_count(request: &mut CanonicalRequest) -> Result<(), CallError> {
+        if request.wire != Wire::Messages {
+            return Err(CallError::Upstream(UpstreamError::Unsupported));
+        }
+        request.stream = false;
+        request
+            .body
+            .as_object_mut()
+            .ok_or(CallError::Upstream(UpstreamError::Unsupported))?
+            .remove("stream");
+        Ok(())
+    }
     pub async fn send_local(
         self: &Arc<Self>,
         provider: &str,
-        request: CanonicalRequest,
+        mut request: CanonicalRequest,
         count: bool,
     ) -> Result<UpstreamResponse, CallError> {
+        if count {
+            Self::normalize_count(&mut request)?;
+        }
         let session = request.session_id.clone().unwrap_or_else(|| {
             let user = request
                 .body
@@ -381,7 +398,9 @@ impl Engine {
                 let mut cx = self.context(&account.id, None).await?;
                 let endpoints = Credential::decode(&cx.secret)
                     .map(|c| crate::upstream::apikey::endpoints(&cx, &c))?;
-                let target = if account.kind == AccountKind::ApiKey {
+                let target = if count {
+                    Wire::Messages
+                } else if account.kind == AccountKind::ApiKey {
                     if endpoints.contains_key(&request.wire) {
                         request.wire
                     } else {
@@ -396,12 +415,6 @@ impl Engine {
                 } else {
                     *adapter.wires().first().ok_or(UpstreamError::Unsupported)?
                 };
-                if count
-                    && (account.kind != AccountKind::ApiKey
-                        || !endpoints.contains_key(&Wire::Messages))
-                {
-                    return Err(UpstreamError::Unsupported);
-                }
                 let mut outbound = request.clone();
                 outbound.wire = if count { Wire::Messages } else { target };
                 outbound.body = if count {
@@ -418,7 +431,7 @@ impl Engine {
                     node: cx.node.clone(),
                 };
                 let mut response = if count {
-                    ApiKey.send_count(&initial_cx, outbound.clone()).await
+                    adapter.count_tokens(&initial_cx, outbound.clone()).await
                 } else {
                     adapter.send(&initial_cx, outbound.clone()).await
                 };
@@ -427,7 +440,7 @@ impl Engine {
                 {
                     cx = self.context(&account.id, Some(cx.secret.clone())).await?;
                     response = if count {
-                        ApiKey.send_count(&cx, outbound).await
+                        adapter.count_tokens(&cx, outbound).await
                     } else {
                         adapter.send(&cx, outbound).await
                     };

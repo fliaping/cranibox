@@ -38,6 +38,7 @@ impl Handle {
     ) -> Result<UpstreamResponse, crate::ProxyError> {
         self.engine.send_local(provider, request, false).await
     }
+    /// Authorized mesh ingress for token counts; never re-enters remote routing.
     pub async fn dispatch_count_local(
         &self,
         provider: &str,

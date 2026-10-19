@@ -238,6 +238,14 @@ impl LlmMgmt for LocalMgmt {
             )
             .await
     }
+    async fn signin_cancel(&self, flow: &str) -> Result<(), MgmtError> {
+        self.engine
+            .sign_in
+            .as_ref()
+            .ok_or(MgmtError::NotFound)?
+            .cancel(flow)
+            .await
+    }
     async fn signin_complete(
         &self,
         flow: &str,
@@ -334,6 +342,12 @@ async fn signin_complete(
 ) -> Response {
     answer(m.signin_complete(&flow, v).await)
 }
+async fn signin_cancel(State(m): State<LocalMgmt>, Path(flow): Path<String>) -> Response {
+    match m.signin_cancel(&flow).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => failure(e),
+    }
+}
 async fn models(State(m): State<LocalMgmt>) -> Response {
     answer(m.models().await)
 }
@@ -362,6 +376,7 @@ fn router(mgmt: LocalMgmt) -> Router {
         .route(ACCOUNT_ENABLE, post(enable))
         .route(SIGNIN_START, post(signin_start))
         .route(SIGNIN_COMPLETE, post(signin_complete))
+        .route(SIGNIN_CANCEL, post(signin_cancel))
         .route(MODELS, get(models))
         .route(CLAUDE_SET_NODE, post(set_node))
         .route(PRESETS, get(presets))
@@ -529,6 +544,9 @@ impl Client {
         if status == StatusCode::NOT_FOUND {
             return Err(MgmtError::NotFound);
         }
+        if status == StatusCode::NOT_IMPLEMENTED {
+            return Err(UpstreamError::Unsupported.into());
+        }
         if !status.is_success() {
             if let Ok(value) = serde_json::from_slice::<UnavailableBody>(&body) {
                 return Err(MgmtError::Unavailable(value.error.code));
@@ -566,6 +584,11 @@ fn account_path(id: &str, suffix: &str) -> Result<String, MgmtError> {
 }
 #[async_trait::async_trait]
 impl LlmMgmt for Client {
+    async fn signin_cancel(&self, flow: &str) -> Result<(), MgmtError> {
+        account_path(flow, "")?;
+        self.call(http::Method::POST, &format!("/signin/{flow}/cancel"), None)
+            .await
+    }
     async fn status(&self) -> Result<Status, MgmtError> {
         self.call(http::Method::GET, STATUS, None).await
     }
