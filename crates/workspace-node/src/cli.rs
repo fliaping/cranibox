@@ -29,7 +29,9 @@ struct Args {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    run_from(std::env::args().collect()).await
+    // The command tree contains large async states. Keep it off the native
+    // entry thread's stack (particularly the smaller Windows main stack).
+    Box::pin(run_from(std::env::args().collect())).await
 }
 
 pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
@@ -68,7 +70,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             return Ok(());
         }
         Some(agent::Command::Peer { command }) => {
-            return crate::peer::run(peer_path, command).await;
+            return Box::pin(crate::peer::run(peer_path, command)).await;
         }
         command => command,
     };
@@ -97,7 +99,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             agent_workspace_runtime::shutdown_signal().await;
             signal.cancel();
         });
-        node::run_managed_at(settings, control, peer_path).await
+        Box::pin(node::run_managed_at(settings, control, peer_path)).await
     }
 }
 
