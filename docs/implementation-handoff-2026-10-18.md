@@ -2,15 +2,17 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；日期沿用原文件名。先看下方需求表、当前测试、P0/P1/P2 和复现命令，历次成功、失败与诊断见[远端验证记录](remote-workspace-validation-2026-10-18.md)。设计文档中的提案不等于已经实现，本次交接也不表示全部原始需求完成。
 
-当前产品提交是 **a93b863346d6557b824e274611cc46bb904a897f**，已推送 main。本轮为失败、中断和归档的虚拟空间增加修改镜像与拉取策略后重试的 Web/Tauri 共用入口及 CLI 选项；保留身份、凭据和数据卷，已有容器需先归档，引擎检查失败不继续。表单支持错误恢复、焦点恢复与连续点击保护。此前 2299b45 的空间安装生命周期和 55fbe2a 的 VNC 安装修复保持。
+当前产品提交为 **66edf1115c5bc3d6301cbecb219b5abbb522e016**，已推送 main，基于 c04a019。新增任务、消息和协作 Run 的后台只读同步与离线快照，Web/Tauri 共用设置。默认关闭；明确选择设备并获得独立 activity 授权后，关闭页面仍可同步，支持暂停、清空和节点重启恢复。快照绑定连接及凭据，授权拒绝或无效响应会清除，离线显示原始观测时间。此前 a93b863 的虚拟空间镜像恢复、2299b45 的安装生命周期和 55fbe2a 的 VNC 安装修复保持。
 
-当前来源的指定远端验证为 **Rust 187 通过、3 默认忽略，空间后端 11/11，Web 141/141，Tauri 界面 56/56**；两端构建、Rust 四程序、fmt 和原生 Clippy 通过。界面测试含平台响应夹具或模拟 IPC，不代表三平台系统安装、原生 GUI 或跨物理设备验收。完整命令、耗时、失败修正与布局范围见“当前：虚拟空间镜像恢复”。
+本轮指定远端结果为 **Rust 187 项通过、另 3 项默认忽略，Web 143/143，Tauri 界面 56/56，三类后台同步集成 25/25，协作记录协议 6/6**；新增后台同步的八项包含在 25 项中，并在最终 Rust 修正后单独复验通过。两端前端、Rust 四程序、fmt 与原生 Clippy 均通过。界面测试含平台响应夹具或模拟 IPC，不代表三平台系统安装、原生 GUI 或跨物理设备验收。完整命令、耗时、失败修正与版本边界见“当前：协作记录后台同步”。
 
-**2026-10-19 05:25 UTC** 的 CI 快照：当前来源三平台矩阵 **39204312609**、Release **39204312601** 与 GitCode **39204312589** 已触发，均 queued；完整 headSha 为上述 a93b863。上一产品 2299b45 的矩阵 **39199888520** 三项桌面包成功、其余四项排队，同来源 XFCE 双架构只验证 **39200391726** 仍 pending。55fbe2a 的矩阵 **39196468666** 六项成功、Linux Rust 运行中。最近完整成功的产品矩阵仍为 f49341d 的 **39192461791（7/7）**；8566f59 的旧镜像运行 **39193919686** 两架构各 **44/44**。这些旧来源结果不覆盖当前修改；下一位维护者核对现有运行的完整 headSha 和终态，不因排队重复触发。
+**2026-10-19 06:04 UTC** 实查：上述完整提交的三平台矩阵 **39207809642**、Release **39207809787**、GitCode **39207809605** 均已自动触发，目前 queued；未将排队记为通过。后续在 Actions 按该 headSha 查看终态与安装包，无需重复触发。交接文档单独提交，不改变该产品来源。
 
-上一产品 **2299b45** 的 XFCE linux/amd64 完整镜像在指定远端通过 **44/44** 首次启动、授权与重启验收；源码归档两端 SHA-256 一致，四项所属容器/卷已清理，限额 builder 已停止。该镜像不含本轮镜像恢复修改；当前产品完整镜像仍未验证。没有发布或修改公开镜像标签。**2026-10-19 04:41 UTC** 读取 Docker Hub 默认 ubuntu-xfce 的不可变 index、两个平台 manifest 与配置，amd64/arm64 都仍为 c56508c，均缺少 io.cranibox.space-protocol=1，不能用于新建空间；此次只查元数据，未拉取镜像层或启动公开镜像。正式发布与真实拉取仍待验收。
+历史产品 a93b863 的 Release **39204312601** 于 **2026-10-19 05:42 UTC** 结束为 failure：脚本门槛成功，更新 README 链接作业向 main 推送时被 non-fast-forward 拒绝；这是并发推送冲突，不能记为产品测试失败或成功。其三平台矩阵 **39204312609** 在本轮查询时为 in_progress，GitCode **39204312589** 成功。最近确认完整成功的产品矩阵仍为 f49341d 的 **39192461791（7/7）**；8566f59 的旧镜像运行 **39193919686** 两架构各 **44/44**。这些旧来源结果不覆盖当前修改；下一位维护者核对新提交运行的完整 headSha 和终态，不因排队重复触发。
 
-优先剩余项是正常桌面及跨物理设备日用验收、Windows/macOS 提供者与依赖安装、兼容公开镜像；随后是完整同步协议、设备公钥信任和真实 Agent 接续。当前 Windows/macOS 仅有手动桌面准备向导；项目/公开 Agent 目录是后台只读快照，协作记录是在线来源视图；文件复制与非交互任务都不是运行进程迁移。详细状态和完成判据见需求表与优先级表。
+历史产品 **2299b45** 的 XFCE linux/amd64 完整镜像在指定远端通过 **44/44** 首次启动、授权与重启验收；源码归档两端 SHA-256 一致，四项所属容器/卷已清理，限额 builder 已停止。该镜像不含后续镜像恢复和后台协作记录同步；当前产品完整镜像仍未验证。没有发布或修改公开镜像标签。**2026-10-19 04:41 UTC** 读取 Docker Hub 默认 ubuntu-xfce 的不可变 index、两个平台 manifest 与配置，amd64/arm64 都仍为 c56508c，均缺少 io.cranibox.space-protocol=1，不能用于新建空间；此次只查元数据，未拉取镜像层或启动公开镜像。正式发布与真实拉取仍待验收。
+
+优先剩余项是正常桌面及跨物理设备日用验收、Windows/macOS 提供者与依赖安装、兼容公开镜像；随后是完整同步协议、设备公钥信任和真实 Agent 接续。当前 Windows/macOS 仅有手动桌面准备向导；项目、公开 Agent 目录和协作记录均可选后台只读快照，不是全网权威账本复制；文件复制与非交互任务不是运行进程迁移。详细状态和完成判据见需求表与优先级表。
 
 日常 Web/客户端未升级，KDE/Selkies 未重启；所有构建、运行和浏览器测试继续使用指定远端。历史 Linux 安装包的真实窗口结果分别绑定文内提交，不能算作当前包已安装。凭据、原始日志、截图与辅助脚本仅留私有验证目录，不提交仓库。
 
@@ -45,14 +47,14 @@
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复；Ubuntu/Debian 主机安装方案一次性确认、私有状态记录和重启中断提示 | 系统安装与共享分开；退出/超时不主动杀安装进程，不保证系统事务完成，真实认证与包安装尚待验收。不是纯 Rust 跨平台捕获；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用 |
 | Windows/macOS 桌面准备 | Web/Tauri 共用三步向导；UltraVNC Server / macOS 屏幕共享的官方入口、回环端口检查、配置核对和授权跳转；失败重试、IPv6、焦点和窄屏 | 安装和系统权限仍由用户手动完成；只检查 RFB 握手，不验证认证、画面或输入。WSL2 不代表 Windows 原生环境；macOS 系统服务的局域网访问需单独限制，Cranibox 不修改监听或防火墙 |
 | 虚拟空间 | 检测、十分钟一次性安装方案、命令复查、退出/超时中断提示、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；失败/中断/归档后可修改镜像并重试，已有容器需先归档；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已有历史验证；本轮新增恢复场景使用真实 Rust 服务与 Docker 夹具。完整镜像结果分别绑定历史提交。默认公开标签的两架构缺少空间协议标签，不能用于新建空间；需发布兼容镜像并验收，各 OS 系统依赖安装也未验收 |
-| 产品镜像多架构发布 | 默认只验证；amd64/arm64 原生验证可分别选择；正式发布与阿里云镜像均要求两个架构的首次启动、授权及重启通过；按候选 index 与平台 manifest 摘要绑定 | 2299b45 的 XFCE amd64 完整镜像 44/44；8566f59 的原生双架构各 44/44。本轮镜像恢复修改尚未完成完整镜像验证；公开发布与仓库拉取仍须验收 |
+| 产品镜像多架构发布 | 默认只验证；amd64/arm64 原生验证可分别选择；正式发布与阿里云镜像均要求两个架构的首次启动、授权及重启通过；按候选 index 与平台 manifest 摘要绑定 | 2299b45 的 XFCE amd64 完整镜像 44/44；8566f59 的原生双架构各 44/44。当前源码尚未完成完整镜像验证；公开发布与仓库拉取仍须验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
 | 关闭页面后的目录同步 | Rust 节点后台同步项目目录/会话关联与公开 Agent 登记；两套独立设置，明确选择 1–32 个已接入设备，15/30/60/300 秒，共用四路后台并发；暂停和重启恢复 | 默认关闭；只读离线快照不授予执行或当前 Agent 身份，不复制工作文件；凭据/连接变更后需要重新选择 |
 | 项目迁移与接续 | 本机与直连双向、两个远端之间快照复制；清单确认、分块校验、暂停/恢复、持久接收回执；保留 ProjectID 与接续说明 | 当前是显式快照复制，非持续文件同步；上限 2 GiB/单文件 1 GiB，实际集成传输约 20 MiB，未做上限压力测试 |
 | 多 Agent 通信与任务 | 持久消息、线程回复、确认、离线投递、任务委托/领取/进度/问题/回复/结果/合作取消，CLI/MCP 与共享界面 | 不能由普通消息自动启动进程；同一容器中的独立身份验证不等于多台物理设备验收 |
 | Agent 会话与后台执行 | 主动登记/续期、汇总授权会话、后台目录同步与离线标签、定向委托；Codex/Claude Code 非交互适配、启动检查、持久输出与停止；可选独立执行 MCP | 离线登记不代表当前状态，不能据此选择执行 Agent；模型调用与 CLI 登录未实测；不支持运行中追加交互输入、模型检查点恢复或进程迁移 |
 | 多设备协作与自动接单 | 持久协作 Run、任务汇总、统一停止、核对归档、最多八项前置任务；接收端可明确启用按可信发送方和固定目录的后台 worker | 默认关闭；不是通用复杂编排平台；人核对模式与显式自动提案模式分开，退出码不直接等于任务成功 |
-| 跨设备协作记录统一视图 | Web/Tauri 共用按来源的任务/当前报告/问答/结果、消息与 Run 列表；独立 activity 只读授权；CLI、搜索、类型筛选、分页及受限并发刷新 | 默认折叠，最多选择 16 个来源；包含其他发送方正文，授权时明确告知。41b8ca6 Linux 两包已实测任务/第三方消息、类型筛选、撤权清除；原生搜索输入未验收。没有离线缓存或复制，同一任务的不同来源报告不合成全局状态，无新增 MCP 工具 |
+| 跨设备协作记录统一视图 | Web/Tauri 共用任务/报告/问答/结果、消息与 Run 来源视图；独立 activity 只读授权；CLI、筛选/分页及默认关闭的后台同步、私有离线快照、暂停/清空 | 页面最多选择 16 个来源，后台策略最多 32 台；包含其他发送方正文，需明确选择才缓存。快照绑定连接和凭据，拒绝/无效响应后清除；离线期间无法立即知道撤权。来源报告不合成全局状态，无权威账本复制或新增 MCP。41b8ca6 两包的历史真实窗口验收不覆盖本轮后台设置，原生搜索输入仍未验收 |
 | 各节点 Agent 共享 Computer Use | 独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连。12 项后端专项使用动作夹具；a8a97f5 .deb 另通过真实 KDE 截图、输入、MCP、重启保留停止，AppImage 通过 GUI 节点宿主及真实 MCP 截图；管理面板完整停止/恢复 IPC 的两包验收仍绑定 3c1a38d。多物理设备、模型调用及 Windows/macOS 提供者待验收 |
 | 各节点 Agent 共享 Browser Use | 独立 browser 授权、目标回环 Chromium CDP、鉴权 WebSocket、单远程控制者、跨重启保留停止；调用方经临时回环代理运行固定版本官方 MCP，Web/Tauri 共用管理 | 真实 Linux Chromium 的打开页面、快照、填表、提交、PNG 与停止通过；只走直连。授权覆盖共享浏览器全部标签页和会话；无自动安装/启动、域名隔离或旧网关转发。Windows/macOS、跨物理设备及真实模型待验收 |
 | agent-desktop-bridge 是否可删除 | 现有桥接继续保留，并作为 Computer Use 的明确配置提供者；VNC 是桌面传输通道 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
@@ -61,7 +63,33 @@
 
 ## 测试情况与可信范围
 
-### 当前：虚拟空间镜像恢复（2026-10-19）
+### 当前：协作记录后台同步（2026-10-19）
+
+针对关页面后仍需查看各设备任务、消息与 Run 的需求，新增独立 activity_sync 策略。设备侧必须允许 activity 只读能力；messages 授权不会自动扩大。后台最多选择 32 台设备，与项目及 Agent 同步交错调度，共享四路并发。Web/Tauri 共用设置：默认折叠、明确告知缓存完整正文，支持间隔、设备、暂停和清空；CLI 为 `cranibox-node peer activity-sync`。协议及命令见[协作记录](federated-activity.md)。
+
+暂停保留设备和快照，停止新的后台读取；已选设备的手动读取仍可更新快照。清空会停止同步并删除快照；移除设备、忘记连接、变更路径或凭据也会删除对应缓存。读取前后校验策略版本与连接绑定，避免清空、忘记或令牌轮换期间的迟到响应重新写入。授权拒绝、身份不匹配、摘要或内容校验失败不使用旧缓存；网络故障才允许显示明确标记的离线副本。离线期间不能即时知道远端撤权，快照不授予执行能力。
+
+| 检查 | 最终结果 | 范围与限制 |
+| --- | --- | --- |
+| Rust 工作区 | **187 通过、3 默认忽略，33.623 秒** | 最终 Rust 源码；18 个目标，排除 cranibox-node-desktop Rust 测试 |
+| 新增后台协作记录集成 | **8/8，无跳过，85.474 秒** | 最终四程序；默认关闭、页面/网关退出、独立节点重启、暂停/清空、离线、拒绝/篡改及迟到响应 |
+| 三类后台同步集成 | **25/25，无跳过，260.631 秒** | test_background_*_sync.py；包含新增八项，共享四路并发；等价 Clippy 修正前程序 |
+| 协作记录协议集成 | **6/6，无跳过，285.556 秒** | test_federated_activity.py；真实 Rust、授权、限额与大目录；等价 Clippy 修正前程序 |
+| Web 界面全量 | **143/143，347.936 秒** | 真实 Rust Web 与可控响应，含新增两项设置/离线回归；最终前端资源，等价 Clippy 修正前程序 |
+| Tauri 界面全量 | **56/56，132.133 秒** | 模拟 IPC；扩展协作记录的设置、暂停、清空和离线状态，不是原生 GUI |
+| 两端前端构建 | **通过，15.752 / 15.421 秒** | TypeScript/Vite；Web 生成资源取回提交，无新依赖 |
+| Rust 四程序构建 | **通过，27.468 秒** | 最终源码与前端资源；cranibox、cranibox-node、workspace-runtime、workspace-web |
+| fmt / 原生 Clippy | **通过，1.127 / 18.996 秒** | fmt --all --check；desktop,custom-protocol --all-targets -D warnings |
+
+全量界面、25 项同步和六项协议之后仅将一处嵌套 if 改为 Clippy 要求的等价 let-chain，未改变行为、测试或前端资源。修正前源码和程序摘要保存在各自报告；最终 Rust、四程序、新增八项、fmt/Clippy 另行复验，不把两批程序视为同一个二进制。各报告均记录开始/结束源码与开始时程序、资源摘要，source_unchanged=true。
+
+首轮界面专项为 **4 通过、2 失败，42.851 秒**：预览启动时 Rust 仍在编译，加载的是旧内嵌资源；等待最终资源嵌入后，全量 143 项通过，没有更改断言或超时。首次原生 Clippy 报 collapsible_if，改为等价 let-chain 后复验；两次失败的日志与 trace 均保留。
+
+布局覆盖 375/768/1440 像素、明暗主题、无横向溢出与至少 44 像素操作控件。人工审阅 375 亮色与 1440 暗色的设置截图；这是浏览器响应式检查，不是手机或新原生包的真实窗口验收。私有证据目录为 **/config/validation-artifacts/background-activity-sync-20261019**，不提交凭据、原始日志、截图或辅助脚本。
+
+收尾健康通过：容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200，所属进程为空、无测试安装包。日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 保持，KDE/Selkies 未重启。环境与本机/远端源码、生成资源及测试报告的核对记录为同目录 final-health.json、final-source-manifest.json。当前完整产品镜像、三平台实机和物理组网尚未补验，不沿用历史版本成功。先处理下方 P0，完整账本复制、公钥信任及真实 Agent 接续继续留在 P1/P2。
+
+### 上一轮：虚拟空间镜像恢复（2026-10-19）
 
 失败、中断或归档的空间可修改镜像与拉取策略，再启动原空间。CLI 为 `cranibox-node space resume SPACE_UUID --image cranibox-current:test --pull-policy never`；选项可省略，旧调用保持兼容。修改前必须确认容器不存在：已有容器需先归档，引擎查询失败直接返回错误。UUID、NodeID、凭据及数据卷保持，不自动迁移卷内应用数据，也不自动升级正在使用的容器。
 
@@ -162,7 +190,7 @@ Build Multi-Arch Image **39193919686** 绑定完整来源 **8566f59998b4b6884f95
 
 完整来源 **f49341d107e64309f4e04d16c3acef0ff95f2e73** 的矩阵 **39192461791** 从 2026-10-19T02:58:37Z 运行至最终更新 **03:20:50Z**，completed/success，**7/7**。同来源 Release **39192461685**、GitCode **39192461704** 均成功；Release 是脚本检查，不发布公开空间镜像。已下载 Linux Rust、Linux Tauri 和 Wayland 三份最终作业日志核对。
 
-| 检查 | 当前产品 CI 结果 | 范围 |
+| 检查 | 该历史提交 CI 结果 | 范围 |
 | --- | --- | --- |
 | Rust 工作区 | **185 通过、4 默认忽略** | 忽略项不计入 185；EasyTier、GIO 与资源测量另有显式执行 |
 | Web 界面全量 | **137/137，2.8 分钟** | 真实 Rust Web；新平台状态仍由夹具提供 |
@@ -172,7 +200,7 @@ Build Multi-Arch Image **39193919686** 绑定完整来源 **8566f59998b4b6884f95
 | 真实 Chromium / X11 VNC / Sway Wayland | **各 1/1** | 隔离场景；不代表 Windows/macOS 提供者 |
 | 资源测量与其他 Linux 集成 | 通过 | 资源报告已上传，不代表规模和长时耐久性 |
 
-Actions 运行 **39192461791** 共 **10 份 artifact**：三平台各自的 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包，以及 resource-baseline-linux。Windows 桌面包为 NSIS .exe，macOS 为 .dmg，Linux 为 .deb/AppImage。最新 Linux 桌面 artifact 为 **12161225440**；这里只确认构建成功，未把历史真实窗口验收改写为此新包已安装。三平台系统权限、实际桌面、登录/休眠与多物理设备仍按 P0/P1 验收。
+Actions 运行 **39192461791** 共 **10 份 artifact**：三平台各自的 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包，以及 resource-baseline-linux。Windows 桌面包为 NSIS .exe，macOS 为 .dmg，Linux 为 .deb/AppImage。该次 Linux 桌面 artifact 为 **12161225440**；这里只确认构建成功，未把历史真实窗口验收改写为此包已安装。三平台系统权限、实际桌面、登录/休眠与多物理设备仍按 P0/P1 验收。
 
 镜像门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 的 Build Multi-Arch Image **39193919686** 已明确以 desktop=xfce、architecture=all、publish=false 触发；在 **2026-10-19T03:21:17Z** 的历史快照中，amd64/arm64 两项均 queued，同来源 Release **39193888500** 与 GitCode **39193888594** 也 queued。该镜像运行后来已成功，见上节最终验收；此前排队快照保留，未更新公开标签。
 
@@ -513,7 +541,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | P0 | 发布兼容的公开产品镜像并验收 | 2026-10-19 04:41 UTC 的默认公开标签两个架构均缺少空间协议标记，无法新建空间；已有空间现在可显式更换兼容镜像。2299b45 的远端 XFCE amd64 完整镜像已 44/44，同来源双架构只验证运行 39200391726 仍需核对。本轮产品修改尚未完成完整镜像验证；固定待发布来源、核对两架构与启动报告后，再正式发布并完成真实拉取，不删除协议保护 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
 | P1 | Tailscale 系统安装/登录与 EasyTier 多设备 | 干净的三平台主机验证方案确认、管理员授权、取消/失败恢复、系统服务、Tailnet 互访与目标授权；不能以夹具代替系统安装 |
-| P1 | 完整统一视图与同步协议 | 项目和公开 Agent 目录已有后台只读快照；任务/消息/Run 新增独立 activity 授权的在线来源视图。继续定义完整复制的权威、版本、删除、冲突及撤权规则，明确是否需要后台只读缓存；不能把摘要当签名或时钟、来源报告当全局状态，也不能扩大旧 messages 权限 |
+| P1 | 完整统一视图与同步协议 | 项目、公开 Agent 目录及任务/消息/Run 均已有默认关闭的后台只读快照；协作记录需独立 activity 授权和明确选择。继续定义权威账本复制的版本、删除、冲突及撤权规则，评估增量传输、存储容量和多物理设备恢复；不能把摘要当签名或时钟、来源报告当全局状态，也不能扩大旧 messages 权限 |
 | P1 | 设备信任与能力提供者 | 公钥配对、签名身份、轮换/撤销；Computer Use、Browser Use 在多物理设备与 Windows/macOS 验收，完善依赖引导。cua-driver 是否替换现有桥接需独立评估 |
 | P2 | Agent 会话接续与运行交互 | 实测具体 CLI 登录和模型调用；检查点、项目文件/上下文一致性、目标启动及源端停止有明确状态。当前不支持移动原进程或向运行中 Agent 追加交互输入 |
 | P2 | 交互、规模与测试稳定性 | 补验原生协作记录搜索输入、普通鼠标/键盘类型选择、Run 详情与分页；按日常流程检查长清单和错误恢复，评估大量设备/文件。定位协作记录大数据准备在并行负载下的 8 秒 HTTP 超时；若 Wayland 认证或 KDE 输入超时重现，也应定位原故障，不以放宽超时或重跑通过代替修复 |
@@ -532,8 +560,8 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | crates/workspacectl、crates/workspace-services | Rust 控制工具与服务兼容管理 |
 | crates/workspace-runtime/src/peers、projects | 连接、目标授权客户端、消息/任务/项目账本、文件复制与后台同步配置 |
 | crates/workspace-node/src/{local.rs,peer,network,spaces,supervisor.rs,task_worker.rs,project_sync.rs} | 节点宿主、直连服务、网络/空间、进程、自动接单与后台目录调度 |
-| crates/workspace-runtime/src/peers/{project_sync.rs,agent_snapshots.rs}；addons/control-center/ui/src/projects/ProjectSync.tsx | 项目/Agent 两套独立同步策略、凭据绑定只读快照与两端共用的配置/状态界面；专项 tests/test_background_agent_sync.py |
-| crates/workspace-runtime/src/peers/activity.rs；crates/workspace-node/src/peer/server/activity.rs；addons/control-center/ui/src/tasks/FederatedActivity.tsx | 只读协作记录协议、目标独立授权与请求后连接复查、Web/Tauri 来源视图；专项 tests/test_federated_activity.py |
+| crates/workspace-runtime/src/peers/{project_sync.rs,agent_snapshots.rs,activity_snapshots.rs}；addons/control-center/ui/src/projects/ProjectSync.tsx | 项目/Agent/协作记录三套独立同步策略，共享四个后台并发；凭据绑定只读快照与两端配置/状态；专项 tests/test_background_{project,agent,activity}_sync.py |
+| crates/workspace-runtime/src/peers/activity.rs；crates/workspace-node/src/peer/server/activity.rs；addons/control-center/ui/src/tasks/FederatedActivity.tsx | 只读协作记录协议、目标独立授权与请求后连接/策略复查、Web/Tauri 来源和离线标识；专项 tests/test_federated_activity.py |
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/{selkies.rs,selkies/output.rs}；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、有界画面合并、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
@@ -588,7 +616,7 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked -p cranibox-node-desktop --features desktop,custom-protocol --bin cranibox-node-desktop desktops::tests
 cargo clippy --locked -p cranibox-node-desktop --features desktop,custom-protocol --all-targets -- -D warnings
 python3 -m unittest test_remote_desktops test_desktop_relay test_desktop_service -v
-python3 -m unittest test_background_agent_sync test_background_project_sync test_project_catalog_sync test_device_tasks test_task_worker_mcp -v
+python3 -m unittest test_background_activity_sync test_background_agent_sync test_background_project_sync test_project_catalog_sync test_device_tasks test_task_worker_mcp -v
 python3 -m unittest test_federated_activity test_device_tasks test_device_messages test_collaboration_runs -v
 npm test --prefix apps/node-desktop
 npm test --prefix addons/control-center/ui
