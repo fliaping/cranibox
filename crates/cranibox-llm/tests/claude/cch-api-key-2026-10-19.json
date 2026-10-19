@@ -1,0 +1,75 @@
+{
+  "at": "2026-10-19T10:00:12Z",
+  "scope": "official CLI to isolated loopback mock; no real upstream or account",
+  "package": "@anthropic-ai/claude-code-linux-x64",
+  "version": "2.1.303",
+  "archive_sha256": "2b073f9f6c68882f94a31dbd1b625fa5b8df078715e487aa68e3b0530d0b43f3",
+  "runs": [
+    {
+      "prompt": "Reply OK only.",
+      "exit_code": 0,
+      "requests": [
+        {
+          "path": "/v1/messages?beta=true",
+          "model": "claude-sonnet-4-5",
+          "billing": [
+            "x-anthropic-billing-header: cc_version=2.1.303.41b; cc_entrypoint=sdk-cli;"
+          ],
+          "auth_scheme": "",
+          "api_key_header": true,
+          "cch_header_names": [],
+          "cch_json_keys": [],
+          "cch": [],
+          "body_sha256": "ba3b0bce603f788127758626d404f0e5e375df7e1a348237d7a57a7d2e472558",
+          "stream": true
+        }
+      ],
+      "stdout_is_json": true,
+      "stderr_tail": ""
+    },
+    {
+      "prompt": "Reply OK only.",
+      "exit_code": 0,
+      "requests": [
+        {
+          "path": "/v1/messages?beta=true",
+          "model": "claude-sonnet-4-5",
+          "billing": [
+            "x-anthropic-billing-header: cc_version=2.1.303.41b; cc_entrypoint=sdk-cli;"
+          ],
+          "auth_scheme": "",
+          "api_key_header": true,
+          "cch_header_names": [],
+          "cch_json_keys": [],
+          "cch": [],
+          "body_sha256": "0c22ecc62949bb5a78b6f6262d4fe7d41a234d4b4050de15f2be15faee23ad50",
+          "stream": true
+        }
+      ],
+      "stdout_is_json": true,
+      "stderr_tail": ""
+    },
+    {
+      "prompt": "Reply HELLO only.",
+      "exit_code": 0,
+      "requests": [
+        {
+          "path": "/v1/messages?beta=true",
+          "model": "claude-sonnet-4-5",
+          "billing": [
+            "x-anthropic-billing-header: cc_version=2.1.303.eeb; cc_entrypoint=sdk-cli;"
+          ],
+          "auth_scheme": "",
+          "api_key_header": true,
+          "cch_header_names": [],
+          "cch_json_keys": [],
+          "cch": [],
+          "body_sha256": "b8b512ded36fc9c7abd217125b7a3985888bba497e0240d45481d9c7d8f0b5e0",
+          "stream": true
+        }
+      ],
+      "stdout_is_json": true,
+      "stderr_tail": ""
+    }
+  ]
+}
