@@ -654,3 +654,7 @@ docker start agent-workspace
 - [GitHub](https://github.com/fliaping/cranibox)
 
 Browser terminal and unified Rust server: [Persistent browser terminals: React + xterm.js + herdr](docs/web-terminal-and-unified-server.md).
+
+## License
+
+Cranibox source code is licensed under the [Apache License 2.0](LICENSE). Copyright © 2026 fliaping (see [NOTICE](NOTICE)). Third-party components bundled in container images and desktop builds keep their own licenses; see [docs/licenses](docs/licenses/).

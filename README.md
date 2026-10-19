@@ -615,3 +615,7 @@ docker start agent-workspace
 - [GitHub](https://github.com/fliaping/cranibox)
 
 浏览器终端与统一 Rust 服务端：[React + xterm.js、服务端 herdr 与客户端原生 PTY](docs/web-terminal-and-unified-server.md).
+
+## 许可证
+
+Cranibox 源代码采用 [Apache License 2.0](LICENSE) 授权，版权所有 © 2026 fliaping（见 [NOTICE](NOTICE)）。镜像与桌面包中捆绑的第三方组件保留各自的许可证，见 [docs/licenses](docs/licenses/)。
