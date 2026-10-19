@@ -40,7 +40,12 @@ cleanup() {
   sleep 1
   for pid in "${PIDS[@]}"; do kill -9 "$pid" 2>/dev/null; done
   [ -f "$WORK/nginx.pid" ] && kill "$(cat "$WORK/nginx.pid")" 2>/dev/null
-  for ns in hub a b lan; do ip netns del "$P-$ns" 2>/dev/null; done
+  # `ip netns exec` children can outlive their wrapper: kill whatever is still inside.
+  for ns in hub a b lan; do
+    pids=$(ip netns pids "$P-$ns" 2>/dev/null)
+    [ -n "$pids" ] && kill -9 $pids 2>/dev/null
+    ip netns del "$P-$ns" 2>/dev/null
+  done
   if [ "${KEEP:-0}" = 1 ] || [ "${FAILED:-0}" = 1 ]; then echo "logs kept in $WORK"; else rm -rf "$WORK"; fi
 }
 trap cleanup EXIT
