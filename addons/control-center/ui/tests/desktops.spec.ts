@@ -465,8 +465,8 @@ test('managed VNC reviews installation and preserves startup settings for recove
   await page.route('**/api/desktop/service', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
     let value: unknown = status;
-    if (command.operation === 'plan') value = { commands: 'pkexec /bin/sh -c \'apt-get install x11vnc\'', summary: 'Install x11vnc from this system’s package repositories.' };
-    if (command.operation === 'install') status.phase = 'installing';
+    if (command.operation === 'plan') value = { id: 'x11-install-plan', expires_in_seconds: 600, commands: 'pkexec /bin/sh -c \'apt-get install x11vnc\'', summary: 'Install x11vnc from this system’s package repositories.' };
+    if (command.operation === 'install') { expect(command.plan_id).toBe('x11-install-plan'); status.phase = 'installing'; }
     if (command.operation === 'start') {
       if (rejectStart) { await route.fulfill({ status: 400, json: { error: 'X11 display is unavailable. Check XAUTHORITY and retry.' } }); return; }
       Object.assign(status, { managed: true, enabled: true, running: true, phase: 'running', display: command.display, port: command.port });
@@ -570,6 +570,50 @@ test('Selkies Wayland guidance avoids VNC installation and keeps existing server
   expect(errors).toEqual([]);
 });
 
+test('VNC installation explains interrupted work and requires a fresh plan after expiry', async ({ page }) => {
+  const commands: any[] = [], errors: string[] = [];
+  const status = { platform: 'linux', supported: true, installed: false, can_install: true, display: ':42', wayland: false, managed: false, enabled: false, running: false, phase: 'failed', port: 5900, error: 'The node restarted during VNC installation.', installation: { phase: 'interrupted' } };
+  let reviews = 0;
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'plan') return route.fulfill({ json: { id: 'plan-' + ++reviews, expires_in_seconds: 600, commands: 'pkexec /bin/sh -c apt-get', summary: 'Install x11vnc' } });
+    if (command.operation === 'install') {
+      if (command.plan_id === 'plan-1') return route.fulfill({ status: 400, json: { error: 'The VNC installation plan changed or expired. Review a new plan.' } });
+      expect(command.plan_id).toBe('plan-2');
+      Object.assign(status, { phase: 'installing', error: null, installation: { phase: 'running' } });
+    }
+    await route.fulfill({ json: status });
+  });
+  await page.goto('/#/desktop');
+  const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
+  await expect(section.getByRole('alert')).toContainText('Installation will not repeat automatically');
+  await page.reload();
+  await expect(section.getByRole('alert')).toContainText('Check your package manager');
+  expect(commands.every(command => command.operation === 'status')).toBe(true);
+  const prepare = section.getByRole('button', { name: 'Prepare x11vnc installation', exact: true });
+  await prepare.click();
+  await expect(section.getByLabel('Review VNC installation')).toContainText('valid for ten minutes');
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await section.screenshot({ path: '/tmp/cranibox-vnc-install-recovery-' + width + '-' + theme + '.png', animations: 'disabled' });
+    }
+  }
+  await section.getByRole('button', { name: 'Confirm and install', exact: true }).click();
+  await expect(section.getByLabel('Review VNC installation')).toHaveCount(0);
+  await expect(section.getByRole('alert').filter({ hasText: 'expired' })).toBeVisible();
+  await expect(prepare).toBeFocused();
+  await prepare.click();
+  await section.getByRole('button', { name: 'Confirm and install', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText('Exiting the node leaves the system installer running');
+  expect(commands.filter(command => command.operation === 'install')).toEqual([{ operation: 'install', plan_id: 'plan-1' }, { operation: 'install', plan_id: 'plan-2' }]);
+  expect(commands.some(command => command.operation === 'start')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
 test('Wayland sharing reviews wayvnc and retains display output and private credentials', async ({ page }) => {
   const commands: any[] = [], errors: string[] = [];
   const status = { provider: 'wayvnc', package: 'wayvnc', platform: 'linux', supported: true, installed: false, can_install: true, display: 'wayland-0', output: '', wayland: true, username: 'cranibox', managed: false, enabled: false, running: false, phase: 'stopped', port: 5900 };
@@ -578,8 +622,8 @@ test('Wayland sharing reviews wayvnc and retains display output and private cred
   await page.route('**/api/desktop/service', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
     let value: unknown = status;
-    if (command.operation === 'plan') value = { commands: "pkexec /bin/sh -c 'apt-get install wayvnc'", summary: 'Install wayvnc from system repositories.' };
-    if (command.operation === 'install') status.phase = 'installing';
+    if (command.operation === 'plan') value = { id: 'wayland-install-plan', expires_in_seconds: 600, commands: "pkexec /bin/sh -c 'apt-get install wayvnc'", summary: 'Install wayvnc from system repositories.' };
+    if (command.operation === 'install') { expect(command.plan_id).toBe('wayland-install-plan'); status.phase = 'installing'; }
     if (command.operation === 'start') {
       if (rejectStart) { await route.fulfill({ status: 400, json: { error: 'Wayland output is unavailable. Check the wlroots login session.' } }); return; }
       Object.assign(status, { managed: true, enabled: true, running: true, phase: 'running', display: command.display, output: command.output, port: command.port });

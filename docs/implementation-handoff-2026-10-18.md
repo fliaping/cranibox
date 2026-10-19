@@ -2,7 +2,9 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-交接版本：最新产品代码为 **f49341d107e64309f4e04d16c3acef0ff95f2e73**，三平台 Rust、三平台 Tauri 和独立 Wayland 的矩阵 **39192461791 已 7/7 成功**，最终更新于 **2026-10-19T03:20:50Z**。随后 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 只补镜像验收门槛；其 XFCE 双架构只验证运行 **39193919686** 在 **03:21 UTC** 的交接快照仍为 queued。两者均已推送 origin/main；最后补记只改文档。下一位维护者先核对该镜像运行，再按下方 P0/P1/P2 继续；不能把排队、打包成功或交接整理计为全部需求完成。
+本次交接在 **37718debd6e1881bbb6977e00a8e624bc0f1ae89** 基线上修复 Linux VNC 安装的退出、超时和重启恢复：系统安装事务与节点监控分开，执行前保存私有记录，安装要求提供者绑定、十分钟有效的一次性方案；Web/Tauri 共用中断提示与重新准备流程。当前验证见下文“VNC 安装生命周期”；本次没有实际执行系统包安装或升级日常程序。源码、测试、生成资源和本文一起提交，完整提交号以当前 Git 记录为准。
+
+最近已完成三平台 CI 的产品提交仍是 **f49341d107e64309f4e04d16c3acef0ff95f2e73**，矩阵 **39192461791 已 7/7 成功**，最终更新于 **2026-10-19T03:20:50Z**；该结论不包含本次 VNC 修复。镜像门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 的 XFCE 双架构只验证运行 **39193919686** 本轮查询仍为 queued。下一位维护者先核对本次提交的 CI 和该镜像运行，再按 P0/P1/P2 继续；不能把排队、打包成功或交接整理计为全部需求完成。
 
 最新收尾补齐[多架构镜像验收门槛](workspace-image-release.md)：仅验证模式可选择 amd64/arm64 原生 runner，发布模式及阿里云镜像都必须按不可变候选摘要分别验收两个架构后才更新标签。检查器回归 **22/22**，指定远端既有完整 XFCE 镜像的 amd64 启动、授权与重启 **44/44**，错误的 arm64 请求在创建资源前被拒绝。该镜像来源仍是旧提交 18c3216；这不是当前产品镜像重建、真实 arm64 通过或公开发布记录。默认公开镜像的兼容性问题继续保留。
 
@@ -50,7 +52,7 @@
 | 常驻托盘与登录自启动 | Tauri 窗口关闭到托盘、重连、明确退出、用户登录后自启动配置 | 84454e6 的 Linux .deb/AppImage 已通过正常 KDE D-Bus 的托盘注册/唤回、Wayland 窗口关闭到托盘、单实例、退出确认、自启开关及 GIO 启动项静默启动，重启身份保持；配置使用隔离 XDG，AppImage 使用无 FUSE 兼容模式。实际登录、休眠、网关断线恢复及 Windows/macOS 仍待实测 |
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
 | 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；已有本机服务的 IPv4/IPv6 检测、配置核对及保存前复查；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
-| 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用，见远程桌面文档 |
+| 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复；Ubuntu/Debian 主机安装方案一次性确认、私有状态记录和重启中断提示 | 系统安装与共享分开；退出/超时不主动杀安装进程，不保证系统事务完成，真实认证与包安装尚待验收。不是纯 Rust 跨平台捕获；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用 |
 | Windows/macOS 桌面准备 | Web/Tauri 共用三步向导；UltraVNC Server / macOS 屏幕共享的官方入口、回环端口检查、配置核对和授权跳转；失败重试、IPv6、焦点和窄屏 | 安装和系统权限仍由用户手动完成；只检查 RFB 握手，不验证认证、画面或输入。WSL2 不代表 Windows 原生环境；macOS 系统服务的局域网访问需单独限制，Cranibox 不修改监听或防火墙 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过。默认公开标签的 amd64 镜像已确认缺少空间协议标签，当前无法用它新建空间；需发布兼容镜像并验收，各 OS 系统依赖安装也未验收 |
 | 产品镜像多架构发布 | 默认只验证；amd64/arm64 原生验证可分别选择；正式发布与阿里云镜像均要求两个架构的首次启动、授权及重启通过；按候选 index 与平台 manifest 摘要绑定 | 新门槛回归及旧镜像 amd64 实测已过；真实 arm64 工作流、当前产品完整镜像及公开标签仍须逐项验收，不因代码存在就记作发布成功 |
@@ -69,7 +71,27 @@
 
 ## 测试情况与可信范围
 
-### 最新产品提交的最终 CI 与安装包
+### 当前：VNC 安装生命周期（2026-10-19）
+
+全部构建、运行和浏览器测试继续位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户。本机只做编辑、静态审阅、文件传输与 Git；使用独立配置、端口和进程。
+
+| 检查 | 结果 | 范围与限制 |
+| --- | --- | --- |
+| Rust 工作区 | **184 通过、3 默认忽略，126.077 秒** | `cargo test --offline --workspace --exclude cranibox-node-desktop`；18 个目标，未运行 Tauri Rust 测试。新增安装单元测试包含在内，不和专项重复累计 |
+| VNC Rust 专项 | **7/7，51.666 秒含编译** | 四项新生命周期测试、三项提供者测试；shell 夹具验证监控退出/超时后事务继续，不执行 pkexec/APT |
+| 桌面服务后端 | **12/12，无跳过，29.692 秒** | 真实 Rust Web/节点、隔离提供者；重启或损坏记录不重放，不生成共享配置/密码 |
+| Web 桌面专项 | **18/18，109.066 秒** | 真实 Rust Web 与桌面协议夹具；安装状态可控。方案过期、重试、焦点和 375/768/1440 明暗主题均覆盖；未重跑全部 Web 测试 |
+| 客户端界面全量 | **54/54，139.032 秒** | 模拟 Tauri IPC；新增安装核对和当前 plan_id 传递，不代表原生 GUI/系统安装验收 |
+| 两端前端与 Rust 构建 | 通过 | React/TypeScript、已提交 Web 生成资源、四个 Rust 程序；既有大包和依赖 use client 提示保留 |
+| Rust 格式与原生 Clippy | 通过；1.400 / 12.283 秒 | `cargo fmt --all -- --check`；原生 `desktop,custom-protocol --all-targets -D warnings`，无放宽 |
+
+安装方案不持久化、不自动执行；重新准备、提供者改变、超时或重启均要求重新核对。执行前必须私有写入安装记录，写入失败不启动命令；重启时无法确认的记录仅提示检查系统软件包管理器。停止共享不会重放安装。监控退出不主动终止系统事务，系统关机或服务管理器仍可影响它。真实系统认证、取消及 APT 包事务仍未验收，不能以 shell 替身通过代替。
+
+私有证据 **/config/validation-artifacts/vnc-installation-lifecycle-20261019** 保存命令、耗时、日志与源码摘要；六份布局截图最初在远端 /tmp/cranibox-vnc-install-recovery-*，只用于安装面板，不能作为完整首屏或真实手机验收。人工审阅 375 亮色与 1440 暗色，正文、命令核对和确认操作可读；顶栏遮盖截图顶部，完整首屏仍需独立检查。没有在本轮重新安装 CI 原生包、改动全局键鼠或剪贴板。
+
+最终环境核对：容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200；日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 保持，KDE/Selkies 未重启，所属测试进程为空、无测试安装包残留。记录保存为同目录 final-health.json。
+
+### 上一产品提交的最终 CI 与安装包
 
 完整来源 **f49341d107e64309f4e04d16c3acef0ff95f2e73** 的矩阵 **39192461791** 从 2026-10-19T02:58:37Z 运行至最终更新 **03:20:50Z**，completed/success，**7/7**。同来源 Release **39192461685**、GitCode **39192461704** 均成功；Release 是脚本检查，不发布公开空间镜像。已下载 Linux Rust、Linux Tauri 和 Wayland 三份最终作业日志核对。
 
@@ -89,7 +111,7 @@ Actions 运行 **39192461791** 共 **10 份 artifact**：三平台各自的 cran
 
 最终 CI JSON、artifact 清单、上述三份日志及排队快照保存在私有 **/config/validation-artifacts/image-platform-gate-20261019**。本节仅补文档，不重跑已通过的产品检查。
 
-### 当前：多架构镜像验收门槛（2026-10-19）
+### 上一轮：多架构镜像验收门槛（2026-10-19）
 
 本轮基于产品提交 **f49341d107e64309f4e04d16c3acef0ff95f2e73**；只修改镜像工作流、检查器、回归与文档，没有改 Rust/React 产品代码、生成资源或依赖。构建/运行仍在指定远端；Docker 启动验收由同一远端宿主机控制隔离临时容器，没有将 Docker socket 挂入日常容器。
 
@@ -449,6 +471,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/{selkies.rs,selkies/output.rs}；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、有界画面合并、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
 | crates/workspace-node/src/desktop_service/{discovery.rs,provider.rs}；addons/control-center/ui/src/desktop/{ExistingDesktopServices.tsx,RemoteDesktopsView.tsx} | 常用回环地址和已保存服务的有界检测、提供者兼容性；共用配置核对、取消与保存前协议检查 |
+| crates/workspace-node/src/desktop_service/setup.rs；addons/control-center/ui/src/desktop/DesktopServicePanel.tsx | VNC 一次性安装方案、私有安装记录、监控退出/超时与重启中断提示；两端共用核对/错误恢复，专项 tests/test_desktop_service.py |
 | addons/control-center/ui/src/desktop/DesktopPlatformGuide.tsx；apps/node-desktop/src-tauri/src/main.rs | Windows/macOS 三步准备向导；Tauri 通过固定文档标识打开官方页面，复用原有服务检查和保存入口；Web desktops.spec.ts / 原生 client.spec.ts 覆盖引导流程 |
 | addons/control-center/ui/src/desktop/{DesktopClipboard.tsx,clipboard.ts,VncViewer.tsx} | Web/Tauri 共用纯文本剪贴板面板、UTF-8 限制、明确复制及连接生命周期；Web desktops.spec.ts、原生 client.spec.ts 为夹具/模拟 IPC 回归 |
 | crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |

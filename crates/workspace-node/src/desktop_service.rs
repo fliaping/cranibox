@@ -1,6 +1,7 @@
 //! User-owned VNC process. Its lifetime follows the local node, not a viewer or relay.
 mod discovery;
 mod provider;
+mod setup;
 pub use provider::Provider;
 
 use agent_workspace_runtime::{
@@ -35,7 +36,9 @@ pub enum Command {
         protocol: DesktopProtocol,
     },
     Plan {},
-    Install {},
+    Install {
+        plan_id: String,
+    },
     Start {
         display: String,
         port: u16,
@@ -113,13 +116,14 @@ struct Manager {
     retries: u8,
     next_retry: Instant,
     started: Instant,
-    installation: Option<tokio::task::JoinHandle<Result<()>>>,
+    installation: setup::Setup,
 }
 impl Manager {
     fn new(peers: PathBuf) -> Self {
         Self {
             spec_path: peers.with_file_name("desktop-service.json"),
             password_path: peers.with_file_name("desktop-vnc.password"),
+            installation: setup::Setup::new(&peers),
             peers,
             child: None,
             spec: None,
@@ -127,7 +131,6 @@ impl Manager {
             retries: 0,
             next_retry: Instant::now(),
             started: Instant::now(),
-            installation: None,
         }
     }
     async fn run(mut self, mut requests: mpsc::Receiver<Request>, stop: CancellationToken) {
@@ -155,9 +158,7 @@ impl Manager {
             }
         }
         self.kill().await;
-        if let Some(task) = self.installation.take() {
-            task.abort();
-        }
+        self.installation.shutdown().await;
     }
     fn read_spec(&self) -> Result<Option<Spec>> {
         if !self.spec_path.try_exists()? {
@@ -193,6 +194,7 @@ impl Manager {
     fn status(&self) -> Value {
         let provider = self.provider();
         let spec = self.spec.as_ref().filter(|s| s.provider == provider);
+        let error = self.error.as_deref().or(self.installation.error());
         json!({"platform":std::env::consts::OS,"supported":provider.problem().is_none(),"provider":provider,"package":provider.package(),"unsupported_reason":provider.problem(),"installed":executable(provider).is_some(),
             "display":spec.map(|s| s.display.clone()).unwrap_or_else(||provider.display()),
             "output":spec.map(|s|s.output.clone()).unwrap_or_default(),
@@ -200,8 +202,9 @@ impl Manager {
             "wayland":provider::wayland_session(),
             "selkies_wayland":provider::selkies_wayland_session(),
             "can_install":can_install(),"managed":self.spec.is_some(),"enabled":self.enabled(),"running":self.child.is_some(),
-            "phase":if self.installation.is_some(){"installing"}else if self.child.is_some(){"running"}else if self.enabled() && self.retries < 5 {"restarting"}else if self.error.is_some(){"failed"}else{"stopped"},
-            "port":spec.map_or(5900,|s|s.port),"error":self.error,"restart_attempts":self.retries})
+            "phase":if self.installation.running(){"installing"}else if self.child.is_some(){"running"}else if self.enabled() && self.retries < 5 {"restarting"}else if error.is_some(){"failed"}else{"stopped"},
+            "installation":self.installation.status(),
+            "port":spec.map_or(5900,|s|s.port),"error":error,"restart_attempts":self.retries})
     }
     async fn manage(&mut self, command: Command) -> Result<Value> {
         match command {
@@ -226,20 +229,18 @@ impl Manager {
                     json!({"address":address,"ready":result.is_ok(),"error":result.err().map(|e|format!("{e:#}"))}),
                 );
             }
-            Command::Plan {} => return install_plan(self.provider()),
-            Command::Install {} => {
+            Command::Plan {} => {
                 let provider = self.provider();
-                install_plan(provider)?;
-                ensure!(
-                    self.installation.is_none(),
-                    "VNC installation is already running."
-                );
+                return self.installation.review(provider);
+            }
+            Command::Install { plan_id } => {
+                let provider = self.provider();
                 ensure!(
                     self.child.is_none(),
                     "Stop managed VNC before installing its package."
                 );
+                self.installation.start(&plan_id, provider)?;
                 self.error = None;
-                self.installation = Some(tokio::spawn(install(provider)));
             }
             Command::Start {
                 display,
@@ -253,7 +254,7 @@ impl Manager {
                     provider.problem().unwrap_or_default()
                 );
                 ensure!(
-                    self.installation.is_none(),
+                    !self.installation.running(),
                     "Wait for VNC installation to finish, then retry."
                 );
                 let spec = Spec {
@@ -391,22 +392,7 @@ impl Manager {
         }
     }
     async fn reconcile(&mut self) {
-        if self
-            .installation
-            .as_ref()
-            .is_some_and(|task| task.is_finished())
-        {
-            match self
-                .installation
-                .take()
-                .expect("checked installation")
-                .await
-            {
-                Ok(Ok(())) => self.error = None,
-                Ok(Err(error)) => self.error = Some(format!("{error:#}")),
-                Err(error) => self.error = Some(error.to_string()),
-            }
-        }
+        self.installation.reconcile().await;
         if !self.enabled() {
             self.kill().await;
             return;
@@ -428,7 +414,7 @@ impl Manager {
                 }
             }
         }
-        if self.retries >= 5 || Instant::now() < self.next_retry || self.installation.is_some() {
+        if self.retries >= 5 || Instant::now() < self.next_retry || self.installation.running() {
             return;
         }
         let Some(spec) = self.spec.clone() else {
@@ -630,38 +616,12 @@ fn install_plan(provider: Provider) -> Result<Value> {
         can_install(),
         "Automatic VNC installation supports Ubuntu and Debian desktop hosts. Install it using your distribution's package manager, or connect an existing VNC server."
     );
+    ensure!(
+        executable(provider).is_none(),
+        "VNC is already installed. Recheck the environment before starting managed sharing."
+    );
     let package = provider.package();
     Ok(
         json!({"commands":format!("pkexec /bin/sh -c 'apt-get update && apt-get install --yes --no-install-recommends {package}'"),"administrator":true,"package":package,"source":if provider==Provider::Wayvnc {"https://github.com/any1/wayvnc"} else {"https://github.com/LibVNC/x11vnc"},"summary":format!("Install {package} from your configured Ubuntu/Debian apt repositories. The system authentication dialog requires your approval. This does not enable sharing.")}),
     )
-}
-async fn install(provider: Provider) -> Result<()> {
-    install_plan(provider)?;
-    let script = format!(
-        "apt-get update && apt-get install --yes --no-install-recommends {}",
-        provider.package()
-    );
-    let mut child = Process::new("pkexec")
-        .args(["/bin/sh", "-c", &script])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-        .context("Open the system authentication dialog (pkexec)")?;
-    let status = tokio::time::timeout(Duration::from_secs(1800), child.wait())
-        .await
-        .context(
-            "VNC package installation timed out; check your package manager before retrying.",
-        )??;
-    ensure!(
-        status.success(),
-        "VNC installation was cancelled or failed. Check the system authentication dialog and package manager, then recheck the environment."
-    );
-    ensure!(
-        executable(provider).is_some(),
-        "The package command finished but {} is not available on PATH. Restart the client and recheck.",
-        provider.package()
-    );
-    Ok(())
 }

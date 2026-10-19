@@ -64,6 +64,10 @@ Rust 节点负责保持 x11vnc 运行，关闭查看器、切换页面或断开�
 
 服务只监听 IPv4 回环地址，关闭 x11vnc 远程管理接口，并使用随机的 8 位 VNC 密码；此认证应始终配合 Cranibox 的授权通道及可信私网或加密传输。配置旁的 `desktop-service.json` 和 `desktop-vnc.password` 为当前用户私有文件（Unix 权限 `0600`），状态及命令参数不包含明文密码。查看密码是单独操作，页面不会持久保存它。容器中不提供宿主机 VNC 包安装，也不会因此共享宿主机桌面。
 
+Ubuntu/Debian 桌面主机安装前必须查看当前方案并明确确认。方案绑定当前提供者，十分钟内有效且只能执行一次；重新准备会替换旧方案，节点重启后必须重新准备。系统安装进程与节点的监控任务分开，关闭节点或监控超过三十分钟不会主动杀掉系统安装进程；系统关机、服务管理器或权限代理仍可能影响它，不能据此保证安装完成。请等待系统认证窗口和软件包管理器确认结果，避免重复安装。
+
+节点在执行命令前先私有保存 `desktop-setup.json`；写入失败不会执行。记录只含阶段、提供者和错误，不含凭据，Unix 权限为 `0600`。上次为运行中或记录不可读、超过 8 KiB 时，重启后显示“上次安装状态未确认”，不会自动重放安装或开启共享。先检查系统软件包管理器，再检查 VNC 环境并准备新方案；停止桌面共享不会清除此安装提示。
+
 ## Linux/Wayland 托管服务
 
 在已有的兼容 wlroots 图形会话中运行节点或 Tauri 客户端，例如 Sway。页面根据节点环境选择 wayvnc，填写本机 Wayland socket 名称（例如 `wayland-0`），可选指定输出名称（例如 `DP-1`，留空使用默认输出），再启动共享。节点继承有效的 `XDG_RUNTIME_DIR`，通过 `WAYLAND_DISPLAY` 连接所选会话，不创建新的图形登录。GNOME、KDE/Plasma 和 Weston 不支持这条路径，页面会说明原因，并保留接入已有 VNC 服务的入口。
@@ -110,11 +114,15 @@ Web 使用登录会话、Origin 和 CSRF 校验的 `POST /api/desktop/ticket`，
 
 服务管理通过同样需要登录和 CSRF 的 `POST /api/desktop/service` 或 Tauri `desktop_service` 调用，支持 `status`、`discover`、`plan`、`install`、`start`、`stop`、`credentials` 及仅限回环地址的握手检查 `check`。`discover` 不接受地址或范围参数，返回 `{services: [{address, protocol, configured}], checked}`；`configured` 表示检测时与当前共享配置一致，界面标记随当前配置变化。`check` 可传 `protocol: "selkies"`，省略时检查 VNC。安装和启动是独立操作，查看安装计划不会执行命令。`start` 接受 `display`、`port`，Wayland 另传 `provider: "wayvnc"` 和可选 `output`；省略 `provider` 保持原有 x11vnc 请求兼容。`status` 返回所选提供者、兼容性说明和输出；只有显式 `credentials` 操作返回密码，wayvnc 同时返回用户名。
 
+`plan` 返回 `id`、`expires_in_seconds: 600` 和要核对的 `commands`。确认请求必须为 `{operation: "install", plan_id: "返回的 id"}`；缺失、过期、提供者改变或重复提交均拒绝，客户端须重新准备。新前端连接缺少方案 ID 的旧节点时会提示更新节点。`status.installation.phase` 为 `idle`、`running`、`succeeded`、`failed` 或 `interrupted`，并单独返回该安装记录的 `provider` 和 `error`；它不等于 VNC 正在共享。
+
 ## 验证范围
 
 `tests/test_desktop_relay.py` 使用真实出站节点和隔离 VNC 服务验证中继、重连、目标授权、调用身份、设备组与凭据撤销、跨路径单控制者、未消费 ticket 到期释放及登录会话绑定的显式取消。Rust 测试额外验证 rendezvous 的目标凭据、单次 ticket、连接代次绑定及取消清理。
 
 `tests/test_remote_desktops.py` 使用真实 Rust Web、节点和回环 TCP 服务，验证二进制转发、目标绑定、CSRF、ticket、停止共享、撤销和单控制者。`tests/test_desktop_service.py` 使用真实 Rust 节点与隔离的 x11vnc/wayvnc 替身验证进程守护、节点恢复、密码和配置权限、私有控制 socket、配置重新生成、输出恢复、版本与会话兼容性检查、启动失败及主动停止。检测另覆盖 IPv4/IPv6 常用端口、已保存的自定义 Selkies 地址、无效或无响应服务、重试，以及检测后配置字节和凭据文件保持不变；提供者记录证明没有发送认证或接管消息。这些用例不安装系统包或访问真实桌面。
+
+安装生命周期另覆盖一次性方案的 ID、提供者和有效期、写记录失败不执行、成功/失败记录、重启和损坏记录不重放。独立 shell 夹具验证节点监控退出与超时后原事务仍可完成，真实 Rust Web 集成验证安装记录恢复且不生成共享配置/密码。Web 覆盖过期后重新准备、焦点恢复、明暗主题和 375/768/1440 窄屏布局，Tauri 模拟 IPC 验证提交当前方案 ID。它们不执行实际 `pkexec`/APT 安装，系统认证取消、真实包事务和主机重启仍需单独验收。
 
 `tests/test_desktop_real_vnc.py` 另外运行真实 x11vnc 和独立 Xvfb 显示器，验证密码认证、错误密码拒绝、实际像素、X11 键鼠事件、Web 重启恢复，以及同一配置切换到无界面节点后的远程授权访问、撤销和退出清理。需要系统已有 x11vnc、Xvfb、xev、xsetroot、xdotool、Node 和 Web UI 的 npm 依赖；设置 `CRANIBOX_TEST_REAL_VNC=1` 后运行，Linux CI 已配置此检查。它不使用当前登录桌面，也不会自行安装系统软件。
 

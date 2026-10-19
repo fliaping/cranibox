@@ -116,6 +116,31 @@ class DesktopServiceTests(unittest.TestCase):
         self.assertEqual(len(self.started()), 3)
         self.assertIsNone(json.loads(self.config.read_text())['desktop'])
 
+    def test_installation_restart_and_unreadable_record_do_not_enable_or_replay_sharing(self):
+        journal = self.config.with_name('desktop-setup.json')
+        for previous in [
+            json.dumps(dict(phase='running', provider='x11vnc', error=None)).encode(),
+            b'x' * 8193,
+        ]:
+            with self.subTest(previous=previous[:64]):
+                self.h.stop(self.h.web)
+                journal.write_bytes(previous)
+                self.h.start_web()
+                self.h.login()
+                status = self.service(operation='status')
+                self.assertEqual(status['installation']['phase'], 'interrupted')
+                self.assertIn('package manager', status['installation']['error'])
+                self.assertEqual(status['phase'], 'failed')
+                self.assertFalse(status['enabled'] or status['running'])
+                self.assertEqual(self.started(), [])
+                self.service(operation='stop')
+                self.assertEqual(self.service(operation='status')['installation']['phase'], 'interrupted')
+                self.assertEqual(journal.read_bytes(), previous)
+                for command in [dict(operation='install'), dict(operation='install', plan_id='unreviewed')]:
+                    self.assertEqual(self.h.post('/api/desktop/service', command)[0], 400)
+                self.assertEqual(journal.read_bytes(), previous)
+                self.assertFalse(self.config.with_name('desktop-service.json').exists())
+                self.assertFalse(self.config.with_name('desktop-vnc.password').exists())
     def test_failures_preserve_configuration_and_external_disable_stops_service(self):
         for display, port in [('remote:0', 5900), (':65536', 5900), (':0', 80), (':0;touch /tmp/unwanted', 5900)]:
             self.assertEqual(self.h.post('/api/desktop/service', {'operation': 'start', 'display': display, 'port': port})[0], 400)
@@ -228,7 +253,7 @@ class DesktopServiceTests(unittest.TestCase):
         for command in (
             dict(operation='start', display=':42', port=free_port()),
             dict(operation='start', provider='wayvnc', display='wayland-0', port=free_port()),
-            dict(operation='plan'), dict(operation='install'),
+            dict(operation='plan'), dict(operation='install', plan_id='unreviewed'),
         ):
             code, body = self.h.post('/api/desktop/service', command)
             self.assertEqual(code, 400, body)
@@ -360,7 +385,7 @@ class WaylandDesktopServiceTests(unittest.TestCase):
             self.assertEqual(status['provider'], 'wayvnc')
             self.assertFalse(status['supported'])
             self.assertIn('does not support', status['unsupported_reason'])
-            for command in [dict(operation='start', provider='wayvnc', display='wayland-42', port=free_port()), dict(operation='plan'), dict(operation='install')]:
+            for command in [dict(operation='start', provider='wayvnc', display='wayland-42', port=free_port()), dict(operation='plan'), dict(operation='install', plan_id='unreviewed')]:
                 code, value = self.h.post('/api/desktop/service', command)
                 self.assertEqual(code, 400, value)
             self.assertFalse(self.service(operation='status')['running'])

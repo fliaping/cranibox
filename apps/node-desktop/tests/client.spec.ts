@@ -1630,6 +1630,35 @@ test('existing desktop discovery reviews and enables sharing through native IPC'
   await expect(discovery.getByText('当前共享配置', { exact: true })).toHaveCount(0);
 });
 
+test('native VNC installation reviews a fresh plan after interrupted work without enabling sharing', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const status = { platform: 'linux', provider: 'x11vnc', supported: true, installed: false, can_install: true, wayland: false, display: ':1', port: 5900, managed: false, running: false, enabled: false, phase: 'failed', installation: { phase: 'interrupted' } };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') return { node_id: 'own-device', routes: [], grants: [], desktop: null };
+      if (command === 'desktop_service') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'plan') return { id: 'native-vnc-plan', commands: 'apt-get update && apt-get install --yes --no-install-recommends x11vnc', expires_in_seconds: 600 };
+        if (payload.command.operation === 'install') Object.assign(status, { phase: 'installing', installation: { phase: 'running' } });
+        return structuredClone(status);
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const section = page.getByRole('region', { name: '本机 VNC 服务', exact: true });
+  await expect(section.getByRole('alert')).toContainText('不会自动重复安装');
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status'))).toBe(false);
+  await section.getByRole('button', { name: '准备安装 x11vnc', exact: true }).click();
+  await expect(section.getByText('方案十分钟内有效', { exact: false })).toBeVisible();
+  await section.getByRole('button', { name: '确认并安装', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText('退出节点不会终止系统安装');
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status'));
+  expect(calls.map((call: any) => call.payload.command)).toEqual([{ operation: 'plan' }, { operation: 'install', plan_id: 'native-vnc-plan' }]);
+});
+
 for (const wayland of [false, true]) test('managed desktop service uses native IPC and stays enabled after navigating away' + (wayland ? ' on Wayland' : ' on X11'), async ({ page }) => {
   await page.addInitScript((wayland: boolean) => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;

@@ -1482,3 +1482,30 @@ API 确认 **10 份 artifact**，包含三平台服务端、独立节点 CLI、�
 多架构门槛提交 **8566f59998b4b6884f95ed82be58d95e9de0faf5** 已推送 origin/main。手动运行 **39193919686** 参数 desktop=xfce、architecture=all、publish=false；**2026-10-19T03:21:17Z** 的最后快照为 queued，amd64/arm64 两作业均未执行。同来源 Release **39193888500** 和 GitCode **39193888594** 也 queued。仅触发不计通过，未使用发布模式或替换公开标签；下一位维护者继续核对当前运行终态。
 
 私有 **/config/validation-artifacts/image-platform-gate-20261019** 保存 product-ci-final.json、product-artifacts.json、linux-native.log、linux-desktop.log、wayland.log 与 ci-handoff.json；原始失败和此前进行中证据保持。最后收尾只更新交接和验证文档，未重跑产品测试、安装发布包或修改日常服务。功能状态和剩余 P0/P1/P2 仍以[交接入口](implementation-handoff-2026-10-18.md)为准。
+
+## 2026-10-19：VNC 安装生命周期与最终交接
+
+基于 **37718debd6e1881bbb6977e00a8e624bc0f1ae89** 修复 Linux 安装生命周期：此前包安装使用 kill_on_drop，节点退出或三十分钟监控超时可能主动终止安装子进程，且重启后没有状态记录。现在安装进程关闭 kill_on_drop，监控与系统事务分开；执行前私有写入 desktop-setup.json，写失败不执行；上次运行中、记录损坏或超过 8 KiB 时仅显示中断待确认，不自动重放。系统关机、服务管理器和权限代理仍可能影响事务，不能保证安装完成。
+
+安装要求先查看方案并提交当前 plan_id，绑定提供者、有效期十分钟、只能使用一次；替换方案、重启或过期后重新准备。Web/Tauri 共用安装核对、中断说明、失败清除旧方案与焦点恢复；安装与启动共享始终分开。新前端遇到旧节点缺少方案 ID 时提示更新。协议和私有记录边界已补入[远程桌面文档](remote-desktops.md)。
+
+所有构建、socket、浏览器和运行测试均在指定远端 admin@192.168.217.6:22022、cranibox-validation、abc 用户执行；本机仅编辑、静态审阅、传输与 Git。未执行实际 pkexec/APT，不安装系统包，不使用当前登录桌面输入。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | **184 通过、3 默认忽略，126.077 秒** | cargo test --offline --workspace --exclude cranibox-node-desktop，18 个目标；不包含 Tauri Rust 测试，忽略项不计通过 |
+| VNC Rust 专项 | **7/7，51.666 秒含编译** | 包含在工作区；新四项覆盖私有记录、一次性方案、失败恢复和独立 shell 事务，不累加 |
+| 桌面服务后端 | **12/12，无跳过，29.692 秒** | 真实 Rust Web/节点，隔离 X11/Wayland 提供者；新重启/坏记录用例证明不重放、不开启共享或写入凭据 |
+| Web 桌面专项 | **18/18，109.066 秒** | 真实 Rust Web、RFB/JPEG 与可控安装响应；过期后重新准备、正确 ID、焦点恢复及不自动启动 |
+| Tauri 界面全量 | **54/54，139.032 秒** | 模拟 IPC；新增中断恢复和当前方案 ID 提交，非原生窗口/系统安装验收 |
+| Web / 客户端前端构建 | **通过，10.195 / 10.034 秒** | TypeScript 与 Vite；Web 静态资源由远端生成并取回提交，已知 use client 和大包提示未放宽 |
+| Rust 四程序构建 | **通过，37.334 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web，独立目标目录 |
+| fmt / 原生 Clippy | **通过，1.400 / 12.283 秒** | fmt --all --check；desktop,custom-protocol --all-targets -D warnings |
+
+本轮未重跑全部 Web 界面和其余 Python 集成；历史完整矩阵继续绑定 f49341d，不能改写成本次新提交已通过跨平台 CI。Windows/macOS 实机、真实系统安装认证/取消、物理多设备和公开兼容镜像仍待验收。镜像只验证运行 **39193919686** 本轮查询仍 queued，未重复触发、发布或替换公开标签。
+
+布局检查覆盖 375/768/1440、明暗主题无横向溢出；六份面板截图由浏览器在远端生成。人工审阅 375 亮色与 1440 暗色，恢复说明、命令和确认操作可读；元素截图顶部仍受固定顶栏遮盖，不能作为完整首屏或真实手机验收。没有以截图裁剪问题计作产品通过。
+
+私有 **/config/validation-artifacts/vnc-installation-lifecycle-20261019** 保存每条命令的结果、耗时、源码 SHA-256、完整日志、布局截图及 final-health.json；初始构建记录的测试文件与后续记录不同，是补入原生 IPC 用例和保留不支持平台的安装请求校验，产品源码摘要一致。功能需求和剩余 P0/P1/P2 统一在[交接入口](implementation-handoff-2026-10-18.md)。配置、凭据、截图、原始日志与辅助脚本不入 Git。
+
+收尾健康核对：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，无所属浏览器或服务残留，未升级日常程序。

@@ -21977,16 +21977,26 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 		};
 	}, [M]), (0, x.useEffect)(() => {
 		C && k.current?.focus();
-	}, [C]);
+	}, [C]), (0, x.useEffect)(() => {
+		!f && u && !C && A.current?.focus();
+	}, [
+		f,
+		u,
+		C
+	]);
 	async function N(t) {
 		if (!E.current) {
 			E.current = !0, ++D.current, p(!0), d("");
 			try {
 				let r = await e(t);
 				if (!T.current) return;
-				t.operation === "plan" ? w(r) : t.operation === "credentials" ? S(r.password) : (l(r), w(void 0), S(""), n(), window.dispatchEvent(new Event("cranibox:peers-changed")));
+				if (t.operation === "plan") {
+					let e = r;
+					if (!e?.id || typeof e.commands != "string") throw Error(s("安装方案已失效，请更新此节点并重新准备。", "The installation plan is unavailable. Update this node and prepare a new plan."));
+					w(e);
+				} else t.operation === "credentials" ? S(r.password) : (l(r), w(void 0), S(""), n(), window.dispatchEvent(new Event("cranibox:peers-changed")));
 			} catch (e) {
-				T.current && d(e instanceof Error ? e.message : String(e));
+				T.current && (d(e instanceof Error ? e.message : String(e)), (t.operation === "install" || t.operation === "plan") && (w(void 0), A.current?.focus()));
 			} finally {
 				E.current = !1, T.current && p(!1);
 			}
@@ -22056,14 +22066,18 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 						/* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsx)("span", { children: "3" }), s("授权其他设备", "Grant device access")] })
 					]
 				}),
-				c.error && /* @__PURE__ */ (0, B.jsx)("p", {
+				c.installation?.phase === "interrupted" ? /* @__PURE__ */ (0, B.jsx)("p", {
+					className: "direct-error",
+					role: "alert",
+					children: s("上次安装状态未确认，系统安装器可能仍在运行。请先检查软件包管理器，确认完成或退出后重新检查环境，再准备新方案。不会自动重复安装。", "The previous installation is unconfirmed, and the system installer may still be running. Check your package manager, then recheck the environment before preparing a new plan. Installation will not repeat automatically.")
+				}) : c.error && /* @__PURE__ */ (0, B.jsx)("p", {
 					className: "direct-error",
 					role: "alert",
 					children: c.error
 				}),
 				ee ? /* @__PURE__ */ (0, B.jsx)("p", {
 					role: "status",
-					children: s("正在安装 " + ne + "，请在系统认证窗口确认。安装状态会自动更新。", "Installing " + ne + ". Approve the system authentication dialog. This status updates automatically.")
+					children: s("正在安装 " + ne + "，请在系统认证窗口确认。安装状态会自动更新；退出节点不会终止系统安装，请勿重复操作。", "Installing " + ne + ". Approve the system authentication dialog. This status updates automatically. Exiting the node leaves the system installer running; avoid repeating installation.")
 				}) : c.installed ? te ? /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "desktop-managed-running",
 					children: [
@@ -22210,7 +22224,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 					"aria-label": s("检查 VNC 安装操作", "Review VNC installation"),
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("h4", { children: s("确认安装操作", "Review installation") }),
-						/* @__PURE__ */ (0, B.jsx)("p", { children: s("安装来自当前 Ubuntu / Debian 软件源的 " + ne + "，需要系统管理员认证。", "Install " + ne + " from this system’s Ubuntu / Debian repositories. System administrator authentication is required.") }),
+						/* @__PURE__ */ (0, B.jsx)("p", { children: s("安装来自当前 Ubuntu / Debian 软件源的 " + ne + "，需要系统管理员认证。方案十分钟内有效，确认后仅执行一次。", "Install " + ne + " from this system’s Ubuntu / Debian repositories. System administrator authentication is required. This plan is valid for ten minutes and can run once.") }),
 						/* @__PURE__ */ (0, B.jsx)("pre", {
 							tabIndex: 0,
 							children: C.commands
@@ -22226,8 +22240,11 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 							}), /* @__PURE__ */ (0, B.jsx)("button", {
 								ref: k,
 								className: "direct-primary",
-								disabled: f,
-								onClick: () => void N({ operation: "install" }),
+								disabled: f || ee,
+								onClick: () => void N({
+									operation: "install",
+									plan_id: C.id
+								}),
 								children: s("确认并安装", "Confirm and install")
 							})]
 						})
