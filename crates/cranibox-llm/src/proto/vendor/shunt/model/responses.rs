@@ -1,0 +1,2396 @@
+// Adapted from pleaseai/shunt src/model/responses.rs@9d42ba251dd1f0651e9d150767e3ff98a1ae042b (MIT OR Apache-2.0).
+use std::collections::HashMap;
+
+use axum::http::StatusCode;
+use serde_json::{Value, json};
+
+use crate::proto::vendor::shunt::model::responses_request::TOOL_SEARCH_NAME;
+pub use crate::proto::vendor::shunt::model::responses_request::{
+    encode_reasoning_signature, translate_request, translate_request_value,
+};
+use crate::proto::vendor::shunt::model::stop_sequences::StopScanner;
+
+#[derive(Debug, Clone)]
+pub struct ResponseEvent {
+    pub event: Option<String>,
+    pub data: Value,
+}
+
+#[derive(Debug, Clone)]
+struct OpenBlock {
+    index: usize,
+    kind: BlockKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BlockKind {
+    Text,
+    Tool,
+    Reasoning,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnthropicSseMachine {
+    id: String,
+    model: String,
+    started: bool,
+    stopped: bool,
+    index: usize,
+    open: Option<OpenBlock>,
+    saw_tool: bool,
+    thinking_enabled: bool,
+    input_tokens: u64,
+    cache_read_tokens: u64,
+    /// Prompt tokens the upstream *wrote* into its cache this turn, read from
+    /// `usage.input_tokens_details.cache_write_tokens` (openai/codex
+    /// codex-rs/codex-api/src/sse/responses.rs). Absent on every upstream that
+    /// has not shipped the field yet — upstream itself reads it with
+    /// `#[serde(default)]` — in which case this stays `0` and the emitted usage
+    /// is byte-identical to before the field existed.
+    cache_creation_tokens: u64,
+    output_tokens: u64,
+    /// Prompt-size estimate (local tiktoken) surfaced in the `message_start`
+    /// `usage.input_tokens`. The Responses API only reports real usage at
+    /// `response.completed`, so `message_start` would otherwise carry `0`.
+    /// Native Anthropic puts a real `input_tokens` there, and Claude Code's
+    /// per-subagent progress tracker reads usage from that first (yield-time)
+    /// snapshot — so a `0` leaves codex subagents showing 0 context in the agent
+    /// panel. Seeding an estimate mirrors Anthropic; the accurate value still
+    /// lands in the terminal `message_delta` (see [`Self::usage_value`]).
+    input_tokens_estimate: u64,
+    /// Whether real prompt usage was observed from a `response.completed`
+    /// event. Distinguishes "upstream reported `input_tokens: 0`" from "the
+    /// stream ended before usage arrived", so [`Self::usage_value`] substitutes
+    /// the estimate only in the latter case.
+    usage_observed: bool,
+    /// Whether to reconstruct the final Anthropic `content` array. Non-streaming
+    /// callers consume [`Self::final_json`] and need full accumulation; streaming
+    /// callers already emit every block incrementally and can skip retaining a
+    /// second copy of the response.
+    accumulate_content: bool,
+    content: Vec<Value>,
+    text_buffer: String,
+    text_citations: Vec<Value>,
+    tool_buffer: Option<ToolBuffer>,
+    /// Identity and delta state of the open tool block, tracked apart from
+    /// `tool_buffer` (absent on streaming machines) so the done events can tell
+    /// whether they belong to it and whether their full `arguments` still need
+    /// to reach the client (issue #765).
+    tool_call: OpenToolCall,
+    /// Output items added while an earlier item must finish first, in arrival
+    /// order (see [`DeferredItem`]).
+    deferred_items: Vec<DeferredItem>,
+    /// The `id` and `call_id` of a deferred item whose replay ended before its
+    /// `output_item.done`: its remaining events arrive live, and the items
+    /// behind it stay deferred until it finishes.
+    pending_item: Option<PendingItem>,
+    /// Whether deferred items are being replayed, so a done event inside the
+    /// replay never starts a second, nested replay.
+    replaying: bool,
+    reasoning: Option<ReasoningBuffer>,
+    web_search_indexes: HashMap<String, String>,
+    /// Whether the request used the native `tool_search` protocol (issue #82).
+    /// Only then is an upstream `tool_search_call` item surfaced as a `ToolSearch`
+    /// `tool_use`; under the shim the upstream never emits one.
+    tool_search_native: bool,
+    /// The mapped Anthropic error envelope from a backend-sent `error` /
+    /// `response.failed` event (issue #113). Backends deliver these as normal
+    /// `Ok` events on a `200 OK` stream (rate-limit, content-policy refusal)
+    /// rather than a non-2xx HTTP status. The streaming paths
+    /// emit the envelope inline as an SSE `error` event and stop; the
+    /// non-streaming JSON collectors take it here (via
+    /// [`Self::take_backend_error`]) so they can return a gateway error instead
+    /// of a `200 OK` carrying the partial/empty content accumulated so far.
+    /// Paired with the client-facing status the envelope was mapped against
+    /// ([`backend_error_status`]): `429` for an in-stream `rate_limit_exceeded`,
+    /// `slow_down`, or `flex_unavailable`, `529` for `server_is_overloaded`,
+    /// `400` for the `invalid_prompt` / `bio_policy` / `cyber_policy` refusals, the event's
+    /// own non-2xx top-level `status` (a Codex websocket wrapped error frame,
+    /// or any other backend's error event carrying one), else `502`.
+    backend_error: Option<(StatusCode, Value)>,
+    /// The client's Anthropic `stop_sequences`, emulated gateway-side because the
+    /// Responses API has no `stop` parameter (issue #605). Empty — the common
+    /// case — leaves every text path byte-identical to before the feature.
+    stop: StopScanner,
+}
+
+#[derive(Debug, Clone, Default)]
+struct OpenToolCall {
+    /// The output item's `id`, which `function_call_arguments.done` names as
+    /// `item_id`.
+    item_id: Option<String>,
+    call_id: Option<String>,
+    /// Whether any `input_json_delta` was emitted for this call.
+    args_streamed: bool,
+}
+
+/// A replayed item whose `output_item.done` has not arrived yet.
+#[derive(Debug, Clone)]
+struct PendingItem {
+    id: String,
+    call_id: Option<String>,
+}
+
+/// An output item the upstream added while a tool block was still open, while
+/// a replayed item was still in progress, or behind items already deferred —
+/// parallel calls interleaved as added A, added B, done A, done B, or a message,
+/// reasoning, web search, or other item that starts before call A's done
+/// events. Anthropic content blocks stream one at a time, so opening the new
+/// item's block would close A before its done-event arguments arrive. The item
+/// and every event naming it wait here instead, and replay in arrival order
+/// once nothing open is left to finish (issues #765, #770).
+#[derive(Debug, Clone)]
+struct DeferredItem {
+    id: String,
+    call_id: Option<String>,
+    events: Vec<ResponseEvent>,
+    /// Whether the item's own done event is among `events`, so its replay
+    /// finishes it.
+    done: bool,
+    /// Whether the item started before the open call — it reached the queue
+    /// through a later event, not its `output_item.added`.
+    started_early: bool,
+}
+
+impl DeferredItem {
+    fn push(&mut self, event: ResponseEvent) {
+        self.done |= matches!(
+            event.event.as_deref(),
+            Some("response.output_item.done" | "response.function_call_arguments.done")
+        );
+        self.events.push(event);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ToolBuffer {
+    id: String,
+    name: String,
+    json: String,
+}
+
+/// Accumulates a Responses `reasoning` output item so it can be surfaced as an
+/// Anthropic thinking block. `signature` packs the item's id + encrypted_content
+/// (set at `output_item.done`) so the next turn can round-trip it (see
+/// [`encode_reasoning_signature`]).
+#[derive(Debug, Clone)]
+struct ReasoningBuffer {
+    id: String,
+    summary: String,
+    signature: Option<String>,
+}
+
+impl AnthropicSseMachine {
+    pub fn new(model: impl Into<String>, thinking_enabled: bool, tool_search_native: bool) -> Self {
+        Self {
+            id: "msg_responses".to_string(),
+            model: model.into(),
+            started: false,
+            stopped: false,
+            index: 0,
+            open: None,
+            saw_tool: false,
+            thinking_enabled,
+            input_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            output_tokens: 0,
+            input_tokens_estimate: 0,
+            usage_observed: false,
+            accumulate_content: true,
+            content: Vec::new(),
+            text_buffer: String::new(),
+            text_citations: Vec::new(),
+            tool_buffer: None,
+            tool_call: OpenToolCall::default(),
+            deferred_items: Vec::new(),
+            pending_item: None,
+            replaying: false,
+            reasoning: None,
+            web_search_indexes: HashMap::new(),
+            tool_search_native,
+            backend_error: None,
+            stop: StopScanner::default(),
+        }
+    }
+
+    /// Seed the `message_start` prompt-size estimate (see
+    /// [`Self::input_tokens_estimate`]). The streaming paths set this from a
+    /// local tiktoken count of the request; it defaults to `0` (unknown).
+    #[must_use]
+    pub fn with_input_estimate(mut self, input_tokens: u64) -> Self {
+        self.input_tokens_estimate = input_tokens;
+        self
+    }
+
+    /// Emulate the client's Anthropic `stop_sequences` on this Responses stream
+    /// (issue #605). Assistant text is truncated at the first occurrence of any
+    /// of them, the turn ends with `stop_reason: "stop_sequence"`, and the caller
+    /// aborts the upstream. An empty list is a no-op.
+    #[must_use]
+    pub fn with_stop_sequences(mut self, sequences: Vec<String>) -> Self {
+        self.stop = StopScanner::new(sequences);
+        self
+    }
+
+    /// Whether the machine has reached a terminal state — a real upstream
+    /// terminal, a backend error event, or an emulated stop sequence. Transports
+    /// poll this right after [`Self::apply`] to drop the upstream stream instead
+    /// of reading a response no one will see.
+    pub fn is_stopped(&self) -> bool {
+        self.stopped
+    }
+
+    /// Whether an emulated stop sequence fired (issue #605). Distinct from
+    /// [`Self::is_stopped`]: this is the only case where the *upstream* is still
+    /// mid-turn, so it is what the websocket transport keys its abort on — a
+    /// receiver dropped on a normally completed turn would evict a healthy
+    /// pooled socket (see `adapters::responses::codex_ws`).
+    pub fn hit_stop_sequence(&self) -> bool {
+        self.stop.matched().is_some()
+    }
+
+    /// Disable final-message reconstruction for a streaming relay. Incremental SSE
+    /// output and usage tracking are unchanged, while text, tool, and reasoning
+    /// payloads are no longer retained after being emitted.
+    #[must_use]
+    pub fn without_content_accumulation(mut self) -> Self {
+        self.accumulate_content = false;
+        self
+    }
+
+    pub fn apply(&mut self, event: ResponseEvent) -> Vec<String> {
+        if self.stopped {
+            return Vec::new();
+        }
+        if let Some(index) = self.deferral(&event) {
+            self.deferred_items[index].push(event);
+            return Vec::new();
+        }
+        self.dispatch(event)
+    }
+
+    /// Translate one upstream event, past the deferral queue: [`Self::apply`]
+    /// for a live event, [`Self::release_deferred_items`] for a replayed one.
+    fn dispatch(&mut self, event: ResponseEvent) -> Vec<String> {
+        if self.stopped {
+            return Vec::new();
+        }
+        let name = event.event.as_deref().unwrap_or("");
+        match name {
+            "response.created" | "response.in_progress" => self.start(&event.data),
+            "response.output_item.added" => self.output_item_added(&event.data),
+            "response.output_text.delta" => self.text_delta(&event.data),
+            "response.output_text.annotation.added" => self.annotation_added(&event.data),
+            "response.output_text.done" | "response.content_part.done" => {
+                self.close_current(BlockKind::Text)
+            }
+            "response.reasoning_summary_text.delta" => self.reasoning_delta(&event.data),
+            "response.function_call_arguments.delta" => self.arguments_delta(&event.data),
+            "response.function_call_arguments.done" => self.close_tool(&event.data),
+            "response.output_item.done" => self.output_item_done(&event.data),
+            // `response.incomplete` is a clean (if truncated) terminal, not a
+            // transport cut — mirrors the WebSocket transport's terminal set
+            // (`adapters::responses::codex_ws::TERMINAL_EVENTS`, also
+            // docs/m7-codex-websocket.md) and `stream_metrics::observe_responses`'s
+            // own terminal match. Routing it through the same `complete` path as
+            // `response.completed`/`response.done` sets `stopped`, so a stream
+            // that ends right after this event no longer hits `finish`'s
+            // cut-before-terminal fallback (`http.rs`'s `UPSTREAM_TRUNCATED_MARKER`
+            // injection) — and it keeps the existing `tool_use`/`end_turn`
+            // stop_reason convention rather than introducing a new one.
+            "response.completed" | "response.done" | "response.incomplete" => {
+                self.complete(&event.data)
+            }
+            "error" | "response.failed" => {
+                // Release the stop-sequence holdback first: it is ordinary output
+                // the client would already have received had `stop_sequences` been
+                // unset, and once `stopped` is set nothing else can emit it. The
+                // open block is deliberately *not* closed here — this arm has
+                // always left it open, with or without stop sequences.
+                let mut out = self.flush_stop_holdback();
+                self.stopped = true;
+                let status = backend_error_status(&event.data);
+                let value = map_error_value(&event.data, status);
+                // Build the SSE event first (borrowing `value`), then move
+                // ownership into `backend_error` — avoids cloning the envelope.
+                let sse_event = sse("error", &value);
+                self.backend_error = Some((status, value));
+                out.push(sse_event);
+                out
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Take the mapped Anthropic error envelope if a backend `error` /
+    /// `response.failed` event was applied, else `None`. Moves ownership out of
+    /// the machine so the non-streaming JSON collectors can hand it straight to
+    /// the response body without cloning; the event is terminal, so the machine
+    /// is dropped right after (issue #113).
+    pub fn take_backend_error(&mut self) -> Option<(StatusCode, Value)> {
+        self.backend_error.take()
+    }
+
+    pub fn finish(&mut self) -> Vec<String> {
+        if self.stopped {
+            return Vec::new();
+        }
+        let mut out = self.close_any();
+        out.extend(self.drain_deferred_items());
+        // A replayed text delta can end the turn on an emulated stop sequence.
+        if !self.stopped {
+            out.extend(self.stop_events("end_turn"));
+        }
+        out
+    }
+
+    pub fn final_json(&mut self) -> Value {
+        if !self.stopped {
+            let _ = self.finish();
+        }
+        // An emulated stop sequence (issue #605) takes precedence over the
+        // tool_use/end_turn choice: the turn ended because shunt cut it, and the
+        // accumulated `content` is already truncated at the match.
+        let matched = self.stop.matched().map(str::to_string);
+        let stop_reason = match (&matched, self.saw_tool) {
+            (Some(_), _) => "stop_sequence",
+            (None, true) => "tool_use",
+            (None, false) => "end_turn",
+        };
+        json!({
+            "id": self.id,
+            "type": "message",
+            "role": "assistant",
+            "model": self.model,
+            "content": self.content,
+            "stop_reason": stop_reason,
+            "stop_sequence": matched.map_or(Value::Null, Value::from),
+            "usage": self.usage_value(),
+        })
+    }
+
+    fn start(&mut self, data: &Value) -> Vec<String> {
+        if self.started {
+            return Vec::new();
+        }
+        if let Some(id) = data.pointer("/response/id").or_else(|| data.get("id")) {
+            if let Some(id) = id.as_str() {
+                self.id = id.to_string();
+            }
+        }
+        self.emit_start()
+    }
+
+    /// Emit the Anthropic `message_start` + initial `ping` before any upstream
+    /// event has arrived, carrying a gateway-synthesized message id. The
+    /// streaming transports call this the moment a turn is accepted so the
+    /// client's stall watchdog sees bytes while the upstream thinks in silence;
+    /// a later `response.created` then finds `started` and emits nothing, and
+    /// the synthetic id stands for the rest of the turn.
+    pub fn start_synthetic(&mut self, id: String) -> Vec<String> {
+        if self.started {
+            return Vec::new();
+        }
+        self.id = id;
+        self.emit_start()
+    }
+
+    fn emit_start(&mut self) -> Vec<String> {
+        self.started = true;
+        vec![
+            sse(
+                "message_start",
+                &json!({
+                    "type": "message_start",
+                    "message": {
+                        "id": self.id,
+                        "type": "message",
+                        "role": "assistant",
+                        "model": self.model,
+                        "content": [],
+                        "stop_reason": null,
+                        "stop_sequence": null,
+                        // Seed the prompt-size estimate here (Responses reports
+                        // real usage only at completion). Mirrors Anthropic so
+                        // Claude Code's subagent progress tracker, which reads
+                        // this first snapshot, shows nonzero context; the
+                        // accurate total still arrives in `message_delta`.
+                        "usage": {"input_tokens": self.input_tokens_estimate, "output_tokens": 0}
+                    }
+                }),
+            ),
+            sse("ping", &json!({"type": "ping"})),
+        ]
+    }
+
+    fn output_item_added(&mut self, data: &Value) -> Vec<String> {
+        let item = data.get("item").unwrap_or(data);
+        match item.get("type").and_then(Value::as_str) {
+            Some("message") => Vec::new(),
+            Some("function_call") => self.open_tool(item),
+            Some("reasoning") => self.reasoning_added(item),
+            _ => Vec::new(),
+        }
+    }
+
+    /// `response.output_item.done` closes whichever item just finished. Reasoning
+    /// items need special handling (stamp the round-trip signature); function_call
+    /// items deliver any `arguments` no delta carried; message items just close.
+    /// Every finished item then releases the items deferred behind it.
+    fn output_item_done(&mut self, data: &Value) -> Vec<String> {
+        let item = data.get("item").unwrap_or(data);
+        let mut out = match item.get("type").and_then(Value::as_str) {
+            Some("reasoning") => self.reasoning_done(item),
+            Some("web_search_call") => self.web_search_done(item),
+            // The native tool_search_call carries its full `arguments` (a JSON
+            // object) only at `done` — codex ignores the `added`/delta events too
+            // — so the whole ToolSearch tool_use is emitted here in one shot.
+            Some("tool_search_call") if self.tool_search_native => self.tool_search_call_done(item),
+            Some("function_call") => return self.close_tool(item),
+            // A message ends its own text block only — never a tool block a
+            // deferred call opened. Its `output_text.done` / `content_part.done`
+            // still precede it.
+            Some("message") => self.close_current(BlockKind::Text),
+            _ => self.close_any(),
+        };
+        self.finish_item(item);
+        out.extend(self.release_deferred_items());
+        out
+    }
+
+    /// An upstream `tool_search_call` -> an Anthropic `tool_use` for `ToolSearch`,
+    /// so Claude Code runs its inventory search and returns `tool_reference`s. The
+    /// `call_id` becomes the tool_use id (round-tripping back to the request's
+    /// `tool_search_call`/`tool_search_output`), and `arguments` (a JSON object)
+    /// is emitted as one `input_json_delta`. Mirrors `web_search_done`'s
+    /// open/delta/stop shape, and records the block for the non-streaming path.
+    fn tool_search_call_done(&mut self, item: &Value) -> Vec<String> {
+        let mut out = self.close_any();
+        // Claude Code needs a non-empty tool_use id to match the tool_result it
+        // sends back; if upstream ever omits `call_id`, fall back to a synthetic
+        // per-block id rather than emit an empty (invalid) one.
+        let id = item
+            .get("call_id")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("toolu_ts_{}", self.index));
+        // Anthropic requires tool_use `input` to be a JSON object; if upstream
+        // omits `arguments` or sends a non-object, fall back to `{}` rather than
+        // forward an invalid input.
+        let arguments = item
+            .get("arguments")
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+        self.saw_tool = true;
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "tool_use", "id": id, "name": TOOL_SEARCH_NAME, "input": {}}
+            }),
+        ));
+        out.push(sse(
+            "content_block_delta",
+            &json!({
+                "type": "content_block_delta",
+                "index": self.index,
+                "delta": {"type": "input_json_delta", "partial_json": arguments.to_string()}
+            }),
+        ));
+        if self.accumulate_content {
+            self.content.push(json!({
+                "type": "tool_use", "id": id, "name": TOOL_SEARCH_NAME, "input": arguments
+            }));
+        }
+        out.push(sse(
+            "content_block_stop",
+            &json!({"type": "content_block_stop", "index": self.index}),
+        ));
+        self.index += 1;
+        out
+    }
+
+    /// Record the reasoning item's id; defer opening the thinking block until the
+    /// first summary delta (or `output_item.done` when there is something to
+    /// round-trip), so a reasoning item with no summary, no id, and no encrypted
+    /// content emits nothing.
+    fn reasoning_added(&mut self, item: &Value) -> Vec<String> {
+        if !self.thinking_enabled {
+            return Vec::new();
+        }
+        let id = item
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        self.reasoning = Some(ReasoningBuffer {
+            id,
+            summary: String::new(),
+            signature: None,
+        });
+        Vec::new()
+    }
+
+    fn open_reasoning(&mut self) -> Vec<String> {
+        let mut out = self.close_any();
+        if self.reasoning.is_none() {
+            self.reasoning = Some(ReasoningBuffer {
+                id: String::new(),
+                summary: String::new(),
+                signature: None,
+            });
+        }
+        self.open = Some(OpenBlock {
+            index: self.index,
+            kind: BlockKind::Reasoning,
+        });
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "thinking", "thinking": ""}
+            }),
+        ));
+        out
+    }
+
+    fn reasoning_delta(&mut self, data: &Value) -> Vec<String> {
+        if !self.thinking_enabled {
+            return Vec::new();
+        }
+        let delta = data.get("delta").and_then(Value::as_str).unwrap_or("");
+        if delta.is_empty() {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        if self.open.as_ref().map(|block| block.kind) != Some(BlockKind::Reasoning) {
+            out.extend(self.open_reasoning());
+        }
+        if let Some(reasoning) = &mut self.reasoning {
+            if self.accumulate_content {
+                reasoning.summary.push_str(delta);
+            }
+        }
+        out.push(sse(
+            "content_block_delta",
+            &json!({
+                "type": "content_block_delta",
+                "index": self.open_index(),
+                "delta": {"type": "thinking_delta", "thinking": delta}
+            }),
+        ));
+        out
+    }
+
+    fn reasoning_done(&mut self, item: &Value) -> Vec<String> {
+        if !self.thinking_enabled {
+            return Vec::new();
+        }
+        let encrypted = item
+            .get("encrypted_content")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        // Prefer the id captured at output_item.added; fall back to the id on
+        // this done event so the round-trip keeps a real reasoning-item id even
+        // if the added event was missed or carried none.
+        let id = self
+            .reasoning
+            .as_ref()
+            .map(|reasoning| reasoning.id.clone())
+            .filter(|id| !id.is_empty())
+            .or_else(|| item.get("id").and_then(Value::as_str).map(str::to_string))
+            .unwrap_or_default();
+        let is_open = self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Reasoning);
+        // Nothing to show (no summary streamed) and nothing to round-trip (no
+        // id). An empty encrypted_content is not a drop: the item still
+        // round-trips its id so the backend keeps its reasoning chain under
+        // store:false.
+        if !is_open && encrypted.is_empty() && id.is_empty() {
+            self.reasoning = None;
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        if !is_open {
+            // Open an empty thinking block purely to carry the round-trip signature.
+            out.extend(self.open_reasoning());
+        }
+        if !id.is_empty() || !encrypted.is_empty() {
+            let signature = encode_reasoning_signature(&id, encrypted);
+            if let Some(reasoning) = &mut self.reasoning {
+                reasoning.signature = Some(signature.clone());
+            }
+            out.push(sse(
+                "content_block_delta",
+                &json!({
+                    "type": "content_block_delta",
+                    "index": self.open_index(),
+                    "delta": {"type": "signature_delta", "signature": signature}
+                }),
+            ));
+        }
+        out.extend(self.close_any());
+        out
+    }
+
+    fn open_text(&mut self) -> Vec<String> {
+        let mut out = self.close_any();
+        self.open = Some(OpenBlock {
+            index: self.index,
+            kind: BlockKind::Text,
+        });
+        // Do NOT clear `text_citations` here: `annotation_added` can buffer a
+        // citation before the first `text_delta` opens the block, and
+        // `close_any` already clears the buffer when a text block closes. A
+        // clear at open time would drop those pre-delta citations.
+        self.text_buffer.clear();
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "text", "text": ""}
+            }),
+        ));
+        // Flush any citations buffered before this block opened. `annotation_added`
+        // stores a citation but can't stream its `citations_delta` while no text
+        // block is open, so emit them now that the block exists — otherwise
+        // streaming clients only ever see them in the final reconstructed block.
+        for citation in &self.text_citations {
+            out.push(sse(
+                "content_block_delta",
+                &json!({
+                    "type": "content_block_delta",
+                    "index": self.index,
+                    "delta": {"type": "citations_delta", "citation": citation}
+                }),
+            ));
+        }
+        out
+    }
+
+    fn open_tool(&mut self, item: &Value) -> Vec<String> {
+        let mut out = self.close_any();
+        let id = item
+            .get("call_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let name = item
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        self.saw_tool = true;
+        let identifier = |key| item.get(key).and_then(Value::as_str).map(str::to_string);
+        self.tool_call = OpenToolCall {
+            item_id: identifier("id"),
+            call_id: identifier("call_id"),
+            args_streamed: false,
+        };
+        self.tool_buffer = self.accumulate_content.then(|| ToolBuffer {
+            id: id.clone(),
+            name: name.clone(),
+            json: String::new(),
+        });
+        self.open = Some(OpenBlock {
+            index: self.index,
+            kind: BlockKind::Tool,
+        });
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "tool_use", "id": id, "name": name, "input": {}}
+            }),
+        ));
+        out
+    }
+
+    fn text_delta(&mut self, data: &Value) -> Vec<String> {
+        let delta = data.get("delta").and_then(Value::as_str).unwrap_or("");
+        if delta.is_empty() {
+            return Vec::new();
+        }
+        if self.stop.is_empty() {
+            return self.emit_text(delta);
+        }
+        // Emulated `stop_sequences` (issue #605): the scanner emits everything up
+        // to a match (holding back only a partial stop that may still complete in
+        // the next delta) and reports the match, at which point the whole message
+        // ends here — text after the stop is neither emitted nor accumulated, and
+        // `stopped` makes every later event, `response.completed` included, a
+        // no-op.
+        let mut out = Vec::new();
+        // Open the text block on the delta itself, exactly as the unconfigured
+        // path does — not on the first byte that survives the scan. A delta that
+        // is held back in its entirety (the whole message so far is a proper
+        // prefix of a stop sequence) would otherwise leave no block open, and
+        // `close_any`'s flush — which is gated on an open text block, and cannot
+        // open one itself without recursing back through `open_text` — would
+        // never release it.
+        if self.open.as_ref().map(|block| block.kind) != Some(BlockKind::Text) {
+            out.extend(self.open_text());
+        }
+        let scan = self.stop.push(delta);
+        if !scan.emit.is_empty() {
+            out.extend(self.emit_text(&scan.emit));
+        }
+        if scan.matched.is_some() {
+            out.extend(self.close_any());
+            out.extend(self.stop_events("stop_sequence"));
+        }
+        out
+    }
+
+    /// Stream one run of assistant text: open the text block if this is the first
+    /// of it, record it for the non-streaming reconstruction, and emit the
+    /// `text_delta`. Only text that actually reaches the client passes through
+    /// here, so `text_buffer` and the streamed output can never disagree.
+    fn emit_text(&mut self, text: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        if self.open.as_ref().map(|block| block.kind) != Some(BlockKind::Text) {
+            out.extend(self.open_text());
+        }
+        if self.accumulate_content {
+            self.text_buffer.push_str(text);
+        }
+        out.push(sse(
+            "content_block_delta",
+            &json!({
+                "type": "content_block_delta",
+                "index": self.open_index(),
+                "delta": {"type": "text_delta", "text": text}
+            }),
+        ));
+        out
+    }
+
+    fn annotation_added(&mut self, data: &Value) -> Vec<String> {
+        let annotation = data.get("annotation").unwrap_or(data);
+        if annotation.get("type").and_then(Value::as_str) != Some("url_citation") {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        let url = annotation.get("url").and_then(Value::as_str).unwrap_or("");
+        let encrypted_index = annotation
+            .get("encrypted_index")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| self.web_search_indexes.get(url).cloned())
+            .map(Value::String)
+            .unwrap_or(Value::Null);
+        let title = annotation
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let cited_text = annotation
+            .get("cited_text")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let mut citation = json!({
+            "type": "web_search_result_location",
+            "url": url,
+            "title": title,
+            "cited_text": cited_text,
+            "encrypted_index": encrypted_index,
+        });
+        citation
+            .as_object_mut()
+            .expect("citation is an object")
+            .retain(|_, value| !value.is_null());
+        let text_is_open = self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Text);
+        if !text_is_open {
+            // Streaming still needs to buffer citations that arrive before the first
+            // text delta so `open_text` can flush them once the block exists.
+            self.text_citations.push(citation);
+            return out;
+        }
+        if self.accumulate_content {
+            self.text_citations.push(citation.clone());
+        }
+        out.push(sse(
+            "content_block_delta",
+            &json!({
+                "type": "content_block_delta",
+                "index": self.open_index(),
+                "delta": {"type": "citations_delta", "citation": citation}
+            }),
+        ));
+        out
+    }
+
+    fn web_search_done(&mut self, item: &Value) -> Vec<String> {
+        let mut out = self.close_any();
+        let id = item
+            .get("id")
+            .or_else(|| item.get("call_id"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let input = item
+            .get("action")
+            .cloned()
+            .or_else(|| item.get("input").cloned())
+            .unwrap_or_else(|| json!({}));
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "server_tool_use", "id": id, "name": "web_search", "input": input}
+            }),
+        ));
+        if self.accumulate_content {
+            self.content.push(json!({
+                "type": "server_tool_use", "id": id, "name": "web_search", "input": input
+            }));
+        }
+        out.push(sse(
+            "content_block_stop",
+            &json!({"type": "content_block_stop", "index": self.index}),
+        ));
+        self.index += 1;
+
+        let results = item
+            .get("results")
+            .or_else(|| item.get("output"))
+            .filter(|results| results.is_array())
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+        if let Some(results) = results.as_array() {
+            for result in results {
+                if let (Some(url), Some(encrypted_content)) = (
+                    result.get("url").and_then(Value::as_str),
+                    result.get("encrypted_content").and_then(Value::as_str),
+                ) {
+                    self.web_search_indexes
+                        .insert(url.to_string(), encrypted_content.to_string());
+                }
+            }
+        }
+        out.push(sse(
+            "content_block_start",
+            &json!({
+                "type": "content_block_start",
+                "index": self.index,
+                "content_block": {"type": "web_search_tool_result", "tool_use_id": id, "content": results}
+            }),
+        ));
+        if self.accumulate_content {
+            self.content.push(json!({
+                "type": "web_search_tool_result", "tool_use_id": id, "content": results
+            }));
+        }
+        out.push(sse(
+            "content_block_stop",
+            &json!({"type": "content_block_stop", "index": self.index}),
+        ));
+        self.index += 1;
+        out
+    }
+
+    fn arguments_delta(&mut self, data: &Value) -> Vec<String> {
+        // A delta for a call whose block text or reasoning already stopped has
+        // no block left to land on; never stream it onto another block.
+        if self.open.as_ref().map(|block| block.kind) != Some(BlockKind::Tool)
+            || !self.event_names_open_call(data)
+        {
+            return Vec::new();
+        }
+        let delta = data.get("delta").and_then(Value::as_str).unwrap_or("");
+        self.emit_arguments(delta)
+    }
+
+    fn emit_arguments(&mut self, delta: &str) -> Vec<String> {
+        if !delta.is_empty() {
+            self.tool_call.args_streamed = true;
+        }
+        if self.accumulate_content {
+            if let Some(tool) = &mut self.tool_buffer {
+                tool.json.push_str(delta);
+            }
+        }
+        vec![sse(
+            "content_block_delta",
+            &json!({
+                "type": "content_block_delta",
+                "index": self.open_index(),
+                "delta": {"type": "input_json_delta", "partial_json": delta}
+            }),
+        )]
+    }
+
+    /// Close the open block at a function call's `function_call_arguments.done`
+    /// or `output_item.done`, both of which carry the call's full `arguments`.
+    /// Upstreams may send the arguments only there, with no preceding delta
+    /// (Codex parallel calls, issue #765), so a tool block that streamed nothing
+    /// gets them as one `input_json_delta` before its `content_block_stop`. A
+    /// block whose deltas already arrived is closed as-is, never sent a second
+    /// copy. A done event naming a different call than the open one (a call
+    /// whose block an interleaved `output_item.added` already closed) is
+    /// ignored, so its arguments never land on another call's `tool_use` and
+    /// the open call still closes on its own done events.
+    fn close_tool(&mut self, data: &Value) -> Vec<String> {
+        let mut out = Vec::new();
+        if self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Tool) {
+            if !self.event_names_open_call(data) {
+                // The event names another call, which is finished even though
+                // its arguments are ignored here.
+                self.finish_item(data);
+                return out;
+            }
+            if !self.tool_call.args_streamed {
+                if let Some(arguments) = data
+                    .get("arguments")
+                    .and_then(Value::as_str)
+                    .filter(|arguments| !arguments.is_empty())
+                {
+                    out.extend(self.emit_arguments(arguments));
+                }
+            }
+            out.extend(self.close_any());
+            // The open call itself finished, even when the done event carries
+            // no id.
+            let (item_id, call_id) = (
+                self.tool_call.item_id.clone(),
+                self.tool_call.call_id.clone(),
+            );
+            self.finish_ids(item_id.as_deref(), call_id.as_deref());
+        }
+        // When text or reasoning closed this call first, its done event never
+        // closes that block, and still finishes the call.
+        self.finish_item(data);
+        out.extend(self.release_deferred_items());
+        out
+    }
+
+    /// The deferral slot an event waits in, if it must wait: the deferred item
+    /// it names, or a new slot for an item added while an earlier one has yet
+    /// to finish, or for one added before the open call (or never announced)
+    /// whose text, reasoning, or done event would stop the open tool block.
+    /// Every per-item event names its item by `item_id`;
+    /// `output_item.added` / `output_item.done` carry the item, named by `id`,
+    /// or by `call_id` on a function call. An item without an `id` cannot get a
+    /// slot, so it is never deferred: it opens at once, closing the open block
+    /// as before.
+    fn deferral(&mut self, event: &ResponseEvent) -> Option<usize> {
+        let name = event.event.as_deref()?;
+        let data = &event.data;
+        let item = matches!(
+            name,
+            "response.output_item.added" | "response.output_item.done"
+        )
+        .then(|| data.get("item").unwrap_or(data));
+        let id = item
+            .map_or_else(|| data.get("item_id"), |item| item.get("id"))
+            .and_then(Value::as_str);
+        let call_id = item
+            .and_then(|item| item.get("call_id"))
+            .and_then(Value::as_str);
+        let names =
+            |value: Option<&str>, deferred: Option<&str>| value.is_some() && value == deferred;
+        if let Some(index) = self.deferred_items.iter().position(|deferred| {
+            names(id, Some(&deferred.id)) || names(call_id, deferred.call_id.as_deref())
+        }) {
+            return Some(index);
+        }
+        let tool_is_open = self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Tool);
+        let waits = match name {
+            "response.output_item.added" => self.holds_new_items(),
+            // Only while a tool block is open: with text or reasoning open, the
+            // event continues that block rather than stopping a call's.
+            "response.output_text.delta" | "response.reasoning_summary_text.delta" => tool_is_open,
+            // A function call's done event only ever closes its own block.
+            "response.output_item.done" => {
+                tool_is_open
+                    && item
+                        .and_then(|item| item.get("type"))
+                        .and_then(Value::as_str)
+                        != Some("function_call")
+            }
+            _ => false,
+        };
+        let id = id?;
+        // The replayed item still in progress streams its remaining events live.
+        if !waits
+            || self
+                .pending_item
+                .as_ref()
+                .is_some_and(|pending| pending.id == id)
+        {
+            return None;
+        }
+        // An item that started before the open call precedes every item added
+        // after it, so it replays ahead of them, behind the items that started
+        // early before it.
+        let started_early = name != "response.output_item.added";
+        let index = if started_early {
+            self.deferred_items
+                .iter()
+                .position(|deferred| !deferred.started_early)
+                .unwrap_or(self.deferred_items.len())
+        } else {
+            self.deferred_items.len()
+        };
+        self.deferred_items.insert(
+            index,
+            DeferredItem {
+                id: id.to_string(),
+                call_id: call_id.map(str::to_string),
+                events: Vec::new(),
+                done: false,
+                started_early,
+            },
+        );
+        Some(index)
+    }
+
+    /// Whether an item added now must wait: behind the open tool block, whose
+    /// done-event arguments may still arrive; behind a replayed item still in
+    /// progress; or behind items already deferred, so a later item never
+    /// overtakes an earlier one.
+    fn holds_new_items(&self) -> bool {
+        self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Tool)
+            || self.pending_item.is_some()
+            || !self.deferred_items.is_empty()
+    }
+
+    /// Record that the item an event names has finished, so the items deferred
+    /// behind it may replay. The event names it by `item_id` / `id`, or by
+    /// `call_id` on a function call.
+    fn finish_item(&mut self, data: &Value) {
+        let id = data
+            .get("item_id")
+            .or_else(|| data.get("id"))
+            .and_then(Value::as_str);
+        let call_id = data.get("call_id").and_then(Value::as_str);
+        self.finish_ids(id, call_id);
+    }
+
+    fn finish_ids(&mut self, id: Option<&str>, call_id: Option<&str>) {
+        let named = self.pending_item.as_ref().is_some_and(|pending| {
+            (id.is_some() && id == Some(pending.id.as_str()))
+                || (call_id.is_some() && call_id == pending.call_id.as_deref())
+        });
+        if named {
+            self.pending_item = None;
+        }
+    }
+
+    /// Replay the deferred items in arrival order once no block is open and no
+    /// replayed item is still in progress. An open text or reasoning block is
+    /// never cut short to make room. Replay stops at the first item whose own
+    /// done event has not arrived yet: its remaining events then arrive live,
+    /// and the items behind it stay deferred until it finishes.
+    fn release_deferred_items(&mut self) -> Vec<String> {
+        let mut out = Vec::new();
+        if self.replaying {
+            return out;
+        }
+        self.replaying = true;
+        while !self.stopped
+            && self.open.is_none()
+            && self.pending_item.is_none()
+            && !self.deferred_items.is_empty()
+        {
+            let item = self.deferred_items.remove(0);
+            for event in item.events {
+                out.extend(self.dispatch(event));
+            }
+            if !item.done {
+                self.pending_item = Some(PendingItem {
+                    id: item.id,
+                    call_id: item.call_id,
+                });
+            }
+        }
+        self.replaying = false;
+        out
+    }
+
+    /// At a terminal event, emit every item still deferred — the open call or a
+    /// replayed item may never have sent its done events — closing each after
+    /// its replay.
+    fn drain_deferred_items(&mut self) -> Vec<String> {
+        let mut out = Vec::new();
+        while !self.stopped && !self.deferred_items.is_empty() {
+            self.pending_item = None;
+            out.extend(self.release_deferred_items());
+            out.extend(self.close_any());
+        }
+        self.pending_item = None;
+        out
+    }
+
+    /// Whether an argument or done event belongs to the open tool call.
+    /// `output_item.done` names the call by its item's `id` and `call_id`, the
+    /// `function_call_arguments` events by `item_id`. An identifier missing on
+    /// either side cannot tell the calls apart, so it counts as a match.
+    fn event_names_open_call(&self, data: &Value) -> bool {
+        let differs = |key: &str, open: &Option<String>| {
+            matches!(
+                (data.get(key).and_then(Value::as_str), open),
+                (Some(event), Some(open)) if event != open
+            )
+        };
+        !differs("call_id", &self.tool_call.call_id)
+            && !differs("item_id", &self.tool_call.item_id)
+            && !differs("id", &self.tool_call.item_id)
+    }
+
+    fn close_current(&mut self, expected: BlockKind) -> Vec<String> {
+        if self.open.as_ref().map(|block| block.kind) != Some(expected) {
+            return Vec::new();
+        }
+        self.close_any()
+    }
+
+    /// Release whatever the stop-sequence scanner is still holding back as an
+    /// ordinary `text_delta`. A holdback is only ever a *partial* stop that never
+    /// completed, so it is output the client is owed — and it is owed it on every
+    /// terminal, not only on the ones that close the block ([`Self::close_any`]).
+    /// Empty unless stop sequences are configured, something is actually held,
+    /// and the open block is text.
+    fn flush_stop_holdback(&mut self) -> Vec<String> {
+        let mut out = Vec::new();
+        if !self.stop.is_empty()
+            && self.open.as_ref().map(|block| block.kind) == Some(BlockKind::Text)
+        {
+            let held = self.stop.flush();
+            if !held.is_empty() {
+                out.extend(self.emit_text(&held));
+            }
+        }
+        out
+    }
+
+    fn close_any(&mut self) -> Vec<String> {
+        // Text the stop-sequence scanner is still holding back is a partial stop
+        // that never completed — ordinary output. Flush it here, before this
+        // block's `content_block_stop` and before the accumulation below reads
+        // `text_buffer`, so every path that closes a text block (`close_current`,
+        // `open_tool`, `open_reasoning`, `output_item_done`, `complete`, `finish`)
+        // releases it exactly once.
+        let mut out = self.flush_stop_holdback();
+        let Some(open) = self.open.take() else {
+            return out;
+        };
+        match open.kind {
+            BlockKind::Text => {
+                // Drop a whitespace-only text block from the reconstructed
+                // `content` (Anthropic rejects empty text blocks), but still
+                // emit the matching `content_block_stop` below and advance the
+                // index: `open_text` already streamed a `content_block_start`
+                // for this block, so suppressing the stop would leave an
+                // unbalanced block and make the next block reuse this index.
+                if self.accumulate_content && !self.text_buffer.trim().is_empty() {
+                    let mut block = json!({"type": "text", "text": self.text_buffer});
+                    if !self.text_citations.is_empty() {
+                        block["citations"] = json!(self.text_citations);
+                    }
+                    self.content.push(block);
+                }
+                self.text_buffer.clear();
+                self.text_citations.clear();
+            }
+            BlockKind::Tool => {
+                if let Some(tool) = self.tool_buffer.take() {
+                    if self.accumulate_content {
+                        let input = serde_json::from_str(&tool.json).unwrap_or_else(|_| json!({}));
+                        self.content.push(json!({
+                            "type": "tool_use",
+                            "id": tool.id,
+                            "name": tool.name,
+                            "input": input
+                        }));
+                    }
+                }
+            }
+            BlockKind::Reasoning => {
+                if let Some(reasoning) = self.reasoning.take() {
+                    if self.accumulate_content {
+                        let mut block = json!({"type": "thinking", "thinking": reasoning.summary});
+                        if let Some(signature) = reasoning.signature {
+                            block["signature"] = json!(signature);
+                        }
+                        self.content.push(block);
+                    }
+                }
+            }
+        }
+        self.index += 1;
+        out.push(sse(
+            "content_block_stop",
+            &json!({"type": "content_block_stop", "index": open.index}),
+        ));
+        out
+    }
+
+    fn complete(&mut self, data: &Value) -> Vec<String> {
+        self.read_usage(data);
+        let mut out = self.close_any();
+        out.extend(self.drain_deferred_items());
+        // A replayed text delta can end the turn on an emulated stop sequence.
+        if self.stopped {
+            return out;
+        }
+        let stop_reason = if self.saw_tool {
+            "tool_use"
+        } else {
+            "end_turn"
+        };
+        out.extend(self.stop_events(stop_reason));
+        out
+    }
+
+    fn stop_events(&mut self, stop_reason: &str) -> Vec<String> {
+        self.stopped = true;
+        // `stop_sequence` names the emulated stop that fired (issue #605), and is
+        // `null` on every other terminal — exactly as before the feature.
+        let stop_sequence = self.stop.matched().map_or(Value::Null, Value::from);
+        vec![
+            sse(
+                "message_delta",
+                &json!({
+                    "type": "message_delta",
+                    "delta": {"stop_reason": stop_reason, "stop_sequence": stop_sequence},
+                    // Carry input_tokens here (not message_start): the Responses
+                    // API only reports usage at response.completed, so this is the
+                    // first point shunt knows the prompt size. The Anthropic SDK
+                    // merges message_delta usage into the message, which is what
+                    // Claude Code reads for its context-window indicator.
+                    "usage": self.usage_value()
+                }),
+            ),
+            sse("message_stop", &json!({"type": "message_stop"})),
+        ]
+    }
+
+    /// Anthropic-shaped usage. Claude Code's context indicator sums
+    /// input_tokens + cache_read + cache_creation, so the split must preserve the
+    /// total. OpenAI's `input_tokens` already includes both the cached-read and
+    /// the cache-write portions, so each is peeled off and input_tokens holds the
+    /// remainder.
+    fn usage_value(&self) -> Value {
+        // Fall back to the message_start estimate only when real usage was never
+        // observed — i.e. the stream ended before response.completed, so
+        // read_usage never ran. Without this a truncated turn's final usage would
+        // drop back to 0 and undo the seed message_start already reported. The
+        // explicit `usage_observed` flag (not a zero-check) means a genuine
+        // upstream `input_tokens: 0` is still reported as 0, not overwritten by
+        // the estimate. On non-streaming machines the estimate is never seeded
+        // (it stays 0), so this preserves the real-0 behaviour.
+        let input_tokens = if self.usage_observed {
+            self.input_tokens
+        } else {
+            self.input_tokens_estimate
+        };
+        json!({
+            "input_tokens": input_tokens,
+            "cache_read_input_tokens": self.cache_read_tokens,
+            "cache_creation_input_tokens": self.cache_creation_tokens,
+            "output_tokens": self.output_tokens,
+        })
+    }
+
+    fn read_usage(&mut self, data: &Value) {
+        let Some(usage) = data
+            .pointer("/response/usage")
+            .or_else(|| data.get("usage"))
+        else {
+            return;
+        };
+        if let Some(tokens) = usage.get("output_tokens").and_then(Value::as_u64) {
+            self.output_tokens = tokens;
+        }
+        // OpenAI `input_tokens` counts total prompt tokens including both the
+        // cached-read and the cache-write portions; peel each off so the three
+        // Anthropic fields still sum to the prompt size Claude Code charts
+        // against the context window. Clamped and saturating throughout: a
+        // malformed payload whose details exceed the total must not underflow.
+        let cached = usage
+            .pointer("/input_tokens_details/cached_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        let cache_write = usage
+            .pointer("/input_tokens_details/cache_write_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if let Some(total_input) = usage.get("input_tokens").and_then(Value::as_u64) {
+            self.cache_read_tokens = cached.min(total_input);
+            self.cache_creation_tokens =
+                cache_write.min(total_input.saturating_sub(self.cache_read_tokens));
+            self.input_tokens = total_input
+                .saturating_sub(self.cache_read_tokens)
+                .saturating_sub(self.cache_creation_tokens);
+            self.usage_observed = true;
+        }
+    }
+
+    fn open_index(&self) -> usize {
+        self.open
+            .as_ref()
+            .map(|block| block.index)
+            .unwrap_or(self.index)
+    }
+}
+
+pub fn parse_sse_events(input: &str) -> Vec<ResponseEvent> {
+    input
+        .split("\n\n")
+        .filter_map(|frame| parse_sse_frame(frame).and_then(Result::ok))
+        .collect()
+}
+
+/// Classify one complete SSE frame (terminators already stripped): `None` when
+/// the frame carries nothing to relay (no `data` lines, whitespace-only data,
+/// or the `[DONE]` sentinel), `Some(Ok(_))` for a parsed event, and
+/// `Some(Err(_))` when the frame's data is present but not valid JSON.
+pub(crate) fn parse_sse_frame(frame: &str) -> Option<Result<ResponseEvent, serde_json::Error>> {
+    let mut event = None;
+    let mut data = Vec::new();
+    for line in frame.lines() {
+        if let Some(value) = line.strip_prefix("event:") {
+            event = Some(value.trim().to_string());
+        } else if let Some(value) = line.strip_prefix("data:") {
+            data.push(value.trim_start());
+        }
+    }
+    let data = data.join("\n");
+    let trimmed = data.trim();
+    if trimmed.is_empty() || trimmed == "[DONE]" {
+        return None;
+    }
+    match serde_json::from_str(&data) {
+        Ok(data) => Some(Ok(ResponseEvent { event, data })),
+        Err(error) => Some(Err(error)),
+    }
+}
+
+pub fn map_error_value(value: &Value, status: StatusCode) -> Value {
+    let message = error_message(value);
+    let message = context_overflow_message(value, &message).unwrap_or(message);
+    let message = misalignment_steer_message(value, &message).unwrap_or(message);
+    json!({
+        "type": "error",
+        "error": {
+            "type": anthropic_error_type(status),
+            "message": message
+        }
+    })
+}
+
+// HTTP 529 ("upstream overloaded") has no named constant in the `http`
+// crate — it isn't in the IANA registry. Anthropic uses it to mean "the
+// upstream is at capacity"; Claude Code backs off and retries on it instead
+// of failing the turn, so it must reach the client as its own status rather
+// than folding into a generic `api_error`.
+
+/// Single source of truth mapping an upstream HTTP status to both the Anthropic
+/// error envelope's `error.type` and the client-facing HTTP status.
+///
+/// Deriving both from one table makes their shared invariant unbreakable: a
+/// status can never be given a specific `error.type` (e.g. `permission_error`)
+/// while its client-facing status silently falls back to `502`, which would
+/// ship a self-contradictory envelope. `anthropic_error_type` and
+/// `client_facing_status` are thin projections of this table.
+///
+/// The standard error statuses (400/401/403/413/429/500/501/502/503/504 and the
+/// non-registry 529 overload) reach the client unchanged so status-based client
+/// behavior (the `529` overload backoff, distinguishing `503`/`500` from a
+/// generic gateway failure) sees the real upstream signal. Anything outside that
+/// set collapses to `(api_error, 502)` rather than leaking an unexpected
+/// upstream status verbatim. See `docs/gateway-protocol.md#error-envelopes`.
+/// The second tuple element is whether the upstream `status` reaches the client
+/// unchanged (`true`) or collapses to `502` (`false`); `client_facing_status`
+/// projects it. Encoding it as a flag rather than repeating the `StatusCode` in
+/// both the pattern and the return keeps each row's status listed once.
+fn mapped_error(status: StatusCode) -> (&'static str, bool) {
+    match status {
+        StatusCode::BAD_REQUEST => ("invalid_request_error", true),
+        StatusCode::UNAUTHORIZED => ("authentication_error", true),
+        StatusCode::FORBIDDEN => ("permission_error", true),
+        StatusCode::PAYLOAD_TOO_LARGE => ("request_too_large", true),
+        StatusCode::TOO_MANY_REQUESTS => ("rate_limit_error", true),
+        StatusCode::INTERNAL_SERVER_ERROR => ("api_error", true),
+        StatusCode::NOT_IMPLEMENTED => ("not_supported", true),
+        StatusCode::BAD_GATEWAY => ("api_error", true),
+        StatusCode::SERVICE_UNAVAILABLE => ("api_error", true),
+        StatusCode::GATEWAY_TIMEOUT => ("api_error", true),
+        _ if status.as_u16() == 529 => ("overloaded_error", true),
+        _ => ("api_error", false),
+    }
+}
+
+/// Map an upstream HTTP status to the Anthropic error envelope's `error.type`,
+/// per the table in `docs/gateway-protocol.md#error-envelopes`. Shared by every
+/// translated backend (Responses/Codex, xAI, Cursor) so they surface the same
+/// vocabulary the Anthropic-direct path streams verbatim. Projection of
+/// `mapped_error`.
+pub fn anthropic_error_type(status: StatusCode) -> &'static str {
+    mapped_error(status).0
+}
+
+/// Client-facing HTTP status for a mapped upstream error. The standard error
+/// statuses (400/401/403/413/429/500/501/502/503/504 and the non-registry 529
+/// overload) reach the client unchanged; anything else collapses to `502`
+/// rather than leaking an unexpected upstream status verbatim. Projection of
+/// `mapped_error`, the shared source of truth this and `error.type` derive from.
+pub fn client_facing_status(status: StatusCode) -> StatusCode {
+    if mapped_error(status).1 {
+        status
+    } else {
+        StatusCode::BAD_GATEWAY
+    }
+}
+
+/// The upstream error `code`, wherever the payload shape puts it: a plain
+/// `{"error":{"code":..}}` object, a streaming `response.failed` event nesting it
+/// under `response`, or a bare top-level `code`. Empty when absent.
+fn error_code(value: &Value) -> &str {
+    value
+        .pointer("/error/code")
+        .or_else(|| value.pointer("/response/error/code"))
+        .or_else(|| value.get("code"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+/// Client-facing status for a backend-sent `error` / `response.failed` event.
+///
+/// These events ride a `200 OK` stream, so there is no upstream HTTP status to
+/// preserve; the status is picked from the error `code`, mirroring openai/codex's
+/// SSE error classification as of rust-v0.159.3 (`codex-api/src/sse/responses.rs`
+/// and `codex-api/src/sse/responses_error.rs`):
+///
+/// - `rate_limit_exceeded` / `slow_down` / `flex_unavailable` → `429`
+///   `rate_limit_error`, the same envelope an HTTP 429 produces. Upstream
+///   classifies the first two as `RateLimitExceeded` (rust-v0.156.0 moved
+///   `slow_down` there from its `ServerOverloaded` class), and
+///   `flex_unavailable` (no capacity for the `flex` service tier) as
+///   `FlexUnavailable`, which rust-v0.159.3 maps to HTTP 429.
+/// - `server_is_overloaded` → `529` `overloaded_error`: upstream's
+///   `ServerOverloaded` class, which is Anthropic's overload signal. The mapping
+///   is by meaning, not retry policy — the Codex CLI surfaces this class to the
+///   user without an automatic retry, whereas Claude Code backs off and retries
+///   a 529 (as it already would the `502` this code used to map to).
+/// - `invalid_prompt` / `bio_policy` / `cyber_policy` → `400`
+///   `invalid_request_error`: upstream treats these as terminal, non-retryable
+///   refusals (`InvalidRequest` / `BioPolicy` / `CyberPolicy`), so a 4xx stops
+///   Claude Code from retrying them as it would a 5xx.
+/// - Any other code, when the event carries a top-level `status` (or
+///   `status_code`) that is a non-2xx HTTP status — the Codex websocket's
+///   wrapped HTTP-class error frame, mirroring rust-v0.156.0's
+///   `parse_wrapped_websocket_error_event` — → that status through
+///   [`client_facing_status`], exactly as the same HTTP status would map.
+///   This machine is shared by the HTTP SSE and websocket paths, so the arm is
+///   not transport-gated: any Responses backend's in-stream error event with a
+///   top-level status maps the same way (a `401` / `403` passes through as the
+///   auth envelope, as that out-of-band HTTP status already does).
+/// - Anything else (including `misalignment_policy_violation`, `server_error`,
+///   and quota codes such as `insufficient_quota`) → the `502` gateway error.
+///
+/// Status only, and always terminal: the event follows a 2xx acceptance, so it
+/// never re-enters failover (`docs/upstreams-failover.md` §3) and never cools a
+/// pool account down — pool cooldown keys on the upstream HTTP status alone.
+pub fn backend_error_status(value: &Value) -> StatusCode {
+    match error_code(value) {
+        "rate_limit_exceeded" | "slow_down" | "flex_unavailable" => StatusCode::TOO_MANY_REQUESTS,
+        "server_is_overloaded" => {
+            const OVERLOADED: StatusCode = match StatusCode::from_u16(529) {
+                Ok(status) => status,
+                Err(_) => panic!("529 is a valid HTTP status code"),
+            };
+            OVERLOADED
+        }
+        "invalid_prompt" | "bio_policy" | "cyber_policy" => StatusCode::BAD_REQUEST,
+        _ => wrapped_error_status(value)
+            .map(client_facing_status)
+            .unwrap_or(StatusCode::BAD_GATEWAY),
+    }
+}
+
+/// The HTTP status a Codex websocket wrapped error frame carries, e.g.
+/// `{"type":"error","status":400,"error":{..}}`: the backend's way of delivering
+/// an HTTP-class error on the socket instead of as a response status. Read from
+/// the top-level `status` or `status_code` (openai/codex rust-v0.156.0 accepts
+/// both); `None` when absent, not an integer, not a valid status, or 2xx.
+pub fn wrapped_error_status(value: &Value) -> Option<StatusCode> {
+    value
+        .get("status")
+        .or_else(|| value.get("status_code"))
+        .and_then(Value::as_u64)
+        .and_then(|status| u16::try_from(status).ok())
+        .and_then(|status| StatusCode::from_u16(status).ok())
+        .filter(|status| !status.is_success())
+}
+
+/// Append the backend's public steering instruction to a
+/// `misalignment_policy_violation` error message.
+///
+/// Since openai/codex rust-v0.153 the Codex backend attaches
+/// `error.misalignment.steer.message` — a customer-facing sentence telling the
+/// agent how to proceed — alongside the generic policy message. Claude Code
+/// shows the error message to the user, so the steer is only actionable if it
+/// travels in the message. Returns `None` when the code does not match or the
+/// steer is absent/empty, leaving the message untouched.
+fn misalignment_steer_message(value: &Value, message: &str) -> Option<String> {
+    if error_code(value) != "misalignment_policy_violation" {
+        return None;
+    }
+    let steer = value
+        .pointer("/error/misalignment/steer/message")
+        .or_else(|| value.pointer("/response/error/misalignment/steer/message"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|steer| !steer.is_empty())?;
+    Some(format!("{message}\n\n{steer}"))
+}
+
+fn error_message(value: &Value) -> String {
+    // OpenAI Responses errors use {"error":{"message":...}} or {"message":...};
+    // streaming `response.failed` events nest it at {"response":{"error":...}};
+    // the ChatGPT Codex backend uses {"detail":...}; xAI puts the human-readable
+    // reason in a top-level STRING `error` (e.g. a 402 out-of-credits body:
+    // {"error":"...upgrade at grok.com/supergrok","code":"..."}). Surface whichever
+    // is present so the client sees the real reason instead of a generic fallback.
+    value
+        .pointer("/error/message")
+        .or_else(|| value.pointer("/response/error/message"))
+        .or_else(|| value.get("message"))
+        .or_else(|| value.get("detail"))
+        .or_else(|| value.get("error").filter(|error| error.is_string()))
+        .and_then(Value::as_str)
+        .unwrap_or("upstream request failed")
+        .to_string()
+}
+
+/// Rewrite upstream context-overflow errors into Anthropic's wording.
+///
+/// Claude Code's automatic compact-and-retry only fires when the error
+/// message contains the phrase "prompt is too long" (matched
+/// case-insensitively), and it parses "N tokens > M maximum" from it to
+/// size the retry. Upstream providers phrase the same failure in their own
+/// words, which would otherwise strand the session until a manual /compact.
+pub fn context_overflow_message(value: &Value, message: &str) -> Option<String> {
+    let code = error_code(value);
+    let lower = message.to_lowercase();
+    // "exceeds the limit" alone also appears in quota/rate errors ("exceeds the
+    // limit of 1000000 tokens per minute"); requiring "prompt" or "token count"
+    // pins that branch to prompt-size messages.
+    let is_overflow = code == "context_length_exceeded"
+        || lower.contains("maximum context length")
+        || (lower.contains("context window") && lower.contains("exceed"))
+        || (lower.contains("exceeds the limit")
+            && (lower.contains("prompt") || lower.contains("token count")));
+    if !is_overflow {
+        return None;
+    }
+    // Token counts and window sizes are the only large integers in these
+    // messages (small ones come from model names like "gpt-5.2"), and the
+    // overflowing count is always the larger of the two. Commas and
+    // underscores are digit-group separators ("272,000"), not delimiters.
+    let mut numbers: Vec<i64> = Vec::new();
+    let mut current: Option<i64> = None;
+    for ch in message.chars().filter(|ch| !matches!(ch, ',' | '_')) {
+        if let Some(digit) = ch.to_digit(10) {
+            current = Some(
+                current
+                    .unwrap_or(0)
+                    .saturating_mul(10)
+                    .saturating_add(i64::from(digit)),
+            );
+        } else if let Some(number) = current.take() {
+            if number >= 1000 {
+                numbers.push(number);
+            }
+        }
+    }
+    if let Some(number) = current {
+        if number >= 1000 {
+            numbers.push(number);
+        }
+    }
+    match (numbers.iter().max(), numbers.iter().min()) {
+        (Some(&actual), Some(&limit)) if actual > limit => Some(format!(
+            "prompt is too long: {actual} tokens > {limit} maximum"
+        )),
+        _ => Some("prompt is too long".to_string()),
+    }
+}
+
+pub(crate) fn sse(event: &str, data: &Value) -> String {
+    format!("event: {event}\ndata: {data}\n\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(name: &str, data: Value) -> ResponseEvent {
+        ResponseEvent {
+            event: Some(name.to_string()),
+            data,
+        }
+    }
+
+    #[test]
+    fn synthetic_start_emits_message_start_with_given_id_and_ping() {
+        let mut machine = AnthropicSseMachine::new("gpt-test", false, false);
+        let frames = machine.start_synthetic("msg_synth_1".to_string());
+        assert_eq!(frames.len(), 2, "message_start + initial ping");
+        let start = &frames[0];
+        assert!(
+            start.starts_with("event: message_start\ndata: "),
+            "got: {start}"
+        );
+        let data: Value = serde_json::from_str(
+            start
+                .split_once("data: ")
+                .expect("carries a data line")
+                .1
+                .trim(),
+        )
+        .expect("message_start data is json");
+        assert_eq!(data["type"], "message_start");
+        assert_eq!(data["message"]["id"], "msg_synth_1");
+        assert_eq!(data["message"]["model"], "gpt-test");
+        assert_eq!(data["message"]["content"], json!([]));
+        assert!(frames[1].starts_with("event: ping\ndata: "));
+    }
+
+    #[test]
+    fn second_synthetic_start_is_suppressed() {
+        let mut machine = AnthropicSseMachine::new("gpt-test", false, false);
+        machine.start_synthetic("msg_synth_1".to_string());
+        let frames = machine.start_synthetic("msg_synth_2".to_string());
+        assert!(frames.is_empty());
+    }
+
+    #[test]
+    fn synthetic_start_then_full_stream_emits_exactly_one_message_start() {
+        let mut machine = AnthropicSseMachine::new("gpt-test", false, false);
+        let mut out: Vec<String> = machine.start_synthetic("msg_synth_1".to_string());
+        out.extend(machine.apply(event(
+            "response.created",
+            json!({"response": {"id": "resp_1"}}),
+        )));
+        out.extend(machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "message"}}),
+        )));
+        out.extend(machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "hello"}),
+        )));
+        out.extend(machine.apply(event("response.output_text.done", json!({}))));
+        out.extend(machine.apply(event(
+            "response.completed",
+            json!({"response": {"usage": {"input_tokens": 3, "output_tokens": 1}}}),
+        )));
+        let text = out.join("\n");
+        assert_eq!(
+            text.matches("event: message_start").count(),
+            1,
+            "got: {text}"
+        );
+        assert!(text.contains("\"text\":\"hello\""), "got: {text}");
+        assert!(text.contains("event: message_stop"), "got: {text}");
+        // The upstream's real response id is discarded in favor of the
+        // synthetic one — the client already holds `msg_synth_1` and must
+        // never see `resp_1`.
+        assert!(text.contains("\"id\":\"msg_synth_1\""), "got: {text}");
+        assert!(!text.contains("\"id\":\"resp_1\""), "got: {text}");
+    }
+
+    /// Drive a machine to `response.completed` with the given upstream `usage`
+    /// and return the Anthropic `usage` object from the terminal `message_delta`.
+    fn completed_usage(usage: Value) -> Value {
+        let mut machine = AnthropicSseMachine::new("test", false, false);
+        let frames = machine.apply(event("response.completed", json!({"usage": usage})));
+        let delta = frames
+            .iter()
+            .find(|frame| frame.contains("message_delta"))
+            .expect("a completed response emits message_delta");
+        let data = delta
+            .split_once("data: ")
+            .expect("the sse frame carries a data line")
+            .1;
+        serde_json::from_str::<Value>(data.trim()).expect("message_delta data is json")["usage"]
+            .clone()
+    }
+
+    #[test]
+    fn usage_without_cache_write_tokens_is_unchanged() {
+        // Regression guard for the absent-field path: every upstream that has not
+        // shipped `cache_write_tokens` must produce exactly the previous shape —
+        // the cached portion peeled into cache_read, cache_creation at 0.
+        let usage = completed_usage(json!({
+            "input_tokens": 1200,
+            "input_tokens_details": {"cached_tokens": 800},
+            "output_tokens": 9,
+        }));
+        assert_eq!(
+            usage,
+            json!({
+                "input_tokens": 400,
+                "cache_read_input_tokens": 800,
+                "cache_creation_input_tokens": 0,
+                "output_tokens": 9,
+            })
+        );
+    }
+
+    #[test]
+    fn usage_peels_cache_write_tokens_into_cache_creation() {
+        // Both detail fields are peeled off the total, and the three input fields
+        // still sum to the upstream `input_tokens`.
+        let usage = completed_usage(json!({
+            "input_tokens": 1200,
+            "input_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 150},
+            "output_tokens": 9,
+        }));
+        assert_eq!(
+            usage,
+            json!({
+                "input_tokens": 250,
+                "cache_read_input_tokens": 800,
+                "cache_creation_input_tokens": 150,
+                "output_tokens": 9,
+            })
+        );
+        let sum = usage["input_tokens"].as_u64().unwrap()
+            + usage["cache_read_input_tokens"].as_u64().unwrap()
+            + usage["cache_creation_input_tokens"].as_u64().unwrap();
+        assert_eq!(sum, 1200);
+    }
+
+    #[test]
+    fn usage_clamps_details_that_exceed_the_reported_input_tokens() {
+        // A pathological payload (details summing past the total) must not panic
+        // or underflow; the three fields still sum to `input_tokens`.
+        let usage = completed_usage(json!({
+            "input_tokens": 100,
+            "input_tokens_details": {"cached_tokens": 90, "cache_write_tokens": 500},
+            "output_tokens": 1,
+        }));
+        assert_eq!(
+            usage,
+            json!({
+                "input_tokens": 0,
+                "cache_read_input_tokens": 90,
+                "cache_creation_input_tokens": 10,
+                "output_tokens": 1,
+            })
+        );
+    }
+
+    #[test]
+    fn tool_only_turn_does_not_emit_empty_text_block() {
+        let mut machine = AnthropicSseMachine::new("test", false, false);
+        let mut output = Vec::new();
+        output.extend(machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "function_call", "call_id": "call_1", "name": "do_work"}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.function_call_arguments.delta",
+            json!({"delta": "{}"}),
+        )));
+        output.extend(machine.apply(event("response.function_call_arguments.done", json!({}))));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "function_call"}}),
+        )));
+        output.extend(machine.finish());
+        let final_json = machine.final_json();
+
+        assert!(output.iter().all(|frame| {
+            !frame.contains("\"type\":\"text\"") && !frame.contains("\"text\":\"\"")
+        }));
+        assert!(
+            final_json["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|block| block["type"] != "text")
+        );
+    }
+
+    #[test]
+    fn reasoning_only_turn_does_not_emit_empty_text_block() {
+        let mut machine = AnthropicSseMachine::new("test", true, false);
+        let mut output = machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "reasoning", "id": "reason_1"}}),
+        ));
+        output.extend(machine.apply(event(
+            "response.reasoning_summary_text.delta",
+            json!({"delta": "Thinking"}),
+        )));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "reasoning", "id": "reason_1"}}),
+        )));
+        output.extend(machine.finish());
+        let final_json = machine.final_json();
+
+        assert!(output.iter().all(|frame| {
+            !frame.contains("\"type\":\"text\"") && !frame.contains("\"text\":\"\"")
+        }));
+        assert!(
+            final_json["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|block| block["type"] != "text")
+        );
+    }
+
+    #[test]
+    fn text_turn_still_streams_text_content() {
+        let mut machine = AnthropicSseMachine::new("test", false, false);
+        let mut output = machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "message"}}),
+        ));
+        output.extend(machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "Hello"}),
+        )));
+        output.extend(machine.apply(event("response.output_text.done", json!({}))));
+        output.extend(machine.finish());
+        let final_json = machine.final_json();
+
+        assert!(output.iter().any(|frame| frame.contains("text_delta")));
+        assert_eq!(
+            final_json["content"][0],
+            json!({"type": "text", "text": "Hello"})
+        );
+    }
+
+    #[test]
+    fn streaming_machine_does_not_accumulate_final_content() {
+        let mut machine =
+            AnthropicSseMachine::new("test", true, true).without_content_accumulation();
+        let mut output = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "Hello"}),
+        ));
+        output.extend(machine.apply(event("response.output_text.done", json!({}))));
+        output.extend(machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "function_call", "call_id": "call_1", "name": "run"}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.function_call_arguments.delta",
+            json!({"delta": "{\"value\":1}"}),
+        )));
+        output.extend(machine.apply(event("response.function_call_arguments.done", json!({}))));
+        output.extend(machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "reasoning", "id": "reason_1"}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.reasoning_summary_text.delta",
+            json!({"delta": "Thinking"}),
+        )));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "reasoning", "id": "reason_1", "encrypted_content": "secret"}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "tool_search_call", "call_id": "search_1", "arguments": {"query": "docs"}}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "web_search_call", "id": "web_1", "action": {"query": "docs"}, "results": []}}),
+        )));
+        output.extend(machine.finish());
+
+        let emitted = output.concat();
+        assert!(emitted.contains("\"text\":\"Hello\""));
+        assert!(emitted.contains("\"partial_json\":\"{\\\"value\\\":1}\""));
+        assert!(emitted.contains("\"thinking\":\"Thinking\""));
+        assert!(emitted.contains("\"name\":\"ToolSearch\""));
+        assert!(emitted.contains("\"type\":\"server_tool_use\""));
+        assert!(machine.content.is_empty());
+        assert!(machine.text_buffer.is_empty());
+        assert!(machine.tool_buffer.is_none());
+        assert!(machine.reasoning.is_none());
+    }
+
+    #[test]
+    fn whitespace_only_text_keeps_the_sse_stream_balanced() {
+        // A whitespace-only delta still opens a text block (open_text streams a
+        // content_block_start), so closing it must emit the matching
+        // content_block_stop and advance the index. Otherwise the following
+        // tool block reuses the same index and the first block is never closed.
+        let mut machine = AnthropicSseMachine::new("test", false, false);
+        let mut output = machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "message"}}),
+        ));
+        output.extend(machine.apply(event("response.output_text.delta", json!({"delta": "  "}))));
+        output.extend(machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "function_call", "call_id": "call_1", "name": "do_work"}}),
+        )));
+        output.extend(machine.apply(event(
+            "response.function_call_arguments.delta",
+            json!({"delta": "{}"}),
+        )));
+        output.extend(machine.apply(event("response.function_call_arguments.done", json!({}))));
+        output.extend(machine.apply(event(
+            "response.output_item.done",
+            json!({"item": {"type": "function_call"}}),
+        )));
+        output.extend(machine.finish());
+        let final_json = machine.final_json();
+
+        let starts = output
+            .iter()
+            .filter(|frame| frame.contains("event: content_block_start"))
+            .count();
+        let stops = output
+            .iter()
+            .filter(|frame| frame.contains("event: content_block_stop"))
+            .count();
+        assert_eq!(starts, stops, "every content_block_start needs a stop");
+
+        // No two content_block_start frames may share an index.
+        let start_indexes: Vec<&str> = output
+            .iter()
+            .filter(|frame| frame.contains("event: content_block_start"))
+            .map(|frame| {
+                let marker = "\"index\":";
+                let start = frame.find(marker).unwrap() + marker.len();
+                let rest = &frame[start..];
+                let end = rest
+                    .find(|c: char| !c.is_ascii_digit())
+                    .unwrap_or(rest.len());
+                &rest[..end]
+            })
+            .collect();
+        let mut unique = start_indexes.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(
+            start_indexes.len(),
+            unique.len(),
+            "content_block_start indexes must be distinct"
+        );
+
+        // The whitespace-only text block is still dropped from `content`.
+        assert!(
+            final_json["content"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|block| block["type"] != "text")
+        );
+    }
+
+    #[test]
+    fn citation_before_first_text_delta_is_preserved() {
+        // `annotation.added` can arrive before the first `output_text.delta`.
+        // It buffers the citation in `text_citations`; the subsequent
+        // `open_text` must not clear that buffer, or the pre-delta citation is
+        // lost from the reconstructed text block.
+        let mut machine = AnthropicSseMachine::new("test", false, false);
+        let mut output = machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "message"}}),
+        ));
+        output.extend(machine.apply(event(
+            "response.output_text.annotation.added",
+            json!({"annotation": {
+                "type": "url_citation",
+                "url": "https://example.com",
+                "title": "Example",
+                "cited_text": "quoted"
+            }}),
+        )));
+        output.extend(machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "Hello"}),
+        )));
+        output.extend(machine.apply(event("response.output_text.done", json!({}))));
+        output.extend(machine.finish());
+        let final_json = machine.final_json();
+
+        // The buffered citation survives into the final reconstructed block...
+        assert_eq!(
+            final_json["content"][0],
+            json!({
+                "type": "text",
+                "text": "Hello",
+                "citations": [{
+                    "type": "web_search_result_location",
+                    "url": "https://example.com",
+                    "title": "Example",
+                    "cited_text": "quoted"
+                }]
+            })
+        );
+        // ...and streaming clients also receive it as a `citations_delta`, flushed
+        // when the lazily-opened text block starts.
+        assert!(
+            output
+                .iter()
+                .any(|frame| frame.contains("citations_delta")
+                    && frame.contains("https://example.com")),
+            "pre-delta citation must be streamed as a citations_delta frame"
+        );
+    }
+    // ---- emulated `stop_sequences` (issue #605) ----------------------------
+
+    /// A streaming machine with `stop_sequences` configured, matching what the
+    /// HTTP/websocket transports build.
+    fn stop_machine(sequences: &[&str]) -> AnthropicSseMachine {
+        AnthropicSseMachine::new("test", true, false)
+            .with_stop_sequences(sequences.iter().map(|s| (*s).to_string()).collect())
+    }
+
+    /// The `delta` of every `text_delta` frame in `frames`, concatenated.
+    fn streamed_text(frames: &[String]) -> String {
+        frames
+            .iter()
+            .filter(|frame| frame.contains("\"type\":\"text_delta\""))
+            .filter_map(|frame| {
+                let data = frame.split("data: ").nth(1)?;
+                let value: Value = serde_json::from_str(data.trim_end()).ok()?;
+                value["delta"]["text"].as_str().map(str::to_string)
+            })
+            .collect()
+    }
+
+    /// The terminal `message_delta` payload, or `None` if the machine never
+    /// emitted one.
+    fn message_delta(frames: &[String]) -> Option<Value> {
+        frames
+            .iter()
+            .find(|frame| frame.contains("message_delta"))
+            .and_then(|frame| frame.split("data: ").nth(1))
+            .and_then(|data| serde_json::from_str(data.trim_end()).ok())
+    }
+
+    /// A stop sequence wholly inside one delta truncates the message there: the
+    /// preceding text is emitted, the turn ends with `stop_reason:
+    /// "stop_sequence"`, and every later event is a no-op.
+    #[test]
+    fn stop_sequence_inside_one_delta_ends_the_message() {
+        let mut machine = stop_machine(&["</block>"]);
+        let mut frames = machine.apply(event("response.created", json!({"id": "resp_1"})));
+        frames.extend(machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "allow</block>trailing junk"}),
+        )));
+
+        assert_eq!(streamed_text(&frames), "allow");
+        assert!(
+            frames
+                .iter()
+                .any(|frame| frame.contains("content_block_stop"))
+        );
+        assert_eq!(
+            message_delta(&frames).expect("a stop sequence emits message_delta")["delta"],
+            json!({"stop_reason": "stop_sequence", "stop_sequence": "</block>"})
+        );
+        assert!(frames.iter().any(|frame| frame.contains("message_stop")));
+
+        // Everything after the stop is ignored, `response.completed` included.
+        assert!(
+            machine
+                .apply(event(
+                    "response.output_text.delta",
+                    json!({"delta": "more"})
+                ))
+                .is_empty()
+        );
+        assert!(
+            machine
+                .apply(event("response.completed", json!({"response": {}})))
+                .is_empty()
+        );
+    }
+
+    /// A stop sequence split across two deltas is still caught, and the partial
+    /// stop is never streamed as text.
+    #[test]
+    fn stop_sequence_split_across_deltas_is_caught() {
+        let mut machine = stop_machine(&["</block>"]);
+        let first = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "allow</blo"}),
+        ));
+        assert_eq!(streamed_text(&first), "allow");
+
+        let second = machine.apply(event("response.output_text.delta", json!({"delta": "ck>"})));
+        assert_eq!(streamed_text(&second), "");
+        assert_eq!(
+            message_delta(&second).expect("the completed stop emits message_delta")["delta"],
+            json!({"stop_reason": "stop_sequence", "stop_sequence": "</block>"})
+        );
+    }
+
+    /// A held-back prefix that never completes is ordinary output: it is flushed
+    /// before the text block closes, and the turn ends normally.
+    #[test]
+    fn an_incomplete_stop_prefix_is_flushed_before_the_block_closes() {
+        let mut machine = stop_machine(&["</block>"]);
+        let mut frames = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "abc </blo"}),
+        ));
+        frames.extend(machine.apply(event("response.output_text.done", json!({}))));
+        frames.extend(machine.apply(event("response.completed", json!({"response": {}}))));
+
+        assert_eq!(streamed_text(&frames), "abc </blo");
+        assert_eq!(
+            message_delta(&frames).expect("a clean turn emits message_delta")["delta"],
+            json!({"stop_reason": "end_turn", "stop_sequence": null})
+        );
+        // The flush lands before the block's `content_block_stop`, not after it.
+        let stop_at = frames
+            .iter()
+            .position(|frame| frame.contains("content_block_stop"))
+            .expect("the text block closes");
+        let flush_at = frames
+            .iter()
+            .rposition(|frame| frame.contains("</blo"))
+            .expect("the held prefix is streamed");
+        assert!(flush_at < stop_at);
+    }
+
+    /// A delta that is held back *in its entirety* — the whole message is a
+    /// proper prefix of a stop sequence that never completes — must still reach
+    /// the client. The text block has to be opened on the delta itself, because
+    /// `close_any`'s flush only runs while a text block is open.
+    #[test]
+    fn a_delta_that_is_entirely_held_back_is_still_delivered() {
+        let mut machine = stop_machine(&["</block>"]);
+        let mut frames = machine.apply(event("response.created", json!({"id": "resp_1"})));
+        frames.extend(machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "</blo"}),
+        )));
+        frames.extend(machine.apply(event("response.completed", json!({"response": {}}))));
+
+        assert_eq!(streamed_text(&frames), "</blo");
+        assert!(
+            frames
+                .iter()
+                .any(|frame| frame.contains("content_block_start"))
+        );
+        assert!(
+            frames
+                .iter()
+                .any(|frame| frame.contains("content_block_stop"))
+        );
+        assert_eq!(
+            message_delta(&frames).expect("a clean turn emits message_delta")["delta"],
+            json!({"stop_reason": "end_turn", "stop_sequence": null})
+        );
+    }
+
+    /// Only assistant text is scanned: a stop sequence inside a reasoning summary
+    /// or inside tool-call arguments must not end the turn.
+    #[test]
+    fn reasoning_and_tool_arguments_are_never_scanned() {
+        let mut machine = stop_machine(&["</block>"]);
+        let reasoning = machine.apply(event(
+            "response.reasoning_summary_text.delta",
+            json!({"delta": "thinking </block> still"}),
+        ));
+        assert!(
+            reasoning
+                .iter()
+                .any(|frame| frame.contains("thinking_delta"))
+        );
+        assert!(message_delta(&reasoning).is_none());
+
+        let mut machine = stop_machine(&["</block>"]);
+        machine.apply(event(
+            "response.output_item.added",
+            json!({"item": {"type": "function_call", "call_id": "call_1", "name": "run"}}),
+        ));
+        let arguments = machine.apply(event(
+            "response.function_call_arguments.delta",
+            json!({"delta": "{\"cmd\":\"</block>\"}"}),
+        ));
+        assert!(
+            arguments
+                .iter()
+                .any(|frame| frame.contains("input_json_delta"))
+        );
+        assert!(message_delta(&arguments).is_none());
+    }
+
+    /// Every event of a full turn, as a machine consumes it.
+    fn mixed_turn() -> Vec<ResponseEvent> {
+        vec![
+            event("response.created", json!({"id": "resp_1"})),
+            event(
+                "response.reasoning_summary_text.delta",
+                json!({"delta": "pondering"}),
+            ),
+            event(
+                "response.output_item.added",
+                json!({"item": {"type": "message"}}),
+            ),
+            event("response.output_text.delta", json!({"delta": "hello "})),
+            event("response.output_text.delta", json!({"delta": "world"})),
+            event("response.output_text.done", json!({})),
+            event(
+                "response.output_item.added",
+                json!({"item": {"type": "function_call", "call_id": "call_1", "name": "run"}}),
+            ),
+            event(
+                "response.function_call_arguments.delta",
+                json!({"delta": "{\"cmd\":\"ls\"}"}),
+            ),
+            event("response.function_call_arguments.done", json!({})),
+            event(
+                "response.completed",
+                json!({"response": {"usage": {"input_tokens": 7, "output_tokens": 3}}}),
+            ),
+        ]
+    }
+
+    fn drive(machine: &mut AnthropicSseMachine) -> Vec<String> {
+        mixed_turn()
+            .into_iter()
+            .flat_map(|event| machine.apply(event))
+            .collect()
+    }
+
+    /// With no stop sequence configured the translation must be byte-identical to
+    /// a machine that never heard of the feature — the fast path stays untouched.
+    #[test]
+    fn an_empty_stop_sequence_list_is_byte_identical() {
+        let mut baseline = AnthropicSseMachine::new("test", true, false);
+        let mut configured =
+            AnthropicSseMachine::new("test", true, false).with_stop_sequences(Vec::new());
+
+        assert_eq!(drive(&mut configured), drive(&mut baseline));
+    }
+
+    /// Stop sequences that never match change only how text is chunked, never the
+    /// text itself or the terminal events.
+    #[test]
+    fn unmatched_stop_sequences_preserve_the_turn() {
+        let mut baseline = AnthropicSseMachine::new("test", true, false);
+        let mut configured = stop_machine(&["</block>", "</severity>"]);
+        let baseline_frames = drive(&mut baseline);
+        let configured_frames = drive(&mut configured);
+
+        assert_eq!(
+            streamed_text(&configured_frames),
+            streamed_text(&baseline_frames)
+        );
+        assert_eq!(
+            message_delta(&configured_frames),
+            message_delta(&baseline_frames)
+        );
+        assert_eq!(configured.final_json(), baseline.final_json());
+    }
+
+    /// The non-streaming reconstruction is truncated at the stop too, and reports
+    /// the stop in `stop_reason` / `stop_sequence`.
+    #[test]
+    fn final_json_is_truncated_at_the_stop_sequence() {
+        let mut machine = stop_machine(&["</block>"]);
+        machine.apply(event("response.created", json!({"id": "resp_1"})));
+        machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "answer</block>garbage"}),
+        ));
+        machine.apply(event("response.completed", json!({"response": {}})));
+
+        let final_json = machine.final_json();
+        assert_eq!(final_json["content"][0]["text"], "answer");
+        assert_eq!(final_json["content"][1], Value::Null);
+        assert_eq!(final_json["stop_reason"], "stop_sequence");
+        assert_eq!(final_json["stop_sequence"], "</block>");
+    }
+
+    /// The holdback is sliced on char boundaries, so a multi-byte code point that
+    /// precedes a split stop sequence is emitted whole.
+    #[test]
+    fn a_multibyte_code_point_before_the_stop_survives() {
+        let mut machine = stop_machine(&["</block>"]);
+        let first = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "한글</bl"}),
+        ));
+        let second = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "ock>"}),
+        ));
+
+        assert_eq!(streamed_text(&first), "한글");
+        assert_eq!(streamed_text(&second), "");
+        assert_eq!(
+            message_delta(&second).expect("the stop emits message_delta")["delta"]["stop_sequence"],
+            "</block>"
+        );
+    }
+
+    /// With two stop sequences configured and both present, the one that starts
+    /// earliest wins regardless of the order they were configured in.
+    #[test]
+    fn the_earliest_stop_sequence_wins() {
+        let mut machine = stop_machine(&["</severity>", "</block>"]);
+        let frames = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "a</block>b</severity>c"}),
+        ));
+
+        assert_eq!(streamed_text(&frames), "a");
+        assert_eq!(
+            message_delta(&frames).expect("the stop emits message_delta")["delta"]["stop_sequence"],
+            "</block>"
+        );
+    }
+
+    /// A backend `error` / `response.failed` event is terminal, so it is the last
+    /// chance to release the holdback: the partial stop never completed, which
+    /// makes it ordinary output the client would already have seen had
+    /// `stop_sequences` been unset. It must reach the client *before* the `error`
+    /// frame.
+    #[test]
+    fn a_backend_error_releases_the_held_back_stop_prefix() {
+        let mut machine = stop_machine(&["</block>"]);
+        let mut frames = machine.apply(event(
+            "response.output_text.delta",
+            json!({"delta": "answer</blo"}),
+        ));
+        assert_eq!(streamed_text(&frames), "answer");
+
+        frames.extend(machine.apply(event(
+            "response.failed",
+            json!({"response": {"error": {"code": "server_error", "message": "boom"}}}),
+        )));
+
+        assert_eq!(streamed_text(&frames), "answer</blo");
+        let held_at = frames
+            .iter()
+            .position(|frame| frame.contains("</blo"))
+            .expect("the holdback is streamed as a text_delta");
+        let error_at = frames
+            .iter()
+            .position(|frame| frame.contains("event: error"))
+            .expect("the backend error is streamed");
+        assert!(
+            held_at < error_at,
+            "the holdback must precede the error frame; got: {frames:?}"
+        );
+    }
+}
