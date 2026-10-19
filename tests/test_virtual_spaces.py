@@ -142,6 +142,17 @@ class VirtualSpacesTests(unittest.TestCase):
         self.assertIn('local Docker engine', check['detail'])
         self.assertEqual(self.state()['containers'], {})
 
+    def test_setup_without_review_never_starts_an_installer(self):
+        for fields in [{}, {'plan_id': '11111111-1111-4111-8111-111111111111'}]:
+            status, value = self.h.post('/api/spaces', {'operation': 'install', 'action': 'linux_docker', **fields})
+            self.assertEqual(status, 400, value)
+            self.assertIn('plan', json.dumps(value).lower())
+        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox-node/settings.json'), 'space', 'install', 'linux-docker'], capture_output=True, text=True, timeout=20)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('--plan-id', result.stderr)
+        self.assertEqual(self.state()['events'], [])
+        self.assertIsNone(self.api()['setup'])
+
     def test_application_links_are_session_bound_one_use_and_require_owned_running_containers(self):
         self.api('create', name='Browser applications', provider='docker')
         space = self.wait('ready')

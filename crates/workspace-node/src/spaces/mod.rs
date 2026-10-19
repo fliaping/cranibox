@@ -8,7 +8,11 @@ use anyhow::{Context, Result, ensure};
 pub use engine::{Provider, SetupAction};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use uuid::Uuid;
 
 pub const DEFAULT_IMAGE: &str = "xuping/agent-workspace:ubuntu-xfce";
@@ -35,6 +39,9 @@ pub enum Command {
     },
     Install {
         action: SetupAction,
+        /// One-time ID returned by space plan; review the commands before confirming.
+        #[arg(long)]
+        plan_id: Option<Uuid>,
     },
     Create {
         name: String,
@@ -102,6 +109,64 @@ struct Catalog {
     spaces: Vec<Space>,
     #[serde(default)]
     setup: Option<Setup>,
+    #[serde(default)]
+    setup_plan: Option<SetupPlan>,
+}
+impl Catalog {
+    fn begin_setup(
+        &mut self,
+        action: SetupAction,
+        id: Option<Uuid>,
+        now: u64,
+        review: impl FnOnce() -> Result<Value>,
+    ) -> Result<()> {
+        let id = id.context(
+            "Review a setup plan first, then confirm with its plan_id (--plan-id in the CLI).",
+        )?;
+        let plan = self
+            .setup_plan
+            .as_ref()
+            .context("Setup plan unavailable or already used. Review the setup action again.")?;
+        // Reject mismatched or expired confirmations before platform inspection.
+        plan.validate(id, action, now, &plan.review)?;
+        plan.validate(id, action, now, &review()?)?;
+        self.setup_plan = None;
+        self.setup = Some(Setup {
+            action,
+            phase: "installing".into(),
+            error: None,
+        });
+        Ok(())
+    }
+}
+const SETUP_PLAN_SECONDS: u64 = 600;
+#[derive(Deserialize, Serialize)]
+struct SetupPlan {
+    id: Uuid,
+    action: SetupAction,
+    created_at: u64,
+    review: Value,
+}
+impl SetupPlan {
+    fn validate(&self, id: Uuid, action: SetupAction, now: u64, review: &Value) -> Result<()> {
+        ensure!(
+            self.id == id && self.action == action,
+            "Setup plan changed. Review the setup action again."
+        );
+        ensure!(
+            now.checked_sub(self.created_at)
+                .is_some_and(|age| age < SETUP_PLAN_SECONDS),
+            "Setup plan expired. Review the setup action again."
+        );
+        ensure!(
+            &self.review == review,
+            "Setup commands changed. Review the setup action again."
+        );
+        Ok(())
+    }
+}
+fn setup_time() -> Result<u64> {
+    Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())
 }
 #[derive(Deserialize, Serialize)]
 struct Setup {
@@ -174,6 +239,7 @@ impl Store {
                 installation: Uuid::new_v4(),
                 spaces: vec![],
                 setup: None,
+                setup_plan: None,
             });
         }
         let value: Catalog = serde_json::from_slice(&fs::read(file)?)?;
@@ -222,7 +288,7 @@ impl Store {
             {
                 setup.phase = "interrupted".into();
                 setup.error =
-                    Some("Setup interrupted. Check the environment before retrying.".into());
+                    Some("Setup monitoring was interrupted. The system installer may still be running. Check the system package manager and recheck the environment before preparing another setup action.".into());
                 changed = true;
             }
             if changed {
@@ -239,7 +305,22 @@ impl Store {
         match command {
             Command::List => return self.list(),
             Command::Preflight { provider } => return engine::preflight(provider).await,
-            Command::Plan { action } => return engine::plan(action),
+            Command::Plan { action } => {
+                let _lock = self.lock()?;
+                let mut catalog = self.read()?;
+                let mut review = engine::plan(action)?;
+                let id = Uuid::new_v4();
+                catalog.setup_plan = Some(SetupPlan {
+                    id,
+                    action,
+                    created_at: setup_time()?,
+                    review: review.clone(),
+                });
+                self.save(&catalog)?;
+                review["plan_id"] = json!(id);
+                review["expires_in_seconds"] = json!(SETUP_PLAN_SECONDS);
+                return Ok(review);
+            }
             Command::Credentials { id } => {
                 let space = self
                     .read()?
@@ -286,13 +367,9 @@ impl Store {
                 });
                 Some(id)
             }
-            Command::Install { action } => {
-                engine::plan(*action)?;
-                catalog.setup = Some(Setup {
-                    action: *action,
-                    phase: "installing".into(),
-                    error: None,
-                });
+            Command::Install { action, plan_id } => {
+                // The consumed plan and installation record are saved atomically below.
+                catalog.begin_setup(*action, *plan_id, setup_time()?, || engine::plan(*action))?;
                 None
             }
             Command::Resume { id } | Command::Stop { id } | Command::Remove { id } => {
@@ -319,7 +396,7 @@ impl Store {
         let operation = async move {
             let _lock = lock;
             let result = match command {
-                Command::Install { action } => engine::install(action).await,
+                Command::Install { action, .. } => engine::install(action).await,
                 Command::Create { .. } | Command::Resume { .. } => {
                     store.provision(id.expect("space operation")).await
                 }
@@ -407,6 +484,103 @@ fn sanitize_error(error: &anyhow::Error, space: &Space) -> String {
 mod tests {
     use super::*;
     #[test]
+    fn setup_confirmation_is_bound_to_current_commands_action_and_expiry() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(root.path().join("peers.json"));
+        let mut catalog = store.read().unwrap();
+        let id = Uuid::new_v4();
+        let review = json!({"commands":"reviewed commands"});
+        catalog.setup_plan = Some(SetupPlan {
+            id,
+            action: SetupAction::ColimaInstall,
+            created_at: 1000,
+            review: review.clone(),
+        });
+        for (action, id, now) in [
+            (SetupAction::ColimaInstall, None, 1001),
+            (SetupAction::ColimaInstall, Some(Uuid::new_v4()), 1001),
+            (SetupAction::ColimaStart, Some(id), 1001),
+            (SetupAction::ColimaInstall, Some(id), 999),
+            (SetupAction::ColimaInstall, Some(id), 1600),
+        ] {
+            assert!(
+                catalog
+                    .begin_setup(action, id, now, || panic!(
+                        "invalid confirmations must not inspect the environment"
+                    ))
+                    .is_err()
+            );
+        }
+        assert!(
+            catalog
+                .begin_setup(SetupAction::ColimaInstall, Some(id), 1001, || Ok(
+                    json!({"commands":"changed commands"})
+                ))
+                .is_err()
+        );
+        assert!(catalog.setup.is_none());
+        assert_eq!(catalog.setup_plan.as_ref().unwrap().id, id);
+        // An unconsumed review survives a CLI invocation, without entering public catalogs.
+        store.save(&catalog).unwrap();
+        assert!(store.read().unwrap().setup_plan.is_some());
+        assert!(!store.list().unwrap().to_string().contains(&id.to_string()));
+        assert!(
+            !serde_json::to_string(&store.shared_catalog("owner").unwrap())
+                .unwrap()
+                .contains("reviewed commands")
+        );
+    }
+
+    #[test]
+    fn consumed_setup_plan_is_not_replayed_after_restart() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(root.path().join("peers.json"));
+        let mut catalog = store.read().unwrap();
+        let id = Uuid::new_v4();
+        let review = json!({"commands":"reviewed commands"});
+        catalog.setup_plan = Some(SetupPlan {
+            id,
+            action: SetupAction::ColimaInstall,
+            created_at: 1000,
+            review: review.clone(),
+        });
+        catalog
+            .begin_setup(SetupAction::ColimaInstall, Some(id), 1599, || Ok(review))
+            .unwrap();
+        store.save(&catalog).unwrap();
+        let mut restored = store.read().unwrap();
+        assert!(
+            restored
+                .begin_setup(SetupAction::ColimaInstall, Some(id), 1599, || panic!(
+                    "used plan must not start another installer"
+                ))
+                .is_err()
+        );
+        let public = store.list().unwrap();
+        assert_eq!(public["setup"]["phase"], "interrupted");
+        assert!(
+            public["setup"]["error"]
+                .as_str()
+                .unwrap()
+                .contains("may still be running")
+        );
+        assert!(store.read().unwrap().setup_plan.is_none());
+        assert_eq!(store.list().unwrap(), public);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(store.directory.join("catalog.json"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+    }
+
+    #[test]
     fn interrupted_creation_recovers_without_losing_identity_or_credentials() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::new(root.path().join("peers.json"));
@@ -430,10 +604,12 @@ mod tests {
                 installation: Uuid::new_v4(),
                 spaces: vec![space.clone()],
                 setup: None,
+                setup_plan: None,
             })
             .unwrap();
         let private = fs::read(store.directory.join("catalog.json")).unwrap();
         let mut old: Value = serde_json::from_slice(&private).unwrap();
+        old.as_object_mut().unwrap().remove("setup_plan");
         old["spaces"][0]
             .as_object_mut()
             .unwrap()

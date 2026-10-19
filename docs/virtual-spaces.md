@@ -11,7 +11,7 @@
 ## 创建
 
 1. 打开“虚拟空间 → 新建空间”，选择并检测容器运行环境。检测和安装发生在运行 Cranibox 的设备上。远程浏览器不能替自己的电脑安装依赖。
-2. 环境缺失时，先检查向导展示的安装命令，再确认执行。安装在后台继续，可查看结果并重新检测。需要管理员授权时使用操作系统的提示。
+2. 环境缺失时，先检查向导展示的安装命令，再确认执行。每份方案只能确认一次，十分钟内有效；过期、操作改变或提交失败后重新核对。安装在后台继续，可查看结果并重新检测。需要管理员授权时使用操作系统的提示。
 3. 填写名称，确认镜像、资源和数据存储后创建。界面显示下载、创建、启动和等待节点的状态；关闭页面不会取消操作。
 4. 空间就绪后可打开浮动终端、浏览器桌面和编辑器，或进入统一项目页面管理该节点的工作副本与会话。这里不依赖 Workspace 网关；创建者通过目标本地授权访问空间。
 
@@ -31,6 +31,14 @@
 | Docker 中的 Web | 复用明确挂载的宿主 Docker socket，把空间接到管理容器已有的 bridge 网络 | 宿主机准备 Docker 与 socket 权限；不会在容器内安装宿主依赖 |
 
 只支持本地 Unix socket 或 Windows named pipe 引擎，拒绝 SSH/TCP 远程 Docker context。空间容器内不会挂载宿主 Docker socket，不开启 privileged，也不直接挂载宿主项目目录。已安装 Docker 时不会自动卸载或替换已有安装。
+
+### 安装确认与中断恢复
+
+`space plan` 返回当前安装操作、命令、`plan_id` 和 `expires_in_seconds=600`。方案保存在管理端私有目录，便于分开的 CLI 调用完成核对与执行；同时只保留一份，新的方案替换旧方案。安装时重新核对操作与命令，并在启动系统命令前原子保存“方案已使用”和安装中状态。没有 ID、旧 ID、重复确认、过期或命令改变都不会启动安装；旧目录自动兼容，旧调用方缺少 ID 时需更新后重新准备。公开及共享空间目录不返回方案。
+
+关闭网页不会取消后台操作。节点退出或监控超时不主动终止已经启动的系统安装进程，重启后只提示监控中断，不自动重放。应先检查操作系统安装器或软件包管理器，再重新检测环境；系统关机、权限代理或服务管理器仍可能中断安装，不能据此保证事务完成。多步安装中断时，后续步骤可能尚未执行。
+
+系统安装命令使用独立的空输入/输出流，避免节点关闭导致管道断开；当前只报告启动错误、退出码或监控超时，不保存软件包安装明细。管理员授权仍依赖系统界面；真实系统认证、取消和包安装尚待对应平台验收。安装结束状态为“需要重新检测”，不自动创建空间。Web/Tauri 共用一次性提交、响应丢失后的状态检查和键盘焦点恢复。
 
 ## 生命周期与数据
 
@@ -78,6 +86,9 @@ Web 和 Tauri 的“虚拟空间 → 其他设备”汇总当前接入端已保�
 
 ~~~sh
 cranibox-node space preflight
+# 先阅读返回的安装命令，再手动使用本次 plan_id 确认；仅适用于对应平台
+cranibox-node space plan linux-docker
+cranibox-node space install linux-docker --plan-id REVIEWED_PLAN_UUID
 cranibox-node space create "Agent lab" --provider docker
 cranibox-node space list
 cranibox-node space stop SPACE_UUID
@@ -92,6 +103,6 @@ cranibox-node peer call --node MANAGER_NODE spaces
 
 Web 使用有登录、Origin 和 CSRF 校验的 `POST /api/spaces`；Tauri 使用 `spaces` IPC，二者共用 Rust Store。CLI 等待操作结束，Web/Tauri 在后台运行并轮询。远端目录使用经目标 Token 和 NodeID 校验的只读 GET /api/v1/mesh/nodes/NODE/spaces；浏览器经 POST /api/peers 的 space_catalog 操作访问，目标凭据保留在后端。
 
-`tests/test_virtual_spaces.py` 使用受限模拟 Docker 和真实 Rust 节点验证创建、身份验证、命令执行、失败重试、CLI 生命周期、停止与归档恢复、数据保留、镜像策略、资源归属及认证边界，不会连接宿主 Docker。tests/test_space_catalog.py 使用真实 Rust 节点验证只读目录、独立权限、撤销、错误数据、目标归属及请求期间连接/同一文件凭据变更；不连接 Docker。浏览器测试验证向导、安装命令确认、共享目录、撤权及迟到响应、移动端布局和模拟 Tauri IPC 下的目录与终端入口。
+`tests/test_virtual_spaces.py` 使用受限模拟 Docker 和真实 Rust 节点验证创建、身份验证、命令执行、失败重试、CLI 生命周期、停止与归档恢复、数据保留、镜像策略、资源归属、安装确认及认证边界，不会连接宿主 Docker。Rust 空间单元测试验证方案绑定/过期/消耗与重启恢复，并用独立 shell 夹具验证安装监控超时或取消后事务继续，不执行系统包管理器。tests/test_space_catalog.py 使用真实 Rust 节点验证只读目录、独立权限、撤销、错误数据、目标归属及请求期间连接/同一文件凭据变更；不连接 Docker。浏览器测试验证向导、安装命令确认、连续点击、响应丢失、共享目录、撤权及迟到响应、移动端布局和模拟 Tauri IPC 下的目录与终端入口。
 
 2026-10-18 在远端 Linux 的真实 Docker 引擎完成了本地镜像创建、授权命令、停止、归档重建，以及身份和文件保留验证；实际浏览器也通过创建向导、空间浮动终端、关闭浏览器后附着原 Shell、最小化恢复、桌面与编辑器的 HTTPS 入口及 WebSocket，以及停止和归档恢复流程。375px 深浅主题布局已检查，详见[远端验证记录](remote-workspace-validation-2026-10-18.md)。使用与开发容器相同 KDE 基础镜像的验证叠加镜像，并非完整 Dockerfile 的干净构建；未验证仓库镜像拉取，也未执行 Windows/macOS/Linux 的系统依赖安装。Tauri 应用入口的 IPC 已测试，实际系统浏览器启动及 Windows/macOS 原生流程仍需对应环境验收。

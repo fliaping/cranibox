@@ -188,7 +188,7 @@ test('guided setup reviews installation, enrolls a space and retains it across r
     const command = route.request().postDataJSON(); commands.push(command);
     let value = catalog;
     if (command.operation === 'preflight') value = { ready: checks++ > 0, detail: 'Start the local Docker engine.', notice: 'Runs on this management device.', engine: { name: 'Development laptop', version: 'test', os: 'Linux' }, actions: ['linux_docker'] };
-    if (command.operation === 'plan') value = { action: command.action, summary: 'Install Docker on this device.', commands: 'apt-get install docker-ce', administrator: true };
+    if (command.operation === 'plan') value = { action: command.action, plan_id: 'review-only', expires_in_seconds: 600, summary: 'Install Docker on this device.', commands: 'apt-get install docker-ce', administrator: true };
     if (command.operation === 'create') catalog.spaces = [{ id: 'space-1', name: command.name, provider: command.provider, image: command.image, pull_policy: command.pull_policy, node: 'space-node', phase: 'enrolling', error: null, volume: 'cranibox-data-stable', ports: { desktop: 43001, code: 48443 } }];
     if (command.operation === 'stop') catalog.spaces[0].phase = 'stopped';
     if (command.operation === 'remove') catalog.spaces[0].phase = 'archived';
@@ -255,6 +255,91 @@ test('guided setup reviews installation, enrolls a space and retains it across r
   }
   expect(commands.find(command => command.operation === 'create')).toEqual({ operation: 'create', name: 'Agent playground', provider: 'docker', image: 'cranibox-test:latest', pull_policy: 'never' });
   expect(errors).toEqual([]);
+});
+
+test('space setup requires a fresh review after expiry or a lost response and never repeats an accepted install', async ({ page }) => {
+  const commands: any[] = [];
+  const catalog: any = { spaces: [], platform: 'linux', default_image: 'local:test', setup: null };
+  let plans = 0;
+  await page.route('**/api/spaces', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'preflight') return route.fulfill({ json: { ready: false, detail: 'Docker is not ready.', notice: 'Runs on this device.', actions: ['linux_docker'], engine: null } });
+    if (command.operation === 'plan') return route.fulfill({ json: { action: command.action, plan_id: 'review-' + ++plans, expires_in_seconds: 600, summary: 'Install Docker.', commands: 'apt-get install docker-ce', administrator: true } });
+    if (command.operation === 'install') {
+      if (command.plan_id === 'review-1') return route.fulfill({ status: 400, json: { error: 'Setup plan expired. Review the setup action again.' } });
+      catalog.setup = { action: 'linux_docker', phase: 'installing', error: null };
+      // The server accepted the operation but the browser did not receive its response.
+      return route.fulfill({ status: 502, json: { error: 'Setup response unavailable. Refresh to check its status.' } });
+    }
+    return route.fulfill({ json: catalog });
+  });
+  await page.goto('/#/spaces');
+  const section = page.getByRole('region', { name: 'Virtual spaces', exact: true });
+  await section.getByRole('button', { name: 'New space', exact: true }).click();
+  await section.getByRole('button', { name: 'Check environment', exact: true }).click();
+  const prepare = section.getByRole('button', { name: 'Install Docker Engine', exact: true });
+  await prepare.click();
+  await expect(section.getByRole('region', { name: 'Review setup action', exact: true })).toBeFocused();
+  await section.getByRole('button', { name: 'Confirm and run setup', exact: true }).click();
+  await expect(section.getByRole('alert')).toContainText('expired');
+  await expect(section.getByRole('alert')).toBeFocused();
+  await expect(section.getByRole('button', { name: 'Confirm and run setup', exact: true })).toHaveCount(0);
+  await prepare.click();
+  // Dispatch twice in one browser task to cover the React render gap as well as disabled buttons.
+  await section.getByRole('button', { name: 'Confirm and run setup', exact: true }).evaluate(button => { (button as HTMLButtonElement).click(); (button as HTMLButtonElement).click(); });
+  await expect(section.locator('.spaces-setup-status')).toContainText('Closing this page does not cancel setup');
+  await expect(prepare).toBeDisabled();
+  await expect(section.getByRole('button', { name: 'Confirm and run setup', exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(section.locator('.spaces-setup-status')).toContainText('running in the background');
+  await expect(section.getByRole('button', { name: 'New space', exact: true })).toBeDisabled();
+  catalog.setup = { action: 'linux_docker', phase: 'interrupted', error: 'The system installer may still be running. Recheck the environment.' };
+  await section.getByRole('button', { name: 'Refresh spaces', exact: true }).click();
+  await expect(section.locator('.spaces-setup-status')).toContainText('may still be running');
+  await expect(section.getByRole('button', { name: 'New space', exact: true })).toBeEnabled();
+  expect(commands.filter(command => command.operation === 'install')).toEqual([
+    { operation: 'install', action: 'linux_docker', plan_id: 'review-1' },
+    { operation: 'install', action: 'linux_docker', plan_id: 'review-2' },
+  ]);
+  expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain('review-');
+});
+
+test('setup review stays readable on small screens and cancellation restores keyboard focus without installing', async ({ page }) => {
+  const commands: any[] = [];
+  await page.route('**/api/spaces', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    const value = command.operation === 'preflight' ? { ready: false, detail: 'Docker needs setup.', notice: '', actions: ['linux_docker'], engine: null }
+      : command.operation === 'plan' ? { action: command.action, plan_id: 'cancelled-review', expires_in_seconds: 600, summary: 'Install Docker Engine on this management device. Administrator approval is required.', commands: 'apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin', administrator: true }
+      : { spaces: [], platform: 'linux', default_image: 'local:test', setup: null };
+    return route.fulfill({ json: value });
+  });
+  await page.goto('/#/spaces');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const section = page.getByRole('region', { name: 'Virtual spaces', exact: true });
+  await section.getByRole('button', { name: 'New space', exact: true }).click();
+  await section.getByRole('button', { name: 'Check environment', exact: true }).click();
+  const prepare = section.getByRole('button', { name: 'Install Docker Engine', exact: true });
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      await prepare.click();
+      const review = section.getByRole('region', { name: 'Review setup action', exact: true });
+      await expect(review).toBeFocused();
+      await expect(review).toContainText('ten minutes');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      for (const name of ['Confirm and run setup', 'Cancel']) {
+        const bounds = await review.getByRole('button', { name, exact: true }).boundingBox();
+        expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.evaluate(() => scrollTo(0, 0));
+      await page.screenshot({ path: '/tmp/cranibox-space-setup-review-' + width + '-' + theme + '.png', fullPage: true, animations: 'disabled' });
+      await review.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(prepare).toBeFocused();
+      await expect(review).toHaveCount(0);
+    }
+  }
+  expect(commands.some(command => command.operation === 'install')).toBe(false);
 });
 
 test('the real Rust catalog is accessible from both language routes without accessing Docker', async ({ page }) => {

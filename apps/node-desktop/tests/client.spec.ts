@@ -1,5 +1,53 @@
 import { expect, test } from '@playwright/test';
 
+test('native runtime setup reviews a fresh plan through shared IPC and does not retry an expired confirmation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog: any = { spaces: [], setup: null, platform: 'macos', default_image: 'local:test' };
+    let reviews = 0;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command !== 'spaces') return previous(command, payload);
+      (window as any).calls.push(structuredClone({ command, payload }));
+      const action = payload.command;
+      if (action.operation === 'preflight') return { ready: false, detail: 'Colima is not installed.', notice: '', actions: ['colima_install'], engine: null };
+      if (action.operation === 'plan') return { action: action.action, plan_id: 'native-space-review-' + ++reviews, expires_in_seconds: 600, summary: 'Install Colima.', commands: 'brew install colima docker', requires_homebrew: true };
+      if (action.operation === 'install') {
+        if (action.plan_id === 'native-space-review-1') throw Error('Setup plan expired. Review the setup action again.');
+        catalog.setup = { action: 'colima_install', phase: 'check_required', error: null };
+      }
+      return structuredClone(catalog);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
+  const section = page.getByRole('region', { name: '虚拟空间', exact: true });
+  await section.getByRole('button', { name: '新建空间', exact: true }).click();
+  await section.getByRole('button', { name: '检测环境', exact: true }).click();
+  const prepare = section.getByRole('button', { name: '安装 Colima 与 Docker CLI', exact: true });
+  await prepare.click();
+  await expect(section.getByRole('region', { name: '检查安装操作', exact: true })).toBeFocused();
+  await section.getByRole('button', { name: '确认并执行安装', exact: true }).click();
+  const setupError = section.getByRole('alert').filter({ hasText: 'Setup plan expired' });
+  await expect(setupError).toContainText('expired');
+  await expect(setupError).toBeFocused();
+  await expect(section.getByRole('button', { name: '确认并执行安装', exact: true })).toHaveCount(0);
+  await prepare.click();
+  await section.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(prepare).toBeFocused();
+  await prepare.click();
+  // Only the current plan reaches IPC; the cancelled plan is never executed.
+  await section.getByRole('button', { name: '确认并执行安装', exact: true }).click();
+  const status = section.locator('.spaces-setup-status');
+  await expect(status).toContainText('安装命令已结束');
+  await expect(status).toBeFocused();
+  await expect(section.getByLabel('空间名称', { exact: true })).toHaveCount(0);
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'spaces' && call.payload.command.operation === 'install'));
+  expect(calls.map((call: any) => call.payload.command)).toEqual([
+    { operation: 'install', action: 'colima_install', plan_id: 'native-space-review-1' },
+    { operation: 'install', action: 'colima_install', plan_id: 'native-space-review-3' },
+  ]);
+});
+
 for (const platform of ['windows', 'macos']) test('native ' + platform + ' desktop setup opens fixed guides and reviews sharing through IPC', async ({ page }) => {
   await page.addInitScript(platform => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;

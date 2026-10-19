@@ -8,6 +8,8 @@
 .spaces-benefits span { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
 .spaces-wizard { padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--direct-surface); margin-bottom: 24px; }
 .spaces-wizard:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.spaces-install-plan:focus-visible, .spaces-setup-status:focus-visible, .virtual-spaces > .direct-error:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.spaces-install-plan, .spaces-setup-status, .virtual-spaces > .direct-error { scroll-margin-block: 100px; }
 .spaces-steps { display: flex; gap: 24px; list-style: none; padding: 0; margin: 24px 0; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
 .spaces-steps li { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .spaces-steps li.active { color: var(--text); }

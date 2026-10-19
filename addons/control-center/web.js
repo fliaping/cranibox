@@ -1239,7 +1239,7 @@ var F = T(re), I = {
 	]
 };
 I.node;
-var L = T(I), ie = {
+var L = T(I), R = {
 	name: "box",
 	size: 24,
 	node: [
@@ -1257,8 +1257,8 @@ var L = T(I), ie = {
 		}]
 	]
 };
-ie.node;
-var ae = T(ie), oe = {
+R.node;
+var ie = T(R), ae = {
 	name: "boxes",
 	size: 24,
 	node: [
@@ -1312,8 +1312,8 @@ var ae = T(ie), oe = {
 		}]
 	]
 };
-oe.node;
-var se = T(oe), ce = {
+ae.node;
+var oe = T(ae), se = {
 	name: "cable",
 	size: 24,
 	node: [
@@ -1347,8 +1347,8 @@ var se = T(oe), ce = {
 		}]
 	]
 };
-ce.node;
-var le = T(ce), ue = {
+se.node;
+var ce = T(se), le = {
 	name: "check-check",
 	size: 24,
 	node: [["path", {
@@ -1359,8 +1359,8 @@ var le = T(ce), ue = {
 		key: "ke71qq"
 	}]]
 };
-ue.node;
-var R = T(ue), de = {
+le.node;
+var z = T(le), ue = {
 	name: "check",
 	size: 24,
 	node: [["path", {
@@ -1368,8 +1368,8 @@ var R = T(ue), de = {
 		key: "1gmf2c"
 	}]]
 };
-de.node;
-var fe = T(de), pe = {
+ue.node;
+var de = T(ue), fe = {
 	name: "chevron-down",
 	size: 24,
 	node: [["path", {
@@ -1377,8 +1377,8 @@ var fe = T(de), pe = {
 		key: "qrunsl"
 	}]]
 };
-pe.node;
-var z = T(pe), me = {
+fe.node;
+var pe = T(fe), me = {
 	name: "chevron-up",
 	size: 24,
 	node: [["path", {
@@ -3381,14 +3381,14 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 		return null;
 	}
-	var T = Object.assign, E = Symbol.for("react.element"), D = Symbol.for("react.transitional.element"), O = Symbol.for("react.portal"), k = Symbol.for("react.fragment"), A = Symbol.for("react.strict_mode"), j = Symbol.for("react.profiler"), M = Symbol.for("react.consumer"), N = Symbol.for("react.context"), ee = Symbol.for("react.forward_ref"), te = Symbol.for("react.suspense"), P = Symbol.for("react.suspense_list"), ne = Symbol.for("react.memo"), re = Symbol.for("react.lazy"), F = Symbol.for("react.activity"), I = Symbol.for("react.legacy_hidden"), L = Symbol.for("react.memo_cache_sentinel"), ie = Symbol.for("react.view_transition"), ae = Symbol.for("react.recoverable"), oe = Symbol.iterator;
-	function se(e) {
-		return typeof e != "object" || !e ? null : (e = oe && e[oe] || e["@@iterator"], typeof e == "function" ? e : null);
+	var T = Object.assign, E = Symbol.for("react.element"), D = Symbol.for("react.transitional.element"), O = Symbol.for("react.portal"), k = Symbol.for("react.fragment"), A = Symbol.for("react.strict_mode"), j = Symbol.for("react.profiler"), M = Symbol.for("react.consumer"), N = Symbol.for("react.context"), ee = Symbol.for("react.forward_ref"), te = Symbol.for("react.suspense"), P = Symbol.for("react.suspense_list"), ne = Symbol.for("react.memo"), re = Symbol.for("react.lazy"), F = Symbol.for("react.activity"), I = Symbol.for("react.legacy_hidden"), L = Symbol.for("react.memo_cache_sentinel"), R = Symbol.for("react.view_transition"), ie = Symbol.for("react.recoverable"), ae = Symbol.iterator;
+	function oe(e) {
+		return typeof e != "object" || !e ? null : (e = ae && e[ae] || e["@@iterator"], typeof e == "function" ? e : null);
 	}
-	var ce = Symbol.for("react.client.reference");
-	function le(e) {
+	var se = Symbol.for("react.client.reference");
+	function ce(e) {
 		if (e == null) return null;
-		if (typeof e == "function") return e.$$typeof === ce ? null : e.displayName || e.name || null;
+		if (typeof e == "function") return e.$$typeof === se ? null : e.displayName || e.name || null;
 		if (typeof e == "string") return e;
 		switch (e) {
 			case k: return "Fragment";
@@ -3397,7 +3397,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			case te: return "Suspense";
 			case P: return "SuspenseList";
 			case F: return "Activity";
-			case ie: return "ViewTransition";
+			case R: return "ViewTransition";
 		}
 		if (typeof e == "object") switch (e.$$typeof) {
 			case O: return "Portal";
@@ -3406,29 +3406,29 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			case ee:
 				var t = e.render;
 				return e = e.displayName, e ||= (e = t.displayName || t.name || "", e === "" ? "ForwardRef" : "ForwardRef(" + e + ")"), e;
-			case ne: return t = e.displayName || null, t === null ? le(e.type) || "Memo" : t;
+			case ne: return t = e.displayName || null, t === null ? ce(e.type) || "Memo" : t;
 			case re:
 				t = e._payload, e = e._init;
 				try {
-					return le(e(t));
+					return ce(e(t));
 				} catch {}
 		}
 		return null;
 	}
-	var ue = Array.isArray, R = n.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, de = r.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, fe = {
+	var le = Array.isArray, z = n.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ue = r.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, de = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, pe = [], z = -1;
+	}, fe = [], pe = -1;
 	function me(e) {
 		return { current: e };
 	}
 	function he(e) {
-		0 > z || (e.current = pe[z], pe[z] = null, z--);
+		0 > pe || (e.current = fe[pe], fe[pe] = null, pe--);
 	}
 	function ge(e, t) {
-		z++, pe[z] = e.current, e.current = t;
+		pe++, fe[pe] = e.current, e.current = t;
 	}
 	var _e = me(null), ve = me(null), ye = me(null), be = me(null);
 	function xe(e, t) {
@@ -3460,7 +3460,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		t !== n && (ge(ve, e), ge(_e, n));
 	}
 	function we(e) {
-		ve.current === e && (he(_e), he(ve)), be.current === e && (he(be), lh._currentValue = fe);
+		ve.current === e && (he(_e), he(ve)), be.current === e && (he(be), lh._currentValue = de);
 	}
 	var Te, Ee;
 	function De(e) {
@@ -3768,15 +3768,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return e &= -e, 2 < e ? 8 < e ? e & 134217727 ? 32 : 268435456 : 8 : 2;
 	}
 	function gt() {
-		var e = de.p;
+		var e = ue.p;
 		return e === 0 ? (e = window.event, e === void 0 ? 32 : Th(e.type)) : e;
 	}
 	function _t(e, t) {
-		var n = de.p;
+		var n = ue.p;
 		try {
-			return de.p = e, t();
+			return ue.p = e, t();
 		} finally {
-			de.p = n;
+			ue.p = n;
 		}
 	}
 	var vt = Math.random().toString(36).slice(2), yt = "__reactFiber$" + vt, bt = "__reactProps$" + vt, xt = "__reactContainer$" + vt, St = "__reactEvents$" + vt, Ct = "__reactListeners$" + vt, wt = "__reactHandles$" + vt, Tt = "__reactResources$" + vt, Et = "__reactMarker$" + vt, Dt = "__reactLoad$" + vt;
@@ -3986,7 +3986,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (t == null) {
 			if (r != null) {
 				if (n != null) throw Error(i(92));
-				if (ue(r)) {
+				if (le(r)) {
 					if (1 < r.length) throw Error(i(93));
 					r = r[0];
 				}
@@ -4741,7 +4741,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			case te: return e = Mi(13, n, t, a), e.elementType = te, e.lanes = o, e;
 			case P: return e = Mi(19, n, t, a), e.elementType = P, e.lanes = o, e;
 			case I:
-			case ie: return e = a | 32, e = Mi(30, n, t, e), e.elementType = ie, e.lanes = o, e.stateNode = {
+			case R: return e = a | 32, e = Mi(30, n, t, e), e.elementType = R, e.lanes = o, e.stateNode = {
 				autoName: null,
 				paired: null,
 				clones: null,
@@ -5091,8 +5091,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			for (r.status = "rejected", r.reason = e, e = 0; e < n.length; e++) (0, n[e])(void 0);
 		}), r;
 	}
-	var Ga = R.S;
-	R.S = function(e, t) {
+	var Ga = z.S;
+	z.S = function(e, t) {
 		if (xd = Le(), typeof t == "object" && t && typeof t.then == "function" && Ha(e, t), Ia !== null) for (var n = bf; n !== null;) Fa(n, Ia), n = n.next;
 		if (n = e.types, n !== null) {
 			for (var r = bf; r !== null;) Fa(r, n), r = r.next;
@@ -5226,7 +5226,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					case O: return t = Bi(t, e.mode, n), t.return = e, t;
 					case re: return t = B(t), f(e, t, n);
 				}
-				if (ue(t) || se(t)) return t = Li(t, e.mode, n, null), t.return = e, t;
+				if (le(t) || oe(t)) return t = Li(t, e.mode, n, null), t.return = e, t;
 				if (typeof t.then == "function") return f(e, so(t), n);
 				if (t.$$typeof === N) return f(e, Da(e, t), n);
 				V(e, t);
@@ -5242,7 +5242,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					case O: return n.key === i ? u(e, t, n, r) : null;
 					case re: return n = B(n), p(e, t, n, r);
 				}
-				if (ue(n) || se(n)) return i === null ? d(e, t, n, r, null) : null;
+				if (le(n) || oe(n)) return i === null ? d(e, t, n, r, null) : null;
 				if (typeof n.then == "function") return p(e, t, so(n), r);
 				if (n.$$typeof === N) return p(e, t, Da(e, n), r);
 				V(e, n);
@@ -5257,7 +5257,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					case O: return e = e.get(r.key === null ? n : r.key) || null, u(t, e, r, i);
 					case re: return r = B(r), m(e, t, n, r, i);
 				}
-				if (ue(r) || se(r)) return e = e.get(n) || null, d(t, e, r, i, null);
+				if (le(r) || oe(r)) return e = e.get(n) || null, d(t, e, r, i, null);
 				if (typeof r.then == "function") return m(e, t, n, so(r), i);
 				if (r.$$typeof === N) return m(e, t, n, Da(t, r), i);
 				V(t, r);
@@ -5347,9 +5347,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 						return s(e);
 					case re: return o = B(o), _(e, r, o, c);
 				}
-				if (ue(o)) return h(e, r, o, c);
-				if (se(o)) {
-					if (l = se(o), typeof l != "function") throw Error(i(150));
+				if (le(o)) return h(e, r, o, c);
+				if (oe(o)) {
+					if (l = oe(o), typeof l != "function") throw Error(i(150));
 					return o = l.call(o), g(e, r, o, c);
 				}
 				if (typeof o.then == "function") return _(e, r, so(o), c);
@@ -5583,10 +5583,10 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return !0;
 	}
 	function $o(e, t, n, r, i, a) {
-		return Bo = a, Vo = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, R.H = e === null || e.memoizedState === null ? gc : _c, Ko = !1, a = n(r, i), Ko = !1, Go && (a = ts(t, n, r, i)), es(e), a;
+		return Bo = a, Vo = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, z.H = e === null || e.memoizedState === null ? gc : _c, Ko = !1, a = n(r, i), Ko = !1, Go && (a = ts(t, n, r, i)), es(e), a;
 	}
 	function es(e) {
-		R.H = hc;
+		z.H = hc;
 		var t = Ho !== null && Ho.next !== null;
 		if (Bo = 0, Uo = Ho = Vo = null, Wo = !1, Jo = 0, Yo = null, t) throw Error(i(300));
 		e === null || Pc || (e = e.dependencies, e !== null && wa(e) && (Pc = !0));
@@ -5600,12 +5600,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				var o = e.updateQueue;
 				o.lastEffect = null, o.events = null, o.stores = null, o.memoCache != null && (o.memoCache.index = 0);
 			}
-			R.H = vc, o = t(n, r);
+			z.H = vc, o = t(n, r);
 		} while (Go);
 		return o;
 	}
 	function ns() {
-		var e = R.H, t = e.useState()[0];
+		var e = z.H, t = e.useState()[0];
 		return t = typeof t.then == "function" ? ls(t) : t, e = e.useState()[0], (Ho === null ? null : Ho.memoizedState) !== e && (Vo.flags |= 1024), t;
 	}
 	function rs() {
@@ -5664,12 +5664,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	}
 	function ls(e) {
 		var t = Jo;
-		return Jo += 1, Yo === null && (Yo = []), e = to(Yo, e, t), t = Vo, (Uo === null ? t.memoizedState : Uo.next) === null && (t = t.alternate, R.H = t === null || t.memoizedState === null ? gc : _c), e;
+		return Jo += 1, Yo === null && (Yo = []), e = to(Yo, e, t), t = Vo, (Uo === null ? t.memoizedState : Uo.next) === null && (t = t.alternate, z.H = t === null || t.memoizedState === null ? gc : _c), e;
 	}
 	function us(e) {
 		if (typeof e == "object" && e) {
 			if (typeof e.then == "function") return ls(e);
-			if (e.$$typeof === ae) return;
+			if (e.$$typeof === ie) return;
 			if (e.$$typeof === N) return Ea(e);
 		}
 		throw Error(i(438, String(e)));
@@ -5851,21 +5851,21 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					o.listeners.push(e);
 				}
 			};
-			R.T === null ? o.isTransition = !1 : n(!0), r(o), n = t.pending, n === null ? (o.next = t.pending = o, Ts(t, o)) : (o.next = n.next, t.pending = n.next = o);
+			z.T === null ? o.isTransition = !1 : n(!0), r(o), n = t.pending, n === null ? (o.next = t.pending = o, Ts(t, o)) : (o.next = n.next, t.pending = n.next = o);
 		}
 	}
 	function Ts(e, t) {
 		var n = t.action, r = t.payload, i = e.state;
 		if (t.isTransition) {
-			var a = R.T, o = {};
-			o.types = a === null ? null : a.types, R.T = o;
+			var a = z.T, o = {};
+			o.types = a === null ? null : a.types, z.T = o;
 			try {
-				var s = n(i, r), c = R.S;
+				var s = n(i, r), c = z.S;
 				c !== null && c(o, s), Es(e, t, s);
 			} catch (n) {
 				Os(e, t, n);
 			} finally {
-				a !== null && o.types !== null && (a.types = o.types), R.T = a;
+				a !== null && o.types !== null && (a.types = o.types), z.T = a;
 			}
 		} else try {
 			a = n(i, r), Es(e, t, a);
@@ -6073,12 +6073,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return Vr(n, t) ? n : wo.current === null ? !(Bo & 106) || Bo & 1073741824 && !(id & 261930) ? (Pc = !0, e.memoizedState = n) : (e = jd(), Vo.lanes |= e, fd |= e, t) : (e = Zs(e, n, r), Vr(e, t) || (Pc = !0), e);
 	}
 	function $s(e, t, n, r, i) {
-		var a = de.p;
-		de.p = a !== 0 && 8 > a ? a : 8;
-		var o = R.T, s = {};
-		s.types = o === null ? null : o.types, R.T = s, dc(e, !1, t, n);
+		var a = ue.p;
+		ue.p = a !== 0 && 8 > a ? a : 8;
+		var o = z.T, s = {};
+		s.types = o === null ? null : o.types, z.T = s, dc(e, !1, t, n);
 		try {
-			var c = i(), l = R.S;
+			var c = i(), l = z.S;
 			l !== null && l(s, c), typeof c == "object" && c && typeof c.then == "function" ? uc(e, t, Wa(c, r), Ad(e)) : uc(e, t, r, Ad(e));
 		} catch (n) {
 			uc(e, t, {
@@ -6087,14 +6087,14 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				reason: n
 			}, Ad());
 		} finally {
-			de.p = a, o !== null && s.types !== null && (o.types = s.types), R.T = o;
+			ue.p = a, o !== null && s.types !== null && (o.types = s.types), z.T = o;
 		}
 	}
 	function ec() {}
 	function tc(e, t, n, r) {
 		if (e.tag !== 5) throw Error(i(476));
 		var a = nc(e).queue;
-		$s(e, a, t, fe, n === null ? ec : function() {
+		$s(e, a, t, de, n === null ? ec : function() {
 			return rc(e), n(r);
 		});
 	}
@@ -6102,15 +6102,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		var t = e.memoizedState;
 		if (t !== null) return t;
 		t = {
-			memoizedState: fe,
-			baseState: fe,
+			memoizedState: de,
+			baseState: de,
 			baseQueue: null,
 			queue: {
 				pending: null,
 				lanes: 0,
 				dispatch: null,
 				lastRenderedReducer: fs,
-				lastRenderedState: fe
+				lastRenderedState: de
 			},
 			next: null
 		};
@@ -6972,7 +6972,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 								break a;
 							}
 						}
-						throw t = le(e) || e, Error(i(306, t, ""));
+						throw t = ce(e) || e, Error(i(306, t, ""));
 					}
 				}
 				return t;
@@ -8592,7 +8592,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 	}, ed = typeof WeakMap == "function" ? WeakMap : Map, td = 0, nd = null, rd = null, id = 0, ad = 0, od = null, sd = !1, cd = !1, ld = !1, ud = 0, dd = 0, fd = 0, pd = 0, md = 0, hd = 0, gd = 0, _d = null, vd = null, yd = !1, bd = 0, xd = 0, Sd = Infinity, Cd = null, wd = null, Td = 0, Ed = null, G = null, K = 0, q = 0, J = null, Y = null, X = null, Z = null, Dd = null, Od = 0, kd = null;
 	function Ad() {
-		return td & 2 && id !== 0 ? id & -id : R.T === null ? gt() : Pf();
+		return td & 2 && id !== 0 ? id & -id : z.T === null ? gt() : Pf();
 	}
 	function jd() {
 		if (hd === 0) {
@@ -8736,19 +8736,19 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return n !== -1 && (e.timeoutHandle = -1, yp(n)), n = e.cancelPendingCommit, n !== null && (e.cancelPendingCommit = null, n()), K = 0, zd(), nd = e, rd = n = Pi(e.current, null), id = t, ad = 0, od = null, sd = !1, cd = it(e, t), ld = !1, gd = hd = md = pd = fd = dd = 0, vd = _d = null, yd = !1, ud = at(e, t), wi(), n;
 	}
 	function Vd(e, t) {
-		Vo = null, R.H = hc, t === Xa || t === Qa ? (t = ro(), ad = 3) : t === Za ? (t = ro(), ad = 4) : ad = t === Nc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, od = t, rd === null && (dd = 1, Dc(e, Hi(t, e.current)));
+		Vo = null, z.H = hc, t === Xa || t === Qa ? (t = ro(), ad = 3) : t === Za ? (t = ro(), ad = 4) : ad = t === Nc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, od = t, rd === null && (dd = 1, Dc(e, Hi(t, e.current)));
 	}
 	function Hd() {
 		var e = ko.current;
 		return e === null ? !0 : (id & 4194048) === id ? Ao === null : (id & 62914560) === id || id & 536870912 ? e === Ao : !1;
 	}
 	function Ud() {
-		var e = R.H;
-		return R.H = hc, e === null ? hc : e;
+		var e = z.H;
+		return z.H = hc, e === null ? hc : e;
 	}
 	function Wd() {
-		var e = R.A;
-		return R.A = $u, e;
+		var e = z.A;
+		return z.A = $u, e;
 	}
 	function Gd() {
 		dd = 4, sd || (id & 4194048) !== id && ko.current !== null || (cd = !0), !(fd & 134217727) && !(pd & 134217727) || nd === null || Ld(nd, id, hd, !1);
@@ -8787,7 +8787,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				Vd(e, t);
 			}
 		while (1);
-		return t && e.shellSuspendCounter++, va = _a = null, td = r, R.H = i, R.A = a, rd === null && (nd = null, id = 0, wi()), o;
+		return t && e.shellSuspendCounter++, va = _a = null, td = r, z.H = i, z.A = a, rd === null && (nd = null, id = 0, wi()), o;
 	}
 	function qd() {
 		for (; rd !== null;) Xd(rd);
@@ -8860,7 +8860,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				Vd(e, t);
 			}
 		while (1);
-		return va = _a = null, R.H = r, R.A = a, td = n, rd === null ? (nd = null, id = 0, wi(), dd) : 0;
+		return va = _a = null, z.H = r, z.A = a, td = n, rd === null ? (nd = null, id = 0, wi(), dd) : 0;
 	}
 	function Yd() {
 		for (; rd !== null && !Fe();) Xd(rd);
@@ -8954,11 +8954,11 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (q = s, s |= Ci, ut(e, n, s, r, i, a), Z = null, (n & 335544064) === n ? (Dd = La(e), r = 10262) : (Dd = null, r = 10256), (t.subtreeFlags & r) !== 0 || (t.flags & r) !== 0 ? (e.callbackNode = null, e.callbackPriority = 0, yf(Ve, function() {
 			return df(), null;
 		})) : (e.callbackNode = null, e.callbackPriority = 0), Vl = !1, r = !!(t.flags & 13878), t.subtreeFlags & 13878 || r) {
-			r = R.T, R.T = null, i = de.p, de.p = 2, a = td, td |= 4;
+			r = z.T, z.T = null, i = ue.p, ue.p = 2, a = td, td |= 4;
 			try {
 				gu(e, t, n);
 			} finally {
-				td = a, de.p = i, R.T = r;
+				td = a, ue.p = i, z.T = r;
 			}
 		}
 		Td = 1, Vl ? X = Pp(o, e.containerInfo, Dd, of, sf, af, cf, df, rf, null, null) : (of(), sf(), cf());
@@ -8977,9 +8977,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			Td = 0;
 			var e = Ed, t = G, n = K, r = !!(t.flags & 13878);
 			if (t.subtreeFlags & 13878 || r) {
-				r = R.T, R.T = null;
-				var i = de.p;
-				de.p = 2;
+				r = z.T, z.T = null;
+				var i = ue.p;
+				ue.p = 2;
 				var a = td;
 				td |= 4;
 				try {
@@ -9014,7 +9014,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					}
 					vh = !!lp, up = lp = null;
 				} finally {
-					td = a, de.p = i, R.T = r;
+					td = a, ue.p = i, z.T = r;
 				}
 			}
 			e.current = t, Td = 2;
@@ -9025,15 +9025,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			Td = 0;
 			var e = Ed, t = G, n = !!(t.flags & 8772);
 			if (t.subtreeFlags & 8772 || n) {
-				n = R.T, R.T = null;
-				var r = de.p;
-				de.p = 2;
+				n = z.T, z.T = null;
+				var r = ue.p;
+				ue.p = 2;
 				var i = td;
 				td |= 4;
 				try {
 					vu(e, t.alternate, t);
 				} finally {
-					td = i, de.p = r, R.T = n;
+					td = i, ue.p = r, z.T = n;
 				}
 			}
 			Td = 3;
@@ -9049,14 +9049,14 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				qe.onCommitFiberRoot(Ke, n, void 0, (n.current.flags & 128) == 128);
 			} catch {}
 			if (i !== null) {
-				n = R.T, a = de.p, de.p = 2, R.T = null;
+				n = z.T, a = ue.p, ue.p = 2, z.T = null;
 				try {
 					for (var o = t.onRecoverableError, s = 0; s < i.length; s++) {
 						var c = i[s];
 						o(c.value, { componentStack: c.stack });
 					}
 				} finally {
-					R.T = n, de.p = a;
+					z.T = n, ue.p = a;
 				}
 			}
 			if (i = Z, o = Dd, Dd = null, i !== null && (Z = null, o === null && (o = []), e !== null)) for (c = 0; c < i.length; c++) n = (0, i[c])(o), n !== void 0 && e.finished.finally(n);
@@ -9073,9 +9073,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (Td !== 5) return !1;
 		var e = Ed, t = q;
 		q = 0;
-		var n = ht(K), r = R.T, a = de.p;
+		var n = ht(K), r = z.T, a = ue.p;
 		try {
-			de.p = 32 > n ? 32 : n, R.T = null, n = J, J = null;
+			ue.p = 32 > n ? 32 : n, z.T = null, n = J, J = null;
 			var o = Ed, s = K;
 			if (Td = 0, G = Ed = null, K = 0, td & 6) throw Error(i(331));
 			var c = td;
@@ -9084,7 +9084,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			} catch {}
 			return !0;
 		} finally {
-			de.p = a, R.T = r, lf(e, t);
+			ue.p = a, z.T = r, lf(e, t);
 		}
 	}
 	function ff(e, t, n) {
@@ -10752,8 +10752,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 		return e.nodeType === 9 ? e : e.ownerDocument;
 	}
-	var Cm = de.d;
-	de.d = {
+	var Cm = ue.d;
+	ue.d = {
 		f: wm,
 		r: Tm,
 		D: Om,
@@ -11171,8 +11171,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		$$typeof: N,
 		Provider: null,
 		Consumer: null,
-		_currentValue: fe,
-		_currentValue2: fe,
+		_currentValue: de,
+		_currentValue2: de,
 		_threadCount: 0
 	};
 	function uh(e, t, n, r, i, a, o, s, c) {
@@ -11216,23 +11216,23 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	}
 	var vh = !0;
 	function yh(e, t, n, r) {
-		var i = R.T;
-		R.T = null;
-		var a = de.p;
+		var i = z.T;
+		z.T = null;
+		var a = ue.p;
 		try {
-			de.p = 2, xh(e, t, n, r);
+			ue.p = 2, xh(e, t, n, r);
 		} finally {
-			de.p = a, R.T = i;
+			ue.p = a, z.T = i;
 		}
 	}
 	function bh(e, t, n, r) {
-		var i = R.T;
-		R.T = null;
-		var a = de.p;
+		var i = z.T;
+		z.T = null;
+		var a = ue.p;
 		try {
-			de.p = 8, xh(e, t, n, r);
+			ue.p = 8, xh(e, t, n, r);
 		} finally {
-			de.p = a, R.T = i;
+			ue.p = a, z.T = i;
 		}
 	}
 	function xh(e, t, n, r) {
@@ -11577,7 +11577,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	};
 	var Jh = n.version;
 	if (Jh !== "19.3.0") throw Error(i(527, Jh, "19.3.0"));
-	de.findDOMNode = function(e) {
+	ue.findDOMNode = function(e) {
 		var t = e._reactInternals;
 		if (t === void 0) throw typeof e.render == "function" ? Error(i(188)) : (e = Object.keys(e).join(","), Error(i(268, e)));
 		return e = d(t), e = e === null ? null : f(e), e = e === null ? null : e.stateNode, e;
@@ -11586,7 +11586,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		bundleType: 0,
 		version: "19.3.0",
 		rendererPackageName: "react-dom",
-		currentDispatcherRef: R,
+		currentDispatcherRef: z,
 		reconcilerVersion: "19.3.0"
 	};
 	if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u") {
@@ -13406,7 +13406,7 @@ function _o({ state: e, label: t }) {
 	};
 	return /* @__PURE__ */ (0, B.jsxs)("span", {
 		className: "status " + (n ? "good" : r ? "bad" : i ? "warning" : "neutral"),
-		children: [/* @__PURE__ */ (0, B.jsx)(go, { icon: n ? fe : r || i ? In : xe }), t || a[e || "unknown"] || e]
+		children: [/* @__PURE__ */ (0, B.jsx)(go, { icon: n ? de : r || i ? In : xe }), t || a[e || "unknown"] || e]
 	});
 }
 function vo({ title: e, children: t, action: n, className: r = "", subtitle: i }) {
@@ -21802,7 +21802,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 				].map((e, t) => /* @__PURE__ */ (0, B.jsxs)("li", {
 					"aria-current": l === t + 1 ? "step" : void 0,
 					className: l > t + 1 ? "complete" : "",
-					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: l > t + 1 ? /* @__PURE__ */ (0, B.jsx)(fe, {
+					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: l > t + 1 ? /* @__PURE__ */ (0, B.jsx)(de, {
 						size: 14,
 						"aria-hidden": "true"
 					}) : t + 1 }), e]
@@ -21899,7 +21899,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 					className: "desktop-guide-ready",
 					role: "status",
 					children: [
-						/* @__PURE__ */ (0, B.jsx)(fe, {
+						/* @__PURE__ */ (0, B.jsx)(de, {
 							size: 18,
 							"aria-hidden": "true"
 						}),
@@ -22051,14 +22051,14 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("li", {
 							className: c.installed ? "complete" : "",
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: c.installed ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: c.installed ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : "1" }), s("安装 VNC", "Install VNC")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
 							className: te ? "complete" : "",
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: te ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: te ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : "2" }), s("启动桌面共享", "Start sharing")]
@@ -22084,7 +22084,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 						/* @__PURE__ */ (0, B.jsxs)("p", {
 							role: "status",
 							children: [
-								/* @__PURE__ */ (0, B.jsx)(fe, {
+								/* @__PURE__ */ (0, B.jsx)(de, {
 									size: 16,
 									"aria-hidden": "true"
 								}),
@@ -22320,7 +22320,7 @@ function op({ client: e, language: t, disabled: n, current: r, onSelect: i }) {
 					/* @__PURE__ */ (0, B.jsxs)("div", { children: [
 						/* @__PURE__ */ (0, B.jsx)("strong", { children: e.protocol === "selkies" ? "Selkies" : "VNC" }),
 						/* @__PURE__ */ (0, B.jsx)("code", { children: e.address }),
-						r?.address === e.address && (r.protocol || "vnc") === e.protocol && /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+						r?.address === e.address && (r.protocol || "vnc") === e.protocol && /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)(de, {
 							size: 14,
 							"aria-hidden": "true"
 						}), a("当前共享配置", "Current sharing configuration")] })
@@ -22390,7 +22390,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			relay: e
 		});
 	}
-	let L = I.find((e) => e.id === d) || I[0], ie = !!L && !L.local && (!L.direct || A === "relay"), ae = ie && (L?.relay?.online ? L.relay.desktop_relay ? "" : c("请升级目标设备客户端以启用桌面中继。", "Update the target client to enable desktop relay.") : c("设备离线，等待重新连接。", "Device offline. Waiting for it to reconnect."));
+	let L = I.find((e) => e.id === d) || I[0], R = !!L && !L.local && (!L.direct || A === "relay"), ie = R && (L?.relay?.online ? L.relay.desktop_relay ? "" : c("请升级目标设备客户端以启用桌面中继。", "Update the target client to enable desktop relay.") : c("设备离线，等待重新连接。", "Device offline. Waiting for it to reconnect."));
 	(0, x.useEffect)(() => {
 		p && !I.some((e) => e.id === p.node && e.local === p.local && (!p.relay || e.relay)) && m(null);
 	}, [
@@ -22399,7 +22399,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 		p,
 		a
 	]);
-	async function oe(e) {
+	async function ae(e) {
 		if (!ee.current) {
 			ee.current = !0, v(!0), b(""), C("");
 			try {
@@ -22411,8 +22411,8 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			}
 		}
 	}
-	async function se(t) {
-		t.preventDefault(), await oe(async () => {
+	async function oe(t) {
+		t.preventDefault(), await ae(async () => {
 			if (i) {
 				let e = await i({
 					operation: "check",
@@ -22431,21 +22431,21 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			M.current && (++N.current, u(t), T(!1), C(c("本机桌面共享已开启。请在设备网络的“入站授权”中授予桌面权限。", "Local sharing enabled. Grant desktop access under Incoming access in Device network.")), window.dispatchEvent(new Event("cranibox:peers-changed")));
 		});
 	}
-	async function ce() {
+	async function se() {
 		if (!L) return;
 		let t = L;
-		await oe(async () => {
+		await ae(async () => {
 			if (t.local) {
 				if (!l?.desktop) throw Error(c("请先配置本机桌面共享。", "Configure local desktop sharing first."));
-			} else if (!ie && !(await e({
+			} else if (!R && !(await e({
 				operation: "probe",
 				node: t.id
 			})).nodes[0]?.desktop) throw Error(c("目标设备尚未开启桌面共享，或未授予当前设备桌面权限。", "The target has not enabled desktop sharing or granted this device desktop access."));
-			if (ae) throw Error(ae);
+			if (ie) throw Error(ie);
 			M.current && m({
 				node: t.id,
 				local: t.local,
-				...ie ? { relay: !0 } : {}
+				...R ? { relay: !0 } : {}
 			});
 		});
 	}
@@ -22473,7 +22473,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			S && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), S]
@@ -22496,7 +22496,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 								children: e.local ? /* @__PURE__ */ (0, B.jsx)(Vt, {
 									size: 20,
 									"aria-hidden": "true"
-								}) : /* @__PURE__ */ (0, B.jsx)(le, {
+								}) : /* @__PURE__ */ (0, B.jsx)(ce, {
 									size: 20,
 									"aria-hidden": "true"
 								})
@@ -22520,8 +22520,8 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 							className: "direct-heading desktop-target",
 							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: L.name }), /* @__PURE__ */ (0, B.jsx)("p", { children: L.local ? c("本机桌面", "Local desktop") : L.detail })] }), !p && /* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
-								disabled: _ || !!ae || L.local && !l?.desktop,
-								onClick: () => void ce(),
+								disabled: _ || !!ie || L.local && !l?.desktop,
+								onClick: () => void se(),
 								children: [/* @__PURE__ */ (0, B.jsx)(Vt, {
 									size: 16,
 									"aria-hidden": "true"
@@ -22533,7 +22533,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 							children: [
 								L.direct && L.relay && /* @__PURE__ */ (0, B.jsxs)("label", { children: [c("连接方式", "Connection route"), /* @__PURE__ */ (0, B.jsxs)("select", {
 									"aria-label": c("连接方式", "Connection route"),
-									value: ie ? "relay" : "direct",
+									value: R ? "relay" : "direct",
 									onChange: (e) => {
 										j(e.target.value), m(null);
 									},
@@ -22548,9 +22548,9 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 								/* @__PURE__ */ (0, B.jsx)("p", {
 									className: "direct-note",
 									role: "status",
-									children: ae || (ie ? c("通过中继连接，无需开放目标设备端口。", "Connect through the relay without opening ports on the target.") : c("通过已保存的地址直接连接设备。", "Connect directly using the saved device address."))
+									children: ie || (R ? c("通过中继连接，无需开放目标设备端口。", "Connect through the relay without opening ports on the target.") : c("通过已保存的地址直接连接设备。", "Connect directly using the saved device address."))
 								}),
-								ie && r && /* @__PURE__ */ (0, B.jsxs)("p", {
+								R && r && /* @__PURE__ */ (0, B.jsxs)("p", {
 									className: "direct-note",
 									children: [c("请在目标设备的入站授权中，为此 NodeID 授予桌面权限：", "Grant desktop access on the target to this NodeID: "), /* @__PURE__ */ (0, B.jsx)("code", { children: r.id })]
 								})
@@ -22577,7 +22577,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 									children: [/* @__PURE__ */ (0, B.jsx)(Sn, {
 										size: 14,
 										"aria-hidden": "true"
-									}), ie ? c("目标设备授权 · Workspace 中继", "Target-owned access · Workspace relay") : c("目标设备授权 · 私网直连", "Target-owned access · Private direct route")]
+									}), R ? c("目标设备授权 · Workspace 中继", "Target-owned access · Workspace relay") : c("目标设备授权 · 私网直连", "Target-owned access · Private direct route")]
 								})
 							]
 						})
@@ -22612,13 +22612,13 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 								onClick: () => {
 									T(!w), k(l.desktop?.protocol || "vnc"), D(l.desktop?.address || "127.0.0.1:5900");
 								},
-								children: [/* @__PURE__ */ (0, B.jsx)(z, {
+								children: [/* @__PURE__ */ (0, B.jsx)(pe, {
 									size: 16,
 									"aria-hidden": "true"
 								}), c("配置共享", "Configure sharing")]
 							}), l.desktop && /* @__PURE__ */ (0, B.jsx)("button", {
 								disabled: _,
-								onClick: () => void oe(async () => {
+								onClick: () => void ae(async () => {
 									let t = await e({
 										operation: "desktop",
 										desktop: null
@@ -22638,7 +22638,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 					}),
 					w && /* @__PURE__ */ (0, B.jsxs)("form", {
 						"aria-label": c("核对桌面共享配置", "Review desktop sharing"),
-						onSubmit: se,
+						onSubmit: oe,
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("h4", { children: c("核对桌面共享配置", "Review desktop sharing") }),
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [c("桌面服务", "Desktop protocol"), /* @__PURE__ */ (0, B.jsxs)("select", {
@@ -23194,7 +23194,7 @@ function mp() {
 				"aria-hidden": "true",
 				children: [/* @__PURE__ */ (0, B.jsx)("div", {
 					className: "illustration-box",
-					children: /* @__PURE__ */ (0, B.jsx)(se, {
+					children: /* @__PURE__ */ (0, B.jsx)(oe, {
 						size: 66,
 						strokeWidth: 1
 					})
@@ -23334,7 +23334,7 @@ function mp() {
 					className: "all-clear",
 					children: [/* @__PURE__ */ (0, B.jsx)("span", {
 						className: "clear-icon",
-						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: fe })
+						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: de })
 					}), /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: V("没有待处理的环境检查项", "No environment checks need attention") }), /* @__PURE__ */ (0, B.jsx)("p", {
 						className: "muted",
 						children: V("浏览器和桌面配置可在对应页面查看。", "Review browser and desktop configuration on their pages.")
@@ -23877,7 +23877,7 @@ function Cp() {
 	].join("-");
 }
 function wp({ client: e, language: t = "en", onDevices: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(!1), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)("incoming"), [M, N] = (0, x.useState)(""), [ee, te] = (0, x.useState)(!0), P = (0, x.useRef)(!0), ne = (0, x.useRef)(!1), re = (0, x.useRef)(!1), F = (0, x.useRef)(0), I = (0, x.useRef)(void 0), L = (0, x.useRef)(null), ie = (0, x.useRef)(!1), ae = (0, x.useId)(), oe = (i?.routes || []).filter((e) => e.node !== o?.owner), se = D ? D.sender === o?.owner ? D.target_session : D.sender_session : void 0, ce = new TextEncoder().encode(T).length, le = o?.max_text_bytes || 8192, ue = (0, x.useCallback)(async () => {
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(!1), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)("incoming"), [M, N] = (0, x.useState)(""), [ee, te] = (0, x.useState)(!0), P = (0, x.useRef)(!0), ne = (0, x.useRef)(!1), re = (0, x.useRef)(!1), F = (0, x.useRef)(0), I = (0, x.useRef)(void 0), L = (0, x.useRef)(null), R = (0, x.useRef)(!1), ie = (0, x.useId)(), ae = (i?.routes || []).filter((e) => e.node !== o?.owner), oe = D ? D.sender === o?.owner ? D.target_session : D.sender_session : void 0, se = new TextEncoder().encode(T).length, ce = o?.max_text_bytes || 8192, le = (0, x.useCallback)(async () => {
 		if (re.current || ne.current || document.hidden) return;
 		re.current = !0;
 		let t = ++F.current;
@@ -23894,18 +23894,18 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 			re.current = !1, P.current && _(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (P.current = !0, ue(), () => {
+	(0, x.useEffect)(() => (P.current = !0, le(), () => {
 		P.current = !1, ++F.current;
-	}), [ue]), (0, x.useEffect)(() => {
-		!m && ie.current && (ie.current = !1, L.current?.focus());
+	}), [le]), (0, x.useEffect)(() => {
+		!m && R.current && (R.current = !1, L.current?.focus());
 	}, [m]), (0, x.useEffect)(() => {
 		if (v) return;
-		let e = () => void ue(), t = setInterval(e, 3e3);
+		let e = () => void le(), t = setInterval(e, 3e3);
 		return document.addEventListener("visibilitychange", e), window.addEventListener("cranibox:peers-changed", e), () => {
 			clearInterval(t), document.removeEventListener("visibilitychange", e), window.removeEventListener("cranibox:peers-changed", e);
 		};
-	}, [ue, v]);
-	async function de(t, n) {
+	}, [le, v]);
+	async function ue(t, n) {
 		if (!ne.current) {
 			ne.current = !0, ++F.current, h(!0), d(""), p("");
 			try {
@@ -23916,14 +23916,14 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 				if (!P.current) return;
 				s(r), S(Date.now()), l(""), n?.();
 			} catch (e) {
-				P.current && (d(Sp(e)), t.operation === "send" && (ie.current = !0));
+				P.current && (d(Sp(e)), t.operation === "send" && (R.current = !0));
 			} finally {
 				ne.current = !1, P.current && h(!1);
 			}
 		}
 	}
-	async function fe(e) {
-		if (e.preventDefault(), !T.trim() || ce > le || !ee || !oe.some((e) => e.node === C)) return;
+	async function de(e) {
+		if (e.preventDefault(), !T.trim() || se > ce || !ee || !ae.some((e) => e.node === C)) return;
 		let t = JSON.stringify([
 			C,
 			M,
@@ -23934,7 +23934,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 		I.current?.key !== t && (I.current = {
 			key: t,
 			id: Cp()
-		}), await de({
+		}), await ue({
 			operation: "send",
 			id: I.current.id,
 			node: C,
@@ -23948,14 +23948,14 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 			E(""), O(void 0), I.current = void 0, j("outgoing"), p(r("消息已保存在本机发件箱。节点服务会投递，并在断线后重试。", "Saved in this device’s outbox. The node service delivers it and retries after an outage."));
 		});
 	}
-	function pe(e) {
+	function fe(e) {
 		let t = e.sender === o?.owner ? e.recipient : e.sender;
 		if (T && !confirm(r("替换当前草稿并回复这条消息？", "Replace the current draft and reply to this message?"))) return;
 		w(t);
 		let n = (e.sender === o?.owner ? e.target_session : e.sender_session) || "";
 		N(n), te((e) => n === M && t === C ? e : !n), O(e), E(""), d(""), p(""), L.current?.focus();
 	}
-	let z = (e) => ({
+	let pe = (e) => ({
 		queued: r("本机排队", "Queued locally"),
 		received: r("目标已收到", "Received by device"),
 		acknowledged: r("已确认收件", "Acknowledged"),
@@ -23979,7 +23979,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 						children: v ? r("恢复自动刷新", "Resume updates") : r("暂停自动刷新", "Pause updates")
 					}), /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: g || m,
-						onClick: () => void ue(),
+						onClick: () => void le(),
 						children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
@@ -24009,7 +24009,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 					className: "messages-compose",
 					children: [/* @__PURE__ */ (0, B.jsxs)("form", {
 						className: "direct-editor",
-						onSubmit: fe,
+						onSubmit: de,
 						"aria-label": r("撰写设备消息", "Compose device message"),
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("h3", { children: r("新消息", "New message") }),
@@ -24023,12 +24023,12 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "",
 									children: r("选择已连接设备", "Choose a connected device")
-								}), oe.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
+								}), ae.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 									value: e.node,
 									children: e.node
 								}, e.node))]
 							})] }),
-							!oe.length && /* @__PURE__ */ (0, B.jsx)("p", {
+							!ae.length && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
 								children: r("先在设备网络中添加直连、EasyTier 或 Tailscale 连接。", "First add a direct, EasyTier or Tailscale connection in Device network.")
 							}),
@@ -24040,7 +24040,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								selected: M,
 								onSelect: N,
 								onValidChange: te,
-								disabled: m || !!se,
+								disabled: m || !!oe,
 								purpose: "message"
 							}, C),
 							D && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -24063,17 +24063,17 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								rows: 6,
 								value: T,
 								disabled: m,
-								"aria-describedby": ae,
-								"aria-invalid": ce > le || void 0,
+								"aria-describedby": ie,
+								"aria-invalid": se > ce || void 0,
 								onChange: (e) => E(e.target.value)
 							})] }),
 							/* @__PURE__ */ (0, B.jsxs)("p", {
-								id: ae,
-								className: ce > le ? "direct-error" : "direct-note",
+								id: ie,
+								className: se > ce ? "direct-error" : "direct-note",
 								children: [
-									ce,
+									se,
 									" / ",
-									le,
+									ce,
 									" ",
 									r("UTF-8 字节 · 纯文本", "UTF-8 bytes · Plain text")
 								]
@@ -24086,7 +24086,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 							/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
 								type: "submit",
-								disabled: m || !T.trim() || ce > le || !ee || !oe.some((e) => e.node === C),
+								disabled: m || !T.trim() || se > ce || !ee || !ae.some((e) => e.node === C),
 								children: [/* @__PURE__ */ (0, B.jsx)(gn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -24157,7 +24157,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 							]
 						}),
 						me.map((e) => {
-							let n = e.message, i = A === "incoming" ? n.sender : n.recipient, a = oe.some((e) => e.node === i);
+							let n = e.message, i = A === "incoming" ? n.sender : n.recipient, a = ae.some((e) => e.node === i);
 							return /* @__PURE__ */ (0, B.jsxs)("article", {
 								className: "message-card",
 								"aria-label": r("消息 ", "Message ") + n.id,
@@ -24166,7 +24166,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 										className: "message-heading",
 										children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("small", { children: A === "incoming" ? r("来自", "From") : r("发送至", "To") }), /* @__PURE__ */ (0, B.jsx)("strong", { children: i })] }), /* @__PURE__ */ (0, B.jsx)("span", {
 											className: "message-status message-" + e.status,
-											children: A === "incoming" && e.status === "received" ? r("待确认收件", "Awaiting acknowledgement") : z(e.status)
+											children: A === "incoming" && e.status === "received" ? r("待确认收件", "Awaiting acknowledgement") : pe(e.status)
 										})]
 									}),
 									n.target_session && /* @__PURE__ */ (0, B.jsxs)("p", {
@@ -24195,11 +24195,11 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 										children: [
 											A === "incoming" && e.status !== "acknowledged" && /* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
-												onClick: () => void de({
+												onClick: () => void ue({
 													operation: "acknowledge",
 													id: n.id
 												}),
-												children: [/* @__PURE__ */ (0, B.jsx)(R, {
+												children: [/* @__PURE__ */ (0, B.jsx)(z, {
 													size: 16,
 													"aria-hidden": "true"
 												}), r("确认收件", "Acknowledge receipt")]
@@ -24207,7 +24207,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											/* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m || !a,
 												title: a ? void 0 : r("需要先配置反向连接和消息授权", "Configure a reverse connection and message grant first"),
-												onClick: () => pe(n),
+												onClick: () => fe(n),
 												children: [/* @__PURE__ */ (0, B.jsx)(un, {
 													size: 16,
 													"aria-hidden": "true"
@@ -24215,7 +24215,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											}),
 											A === "outgoing" && e.status !== "acknowledged" && n.expires_at * 1e3 > Date.now() && /* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
-												onClick: () => void de({
+												onClick: () => void ue({
 													operation: "retry",
 													id: n.id
 												}),
@@ -24227,7 +24227,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											/* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
 												onClick: () => {
-													confirm(A === "outgoing" ? r("删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。", "Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.") : r("隐藏这条来信？去重和收件回执会保留到投递截止。", "Hide this incoming message? Deduplication and receipts remain until its delivery deadline.")) && de({
+													confirm(A === "outgoing" ? r("删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。", "Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.") : r("隐藏这条来信？去重和收件回执会保留到投递截止。", "Hide this incoming message? Deduplication and receipts remain until its delivery deadline.")) && ue({
 														operation: "archive",
 														id: n.id
 													});
@@ -24861,7 +24861,7 @@ function jp(e) {
 				children: [t ? /* @__PURE__ */ (0, B.jsx)(he, {
 					size: 16,
 					"aria-hidden": "true"
-				}) : /* @__PURE__ */ (0, B.jsx)(z, {
+				}) : /* @__PURE__ */ (0, B.jsx)(pe, {
 					size: 16,
 					"aria-hidden": "true"
 				}), i ? t ? "收起协作记录" : "查看协作记录" : t ? "Close collaboration records" : "View collaboration records"]
@@ -25254,14 +25254,14 @@ function Ip({ client: e, language: t, paused: n, devices: r }) {
 	});
 }
 function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
-	let a = (e, n) => t.startsWith("zh") ? e : n, [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)("custom-cli"), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)("[]"), [v, y] = (0, x.useState)("codex"), [b, S] = (0, x.useState)("read_only"), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(!1), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(0), oe = (0, x.useRef)(void 0), se = (0, x.useRef)(void 0);
+	let a = (e, n) => t.startsWith("zh") ? e : n, [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)("custom-cli"), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)("[]"), [v, y] = (0, x.useState)("codex"), [b, S] = (0, x.useState)("read_only"), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(!1), R = (0, x.useRef)(!1), ie = (0, x.useRef)(0), ae = (0, x.useRef)(void 0), oe = (0, x.useRef)(void 0);
 	(0, x.useEffect)(() => (i(M), () => i(!1)), [M, i]), (0, x.useEffect)(() => (I.current = !0, () => {
-		I.current = !1, ae.current++;
+		I.current = !1, ie.current++;
 	}), []);
-	let ce = (0, x.useCallback)(async () => {
-		if (ie.current || L.current || document.hidden) return;
-		ie.current = !0;
-		let t = ++ae.current;
+	let se = (0, x.useCallback)(async () => {
+		if (R.current || L.current || document.hidden) return;
+		R.current = !0;
+		let t = ++ie.current;
 		te(!0);
 		try {
 			let n = await e({
@@ -25271,9 +25271,9 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 			});
 			if (!n || !Array.isArray(n.executions)) throw Error("Invalid execution catalog. Update the device service.");
 			if (r && n.owner !== r) throw Error("Execution device identity mismatch. Reconnect the intended device.");
-			if (!I.current || t !== ae.current) return;
+			if (!I.current || t !== ie.current) return;
 			s(n), ne("");
-			let i = oe.current;
+			let i = ae.current;
 			if (i) {
 				let n = await e({
 					operation: "executions",
@@ -25285,7 +25285,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						stderr_offset: i.stderr.next_offset
 					}
 				});
-				if (I.current && t === ae.current && oe.current === i) {
+				if (I.current && t === ie.current && ae.current === i) {
 					let e = {
 						...n,
 						stdout: {
@@ -25297,28 +25297,28 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							text: i.stderr.text + n.stderr.text
 						}
 					};
-					oe.current = e, j(e);
+					ae.current = e, j(e);
 				}
 			}
 		} catch (e) {
-			I.current && t === ae.current && (ne(Pp(e)), r && (s(void 0), oe.current = void 0, j(void 0)));
+			I.current && t === ie.current && (ne(Pp(e)), r && (s(void 0), ae.current = void 0, j(void 0)));
 		} finally {
-			ie.current = !1, I.current && te(!1);
+			R.current = !1, I.current && te(!1);
 		}
 	}, [e, r]);
 	(0, x.useEffect)(() => {
-		ce();
-		let e = n ? void 0 : setInterval(() => void ce(), 3e3), t = () => {
-			n || ce();
+		se();
+		let e = n ? void 0 : setInterval(() => void se(), 3e3), t = () => {
+			n || se();
 		};
 		return document.addEventListener("visibilitychange", t), () => {
 			clearInterval(e), document.removeEventListener("visibilitychange", t);
 		};
-	}, [ce, n]);
-	async function le(t) {
-		if (ie.current || L.current) return;
-		ie.current = !0;
-		let n = ++ae.current;
+	}, [se, n]);
+	async function ce(t) {
+		if (R.current || L.current) return;
+		R.current = !0;
+		let n = ++ie.current;
 		te(!0), ne("");
 		try {
 			let i = await e({
@@ -25329,16 +25329,16 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					id: t
 				}
 			});
-			I.current && n === ae.current && (oe.current = i, j(i));
+			I.current && n === ie.current && (ae.current = i, j(i));
 		} catch (e) {
-			I.current && n === ae.current && ne(Pp(e));
+			I.current && n === ie.current && ne(Pp(e));
 		} finally {
-			ie.current = !1, I.current && te(!1);
+			R.current = !1, I.current && te(!1);
 		}
 	}
-	async function ue(t) {
+	async function le(t) {
 		if (!L.current) {
-			ae.current++, L.current = !0, N(!0), ne(""), E(""), F("");
+			ie.current++, L.current = !0, N(!0), ne(""), E(""), F("");
 			try {
 				let n = await e({
 					operation: "executions",
@@ -25348,7 +25348,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 				if (!n || !Array.isArray(n.executions)) throw Error("Invalid execution catalog. Update the device service.");
 				if (r && n.owner !== r) throw Error("Execution device identity mismatch. Reconnect the intended device.");
 				if (!I.current) return;
-				s(n), t.operation === "start" && (O(void 0), se.current = void 0, F(a("已保存启动请求。节点服务会更新实际进程状态。", "Launch request saved. The node service will report the actual process state."))), t.operation === "stop" && F(a("已请求停止，请等待进程退出状态。", "Stop requested. Wait for the process exit state.")), t.operation === "archive" && (oe.current?.execution.id === t.id && (oe.current = void 0, j(void 0)), F(a("已归档并清除输出，运行 ID 保留用于去重。", "Archived and output removed. The run ID remains for deduplication.")));
+				s(n), t.operation === "start" && (O(void 0), oe.current = void 0, F(a("已保存启动请求。节点服务会更新实际进程状态。", "Launch request saved. The node service will report the actual process state."))), t.operation === "stop" && F(a("已请求停止，请等待进程退出状态。", "Stop requested. Wait for the process exit state.")), t.operation === "archive" && (ae.current?.execution.id === t.id && (ae.current = void 0, j(void 0)), F(a("已归档并清除输出，运行 ID 保留用于去重。", "Archived and output removed. The run ID remains for deduplication.")));
 			} catch (e) {
 				I.current && (t.operation === "start" ? E(Pp(e)) : ne(Pp(e)));
 			} finally {
@@ -25356,9 +25356,9 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 			}
 		}
 	}
-	async function R(t) {
+	async function z(t) {
 		if (t.preventDefault(), !L.current) {
-			ae.current++, L.current = !0, N(!0), ne(""), E(""), F("");
+			ie.current++, L.current = !0, N(!0), ne(""), E(""), F("");
 			try {
 				if (v === "custom") {
 					let e = JSON.parse(g);
@@ -25396,23 +25396,23 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 			}
 		}
 	}
-	function de() {
+	function ue() {
 		if (!D || D.available === !1) return;
 		let e = JSON.stringify(D.launch);
-		se.current?.key !== e && (se.current = {
+		oe.current?.key !== e && (oe.current = {
 			key: e,
 			id: Fp()
-		}), ue({
+		}), le({
 			operation: "start",
-			id: se.current.id,
+			id: oe.current.id,
 			launch: D.launch
 		});
 	}
-	let fe = (e) => ({
+	let de = (e) => ({
 		read_only: a("只读", "Read only"),
 		workspace_write: a("修改工作区", "Write to workspace"),
 		edit_files: a("读写文件工具", "File editing tools")
-	})[e], pe = (e, t) => e === "codex" ? t === "read_only" ? a("使用 Codex 只读沙箱；无法交互确认的操作会被拒绝。", "Uses the Codex read-only sandbox. Operations requiring interactive approval are denied.") : a("允许在 Codex 工作区沙箱内执行命令和修改文件；不启用跳过沙箱选项。", "Allows commands and file changes within the Codex workspace sandbox. Sandbox bypass is disabled.") : a("Claude 仅开放读取、查找工具；选择读写后增加 Edit、Write。不开放 Shell 或 MCP 工具。这是工具限制，不是系统沙箱，文件工具仍使用节点账户权限。", "Claude exposes Read, Glob and Grep, adding Edit and Write for file editing. Shell and MCP tools are disabled. This is a tool restriction, not an OS sandbox; file tools use the node account’s permissions."), z = (e) => ({
+	})[e], fe = (e, t) => e === "codex" ? t === "read_only" ? a("使用 Codex 只读沙箱；无法交互确认的操作会被拒绝。", "Uses the Codex read-only sandbox. Operations requiring interactive approval are denied.") : a("允许在 Codex 工作区沙箱内执行命令和修改文件；不启用跳过沙箱选项。", "Allows commands and file changes within the Codex workspace sandbox. Sandbox bypass is disabled.") : a("Claude 仅开放读取、查找工具；选择读写后增加 Edit、Write。不开放 Shell 或 MCP 工具。这是工具限制，不是系统沙箱，文件工具仍使用节点账户权限。", "Claude exposes Read, Glob and Grep, adding Edit and Write for file editing. Shell and MCP tools are disabled. This is a tool restriction, not an OS sandbox; file tools use the node account’s permissions."), pe = (e) => ({
 		queued: a("等待节点启动", "Awaiting node launch"),
 		starting: a("正在启动", "Starting"),
 		running: a("进程运行中", "Process running"),
@@ -25433,7 +25433,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 				className: "direct-actions",
 				children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 					disabled: ee || M,
-					onClick: () => void ce(),
+					onClick: () => void se(),
 					children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
 						"aria-hidden": "true"
@@ -25469,7 +25469,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "managed-run-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.name }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.harness })] }), /* @__PURE__ */ (0, B.jsx)("span", { children: z(e.state) })]
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.name }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.harness })] }), /* @__PURE__ */ (0, B.jsx)("span", { children: pe(e.state) })]
 						}),
 						/* @__PURE__ */ (0, B.jsx)("code", { children: e.id }),
 						/* @__PURE__ */ (0, B.jsxs)("small", { children: [a("Agent 会话：", "Agent session: "), e.session_id] }),
@@ -25482,7 +25482,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							className: "direct-actions",
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: M || ee,
-								onClick: () => void le(e.id),
+								onClick: () => void ce(e.id),
 								children: [/* @__PURE__ */ (0, B.jsx)(qe, {
 									size: 16,
 									"aria-hidden": "true"
@@ -25490,7 +25490,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							}), Np(e.state) ? /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: M || !!P || e.state === "stopping",
 								onClick: () => {
-									window.confirm(a("停止此运行及其子进程？未保存的工作可能丢失。", "Stop this run and its child processes? Unsaved work may be lost.")) && ue({
+									window.confirm(a("停止此运行及其子进程？未保存的工作可能丢失。", "Stop this run and its child processes? Unsaved work may be lost.")) && le({
 										operation: "stop",
 										id: e.id
 									});
@@ -25502,7 +25502,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							}) : /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: M || !!P,
 								onClick: () => {
-									window.confirm(a("归档此记录并删除保存的输出？", "Archive this record and delete its saved output?")) && ue({
+									window.confirm(a("归档此记录并删除保存的输出？", "Archive this record and delete its saved output?")) && le({
 										operation: "archive",
 										id: e.id
 									});
@@ -25524,12 +25524,12 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: A.execution.name }), /* @__PURE__ */ (0, B.jsx)("button", {
 							onClick: () => {
-								ae.current++, oe.current = void 0, j(void 0);
+								ie.current++, ae.current = void 0, j(void 0);
 							},
 							children: a("关闭输出", "Close output")
 						})]
 					}),
-					/* @__PURE__ */ (0, B.jsx)("p", { children: z(A.execution.state) }),
+					/* @__PURE__ */ (0, B.jsx)("p", { children: pe(A.execution.state) }),
 					/* @__PURE__ */ (0, B.jsxs)("dl", { children: [
 						/* @__PURE__ */ (0, B.jsx)("dt", { children: a("程序", "Program") }),
 						/* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: A.launch.program }) }),
@@ -25566,7 +25566,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("运行名称", "Run name") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: D.launch.name })] }),
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("Agent / 程序", "Agent / program") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: D.adapter === "codex" ? "Codex" : D.adapter === "claude_code" ? "Claude Code" : D.launch.harness })] }),
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("工作目录", "Working directory") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: D.launch.cwd }) })] }),
-								D.access && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("执行权限", "Execution access") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: fe(D.access) })] })
+								D.access && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("执行权限", "Execution access") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: de(D.access) })] })
 							]
 						}),
 						D.launch.stdin !== void 0 && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: a("任务说明", "Task instructions") }), /* @__PURE__ */ (0, B.jsx)("pre", {
@@ -25575,7 +25575,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						})] }),
 						D.adapter && D.access && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: pe(D.adapter, D.access)
+							children: fe(D.adapter, D.access)
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("details", {
 							className: "managed-run-command",
@@ -25598,10 +25598,10 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						T && /* @__PURE__ */ (0, B.jsxs)("p", {
 							className: "direct-error",
 							role: "alert",
-							children: [T, se.current && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+							children: [T, oe.current && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 								/* @__PURE__ */ (0, B.jsx)("br", {}),
 								a("请求 ID：", "Request ID: "),
-								/* @__PURE__ */ (0, B.jsx)("code", { children: se.current.id }),
+								/* @__PURE__ */ (0, B.jsx)("code", { children: oe.current.id }),
 								/* @__PURE__ */ (0, B.jsx)("br", {}),
 								a("请求可能已保存。请刷新记录确认，或使用相同内容再次确认；不会为此次重试创建新的运行 ID。", "The request may already be saved. Refresh the records to check, or confirm the same launch again; this retry retains the run ID.")
 							] })]
@@ -25611,7 +25611,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
 								disabled: M || !o || D.available === !1,
-								onClick: de,
+								onClick: ue,
 								children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -25627,7 +25627,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					]
 				}) : /* @__PURE__ */ (0, B.jsxs)("form", {
 					className: "direct-editor managed-run-form",
-					onSubmit: R,
+					onSubmit: z,
 					"aria-label": a("启动 Agent 或程序", "Launch an Agent or program"),
 					"aria-busy": M,
 					children: [
@@ -25726,19 +25726,19 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 								onChange: (e) => S(e.target.value),
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "read_only",
-									children: fe("read_only")
+									children: de("read_only")
 								}), v === "codex" ? /* @__PURE__ */ (0, B.jsx)("option", {
 									value: "workspace_write",
-									children: fe("workspace_write")
+									children: de("workspace_write")
 								}) : /* @__PURE__ */ (0, B.jsx)("option", {
 									value: "edit_files",
-									children: fe("edit_files")
+									children: de("edit_files")
 								})]
 							})] }),
 							/* @__PURE__ */ (0, B.jsx)("p", {
 								id: "managed-run-access-help",
 								className: "direct-note",
-								children: pe(v, b)
+								children: fe(v, b)
 							}),
 							/* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
@@ -25865,14 +25865,14 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			T.current && (d(n), w(!1));
 		});
 	}
-	let F = f || i || !!g, I = !!o?.policy?.enabled, L = o?.runs.filter((e) => e.phase === "active").length || 0, ie = [.../* @__PURE__ */ new Set([...o?.senders.map((e) => e.node) || [], ...c?.options.senders || []])], ae = (e) => ({
+	let F = f || i || !!g, I = !!o?.policy?.enabled, L = o?.runs.filter((e) => e.phase === "active").length || 0, R = [.../* @__PURE__ */ new Set([...o?.senders.map((e) => e.node) || [], ...c?.options.senders || []])], ie = (e) => ({
 		active: a("正在执行", "Running"),
 		reserved: a("等待进程入队", "Waiting to enqueue"),
 		paused: a("已暂停启动", "Launch paused"),
 		review_required: a("需要核对结果", "Review needed"),
 		grant_revoked: a("授权已失效", "Grant no longer valid"),
 		reported: a("已回报", "Reported")
-	})[e] || e, oe = (e) => e === "human_review" ? a("人工核对后回报", "Human review before reporting") : a("自动回报 Agent 提案", "Report Agent proposals automatically");
+	})[e] || e, ae = (e) => e === "human_review" ? a("人工核对后回报", "Human review before reporting") : a("自动回报 Agent 提案", "Report Agent proposals automatically");
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "automatic-worker-body",
 		children: [
@@ -25907,7 +25907,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						" · ",
 						o.policy.agent.access === "read_only" ? a("只读", "Read only") : a("允许修改文件", "File changes allowed"),
 						" · ",
-						oe(o.policy.report)
+						ae(o.policy.report)
 					] }),
 					/* @__PURE__ */ (0, B.jsx)("code", { children: o.policy.agent.cwd }),
 					o.policy.senders.map((e) => /* @__PURE__ */ (0, B.jsxs)("p", { children: [
@@ -26008,8 +26008,8 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						disabled: F,
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("legend", { children: a("允许自动接单的发送设备", "Trusted task senders") }),
-							!ie.length && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请先在设备页面向另一台设备授予消息权限。", "First grant another device messages access on the Devices page.") }),
-							ie.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
+							!R.length && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请先在设备页面向另一台设备授予消息权限。", "First grant another device messages access on the Devices page.") }),
+							R.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
 								className: "automatic-worker-check",
 								children: [/* @__PURE__ */ (0, B.jsx)("input", {
 									type: "checkbox",
@@ -26079,10 +26079,10 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 							onChange: (e) => P({ report: e.target.value }),
 							children: [/* @__PURE__ */ (0, B.jsx)("option", {
 								value: "human_review",
-								children: oe("human_review")
+								children: ae("human_review")
 							}), /* @__PURE__ */ (0, B.jsx)("option", {
 								value: "agent_proposal",
-								children: oe("agent_proposal")
+								children: ae("agent_proposal")
 							})]
 						})] })]
 					}),
@@ -26126,7 +26126,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						" ",
 						a("个并发进程", "parallel processes"),
 						" · ",
-						oe(u.options.report)
+						ae(u.options.report)
 					] }),
 					/* @__PURE__ */ (0, B.jsxs)("p", { children: [
 						/* @__PURE__ */ (0, B.jsx)("strong", { children: u.options.agent.adapter === "codex" ? "Codex" : "Claude Code" }),
@@ -26197,7 +26197,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 				"aria-label": a("自动接单运行", "Automatic task runs"),
 				children: o.runs.filter((e) => e.phase !== "reported").map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
 					/* @__PURE__ */ (0, B.jsx)("strong", { children: e.title }),
-					/* @__PURE__ */ (0, B.jsxs)("span", { children: [ae(e.phase), e.state && ` · ${e.state}`] }),
+					/* @__PURE__ */ (0, B.jsxs)("span", { children: [ie(e.phase), e.state && ` · ${e.state}`] }),
 					/* @__PURE__ */ (0, B.jsx)("code", { children: e.task }),
 					e.error && /* @__PURE__ */ (0, B.jsx)("p", {
 						className: "direct-error",
@@ -26307,7 +26307,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		f,
 		I
 	]);
-	let L = m || s, ie = T?.execution?.state, ae = new TextEncoder().encode(k).length, oe = ie ? {
+	let L = m || s, R = T?.execution?.state, ie = new TextEncoder().encode(k).length, ae = R ? {
 		queued: d("排队中", "Queued"),
 		starting: d("启动中", "Starting"),
 		running: d("运行中", "Running"),
@@ -26316,14 +26316,14 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		failed: d("运行失败，待核对结果", "Execution failed · review result"),
 		cancelled: d("进程已停止，待报告", "Process stopped · report needed"),
 		interrupted: d("节点重启中断，请检查实际结果", "Interrupted by node restart · inspect results")
-	}[ie] || ie : d("已保留领取记录，进程尚未入队", "Claim reserved · process not queued"), se = (e) => {
+	}[R] || R : d("已保留领取记录，进程尚未入队", "Claim reserved · process not queued"), oe = (e) => {
 		M.current && e === ee.current && (_(!0), u());
-	}, ce = (e) => ne(async (t) => {
+	}, se = (e) => ne(async (t) => {
 		F(await re({
 			operation: "start",
 			options: e.options,
 			digest: e.digest
-		}), t), se(t);
+		}), t), oe(t);
 	});
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "task-run",
@@ -26351,11 +26351,11 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							children: ["1 · ", d("检查并确认", "Review")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
-							"aria-current": T && (!ie || Vp(ie)) ? "step" : void 0,
+							"aria-current": T && (!R || Vp(R)) ? "step" : void 0,
 							children: ["2 · ", d("执行与查看", "Run")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
-							"aria-current": T && ie && !Vp(ie) ? "step" : void 0,
+							"aria-current": T && R && !Vp(R) ? "step" : void 0,
 							children: ["3 · ", d("核对并报告", "Report")]
 						})
 					]
@@ -26485,7 +26485,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 								className: "direct-primary",
 								type: "button",
 								disabled: L || !o || !C.available,
-								onClick: () => void ce(C),
+								onClick: () => void se(C),
 								children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -26526,10 +26526,10 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						}),
 						T?.execution && Vp(T.execution.state) && /* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "button",
-							disabled: L || ie === "stopping",
+							disabled: L || R === "stopping",
 							onClick: () => {
 								confirm(d("停止此任务的 Agent 及其子进程？停止后仍需核对并报告结果。", "Stop this task’s Agent and its child processes? Review and report the result afterward.")) && ne(async (e) => {
-									F(await re({ operation: "stop" }), e), se(e);
+									F(await re({ operation: "stop" }), e), oe(e);
 								});
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)(En, {
@@ -26560,7 +26560,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 					/* @__PURE__ */ (0, B.jsxs)("p", {
 						role: "status",
 						"aria-atomic": "true",
-						children: [oe, T.execution?.exit_code != null && " · " + d("退出码 ", "Exit code ") + T.execution.exit_code]
+						children: [ae, T.execution?.exit_code != null && " · " + d("退出码 ", "Exit code ") + T.execution.exit_code]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("p", {
 						className: "direct-note",
@@ -26573,7 +26573,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 					!T.execution && !a && !T.run.automatic && /* @__PURE__ */ (0, B.jsx)("button", {
 						type: "button",
 						disabled: L || !o,
-						onClick: () => void ce(T.run),
+						onClick: () => void se(T.run),
 						children: d("继续提交原运行", "Resume the same launch")
 					}),
 					["stdout", "stderr"].map((e) => /* @__PURE__ */ (0, B.jsxs)("details", {
@@ -26608,7 +26608,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							}),
 							!a && /* @__PURE__ */ (0, B.jsx)("button", {
 								type: "button",
-								disabled: L || !ie || Vp(ie),
+								disabled: L || !R || Vp(R),
 								onClick: () => {
 									let e = T.run.proposal;
 									e && (!k && !D || confirm(d("用 Agent 候选结果替换当前报告草稿？", "Replace the current report draft with the Agent candidate result?"))) && (A(e.result), O(e.outcome), j.current?.focus());
@@ -26623,7 +26623,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						onSubmit: (e) => {
 							e.preventDefault();
 							let t = D;
-							!t || !k.trim() || ae > 8192 || ne(async (e) => {
+							!t || !k.trim() || ie > 8192 || ne(async (e) => {
 								await re({
 									operation: "finish",
 									outcome: t,
@@ -26640,7 +26640,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [d("任务结果", "Task outcome"), /* @__PURE__ */ (0, B.jsxs)("select", {
 								required: !0,
 								value: D,
-								disabled: L || !!ie && Vp(ie),
+								disabled: L || !!R && Vp(R),
 								onChange: (e) => O(e.target.value),
 								children: [
 									/* @__PURE__ */ (0, B.jsx)("option", {
@@ -26669,14 +26669,14 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 								disabled: L,
 								value: k,
 								"aria-describedby": P,
-								"aria-invalid": ae > 8192 || void 0,
+								"aria-invalid": ie > 8192 || void 0,
 								onChange: (e) => A(e.target.value)
 							})] }),
 							/* @__PURE__ */ (0, B.jsxs)("small", {
 								id: P,
-								className: ae > 8192 ? "direct-error" : "direct-note",
+								className: ie > 8192 ? "direct-error" : "direct-note",
 								children: [
-									ae,
+									ie,
 									" / 8192 ",
 									d("字节", "bytes")
 								]
@@ -26684,8 +26684,8 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							/* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
 								className: "direct-primary",
-								disabled: L || !!ie && Vp(ie) || !D || !k.trim() || ae > 8192,
-								children: [/* @__PURE__ */ (0, B.jsx)(R, {
+								disabled: L || !!R && Vp(R) || !D || !k.trim() || ie > 8192,
+								children: [/* @__PURE__ */ (0, B.jsx)(z, {
 									size: 16,
 									"aria-hidden": "true"
 								}), d("提交已核对的结果", "Submit reviewed result")]
@@ -26982,7 +26982,7 @@ function Zp({ run: e, language: t, disabled: n, selected: r, mutate: i, onSelect
 						disabled: n || f.active > 0,
 						"aria-expanded": c,
 						onClick: () => l((e) => !e),
-						children: [/* @__PURE__ */ (0, B.jsx)(R, {
+						children: [/* @__PURE__ */ (0, B.jsx)(z, {
 							size: 16,
 							"aria-hidden": "true"
 						}), s("核对并结束协作", "Review and close collaboration")]
@@ -27226,29 +27226,29 @@ function tm() {
 }
 var nm = (e) => new TextEncoder().encode(e).length;
 function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
-	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!0), [p, m] = (0, x.useState)(0), [h, g] = (0, x.useState)([]), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, A] = (0, x.useState)("outgoing"), [j, M] = (0, x.useState)(!1), [N, ee] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(!1), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), [ie, ae] = (0, x.useState)(""), [oe, se] = (0, x.useState)(""), [ce, le] = (0, x.useState)(), ue = (0, x.useRef)(!0), de = (0, x.useRef)(!1), fe = (0, x.useRef)(!1), pe = (0, x.useRef)(0), z = (0, x.useRef)(void 0), me = (0, x.useRef)(/* @__PURE__ */ new Map()), he = (0, x.useRef)(null), ge = (0, x.useRef)(!1), _e = (0, x.useId)(), ve = (a?.routes || []).filter((e) => e.node !== s?.owner), ye = s?.collaborations || [], be = ye.find((e) => e.scope.id === _), xe = _ ? ve.filter((e) => be?.state === "open" && be.members.includes(e.node)) : ve, Se = (s?.outgoing || []).filter((e) => !!_ && e.task.collaboration?.id === _ && e.task.collaboration?.owner === s?.owner), Ce = h.length <= 8 && h.every((e) => Se.some((t) => t.task.id === e));
+	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!0), [p, m] = (0, x.useState)(0), [h, g] = (0, x.useState)([]), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, A] = (0, x.useState)("outgoing"), [j, M] = (0, x.useState)(!1), [N, ee] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(!1), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), [R, ie] = (0, x.useState)(""), [ae, oe] = (0, x.useState)(""), [se, ce] = (0, x.useState)(), le = (0, x.useRef)(!0), ue = (0, x.useRef)(!1), de = (0, x.useRef)(!1), fe = (0, x.useRef)(0), pe = (0, x.useRef)(void 0), me = (0, x.useRef)(/* @__PURE__ */ new Map()), he = (0, x.useRef)(null), ge = (0, x.useRef)(!1), _e = (0, x.useId)(), ve = (a?.routes || []).filter((e) => e.node !== s?.owner), ye = s?.collaborations || [], be = ye.find((e) => e.scope.id === _), xe = _ ? ve.filter((e) => be?.state === "open" && be.members.includes(e.node)) : ve, Se = (s?.outgoing || []).filter((e) => !!_ && e.task.collaboration?.id === _ && e.task.collaboration?.owner === s?.owner), Ce = h.length <= 8 && h.every((e) => Se.some((t) => t.task.id === e));
 	function we(e) {
 		e !== _ && g([]), v(e);
 	}
 	let Te = (0, x.useCallback)(async () => {
-		if (de.current || fe.current || document.hidden) return;
-		de.current = !0;
-		let t = ++pe.current;
+		if (ue.current || de.current || document.hidden) return;
+		ue.current = !0;
+		let t = ++fe.current;
 		ee(!0);
 		try {
 			let [n, r] = await Promise.all([e({ operation: "list" }), e({
 				operation: "tasks",
 				command: { operation: "list" }
 			})]);
-			ue.current && t === pe.current && (o(n), c(r), F(""));
+			le.current && t === fe.current && (o(n), c(r), F(""));
 		} catch (e) {
-			ue.current && t === pe.current && F(em(e));
+			le.current && t === fe.current && F(em(e));
 		} finally {
-			de.current = !1, ue.current && ee(!1);
+			ue.current = !1, le.current && ee(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (ue.current = !0, Te(), () => {
-		ue.current = !1, ++pe.current;
+	(0, x.useEffect)(() => (le.current = !0, Te(), () => {
+		le.current = !1, ++fe.current;
 	}), [Te]), (0, x.useEffect)(() => {
 		!P && ge.current && (ge.current = !1, he.current?.focus());
 	}, [P]), (0, x.useEffect)(() => {
@@ -27259,18 +27259,18 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 		};
 	}, [Te, j]);
 	async function Ee(t, n) {
-		if (!fe.current) {
-			fe.current = !0, ++pe.current, ne(!0), L(""), ae(""), se("");
+		if (!de.current) {
+			de.current = !0, ++fe.current, ne(!0), L(""), ie(""), oe("");
 			try {
 				let r = await e({
 					operation: "tasks",
 					command: t
 				});
-				ue.current && (c(r), F(""), n?.());
+				le.current && (c(r), F(""), n?.());
 			} catch (e) {
-				ue.current && ((t.operation === "collaboration" ? ae : L)(em(e)), t.operation === "create" && (ge.current = !0));
+				le.current && ((t.operation === "collaboration" ? ie : L)(em(e)), t.operation === "create" && (ge.current = !0));
 			} finally {
-				fe.current = !1, ue.current && ne(!1);
+				de.current = !1, le.current && ne(!1);
 			}
 		}
 	}
@@ -27284,14 +27284,14 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			_,
 			[...h].sort()
 		]);
-		z.current?.key !== t && (z.current = {
+		pe.current?.key !== t && (pe.current = {
 			key: t,
 			id: tm(),
 			dispatch: tm()
 		}), await Ee({
 			operation: "create",
-			id: z.current.id,
-			dispatch: z.current.dispatch,
+			id: pe.current.id,
+			dispatch: pe.current.dispatch,
 			node: S,
 			title: w,
 			description: E,
@@ -27299,7 +27299,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			..._ ? { run_id: _ } : {},
 			...h.length ? { depends_on: [...h].sort() } : {}
 		}, () => {
-			T(""), D(""), g([]), z.current = void 0, A("outgoing"), b(be ? Xp(be.scope) : ""), se(h.length ? i("任务与依赖已保存。只有前置任务均报告成功后，才会发给目标设备。", "Task and prerequisites saved. Delegation waits until every prerequisite reports success.") : i("委托已保存在本机。接收方可确认启动 Agent、通过 MCP 领取，或按其自动接单配置处理。", "Delegation saved. The recipient can confirm an Agent launch, claim through MCP, or use its automatic worker policy."));
+			T(""), D(""), g([]), pe.current = void 0, A("outgoing"), b(be ? Xp(be.scope) : ""), oe(h.length ? i("任务与依赖已保存。只有前置任务均报告成功后，才会发给目标设备。", "Task and prerequisites saved. Delegation waits until every prerequisite reports success.") : i("委托已保存在本机。接收方可确认启动 Agent、通过 MCP 领取，或按其自动接单配置处理。", "Delegation saved. The recipient can confirm an Agent launch, claim through MCP, or use its automatic worker policy."));
 		});
 	}
 	let Oe = (e) => ({
@@ -27320,9 +27320,9 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			await navigator.clipboard.writeText(t + "\nTaskID: " + e.task.id + "\nDispatchID: " + e.current.dispatch + (e.task.target_session ? "\nTarget session UUID: " + e.task.target_session + "\nRegister or renew this session using device_agent_sessions before claiming." : "") + "\n" + JSON.stringify({
 				name: "device_tasks",
 				arguments: { operation: "list" }
-			})), ue.current && se(i("已复制领取说明，可交给这台设备上已配置 MCP 的 Agent。", "Instructions copied for an Agent with MCP configured on this device."));
+			})), le.current && oe(i("已复制领取说明，可交给这台设备上已配置 MCP 的 Agent。", "Instructions copied for an Agent with MCP configured on this device."));
 		} catch {
-			ue.current && L(i("复制失败。可在任务详情中选中 TaskID 与 DispatchID，并让 Agent 使用 device_tasks 读取。", "Copy failed. Select TaskID and DispatchID in the details and ask your Agent to read device_tasks."));
+			le.current && L(i("复制失败。可在任务详情中选中 TaskID 与 DispatchID，并让 Agent 使用 device_tasks 读取。", "Copy failed. Select TaskID and DispatchID in the details and ask your Agent to read device_tasks."));
 		}
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -27415,7 +27415,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 					used: s.collaboration_used || 0,
 					capacity: s.collaboration_capacity || 32,
 					selected: y,
-					error: ie,
+					error: R,
 					identifier: tm,
 					mutate: Ee,
 					onSelect: (e) => {
@@ -27497,10 +27497,10 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 								role: "alert",
 								children: I
 							}),
-							oe && /* @__PURE__ */ (0, B.jsx)("p", {
+							ae && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "messages-notice",
 								role: "status",
-								children: oe
+								children: ae
 							}),
 							!Me.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 								className: "direct-empty",
@@ -27557,7 +27557,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 										}),
 										a.result && /* @__PURE__ */ (0, B.jsxs)("div", {
 											className: "task-report task-result task-" + a.state,
-											children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [/* @__PURE__ */ (0, B.jsx)(R, {
+											children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [/* @__PURE__ */ (0, B.jsx)(z, {
 												size: 17,
 												"aria-hidden": "true"
 											}), u ? i("本机取消记录", "Local cancellation") : i("执行方报告", "Worker report")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: a.result })]
@@ -27653,7 +27653,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 												}),
 												c && a.state === "available" && /* @__PURE__ */ (0, B.jsxs)("button", {
 													disabled: P,
-													onClick: () => le({
+													onClick: () => ce({
 														id: r.id,
 														dispatch: a.dispatch,
 														reason: ""
@@ -27720,35 +27720,35 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 												})
 											]
 										}),
-										ce?.id === r.id && /* @__PURE__ */ (0, B.jsxs)("form", {
+										se?.id === r.id && /* @__PURE__ */ (0, B.jsxs)("form", {
 											className: "task-decline",
 											"aria-label": i("拒绝原因", "Decline reason"),
 											onSubmit: (e) => {
-												e.preventDefault(), ce.reason.trim() && nm(ce.reason) <= 8192 && Ee({
+												e.preventDefault(), se.reason.trim() && nm(se.reason) <= 8192 && Ee({
 													operation: "decline",
-													...ce
-												}, () => le(void 0));
+													...se
+												}, () => ce(void 0));
 											},
 											children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("拒绝原因", "Decline reason"), /* @__PURE__ */ (0, B.jsx)("textarea", {
 												autoFocus: !0,
 												rows: 3,
 												required: !0,
-												value: ce.reason,
+												value: se.reason,
 												disabled: P,
-												onChange: (e) => le({
-													...ce,
+												onChange: (e) => ce({
+													...se,
 													reason: e.target.value
 												})
 											})] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 												className: "direct-actions",
 												children: [/* @__PURE__ */ (0, B.jsx)("button", {
 													type: "submit",
-													disabled: P || !ce.reason.trim() || nm(ce.reason) > 8192,
+													disabled: P || !se.reason.trim() || nm(se.reason) > 8192,
 													children: i("确认拒绝", "Confirm decline")
 												}), /* @__PURE__ */ (0, B.jsx)("button", {
 													type: "button",
 													disabled: P,
-													onClick: () => le(void 0),
+													onClick: () => ce(void 0),
 													children: i("返回", "Back")
 												})]
 											})]
@@ -28330,7 +28330,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 				let t = await N.current({ operation: "copy_activity" });
 				if (e || !O.current || n !== j.current || !Array.isArray(t.copies)) return;
 				if (t.copies.some((e) => !ee.current.some((t) => t.id === e.id && t.state === e.state))) {
-					if (await ie(), !e && k.current) {
+					if (await R(), !e && k.current) {
 						let e = t.copies.find((e) => xm(e.state));
 						e && p(e.id);
 					}
@@ -28354,14 +28354,14 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			} catch (e) {
 				O.current && C(vm(e));
 				try {
-					await ie(!0);
+					await R(!0);
 				} catch {}
 			} finally {
 				k.current = !1, O.current && b("");
 			}
 		}
 	}
-	async function ie(e = !1) {
+	async function R(e = !1) {
 		let t = ++M.current, n = j.current, r = await N.current({ operation: "copy_list" });
 		if (!Array.isArray(r.copies)) throw Error("Unexpected copy history");
 		if (O.current && n === j.current && t === M.current && (d(r.copies), D(r.unavailable || []), e)) {
@@ -28369,15 +28369,15 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			e && p(e.id);
 		}
 	}
-	function ae(e) {
+	function ie(e) {
 		j.current++, O.current && (d((t) => [e, ...t.filter((t) => t.id !== e.id)]), p(e.id), T(!1));
 	}
-	let oe = (e) => ({
+	let ae = (e) => ({
 		goal: a("目标与约束", "Goal and constraints"),
 		progress: a("当前进展与决定", "Progress and decisions"),
 		next_steps: a("接下来要做的事", "Next steps"),
 		verification: a("验证结果与待解决问题", "Verification and unresolved issues")
-	})[e], se = h && (!_.goal.trim() || gm.some((e) => new TextEncoder().encode(_[e]).length > _m[e] || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(_[e]))), ce = (e) => ({
+	})[e], oe = h && (!_.goal.trim() || gm.some((e) => new TextEncoder().encode(_[e]).length > _m[e] || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(_[e]))), se = (e) => ({
 		preparing: a("正在生成快照", "Preparing snapshot"),
 		prepare_paused: a("快照生成已暂停", "Snapshot preparation paused"),
 		receiving: a("正在传输文件", "Transferring files"),
@@ -28396,7 +28396,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			type: "button",
 			"aria-expanded": o,
 			onClick: () => {
-				s((e) => !e), o || L(a("读取记录…", "Loading history…"), ie);
+				s((e) => !e), o || L(a("读取记录…", "Loading history…"), R);
 			},
 			children: [/* @__PURE__ */ (0, B.jsx)(je, {
 				size: 17,
@@ -28420,7 +28420,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 				/* @__PURE__ */ (0, B.jsx)("p", { children: a("包含当前文件和未提交修改；常见凭据、Git 历史、依赖和构建目录会跳过。请检查清单，确认没有其他敏感文件。新版节点支持分块续传，每次最多 2 GiB、单文件 1 GiB。Shell 和 Agent 运行状态不随文件复制。", "Includes current files and uncommitted changes. Common credentials, Git history, dependencies and build folders are skipped. Review the manifest for other sensitive files. Updated nodes support resumable chunks up to 2 GiB total and 1 GiB per file. Running shells and agents stay on their current device.") }),
 				/* @__PURE__ */ (0, B.jsxs)("form", {
 					onSubmit: (t) => {
-						t.preventDefault(), !se && re && ne.some((e) => ym(e.id) === c) && L(a("生成快照…", "Preparing snapshot…"), async () => ae(await e({
+						t.preventDefault(), !oe && re && ne.some((e) => ym(e.id) === c) && L(a("生成快照…", "Preparing snapshot…"), async () => ie(await e({
 							operation: "copy_prepare",
 							source: P,
 							target: c,
@@ -28465,7 +28465,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 								gm.map((e) => {
 									let t = new TextEncoder().encode(_[e]).length;
 									return /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [
-										oe(e),
+										ae(e),
 										e === "goal" && a("（必填）", " (required)"),
 										/* @__PURE__ */ (0, B.jsx)("textarea", {
 											rows: e === "goal" ? 3 : 4,
@@ -28495,7 +28495,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "submit",
-							disabled: !!y || se || !re || !ne.some((e) => ym(e.id) === c),
+							disabled: !!y || oe || !re || !ne.some((e) => ym(e.id) === c),
 							children: [a("生成并预览快照", "Prepare and preview snapshot"), /* @__PURE__ */ (0, B.jsx)(te, {
 								size: 16,
 								"aria-hidden": "true"
@@ -28509,7 +28509,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 						type: "button",
 						disabled: !!y,
 						"aria-label": a("刷新复制记录", "Refresh copy history"),
-						onClick: () => void L(a("读取记录…", "Loading history…"), ie),
+						onClick: () => void L(a("读取记录…", "Loading history…"), R),
 						children: /* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
@@ -28532,7 +28532,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							" → ",
 							e.target,
 							" · ",
-							ce(e.state)
+							se(e.state)
 						]
 					}, e.id))]
 				})] }),
@@ -28548,7 +28548,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 								await e({
 									operation: "copy_discard",
 									id: t
-								}), j.current++, await ie();
+								}), j.current++, await R();
 							});
 						},
 						children: a("移除本机记录", "Remove local record")
@@ -28563,7 +28563,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							children: /* @__PURE__ */ (0, B.jsxs)("strong", { children: [
 								F.summary.name,
 								" · ",
-								ce(F.state)
+								se(F.state)
 							] })
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("p", { children: [
@@ -28604,7 +28604,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							children: [
 								/* @__PURE__ */ (0, B.jsx)("summary", { children: a("检查 Agent 交接说明", "Review Agent handoff") }),
 								/* @__PURE__ */ (0, B.jsx)("code", { children: F.summary.handoff_path }),
-								gm.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: oe(e) }), /* @__PURE__ */ (0, B.jsx)("p", { children: F.summary.handoff[e] || a("未填写", "Not provided") })] }, e))
+								gm.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: ae(e) }), /* @__PURE__ */ (0, B.jsx)("p", { children: F.summary.handoff[e] || a("未填写", "Not provided") })] }, e))
 							]
 						}),
 						F.digest && /* @__PURE__ */ (0, B.jsxs)("p", { children: [a("快照校验值：", "Snapshot checksum: "), /* @__PURE__ */ (0, B.jsx)("code", { children: F.digest })] }),
@@ -28639,7 +28639,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 									type: "button",
 									className: "projects-primary",
 									disabled: !!y,
-									onClick: () => void L(a("继续生成快照…", "Resuming snapshot…"), async () => ae(await e({
+									onClick: () => void L(a("继续生成快照…", "Resuming snapshot…"), async () => ie(await e({
 										operation: "copy_prepare_resume",
 										id: F.id
 									}))),
@@ -28663,10 +28663,10 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 												id: F.id,
 												digest: F.digest
 											});
-											ae(t), t.state === "completed" && await i();
+											ie(t), t.state === "completed" && await i();
 										});
 									},
-									children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+									children: [/* @__PURE__ */ (0, B.jsx)(de, {
 										size: 16,
 										"aria-hidden": "true"
 									}), F.state === "prepared" ? a("确认复制此快照", "Copy reviewed snapshot") : a("使用原 ID 继续", "Resume original copy")]
@@ -28685,7 +28685,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 											operation: "copy_status",
 											id: F.id
 										});
-										ae(t), t.state === "completed" && await i();
+										ie(t), t.state === "completed" && await i();
 									}),
 									children: a("查询目标回执", "Check target receipt")
 								}),
@@ -28697,7 +28697,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 											await e({
 												operation: "copy_discard",
 												id: F.id
-											}), j.current++, O.current && p(""), await ie();
+											}), j.current++, O.current && p(""), await R();
 										});
 									},
 									children: a("移除本机记录", "Remove local record")
@@ -28729,11 +28729,11 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 //#region src/projects/ProjectsView.tsx
 var Cm = (e) => e instanceof Error ? e.message : String(e);
 function wm({ client: e, devices: t, language: n = "en", sources: r }) {
-	let i = (e, t) => n.startsWith("zh") ? e : t, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(null), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(0), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(null), se = (0, x.useRef)(""), ce = a?.projects.find((e) => e.id === s) || a?.projects[0], le = ce?.replicas.find((e) => e.id === l) || ce?.replicas[0], ue = le && t.find((e) => e.id === (le.node || "")), R = le?.offline_synced_at !== void 0, de = !R && !!ue?.online && ue.terminal_sessions !== !1, fe = (e) => {
+	let i = (e, t) => n.startsWith("zh") ? e : t, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(null), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(0), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), R = (0, x.useRef)(!1), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(null), oe = (0, x.useRef)(""), se = a?.projects.find((e) => e.id === s) || a?.projects[0], ce = se?.replicas.find((e) => e.id === l) || se?.replicas[0], le = ce && t.find((e) => e.id === (ce.node || "")), z = ce?.offline_synced_at !== void 0, ue = !z && !!le?.online && le.terminal_sessions !== !1, de = (e) => {
 		++L.current, o(e);
-	}, pe = (0, x.useCallback)(async () => {
-		if (ae.current || ie.current) return;
-		ae.current = !0;
+	}, fe = (0, x.useCallback)(async () => {
+		if (ie.current || R.current) return;
+		ie.current = !0;
 		let t = ++L.current;
 		try {
 			let n = await e.projects({ operation: "list" });
@@ -28741,23 +28741,23 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 		} catch (e) {
 			I.current && t === L.current && m(Cm(e));
 		} finally {
-			ae.current = !1, I.current && g(!1);
+			ie.current = !1, I.current && g(!1);
 		}
 	}, [e]);
 	(0, x.useEffect)(() => {
-		I.current = !0, pe();
+		I.current = !0, fe();
 		let e = () => {
-			document.hidden || (pe(), te((e) => e + 1));
+			document.hidden || (fe(), te((e) => e + 1));
 		}, t = setInterval(e, 1e4);
 		return window.addEventListener("focus", e), document.addEventListener("visibilitychange", e), () => {
 			I.current = !1, ++L.current, clearInterval(t), window.removeEventListener("focus", e), document.removeEventListener("visibilitychange", e);
 		};
-	}, [pe]), (0, x.useEffect)(() => {
-		y && oe.current?.focus();
+	}, [fe]), (0, x.useEffect)(() => {
+		y && ae.current?.focus();
 	}, [y]), (0, x.useEffect)(() => {
-		let t = !0, n = le?.id || "";
-		if ((se.current !== n || !de) && (k(void 0), ne("")), se.current = n, j(""), !le || !de) N(!1);
-		else return N(!0), e.terminals(le.node, { operation: "list" }).then((e) => {
+		let t = !0, n = ce?.id || "";
+		if ((oe.current !== n || !ue) && (k(void 0), ne("")), oe.current = n, j(""), !ce || !ue) N(!1);
+		else return N(!0), e.terminals(ce.node, { operation: "list" }).then((e) => {
 			t && k(e);
 		}).catch((e) => {
 			t && j(Cm(e));
@@ -28768,36 +28768,36 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 		};
 	}, [
 		e,
-		le?.id,
-		le?.node,
-		de,
+		ce?.id,
+		ce?.node,
+		ue,
 		ee
 	]);
-	async function z(e) {
-		if (!ie.current) {
-			ie.current = !0, ++L.current, v(!0), m("");
+	async function pe(e) {
+		if (!R.current) {
+			R.current = !0, ++L.current, v(!0), m("");
 			try {
 				await e();
 			} catch (e) {
 				I.current && m(Cm(e));
 			} finally {
-				ie.current = !1, I.current && (v(!1), te((e) => e + 1));
+				R.current = !1, I.current && (v(!1), te((e) => e + 1));
 			}
 		}
 	}
 	function me(n) {
 		if (n.preventDefault(), !t.some((e) => e.id === E && e.projects !== !1)) return;
 		let r = new Set(a?.projects.map((e) => e.id));
-		z(async () => {
+		pe(async () => {
 			let t = await e.projects({
 				operation: "register",
-				name: y === "replica" ? ce.name : S.trim(),
+				name: y === "replica" ? se.name : S.trim(),
 				node: E || null,
 				path: w.trim(),
-				project_id: y === "replica" ? ce.id : null
+				project_id: y === "replica" ? se.id : null
 			});
 			if (!I.current) return;
-			fe(t);
+			de(t);
 			let n = t.projects.find((e) => e.replicas.some((e) => e.node === (E || null) && e.path === w.trim())) || t.projects.find((e) => !r.has(e.id));
 			n && (c(n.id), u(n.replicas.find((e) => e.node === (E || null) && e.path === w.trim())?.id || "")), b(null), C(""), T("");
 		});
@@ -28808,18 +28808,18 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 	async function ge(t) {
 		let n = await e.projects({
 			operation: "bind",
-			replica_id: le.id,
+			replica_id: ce.id,
 			terminal_id: t.id
 		});
-		I.current && (fe(n), ne(""));
+		I.current && (de(n), ne(""));
 	}
 	function _e(t) {
-		if (t.preventDefault(), !le) return;
-		let n = le;
-		z(async () => {
+		if (t.preventDefault(), !ce) return;
+		let n = ce;
+		pe(async () => {
 			let t = await e.terminals(n.node, {
 				operation: "create",
-				name: re.trim() || Array.from(ce.name).slice(0, 64).join("") + " · Shell",
+				name: re.trim() || Array.from(se.name).slice(0, 64).join("") + " · Shell",
 				cwd: n.path
 			});
 			if (!t.session) throw Error(i("节点没有返回会话。请刷新会话列表后检查，避免重复创建。", "No session returned. Refresh the session list before creating another."));
@@ -28831,7 +28831,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 			I.current && (F(""), await e.open(n.node, t.session));
 		});
 	}
-	let ve = O?.sessions.filter((e) => !le?.sessions.some((t) => t.terminal_id === e.id)) || [], ye = a?.projects.filter((e) => (e.name + " " + e.replicas.map((e) => e.path).join(" ")).toLowerCase().includes(d.toLowerCase())) || [];
+	let ve = O?.sessions.filter((e) => !ce?.sessions.some((t) => t.terminal_id === e.id)) || [], ye = a?.projects.filter((e) => (e.name + " " + e.replicas.map((e) => e.path).join(" ")).toLowerCase().includes(d.toLowerCase())) || [];
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
 		className: "projects-view",
 		"aria-label": i("项目与会话", "Projects and sessions"),
@@ -28845,7 +28845,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						disabled: _ || h,
 						"aria-label": i("刷新项目", "Refresh projects"),
 						onClick: () => {
-							pe(), te((e) => e + 1);
+							fe(), te((e) => e + 1);
 						},
 						children: /* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 17,
@@ -28867,9 +28867,9 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 			e.copy && /* @__PURE__ */ (0, B.jsx)(Sm, {
 				client: e.copy,
 				devices: t,
-				replica: le,
+				replica: ce,
 				language: n,
-				onComplete: pe
+				onComplete: fe
 			}),
 			p && /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "projects-error",
@@ -28877,7 +28877,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 				children: [p, /* @__PURE__ */ (0, B.jsx)("button", {
 					type: "button",
 					disabled: _,
-					onClick: () => void pe(),
+					onClick: () => void fe(),
 					children: i("重新读取", "Reload")
 				})]
 			}),
@@ -28900,7 +28900,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						})]
 					}),
 					y === "new" && /* @__PURE__ */ (0, B.jsxs)("label", { children: [i("项目名称", "Project name"), /* @__PURE__ */ (0, B.jsx)("input", {
-						ref: oe,
+						ref: ae,
 						required: !0,
 						maxLength: 80,
 						value: S,
@@ -28919,7 +28919,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}, e.id))
 					})] }),
 					/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("设备上的绝对目录", "Absolute directory on device"), /* @__PURE__ */ (0, B.jsx)("input", {
-						ref: y === "replica" ? oe : void 0,
+						ref: y === "replica" ? ae : void 0,
 						required: !0,
 						maxLength: 4096,
 						placeholder: i("例如 /home/me/project 或 C:/Projects/app", "e.g. /home/me/project or C:/Projects/app"),
@@ -28968,7 +28968,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							"aria-label": i("项目列表", "Project list"),
 							children: ye.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
-								"aria-pressed": ce?.id === e.id,
+								"aria-pressed": se?.id === e.id,
 								disabled: _ || !!y,
 								onClick: () => {
 									c(e.id), u("");
@@ -28994,13 +28994,13 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 					]
 				}), /* @__PURE__ */ (0, B.jsx)("div", {
 					className: "projects-detail",
-					children: ce && le ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+					children: se && ce ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: ce.name }), /* @__PURE__ */ (0, B.jsx)("code", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: se.name }), /* @__PURE__ */ (0, B.jsx)("code", {
 								className: "projects-id",
-								title: ce.id,
-								children: ce.id
+								title: se.id,
+								children: se.id
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
 								disabled: _ || !t.some((e) => e.projects !== !1),
@@ -29015,10 +29015,10 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							className: "projects-replica-label",
 							children: [i("工作副本", "Working copy"), /* @__PURE__ */ (0, B.jsx)("select", {
 								"aria-label": i("工作副本", "Working copy"),
-								value: le.id,
+								value: ce.id,
 								disabled: _ || !!y,
 								onChange: (e) => u(e.target.value),
-								children: ce.replicas.map((e) => /* @__PURE__ */ (0, B.jsxs)("option", {
+								children: se.replicas.map((e) => /* @__PURE__ */ (0, B.jsxs)("option", {
 									value: e.id,
 									children: [
 										t.find((t) => t.id === (e.node || ""))?.name || e.node || i("Workspace 主机", "Workspace host"),
@@ -29035,14 +29035,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 									size: 19,
 									"aria-hidden": "true"
 								}),
-								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: ue?.name || le.node || i("Workspace 主机", "Workspace host") }), /* @__PURE__ */ (0, B.jsx)("code", { children: le.path })] }),
+								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: le?.name || ce.node || i("Workspace 主机", "Workspace host") }), /* @__PURE__ */ (0, B.jsx)("code", { children: ce.path })] }),
 								/* @__PURE__ */ (0, B.jsx)("span", {
-									className: "projects-status " + (de ? "is-online" : ""),
-									children: de ? i("在线", "Online") : i("离线或终端不可用", "Offline or terminals unavailable")
+									className: "projects-status " + (ue ? "is-online" : ""),
+									children: ue ? i("在线", "Online") : i("离线或终端不可用", "Offline or terminals unavailable")
 								})
 							]
 						}),
-						R && /* @__PURE__ */ (0, B.jsxs)("div", {
+						z && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-snapshot",
 							children: [/* @__PURE__ */ (0, B.jsx)(Hn, {
 								size: 18,
@@ -29050,8 +29050,8 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							}), /* @__PURE__ */ (0, B.jsxs)("div", { children: [
 								/* @__PURE__ */ (0, B.jsx)("strong", { children: i("离线快照", "Offline snapshot") }),
 								/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("上次同步：", "Last synced: "), /* @__PURE__ */ (0, B.jsx)("time", {
-									dateTime: new Date(le.offline_synced_at).toISOString(),
-									children: new Date(le.offline_synced_at).toLocaleString()
+									dateTime: new Date(ce.offline_synced_at).toISOString(),
+									children: new Date(ce.offline_synced_at).toLocaleString()
 								})] }),
 								/* @__PURE__ */ (0, B.jsx)("p", { children: i("目录和关联会话可能已变化。恢复连接并刷新后，才能编辑记录或操作 Shell。", "Directories and linked sessions may have changed. Reconnect and refresh before editing records or using shells.") })
 							] })]
@@ -29060,7 +29060,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							className: "projects-heading",
 							children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: i("关联的 Shell 会话", "Linked shell sessions") }), /* @__PURE__ */ (0, B.jsx)("span", {
 								className: "projects-note",
-								children: le.sessions.length
+								children: ce.sessions.length
 							})]
 						}),
 						M && /* @__PURE__ */ (0, B.jsx)("p", {
@@ -29075,34 +29075,34 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}),
 						/* @__PURE__ */ (0, B.jsx)("ul", {
 							className: "projects-sessions",
-							children: le.sessions.map((t) => {
-								let n = O?.sessions.find((e) => e.id === t.terminal_id), r = de && n?.status === "running";
+							children: ce.sessions.map((t) => {
+								let n = O?.sessions.find((e) => e.id === t.terminal_id), r = ue && n?.status === "running";
 								return /* @__PURE__ */ (0, B.jsxs)("li", { children: [
 									/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 18,
 										"aria-hidden": "true"
 									}),
-									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: n?.name || t.terminal_id }), /* @__PURE__ */ (0, B.jsx)("small", { children: !de || A || M ? i("等待设备确认状态", "Waiting for device status") : O?.installed ? n ? n.status === "running" ? i("运行中", "Running") : i("已结束", "Ended") : i("原会话已不在设备上", "Session no longer on device") : i("终端服务不可用", "Terminal service unavailable") })] }),
+									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: n?.name || t.terminal_id }), /* @__PURE__ */ (0, B.jsx)("small", { children: !ue || A || M ? i("等待设备确认状态", "Waiting for device status") : O?.installed ? n ? n.status === "running" ? i("运行中", "Running") : i("已结束", "Ended") : i("原会话已不在设备上", "Session no longer on device") : i("终端服务不可用", "Terminal service unavailable") })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", {
 										className: "projects-actions",
 										children: [/* @__PURE__ */ (0, B.jsx)("button", {
 											type: "button",
 											disabled: _ || !r || M || !!A,
-											onClick: () => void z(async () => {
-												await e.open(le.node, n);
+											onClick: () => void pe(async () => {
+												await e.open(ce.node, n);
 											}),
 											children: i("打开", "Open")
 										}), /* @__PURE__ */ (0, B.jsx)("button", {
 											type: "button",
 											"aria-label": i("解除关联 ", "Unlink ") + (n?.name || t.terminal_id),
-											disabled: _ || R,
-											onClick: () => void z(async () => {
+											disabled: _ || z,
+											onClick: () => void pe(async () => {
 												let n = await e.projects({
 													operation: "unbind",
-													replica_id: le.id,
+													replica_id: ce.id,
 													terminal_id: t.terminal_id
 												});
-												I.current && fe(n);
+												I.current && de(n);
 											}),
 											children: /* @__PURE__ */ (0, B.jsx)(Rn, {
 												size: 16,
@@ -29113,7 +29113,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 								] }, t.id);
 							})
 						}),
-						!le.sessions.length && /* @__PURE__ */ (0, B.jsx)("p", {
+						!ce.sessions.length && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "projects-note",
 							children: i("还没有关联会话。可以新建 Shell，或关联这个设备上的已有会话。", "Create a shell or link an existing session on this device.")
 						}),
@@ -29123,13 +29123,13 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("新会话名称", "New session name"), /* @__PURE__ */ (0, B.jsx)("input", {
 								maxLength: 80,
 								value: re,
-								placeholder: ce.name.slice(0, 64) + " · Shell",
-								disabled: _ || !de,
+								placeholder: se.name.slice(0, 64) + " · Shell",
+								disabled: _ || !ue,
 								onChange: (e) => F(e.target.value)
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
 								className: "projects-primary",
-								disabled: _ || !de || !O?.installed || M,
+								disabled: _ || !ue || !O?.installed || M,
 								children: [/* @__PURE__ */ (0, B.jsx)(rn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -29141,12 +29141,12 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							onSubmit: (e) => {
 								e.preventDefault();
 								let t = ve.find((e) => e.id === P);
-								t && z(() => ge(t));
+								t && pe(() => ge(t));
 							},
 							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("关联已有会话", "Link existing session"), /* @__PURE__ */ (0, B.jsxs)("select", {
 								"aria-label": i("关联已有会话", "Link existing session"),
 								value: P,
-								disabled: _ || !de || !ve.length || M || !!A,
+								disabled: _ || !ue || !ve.length || M || !!A,
 								onChange: (e) => ne(e.target.value),
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "",
@@ -29161,7 +29161,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 								}, e.id))]
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
-								disabled: _ || !P || !de || M || !!A,
+								disabled: _ || !P || !ue || M || !!A,
 								children: [/* @__PURE__ */ (0, B.jsx)(_t, {
 									size: 16,
 									"aria-hidden": "true"
@@ -29170,14 +29170,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							type: "button",
-							disabled: _ || R || !!y,
+							disabled: _ || z || !!y,
 							onClick: () => {
-								window.confirm(i("仅移除这个工作副本的记录。文件和 Shell 都会保留。继续？", "Remove this working copy from the catalog? Files and shells will be kept.")) && z(async () => {
+								window.confirm(i("仅移除这个工作副本的记录。文件和 Shell 都会保留。继续？", "Remove this working copy from the catalog? Files and shells will be kept.")) && pe(async () => {
 									let t = await e.projects({
 										operation: "forget",
-										replica_id: le.id
+										replica_id: ce.id
 									});
-									I.current && fe(t);
+									I.current && de(t);
 								});
 							},
 							children: i("移除目录记录", "Remove directory record")
@@ -29381,7 +29381,7 @@ function Em({ client: e, direct: t, devices: n, language: r = "en", local: i, ga
 				children: o("汇总各节点授权的项目。离线快照只供查看，重连后刷新；已确认撤权的来源会被移除。读取失败不代表项目或会话已删除。", "Projects are read from their owning nodes. Offline snapshots are read-only; refresh after reconnecting. Confirmed revocations remove the cached source. An unavailable catalog does not mean its projects or sessions were deleted.")
 			}),
 			/* @__PURE__ */ (0, B.jsx)("ul", { children: s.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
-				e.id ? /* @__PURE__ */ (0, B.jsx)(le, {
+				e.id ? /* @__PURE__ */ (0, B.jsx)(ce, {
 					size: 16,
 					"aria-hidden": "true"
 				}) : /* @__PURE__ */ (0, B.jsx)(Fe, {
@@ -29545,7 +29545,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 		children: [
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "direct-heading",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(le, {
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(ce, {
 					size: 18,
 					"aria-hidden": "true"
 				}), i("其他设备", "Other devices")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: i("从已连接的设备读取授权空间目录。空间的管理和访问仍由归属设备控制。", "Read shared space directories from connected devices. Each owner controls management and access.") })] }), /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -29607,7 +29607,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 						e.catalog?.spaces.length ? /* @__PURE__ */ (0, B.jsx)("ul", {
 							className: "remote-space-list",
 							children: e.catalog.spaces.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
-								/* @__PURE__ */ (0, B.jsx)(ae, {
+								/* @__PURE__ */ (0, B.jsx)(ie, {
 									size: 18,
 									"aria-hidden": "true"
 								}),
@@ -29643,7 +29643,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 							g > 0 && i(`${g} 个正在检查`, `${g} checking`)
 						].filter(Boolean).join(" · ")
 					}),
-					/* @__PURE__ */ (0, B.jsx)(z, {
+					/* @__PURE__ */ (0, B.jsx)(pe, {
 						size: 16,
 						"aria-hidden": "true"
 					})
@@ -29703,7 +29703,7 @@ var jm = [
 	wsl: "WSL2 · Ubuntu"
 };
 function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, onProjects: i, direct: a, onDevices: o }) {
-	let s = (e, n) => t.startsWith("zh") ? e : n, [c, l] = (0, x.useState)(null), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)("docker"), [D, O] = (0, x.useState)(null), [k, A] = (0, x.useState)(null), [j, M] = (0, x.useState)(""), [ee, P] = (0, x.useState)(""), [ne, re] = (0, x.useState)("always"), [F, I] = (0, x.useState)(null), [L, ie] = (0, x.useState)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(!1), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useRef)(null), R = (0, x.useId)(), de = !!c?.spaces.some((e) => jm.includes(e.phase)) || c?.setup?.phase === "installing", pe = g || de, z = (e) => ({
+	let s = (e, n) => t.startsWith("zh") ? e : n, [c, l] = (0, x.useState)(null), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)("docker"), [D, O] = (0, x.useState)(null), [k, A] = (0, x.useState)(null), [j, M] = (0, x.useState)(""), [ee, P] = (0, x.useState)(""), [ne, re] = (0, x.useState)("always"), [F, I] = (0, x.useState)(null), [L, R] = (0, x.useState)(!1), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(null), ce = (0, x.useRef)(null), le = (0, x.useRef)(!1), z = (0, x.useRef)(null), ue = (0, x.useRef)(null), fe = (0, x.useRef)(!1), pe = (0, x.useRef)(null), me = (0, x.useRef)(null), he = (0, x.useRef)(!1), ge = (0, x.useRef)(null), ve = (0, x.useId)(), ye = !!c?.spaces.some((e) => jm.includes(e.phase)) || c?.setup?.phase === "installing", be = g || ye, xe = (e) => ({
 		preparing: s("准备中", "Preparing"),
 		pulling: s("下载镜像", "Downloading image"),
 		creating: s("创建容器", "Creating container"),
@@ -29717,58 +29717,73 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		interrupted: s("操作中断", "Interrupted"),
 		failed: s("需要处理", "Needs attention")
 	})[e] || e;
-	function me(e) {
+	function Se(e) {
 		l(e);
 		let t = e.spaces.filter((e) => e.phase === "ready").map((e) => e.node).sort().join(",");
-		ue.current !== t && (ue.current = t, window.dispatchEvent(new Event("cranibox:peers-changed")));
+		ge.current !== t && (ge.current = t, window.dispatchEvent(new Event("cranibox:peers-changed")));
 	}
-	async function he() {
-		if (!oe.current) {
-			oe.current = !0;
+	async function Ce() {
+		if (!ae.current) {
+			ae.current = !0;
 			try {
 				let t = await e({ operation: "list" });
-				me(t), p(""), se.current || (se.current = !0, E(t.platform === "windows" ? "wsl" : t.platform === "macos" ? "colima" : "docker"), P(t.default_image));
+				Se(t), p(""), oe.current || (oe.current = !0, E(t.platform === "windows" ? "wsl" : t.platform === "macos" ? "colima" : "docker"), P(t.default_image));
 			} catch (e) {
 				p(String(e));
 			} finally {
-				oe.current = !1;
+				ae.current = !1;
 			}
 		}
 	}
 	(0, x.useEffect)(() => {
 		let e = !1;
 		async function t() {
-			!e && !document.hidden && await he();
+			!e && !document.hidden && await Ce();
 		}
 		t();
-		let n = setInterval(t, de ? 2e3 : 15e3);
+		let n = setInterval(t, ye ? 2e3 : 15e3);
 		return document.addEventListener("visibilitychange", t), () => {
 			e = !0, clearInterval(n), document.removeEventListener("visibilitychange", t);
 		};
-	}, [e, de]), (0, x.useEffect)(() => {
-		v && ce.current?.focus();
-	}, [v, b]);
-	async function ge(t) {
-		if (!pe) {
-			_(!0), d(""), h("");
+	}, [e, ye]), (0, x.useEffect)(() => {
+		v && se.current?.focus();
+	}, [v, b]), (0, x.useEffect)(() => {
+		v && k ? z.current?.focus() : fe.current && (fe.current = !1, ue.current?.focus());
+	}, [v, k]), (0, x.useEffect)(() => {
+		u && pe.current?.focus();
+	}, [u]), (0, x.useEffect)(() => {
+		he.current && c?.setup && (he.current = !1, me.current?.focus());
+	}, [c]);
+	async function we(t) {
+		if (!(be || le.current)) {
+			le.current = !0, _(!0), d(""), h("");
 			try {
 				let n = await e(t);
-				return n?.spaces && me(n), n;
+				return n?.spaces && Se(n), n;
 			} catch (e) {
 				d(String(e));
 			} finally {
-				_(!1);
+				le.current = !1, _(!1);
 			}
 		}
 	}
-	async function ve() {
-		let e = await ge({
+	async function Te() {
+		if (!k || be || le.current) return;
+		let e = k;
+		A(null), he.current = !0, await we({
+			operation: "install",
+			action: e.action,
+			plan_id: e.plan_id
+		}) ? O(null) : (he.current = !1, Ce());
+	}
+	async function Ee() {
+		let e = await we({
 			operation: "preflight",
 			provider: T
 		});
 		e && (O(e), A(null), e.ready && S(1));
 	}
-	async function ye(e, t) {
+	async function Oe(e, t) {
 		if (!C) {
 			w(e.id + t), d(""), h("");
 			try {
@@ -29780,36 +29795,36 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 			}
 		}
 	}
-	async function be() {
-		await ge({
+	async function ke() {
+		await we({
 			operation: "create",
 			name: j.trim(),
 			provider: T,
 			image: ee,
 			pull_policy: ne
-		}) && (y(!1), S(0), M(""), h(s("空间正在后台创建，可以关闭此页面。", "Your space is being created in the background. You can close this page.")), le.current?.focus());
+		}) && (y(!1), S(0), M(""), h(s("空间正在后台创建，可以关闭此页面。", "Your space is being created in the background. You can close this page.")), ce.current?.focus());
 	}
-	async function xe(e, t) {
-		(t !== "stop" || window.confirm(s("停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？", "Stopping this space interrupts its Agents and shells. Data is retained. Continue?"))) && (t !== "remove" || window.confirm(s("归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？", "Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?"))) && await ge({
+	async function Ae(e, t) {
+		(t !== "stop" || window.confirm(s("停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？", "Stopping this space interrupts its Agents and shells. Data is retained. Continue?"))) && (t !== "remove" || window.confirm(s("归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？", "Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?"))) && await we({
 			operation: t,
 			id: e.id
 		}) && (I(null), h(s("操作已在后台开始。", "Operation started in the background.")));
 	}
-	async function Se(e) {
-		let t = await ge({
+	async function Me(e) {
+		let t = await we({
 			operation: "credentials",
 			id: e.id
 		});
 		t && (I({
 			id: e.id,
 			...t
-		}), ie(!1));
+		}), R(!1));
 	}
-	let Ce = (e) => ({
+	let Ne = (e) => ({
 		always: s("每次拉取", "Always pull"),
 		missing: s("缺少时拉取", "Pull if missing"),
 		never: s("仅使用本地镜像", "Use local image only")
-	})[e], we = {
+	})[e], Pe = {
 		linux_docker: s("安装 Docker Engine", "Install Docker Engine"),
 		colima_install: s("安装 Colima 与 Docker CLI", "Install Colima and Docker CLI"),
 		colima_start: s("启动 Colima", "Start Colima"),
@@ -29817,13 +29832,13 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		orbstack_start: s("启动 OrbStack", "Start OrbStack"),
 		wsl_install: s("安装 WSL2 与 Ubuntu", "Install WSL2 and Ubuntu"),
 		wsl_docker: s("在 Ubuntu 中安装 Docker", "Install Docker in Ubuntu")
-	}, Te = c?.platform === "macos" ? [
+	}, Fe = c?.platform === "macos" ? [
 		"colima",
 		"orbstack",
 		"docker"
 	] : c?.platform === "windows" ? ["wsl", "docker"] : ["docker"];
-	function Ee() {
-		y(!1), A(null), le.current?.focus();
+	function Ie() {
+		y(!1), A(null), ce.current?.focus();
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
 		className: "direct-devices virtual-spaces",
@@ -29843,15 +29858,15 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 					children: [/* @__PURE__ */ (0, B.jsx)("button", {
 						"aria-label": s("刷新空间", "Refresh spaces"),
 						disabled: g,
-						onClick: () => void he(),
+						onClick: () => void Ce(),
 						children: /* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
 						})
 					}), /* @__PURE__ */ (0, B.jsxs)("button", {
-						ref: le,
+						ref: ce,
 						className: "direct-primary",
-						disabled: !c || pe,
+						disabled: !c || be,
 						onClick: () => {
 							y(!0), S(0), O(null), A(null), d("");
 						},
@@ -29863,6 +29878,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 				})]
 			}),
 			(u || f) && /* @__PURE__ */ (0, B.jsx)("p", {
+				ref: pe,
+				tabIndex: -1,
 				className: "direct-error",
 				role: "alert",
 				children: u || f
@@ -29877,16 +29894,18 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 				children: s("正在读取空间…", "Loading spaces…")
 			}),
 			c?.setup && /* @__PURE__ */ (0, B.jsxs)("div", {
+				ref: me,
+				tabIndex: -1,
 				className: "spaces-setup-status",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: we[c.setup.action] || c.setup.action }), /* @__PURE__ */ (0, B.jsx)("p", { children: c.setup.phase === "installing" ? s("安装正在后台执行，请完成操作系统的授权提示。", "Setup is running in the background. Complete any operating system approval prompts.") : c.setup.phase === "check_required" ? s("安装命令已结束。完成首次启动、重启或重新登录后，请重新检测环境。", "The setup command finished. Complete first-run setup, restart or sign in again if needed, then recheck.") : c.setup.error || s("安装中断，请重新检测后重试。", "Setup interrupted. Recheck before retrying.") })] }), c.setup.phase === "installing" && /* @__PURE__ */ (0, B.jsx)(Ct, {
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: Pe[c.setup.action] || c.setup.action }), /* @__PURE__ */ (0, B.jsx)("p", { children: c.setup.phase === "installing" ? s("安装正在后台执行，请完成操作系统的授权提示。关闭页面不会取消安装。", "Setup is running in the background. Complete any operating system approval prompts. Closing this page does not cancel setup.") : c.setup.phase === "check_required" ? s("安装命令已结束。完成首次启动、重启或重新登录后，请重新检测环境。", "The setup command finished. Complete first-run setup, restart or sign in again if needed, then recheck.") : c.setup.error || s("安装监控中断，系统安装程序可能仍在运行。请检查软件包管理器并重新检测环境。", "Setup monitoring was interrupted. The system installer may still be running. Check the package manager and recheck the environment.") })] }), c.setup.phase === "installing" && /* @__PURE__ */ (0, B.jsx)(Ct, {
 					className: "spaces-spinner",
 					size: 20,
 					"aria-hidden": "true"
 				})]
 			}),
 			v && /* @__PURE__ */ (0, B.jsxs)("div", {
-				ref: ce,
+				ref: se,
 				tabIndex: -1,
 				className: "spaces-wizard",
 				"aria-label": s("创建空间向导", "Create space wizard"),
@@ -29895,7 +29914,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 						className: "direct-heading",
 						children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: s("创建虚拟空间", "Create a virtual space") }), /* @__PURE__ */ (0, B.jsx)("button", {
 							"aria-label": s("关闭向导", "Close wizard"),
-							onClick: Ee,
+							onClick: Ie,
 							children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 								size: 17,
 								"aria-hidden": "true"
@@ -29911,7 +29930,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 						].map((e, t) => /* @__PURE__ */ (0, B.jsxs)("li", {
 							className: t <= b ? "active" : "",
 							"aria-current": t === b ? "step" : void 0,
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: t < b ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: t < b ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : t + 1 }), e]
@@ -29931,12 +29950,12 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							}),
 							/* @__PURE__ */ (0, B.jsxs)("fieldset", {
 								className: "spaces-providers",
-								children: [/* @__PURE__ */ (0, B.jsx)("legend", { children: s("容器运行环境", "Container runtime") }), Te.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", { children: [/* @__PURE__ */ (0, B.jsx)("input", {
+								children: [/* @__PURE__ */ (0, B.jsx)("legend", { children: s("容器运行环境", "Container runtime") }), Fe.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", { children: [/* @__PURE__ */ (0, B.jsx)("input", {
 									type: "radio",
-									name: R + "-provider",
+									name: ve + "-provider",
 									value: e,
 									checked: T === e,
-									disabled: pe,
+									disabled: be,
 									onChange: () => {
 										E(e), O(null), A(null);
 									}
@@ -29948,8 +29967,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							}),
 							/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
-								disabled: pe,
-								onClick: () => void ve(),
+								disabled: be,
+								onClick: () => void Ee(),
 								children: [g ? /* @__PURE__ */ (0, B.jsx)(Ct, {
 									className: "spaces-spinner",
 									size: 17,
@@ -29974,28 +29993,37 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									/* @__PURE__ */ (0, B.jsx)("div", {
 										className: "direct-actions",
 										children: D.actions.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
-											disabled: pe,
-											onClick: async () => {
-												let t = await ge({
+											disabled: be || !!k,
+											onClick: async (t) => {
+												ue.current = t.currentTarget;
+												let n = await we({
 													operation: "plan",
 													action: e
 												});
-												t && A(t);
+												n && A(n);
 											},
 											children: [/* @__PURE__ */ (0, B.jsx)(Le, {
 												size: 16,
 												"aria-hidden": "true"
-											}), we[e] || e]
+											}), Pe[e] || e]
 										}, e))
 									}),
 									!D.actions.length && /* @__PURE__ */ (0, B.jsx)("p", { children: s("请在宿主机安装并启动 Docker，检查 socket 权限和引擎连接后重新检测。", "Install and start Docker on the host, check socket access and the engine connection, then recheck.") })
 								]
 							}),
 							k && /* @__PURE__ */ (0, B.jsxs)("div", {
+								ref: z,
+								tabIndex: -1,
 								className: "spaces-install-plan",
+								role: "region",
+								"aria-label": s("检查安装操作", "Review setup action"),
 								children: [
 									/* @__PURE__ */ (0, B.jsx)("h4", { children: s("检查安装操作", "Review setup action") }),
 									/* @__PURE__ */ (0, B.jsx)("p", { children: k.summary }),
+									/* @__PURE__ */ (0, B.jsx)("p", {
+										className: "spaces-muted",
+										children: s("此确认十分钟内有效，仅能使用一次。执行后请重新检测环境，确认运行环境已就绪。", "This confirmation is valid for ten minutes and can be used once. Recheck the environment after setup to confirm the runtime is ready.")
+									}),
 									k.requires_homebrew && /* @__PURE__ */ (0, B.jsx)("p", { children: s("需要先安装 Homebrew；若尚未安装，请从 brew.sh 完成其官方安装流程。", "Homebrew must be installed first. If missing, complete its official installation at brew.sh.") }),
 									k.restart_may_be_required && /* @__PURE__ */ (0, B.jsx)("p", { children: s("可能需要重启 Windows，并首次打开 Ubuntu 创建用户。", "Windows may need a restart. Open Ubuntu once to create your user.") }),
 									/* @__PURE__ */ (0, B.jsx)("pre", {
@@ -30007,17 +30035,14 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										className: "direct-actions",
 										children: [/* @__PURE__ */ (0, B.jsx)("button", {
 											className: "direct-primary",
-											disabled: pe,
-											onClick: async () => {
-												await ge({
-													operation: "install",
-													action: k.action
-												}) && (A(null), O(null));
-											},
+											disabled: be || !k.plan_id,
+											onClick: () => void Te(),
 											children: s("确认并执行安装", "Confirm and run setup")
 										}), /* @__PURE__ */ (0, B.jsx)("button", {
-											disabled: pe,
-											onClick: () => A(null),
+											disabled: be,
+											onClick: () => {
+												fe.current = !0, A(null);
+											},
 											children: s("取消", "Cancel")
 										})]
 									})
@@ -30072,11 +30097,11 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										onChange: (e) => P(e.target.value)
 									})] }),
 									/* @__PURE__ */ (0, B.jsx)("label", {
-										htmlFor: R + "-pull-policy",
+										htmlFor: ve + "-pull-policy",
 										children: s("镜像拉取策略", "Image pull policy")
 									}),
 									/* @__PURE__ */ (0, B.jsx)("select", {
-										id: R + "-pull-policy",
+										id: ve + "-pull-policy",
 										value: ne,
 										onChange: (e) => re(e.target.value),
 										children: [
@@ -30085,7 +30110,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 											"never"
 										].map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 											value: e,
-											children: Ce(e)
+											children: Ne(e)
 										}, e))
 									}),
 									/* @__PURE__ */ (0, B.jsx)("p", {
@@ -30106,7 +30131,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 								}), /* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
 									type: "submit",
-									disabled: pe || !j.trim(),
+									disabled: be || !j.trim(),
 									children: [s("下一步", "Next"), /* @__PURE__ */ (0, B.jsx)(te, {
 										size: 16,
 										"aria-hidden": "true"
@@ -30126,7 +30151,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("资源上限", "Resource limits") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: "2 CPU · 4 GiB RAM" })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("数据存储", "Storage") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: s("独立持久数据卷 · /config", "Dedicated persistent volume · /config") })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像", "Image") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: ee }) })] }),
-									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像拉取策略", "Image pull policy") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: Ce(ne) })] })
+									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像拉取策略", "Image pull policy") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: Ne(ne) })] })
 								]
 							}),
 							/* @__PURE__ */ (0, B.jsx)("p", {
@@ -30136,7 +30161,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							/* @__PURE__ */ (0, B.jsxs)("div", {
 								className: "direct-actions",
 								children: [/* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: pe,
+									disabled: be,
 									onClick: () => S(1),
 									children: [/* @__PURE__ */ (0, B.jsx)(N, {
 										size: 16,
@@ -30144,8 +30169,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									}), s("上一步", "Back")]
 								}), /* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
-									disabled: pe,
-									onClick: () => void be(),
+									disabled: be,
+									onClick: () => void ke(),
 									children: [/* @__PURE__ */ (0, B.jsx)(rn, {
 										size: 16,
 										"aria-hidden": "true"
@@ -30161,7 +30186,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("div", {
 						className: "spaces-empty-icon",
-						children: /* @__PURE__ */ (0, B.jsx)(ae, {
+						children: /* @__PURE__ */ (0, B.jsx)(ie, {
 							size: 40,
 							strokeWidth: 1.5,
 							"aria-hidden": "true"
@@ -30202,7 +30227,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							className: "space-card-head",
 							children: [/* @__PURE__ */ (0, B.jsx)("span", {
 								className: "space-icon",
-								children: /* @__PURE__ */ (0, B.jsx)(ae, {
+								children: /* @__PURE__ */ (0, B.jsx)(ie, {
 									size: 23,
 									"aria-hidden": "true"
 								})
@@ -30225,7 +30250,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									size: 16,
 									"aria-hidden": "true"
 								}),
-								z(e.phase)
+								xe(e.phase)
 							]
 						}),
 						e.error && /* @__PURE__ */ (0, B.jsx)("p", {
@@ -30241,7 +30266,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							children: [e.phase === "ready" ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 								/* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
-									disabled: pe,
+									disabled: be,
 									onClick: () => n(e.node),
 									children: [/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 16,
@@ -30249,9 +30274,9 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									}), s("终端", "Terminal")]
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: pe || !!C || !e.ports.desktop,
+									disabled: be || !!C || !e.ports.desktop,
 									"aria-busy": C === e.id + "desktop",
-									onClick: () => void ye(e, "desktop"),
+									onClick: () => void Oe(e, "desktop"),
 									children: [C === e.id + "desktop" ? /* @__PURE__ */ (0, B.jsx)(Ct, {
 										size: 16,
 										className: "spaces-spinner",
@@ -30262,9 +30287,9 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									}), s("桌面", "Desktop")]
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: pe || !!C || !e.ports.code,
+									disabled: be || !!C || !e.ports.code,
 									"aria-busy": C === e.id + "code",
-									onClick: () => void ye(e, "code"),
+									onClick: () => void Oe(e, "code"),
 									children: [C === e.id + "code" ? /* @__PURE__ */ (0, B.jsx)(Ct, {
 										size: 16,
 										className: "spaces-spinner",
@@ -30279,8 +30304,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									children: s("项目", "Projects")
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: pe,
-									onClick: () => void xe(e, "stop"),
+									disabled: be,
+									onClick: () => void Ae(e, "stop"),
 									children: [/* @__PURE__ */ (0, B.jsx)(En, {
 										size: 15,
 										"aria-hidden": "true"
@@ -30288,15 +30313,15 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 								})
 							] }) : !jm.includes(e.phase) && /* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
-								disabled: pe,
-								onClick: () => void xe(e, "resume"),
+								disabled: be,
+								onClick: () => void Ae(e, "resume"),
 								children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 									size: 16,
 									"aria-hidden": "true"
 								}), e.phase === "archived" ? s("恢复空间", "Restore space") : s("启动 / 重试", "Start / retry")]
 							}), !jm.includes(e.phase) && e.phase !== "archived" && /* @__PURE__ */ (0, B.jsx)("button", {
-								disabled: pe,
-								onClick: () => void xe(e, "remove"),
+								disabled: be,
+								onClick: () => void Ae(e, "remove"),
 								children: s("归档", "Archive")
 							})]
 						}),
@@ -30310,7 +30335,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 								}),
 								/* @__PURE__ */ (0, B.jsx)("code", { children: e.volume }),
 								/* @__PURE__ */ (0, B.jsx)("p", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: e.image }) }),
-								/* @__PURE__ */ (0, B.jsx)("p", { children: Ce(e.pull_policy || "always") }),
+								/* @__PURE__ */ (0, B.jsx)("p", { children: Ne(e.pull_policy || "always") }),
 								e.ports.desktop && /* @__PURE__ */ (0, B.jsxs)("p", { children: [
 									s("宿主机桌面", "Desktop on engine host"),
 									" ",
@@ -30326,8 +30351,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									children: s("以上地址需在 Docker 引擎所在设备访问，不是当前浏览器所在设备。初次访问可能需要接受空间的自签名证书。", "Open these addresses on the Docker engine’s device. They do not refer to a remote browser’s device. First access may require accepting the space’s self-signed certificate.")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
-									disabled: pe,
-									onClick: () => F?.id === e.id ? I(null) : void Se(e),
+									disabled: be,
+									onClick: () => F?.id === e.id ? I(null) : void Me(e),
 									children: F?.id === e.id ? s("隐藏凭据", "Hide credentials") : s("查看登录凭据", "View login credentials")
 								}),
 								F?.id === e.id && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -30347,7 +30372,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										/* @__PURE__ */ (0, B.jsxs)("button", {
 											onClick: async () => {
 												try {
-													await navigator.clipboard.writeText(F.password), ie(!0);
+													await navigator.clipboard.writeText(F.password), R(!0);
 												} catch {
 													d(s("无法复制，请选中密码手动复制。", "Copy failed. Select the password and copy manually."));
 												}
@@ -30367,7 +30392,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 			/* @__PURE__ */ (0, B.jsx)(Am, {
 				client: a,
 				language: t,
-				phaseName: z,
+				phaseName: xe,
 				onDevices: o
 			})
 		]
@@ -30587,7 +30612,7 @@ function Rm({ state: e, label: t }) {
 	let { t: n } = sm(), r = e === "connected", i = e === "disconnected";
 	return /* @__PURE__ */ (0, B.jsxs)("span", {
 		className: "status " + (r ? "good" : i ? "warning" : "neutral"),
-		children: [/* @__PURE__ */ (0, B.jsx)(r ? fe : i ? In : xe, {
+		children: [/* @__PURE__ */ (0, B.jsx)(r ? de : i ? In : xe, {
 			size: 18,
 			"aria-hidden": "true"
 		}), t || n("已连接", "Connected")]
@@ -34337,38 +34362,38 @@ var hy = class {
 				}
 			}
 			N.isOverline() && (D.push("xterm-overline"), _ === " " && (_ = "\xA0")), N.isStrikethrough() && D.push("xterm-strikethrough"), P && (h.style.textDecoration = "underline");
-			let F = N.getFgColor(), I = N.getFgColorMode(), L = N.getBgColor(), ie = N.getBgColorMode(), ae = !!N.isInverse();
-			if (ae) {
+			let F = N.getFgColor(), I = N.getFgColorMode(), L = N.getBgColor(), R = N.getBgColorMode(), ie = !!N.isInverse();
+			if (ie) {
 				let e = F;
 				F = L, L = e;
 				let t = I;
-				I = ie, ie = t;
+				I = R, R = t;
 			}
-			let oe, se, ce = !1;
+			let ae, oe, se = !1;
 			this._decorationService.forEachDecorationAtCell(k, t, void 0, (e) => {
-				e.options.layer !== "top" && ce || (e.backgroundColorRGB && (ie = 50331648, L = e.backgroundColorRGB.rgba >> 8 & 16777215, oe = e.backgroundColorRGB), e.foregroundColorRGB && (I = 50331648, F = e.foregroundColorRGB.rgba >> 8 & 16777215, se = e.foregroundColorRGB), ce = e.options.layer === "top");
-			}), !ce && ee && (oe = this._coreBrowserService.isFocused ? p.selectionBackgroundOpaque : p.selectionInactiveBackgroundOpaque, L = oe.rgba >> 8 & 16777215, ie = 50331648, ce = !0, p.selectionForeground && (I = 50331648, F = p.selectionForeground.rgba >> 8 & 16777215, se = p.selectionForeground)), ce && D.push("xterm-decoration-top");
-			let le;
-			switch (ie) {
+				e.options.layer !== "top" && se || (e.backgroundColorRGB && (R = 50331648, L = e.backgroundColorRGB.rgba >> 8 & 16777215, ae = e.backgroundColorRGB), e.foregroundColorRGB && (I = 50331648, F = e.foregroundColorRGB.rgba >> 8 & 16777215, oe = e.foregroundColorRGB), se = e.options.layer === "top");
+			}), !se && ee && (ae = this._coreBrowserService.isFocused ? p.selectionBackgroundOpaque : p.selectionInactiveBackgroundOpaque, L = ae.rgba >> 8 & 16777215, R = 50331648, se = !0, p.selectionForeground && (I = 50331648, F = p.selectionForeground.rgba >> 8 & 16777215, oe = p.selectionForeground)), se && D.push("xterm-decoration-top");
+			let ce;
+			switch (R) {
 				case 16777216:
 				case 33554432:
-					le = p.ansi[L], D.push(`xterm-bg-${L}`);
+					ce = p.ansi[L], D.push(`xterm-bg-${L}`);
 					break;
 				case 50331648:
-					le = ty.toColor(L >> 16, L >> 8 & 255, L & 255), this._addStyle(h, `background-color:#${gy((L >>> 0).toString(16), "0", 6)}`);
+					ce = ty.toColor(L >> 16, L >> 8 & 255, L & 255), this._addStyle(h, `background-color:#${gy((L >>> 0).toString(16), "0", 6)}`);
 					break;
-				default: ae ? (le = p.foreground, D.push("xterm-bg-257")) : le = p.background;
+				default: ie ? (ce = p.foreground, D.push("xterm-bg-257")) : ce = p.background;
 			}
-			switch (oe || N.isDim() && (oe = ny.multiplyOpacity(le, .5)), I) {
+			switch (ae || N.isDim() && (ae = ny.multiplyOpacity(ce, .5)), I) {
 				case 16777216:
 				case 33554432:
-					N.isBold() && F < 8 && this._optionsService.rawOptions.drawBoldTextInBrightColors && (F += 8), this._applyMinimumContrast(h, le, p.ansi[F], N, oe, void 0) || D.push(`xterm-fg-${F}`);
+					N.isBold() && F < 8 && this._optionsService.rawOptions.drawBoldTextInBrightColors && (F += 8), this._applyMinimumContrast(h, ce, p.ansi[F], N, ae, void 0) || D.push(`xterm-fg-${F}`);
 					break;
 				case 50331648:
 					let e = ty.toColor(F >> 16 & 255, F >> 8 & 255, F & 255);
-					this._applyMinimumContrast(h, le, e, N, oe, se) || this._addStyle(h, `color:#${gy(F.toString(16), "0", 6)}`);
+					this._applyMinimumContrast(h, ce, e, N, ae, oe) || this._addStyle(h, `color:#${gy(F.toString(16), "0", 6)}`);
 					break;
-				default: this._applyMinimumContrast(h, le, p.foreground, N, oe, se) || ae && D.push("xterm-fg-257");
+				default: this._applyMinimumContrast(h, ce, p.foreground, N, ae, oe) || ie && D.push("xterm-fg-257");
 			}
 			D.length &&= (h.className = D.join(" "), 0), !te && !A && !ne && j ? g++ : h.textContent = _, T !== this.defaultSpacing && (h.style.letterSpacing = `${T}px`), d.push(h), k = M;
 		}
@@ -39899,11 +39924,11 @@ function VS({ label: e, children: t }) {
 //#endregion
 //#region src/terminal/TerminalPane.tsx
 function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename: a, onEnd: o }) {
-	let { t: s, connect: c } = sm(), l = (0, x.useRef)(null), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = (0, x.useRef)(!1), g = (0, x.useRef)(0), _ = (0, x.useRef)(!1), v = (0, x.useRef)(void 0), y = (0, x.useRef)(!0), b = (0, x.useRef)(void 0), S = (0, x.useRef)(0), C = (0, x.useRef)(() => {}), [w, T] = (0, x.useState)("disconnected"), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(e.initialCommand || ""), [A, M] = (0, x.useState)(!!e.initialCommand), [ee, P] = (0, x.useState)(14), [ne, re] = (0, x.useState)(!1), I = (0, x.useRef)(!1), L = w === "connected", ie = L || w === "connecting", ae = (0, x.useCallback)((e = !0) => {
+	let { t: s, connect: c } = sm(), l = (0, x.useRef)(null), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = (0, x.useRef)(!1), g = (0, x.useRef)(0), _ = (0, x.useRef)(!1), v = (0, x.useRef)(void 0), y = (0, x.useRef)(!0), b = (0, x.useRef)(void 0), S = (0, x.useRef)(0), C = (0, x.useRef)(() => {}), [w, T] = (0, x.useState)("disconnected"), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(e.initialCommand || ""), [A, M] = (0, x.useState)(!!e.initialCommand), [ee, P] = (0, x.useState)(14), [ne, re] = (0, x.useState)(!1), I = (0, x.useRef)(!1), L = w === "connected", R = L || w === "connecting", ie = (0, x.useCallback)((e = !0) => {
 		e && (y.current = !1), g.current++, _.current = !1, window.clearTimeout(v.current), window.clearTimeout(b.current), m.current?.close(), m.current = null, h.current && T("disconnected");
-	}, []), oe = (0, x.useCallback)(() => {
+	}, []), ae = (0, x.useCallback)(() => {
 		h.current && y.current && (window.clearTimeout(b.current), T("connecting"), b.current = window.setTimeout(() => C.current(), Math.min(1e3 * 2 ** S.current++, 15e3)));
-	}, []), se = (0, x.useCallback)(async (t = !1) => {
+	}, []), oe = (0, x.useCallback)(async (t = !1) => {
 		if (_.current || m.current || !n || !f.current) return;
 		y.current = !0, window.clearTimeout(b.current), _.current = !0, T("connecting"), D("");
 		let r = ++g.current, i = f.current;
@@ -39911,7 +39936,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 			l.current?.clientWidth && p.current?.fit();
 			let n = () => h.current && r === g.current;
 			i.reset(), v.current = window.setTimeout(() => {
-				n() && (D(s("接入超时，请重试或检查节点。", "Attachment timed out. Retry or check the node.")), ae(!1), oe());
+				n() && (D(s("接入超时，请重试或检查节点。", "Attachment timed out. Retry or check the node.")), ie(!1), ae());
 			}, 2e4);
 			let a = !1, o = await c({
 				node: e.node,
@@ -39933,7 +39958,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					n() && (y.current = !1);
 				},
 				closed: () => {
-					a = !0, n() && (m.current = null, window.clearTimeout(v.current), _.current = !1, T("disconnected"), oe());
+					a = !0, n() && (m.current = null, window.clearTimeout(v.current), _.current = !1, T("disconnected"), ae());
 				}
 			});
 			if (!n() || a) {
@@ -39946,21 +39971,21 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 				rows: i.rows
 			});
 		} catch (e) {
-			h.current && r === g.current && (window.clearTimeout(v.current), _.current = !1, D(e instanceof Error ? e.message : String(e)), T("disconnected"), oe());
+			h.current && r === g.current && (window.clearTimeout(v.current), _.current = !1, D(e instanceof Error ? e.message : String(e)), T("disconnected"), ae());
 		}
 	}, [
 		e.node,
 		e.id,
 		n,
 		c,
-		ae,
-		oe
+		ie,
+		ae
 	]);
 	(0, x.useEffect)(() => {
 		C.current = () => {
-			y.current && se();
+			y.current && oe();
 		};
-	}, [se]), (0, x.useEffect)(() => {
+	}, [oe]), (0, x.useEffect)(() => {
 		h.current = !0;
 		let e = new LS({
 			cursorBlink: !0,
@@ -39992,14 +40017,14 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 		s.observe(l.current), o();
 		let c = () => re(document.fullscreenElement === u.current);
 		return document.addEventListener("fullscreenchange", c), () => {
-			h.current = !1, ae(), s.disconnect(), cancelAnimationFrame(a), document.removeEventListener("fullscreenchange", c), r.dispose(), i.dispose(), e.dispose(), f.current = null, p.current = null;
+			h.current = !1, ie(), s.disconnect(), cancelAnimationFrame(a), document.removeEventListener("fullscreenchange", c), r.dispose(), i.dispose(), e.dispose(), f.current = null, p.current = null;
 		};
-	}, [ae]), (0, x.useEffect)(() => {
-		n && y.current ? se() : n || ae(!1);
+	}, [ie]), (0, x.useEffect)(() => {
+		n && y.current ? oe() : n || ie(!1);
 	}, [
 		n,
-		se,
-		ae
+		oe,
+		ie
 	]), (0, x.useEffect)(() => {
 		if (!t) return;
 		let n = requestAnimationFrame(() => {
@@ -40009,23 +40034,23 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 	}, [t, w]), (0, x.useEffect)(() => {
 		f.current && (f.current.options.fontSize = ee, l.current?.clientWidth && p.current?.fit());
 	}, [ee]);
-	function ce(e) {
+	function se(e) {
 		return !m.current || !L ? !1 : (m.current.send({
 			type: "input",
 			data: e
 		}), !0);
 	}
-	function le() {
-		L && !I.current && m.current && (O && f.current?.paste(O), ce("\r") && k(""), d.current?.focus());
+	function ce() {
+		L && !I.current && m.current && (O && f.current?.paste(O), se("\r") && k(""), d.current?.focus());
 	}
-	async function ue() {
+	async function le() {
 		try {
 			document.fullscreenElement === u.current ? await document.exitFullscreen() : await u.current?.requestFullscreen();
 		} catch {
 			D(s("当前浏览器不支持全屏。", "This browser does not support fullscreen."));
 		}
 	}
-	let R = (e, t, n) => {
+	let z = (e, t, n) => {
 		let r = n;
 		return /* @__PURE__ */ (0, B.jsx)("button", {
 			className: "terminal-key",
@@ -40035,7 +40060,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 			disabled: !L,
 			onPointerDown: (e) => e.preventDefault(),
 			onClick: () => {
-				ce(t) && document.activeElement !== d.current && f.current?.focus();
+				se(t) && document.activeElement !== d.current && f.current?.focus();
 			},
 			children: r ? /* @__PURE__ */ (0, B.jsx)(r, {
 				size: 17,
@@ -40075,10 +40100,10 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 						}),
 						/* @__PURE__ */ (0, B.jsx)(Lm, {
 							local: !0,
-							icon: ie ? Bn : tn,
-							disabled: !n && !ie,
-							label: ie ? s("脱离", "Detach") : s("重新接回", "Reattach"),
-							onClick: () => ie ? ae() : void se()
+							icon: R ? Bn : tn,
+							disabled: !n && !R,
+							label: R ? s("脱离", "Detach") : s("重新接回", "Reattach"),
+							onClick: () => R ? ie() : void oe()
 						}),
 						/* @__PURE__ */ (0, B.jsxs)(VS, {
 							label: s("终端操作 ", "Terminal actions ") + e.name,
@@ -40090,8 +40115,8 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
-									disabled: ie || !n,
-									onClick: () => void se(!0),
+									disabled: R || !n,
+									onClick: () => void oe(!0),
 									children: s("接管已有连接", "Take over attachment")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
@@ -40118,7 +40143,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
-									onClick: () => void ue(),
+									onClick: () => void le(),
 									children: ne ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
@@ -40154,14 +40179,14 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					className: "terminal-screen",
 					ref: l,
 					"aria-label": s("交互式终端 ", "Interactive terminal ") + e.name
-				}), !ie && /* @__PURE__ */ (0, B.jsxs)("div", {
+				}), !R && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "terminal-detached",
 					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: n ? s("后台会话继续运行", "Your session keeps running") : s("节点离线，恢复后可重新接回", "Node offline. Reattach when it returns.") }), /* @__PURE__ */ (0, B.jsx)(Lm, {
 						local: !0,
 						tone: "primary",
 						icon: tn,
 						disabled: !n,
-						onClick: () => void se(),
+						onClick: () => void oe(),
 						children: s("重新接回", "Reattach")
 					})]
 				})]
@@ -40172,15 +40197,15 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					className: "terminal-keybar",
 					"aria-label": s("终端快捷键", "Terminal shortcuts"),
 					children: [
-						R("Esc", "\x1B"),
-						R("Tab", "	"),
-						R("Ctrl+C", ""),
-						R("Ctrl+D", ""),
-						R(s("上方向键", "Arrow up"), "\x1B[A", F),
-						R(s("下方向键", "Arrow down"), "\x1B[B", j),
-						R(s("左方向键", "Arrow left"), "\x1B[D", N),
-						R(s("右方向键", "Arrow right"), "\x1B[C", te),
-						R("Enter", "\r", Ne),
+						z("Esc", "\x1B"),
+						z("Tab", "	"),
+						z("Ctrl+C", ""),
+						z("Ctrl+D", ""),
+						z(s("上方向键", "Arrow up"), "\x1B[A", F),
+						z(s("下方向键", "Arrow down"), "\x1B[B", j),
+						z(s("左方向键", "Arrow left"), "\x1B[D", N),
+						z(s("右方向键", "Arrow right"), "\x1B[C", te),
+						z("Enter", "\r", Ne),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "terminal-key terminal-input-toggle",
 							"aria-label": s("命令输入栏", "Command input"),
@@ -40196,7 +40221,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "terminal-key terminal-fullscreen",
 							"aria-label": ne ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen"),
-							onClick: () => void ue(),
+							onClick: () => void le(),
 							children: ne ? /* @__PURE__ */ (0, B.jsx)(Ft, {
 								size: 17,
 								"aria-hidden": "true"
@@ -40209,7 +40234,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 				}), /* @__PURE__ */ (0, B.jsxs)("form", {
 					className: "terminal-composer" + (A ? " is-shown" : ""),
 					onSubmit: (e) => {
-						e.preventDefault(), le();
+						e.preventDefault(), ce();
 					},
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("label", {
@@ -40235,7 +40260,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 								I.current = !1;
 							},
 							onKeyDown: (e) => {
-								e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && (e.preventDefault(), le());
+								e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && (e.preventDefault(), ce());
 							}
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
@@ -40275,7 +40300,7 @@ function qS({ visible: e = !0 }) {
 	let { t, targets: n, includeLocal: r, localNode: i, manage: a } = sm(), o = ao(), { select: s, consume: c, report: l, launch: u } = o, d = o.selection.node || i || "", f = o.selection.id, p = US({
 		node: d,
 		id: f
-	}), [m, h] = (0, x.useState)(KS), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(null), [b, S] = (0, x.useState)(!0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(!1), [k, A] = (0, x.useState)(!1), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)(""), [te, P] = (0, x.useState)(null), [ne, re] = (0, x.useState)(""), F = (0, x.useRef)(!0), I = (0, x.useRef)(!1), L = (0, x.useRef)(0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(""), oe = (0, x.useRef)(null), se = (e) => n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)), ce = se(d), le = d ? !!ce?.available : r, ue = (e) => e ? se(e)?.name || e : r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device"), R = (e) => e ? !!se(e)?.available : r, de = v?.sessions || [], fe = de.filter((e) => (e.name + " " + e.cwd).toLowerCase().includes(T.toLowerCase())), pe = m.find((e) => US(e) === p);
+	}), [m, h] = (0, x.useState)(KS), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(null), [b, S] = (0, x.useState)(!0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(!1), [k, A] = (0, x.useState)(!1), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)(""), [te, P] = (0, x.useState)(null), [ne, re] = (0, x.useState)(""), F = (0, x.useRef)(!0), I = (0, x.useRef)(!1), L = (0, x.useRef)(0), R = (0, x.useRef)(!1), ie = (0, x.useRef)(""), ae = (0, x.useRef)(null), oe = (e) => n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)), se = oe(d), ce = d ? !!se?.available : r, le = (e) => e ? oe(e)?.name || e : r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device"), z = (e) => e ? !!oe(e)?.available : r, ue = v?.sessions || [], de = ue.filter((e) => (e.name + " " + e.cwd).toLowerCase().includes(T.toLowerCase())), fe = m.find((e) => US(e) === p);
 	(0, x.useEffect)(() => {
 		let e = (e) => (n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)))?.id || e;
 		h((t) => t.some((t) => e(t.node) !== t.node) ? t.map((t) => ({
@@ -40305,15 +40330,15 @@ function qS({ visible: e = !0 }) {
 			node: i
 		}).filter((e, t, n) => n.findIndex((t) => US(t) === US(e)) === t) : e);
 	}, [i]);
-	let z = (0, x.useCallback)(async (e = !1) => {
+	let pe = (0, x.useCallback)(async (e = !1) => {
 		let t = ++L.current;
-		if (!le) y(null), S(!1);
+		if (!ce) y(null), S(!1);
 		else {
 			e && S(!0);
 			try {
 				let e = await a(d, { operation: "list" });
 				if (!F.current || t !== L.current) return;
-				oe.current = d, y(e), h((t) => t.flatMap((t) => {
+				ae.current = d, y(e), h((t) => t.flatMap((t) => {
 					if (t.node !== d) return [t];
 					let n = e.sessions.find((e) => e.id === t.id);
 					return n?.status === "running" ? [{
@@ -40330,20 +40355,20 @@ function qS({ visible: e = !0 }) {
 		}
 	}, [
 		d,
-		le,
+		ce,
 		a
 	]);
 	(0, x.useEffect)(() => (F.current = !0, () => {
 		F.current = !1, L.current++;
 	}), []), (0, x.useEffect)(() => {
-		oe.current = null, y(null), E(""), w(""), z(!0);
+		ae.current = null, y(null), E(""), w(""), pe(!0);
 		let e = globalThis.setInterval(() => {
-			!document.hidden && !I.current && z();
+			!document.hidden && !I.current && pe();
 		}, 15e3);
 		return () => {
 			L.current++, globalThis.clearInterval(e);
 		};
-	}, [z]), (0, x.useEffect)(() => {
+	}, [pe]), (0, x.useEffect)(() => {
 		try {
 			sessionStorage.setItem(WS, JSON.stringify(m.map(({ node: e, id: t, name: n, cwd: r }) => ({
 				node: e,
@@ -40354,7 +40379,7 @@ function qS({ visible: e = !0 }) {
 		} catch {}
 		g && !m.some((e) => US(e) === g) && _("");
 	}, [m, g]), (0, x.useEffect)(() => {
-		if (!ie.current && (ie.current = !0, !f && !o.selection.node && m.length && !u)) {
+		if (!R.current && (R.current = !0, !f && !o.selection.node && m.length && !u)) {
 			let e = m[0];
 			s({
 				node: e.node,
@@ -40368,7 +40393,7 @@ function qS({ visible: e = !0 }) {
 		s,
 		u
 	]), (0, x.useEffect)(() => {
-		if (ae.current !== p && (ae.current = ""), b || !f || pe || !v || ae.current === p) return;
+		if (ie.current !== p && (ie.current = ""), b || !f || fe || !v || ie.current === p) return;
 		let e = v.sessions.find((e) => e.id === f && e.status === "running");
 		e && m.length < GS && h((t) => t.some((e) => US(e) === p) ? t : [...t, {
 			node: d,
@@ -40380,15 +40405,15 @@ function qS({ visible: e = !0 }) {
 		v,
 		f,
 		d,
-		pe,
+		fe,
 		p,
 		m.length,
 		b
 	]), (0, x.useEffect)(() => {
-		l(m.length, pe?.name || "");
+		l(m.length, fe?.name || "");
 	}, [
 		m.length,
-		pe?.name,
+		fe?.name,
 		l
 	]);
 	function me(e) {
@@ -40411,10 +40436,10 @@ function qS({ visible: e = !0 }) {
 			}
 			h((e) => [...e, r]);
 		}
-		n && pe && p !== i ? (_(i), A(!1)) : (g === i && _(p), me(r));
+		n && fe && p !== i ? (_(i), A(!1)) : (g === i && _(p), me(r));
 	}
 	function ge(e) {
-		e === p && (ae.current = e);
+		e === p && (ie.current = e);
 		let t = m.filter((t) => US(t) !== e);
 		h(t), e === g && _(""), e === p && me(t.find((e) => e.node === d) || t[0] || {
 			node: d,
@@ -40430,8 +40455,8 @@ function qS({ visible: e = !0 }) {
 			inline: "nearest"
 		});
 	}, [p, e]), (0, x.useEffect)(() => {
-		if (!(!u || !e || b || I.current || d !== (u.node === void 0 ? d : u.node || i || "") || le && oe.current !== d) && (c(u.serial), !u.session)) {
-			if (!le || !v?.installed) w(d && d !== i ? t("节点终端暂不可用，请检查客户端连接。", "Terminals are unavailable. Check the node connection.") : t("工作区终端暂不可用，请检查 herdr。", "Workspace terminals are unavailable. Check herdr."));
+		if (!(!u || !e || b || I.current || d !== (u.node === void 0 ? d : u.node || i || "") || ce && ae.current !== d) && (c(u.serial), !u.session)) {
+			if (!ce || !v?.installed) w(d && d !== i ? t("节点终端暂不可用，请检查客户端连接。", "Terminals are unavailable. Check the node connection.") : t("工作区终端暂不可用，请检查 herdr。", "Workspace terminals are unavailable. Check herdr."));
 			else {
 				if (!u.command) {
 					let e = v.sessions.find((e) => e.id === f && e.status === "running") || v.sessions.find((e) => e.status === "running");
@@ -40442,7 +40467,7 @@ function qS({ visible: e = !0 }) {
 				}
 				m.length >= GS ? w(t("最多同时打开 4 个标签。先关闭一个标签，后台会话会保留。", "Up to 4 tabs can be open. Close a tab to keep its session running.")) : (I.current = !0, O(!0), w(""), a(d, {
 					operation: "create",
-					name: u.name || t("终端 ", "Terminal ") + (de.length + 1),
+					name: u.name || t("终端 ", "Terminal ") + (ue.length + 1),
 					cwd: u.cwd || null
 				}).then((e) => {
 					F.current && (h((t) => [...t, {
@@ -40454,7 +40479,7 @@ function qS({ visible: e = !0 }) {
 					}]), me({
 						node: d,
 						id: e.session.id
-					}), z());
+					}), pe());
 				}).catch((e) => {
 					F.current && w(e instanceof Error ? e.message : String(e));
 				}).finally(() => {
@@ -40469,7 +40494,7 @@ function qS({ visible: e = !0 }) {
 		d,
 		i,
 		v,
-		le,
+		ce,
 		f,
 		m.length,
 		c
@@ -40493,7 +40518,7 @@ function qS({ visible: e = !0 }) {
 				if (m.length >= GS) throw Error(t("先关闭一个标签再创建；后台会话不会停止。", "Close a tab before creating another. Its session keeps running."));
 				let n = await a(e, {
 					operation: "create",
-					name: j.trim() || t("终端 ", "Terminal ") + (de.length + 1),
+					name: j.trim() || t("终端 ", "Terminal ") + (ue.length + 1),
 					cwd: N.trim() || null
 				});
 				if (!F.current) return;
@@ -40521,7 +40546,7 @@ function qS({ visible: e = !0 }) {
 					name: ne.trim()
 				} : e));
 			}
-			P(null), await z();
+			P(null), await pe();
 		} catch (e) {
 			F.current && w(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -40555,7 +40580,7 @@ function qS({ visible: e = !0 }) {
 						disabled: !r,
 						children: r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device")
 					}),
-					d && !ce && /* @__PURE__ */ (0, B.jsx)("option", {
+					d && !se && /* @__PURE__ */ (0, B.jsx)("option", {
 						value: d,
 						children: d
 					}),
@@ -40571,7 +40596,7 @@ function qS({ visible: e = !0 }) {
 			children: [/* @__PURE__ */ (0, B.jsxs)("h2", { children: [
 				t("会话", "Sessions"),
 				" ",
-				/* @__PURE__ */ (0, B.jsx)("span", { children: de.length })
+				/* @__PURE__ */ (0, B.jsx)("span", { children: ue.length })
 			] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "actions",
 				children: [/* @__PURE__ */ (0, B.jsx)(Lm, {
@@ -40579,12 +40604,12 @@ function qS({ visible: e = !0 }) {
 					icon: cn,
 					label: t("刷新会话", "Refresh sessions"),
 					disabled: b || D,
-					onClick: () => void z(!0)
+					onClick: () => void pe(!0)
 				}), /* @__PURE__ */ (0, B.jsx)(Lm, {
 					local: !0,
 					icon: rn,
 					label: t("新建会话", "New session"),
-					disabled: !le || !v?.installed || D,
+					disabled: !ce || !v?.installed || D,
 					onClick: ve
 				})]
 			})]
@@ -40608,18 +40633,18 @@ function qS({ visible: e = !0 }) {
 				})
 			]
 		}),
-		!le && /* @__PURE__ */ (0, B.jsx)("p", {
+		!ce && /* @__PURE__ */ (0, B.jsx)("p", {
 			className: "terminal-list-note",
 			children: d ? t("此设备的终端暂不可用，请检查连接与授权。", "Terminals are unavailable. Check the device connection and grants.") : t("选择已授权的直连设备以查看会话。", "Choose an authorized direct device to view its sessions.")
 		}),
-		le && v && !v.installed && /* @__PURE__ */ (0, B.jsx)("p", {
+		ce && v && !v.installed && /* @__PURE__ */ (0, B.jsx)("p", {
 			className: "terminal-list-note",
 			children: d && d !== i ? t("节点终端暂不可用，请更新客户端后刷新。", "Terminals are unavailable. Update the node client, then refresh.") : t("工作区未安装 herdr，请安装后刷新。", "Install herdr in this workspace, then refresh.")
 		}),
 		/* @__PURE__ */ (0, B.jsxs)("div", {
 			className: "terminal-session-list",
 			"aria-label": t("会话列表", "Session list"),
-			children: [fe.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", {
+			children: [de.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "terminal-session-row" + (e.id === f ? " selected" : ""),
 				children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 					className: "terminal-session-select",
@@ -40669,7 +40694,7 @@ function qS({ visible: e = !0 }) {
 						})
 					]
 				})]
-			}, e.id)), !fe.length && /* @__PURE__ */ (0, B.jsxs)("div", {
+			}, e.id)), !de.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "terminal-list-empty",
 				children: [
 					/* @__PURE__ */ (0, B.jsx)(Ze, {
@@ -40728,11 +40753,11 @@ function qS({ visible: e = !0 }) {
 										className: "terminal-tab" + (n === p ? " active" : "") + (n === g ? " beside" : ""),
 										children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 											role: "tab",
-											tabIndex: n === p || !pe && m[0] === e ? 0 : -1,
+											tabIndex: n === p || !fe && m[0] === e ? 0 : -1,
 											"aria-selected": n === p,
 											"aria-controls": "pane-" + e.id,
 											id: "tab-" + e.id,
-											title: ue(e.node) + " · " + e.name,
+											title: le(e.node) + " · " + e.name,
 											onClick: (t) => {
 												t.detail && t.currentTarget.blur(), _e(e);
 											},
@@ -40768,7 +40793,7 @@ function qS({ visible: e = !0 }) {
 								local: !0,
 								icon: rn,
 								label: t("新建会话", "New session"),
-								disabled: !le || !v?.installed || D || m.length >= GS,
+								disabled: !ce || !v?.installed || D || m.length >= GS,
 								onClick: ve
 							}),
 							g && /* @__PURE__ */ (0, B.jsx)(Lm, {
@@ -40790,25 +40815,25 @@ function qS({ visible: e = !0 }) {
 						})]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("div", {
-						className: "terminal-panes" + (pe && g && g !== p ? " is-split" : ""),
+						className: "terminal-panes" + (fe && g && g !== p ? " is-split" : ""),
 						children: [m.map((t) => {
 							let n = US(t);
 							return /* @__PURE__ */ (0, B.jsx)("div", {
 								id: "pane-" + t.id,
 								role: "tabpanel",
 								"aria-labelledby": "tab-" + t.id,
-								className: "terminal-panel" + (n === p ? " active" : n === g && pe ? " beside" : ""),
+								className: "terminal-panel" + (n === p ? " active" : n === g && fe ? " beside" : ""),
 								children: /* @__PURE__ */ (0, B.jsx)(HS, {
 									entry: t,
-									visible: e && (n === p || !!pe && n === g),
-									online: R(t.node),
-									machine: ue(t.node),
+									visible: e && (n === p || !!fe && n === g),
+									online: z(t.node),
+									machine: le(t.node),
 									onClose: () => ge(n),
 									onRename: () => ye("rename", xe(t), t.node),
 									onEnd: () => ye("end", xe(t), t.node)
 								})
 							}, n);
-						}), !pe && /* @__PURE__ */ (0, B.jsxs)("div", {
+						}), !fe && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "terminal-welcome",
 							children: [
 								/* @__PURE__ */ (0, B.jsx)("div", {
@@ -40825,7 +40850,7 @@ function qS({ visible: e = !0 }) {
 									local: !0,
 									tone: "primary",
 									icon: rn,
-									disabled: !le || !v?.installed || D,
+									disabled: !ce || !v?.installed || D,
 									onClick: ve,
 									children: t("新建会话", "New session")
 								}),
@@ -40838,7 +40863,7 @@ function qS({ visible: e = !0 }) {
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("footer", {
 						className: "terminal-statusbar",
-						children: [/* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("span", { className: "connection-dot " + (le ? "" : "warning") }), ue(d)] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+						children: [/* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("span", { className: "connection-dot " + (ce ? "" : "warning") }), le(d)] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
 							m.length,
 							"/",
 							GS,
@@ -40875,7 +40900,7 @@ function qS({ visible: e = !0 }) {
 								children: [/* @__PURE__ */ (0, B.jsx)(vn, {
 									size: 16,
 									"aria-hidden": "true"
-								}), ue(d)]
+								}), le(d)]
 							}),
 							/* @__PURE__ */ (0, B.jsxs)("label", {
 								className: "field",
@@ -41914,7 +41939,7 @@ function sC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 //#endregion
 //#region src/devices/DirectAccessPanel.tsx
 function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
-	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(""), P = (0, x.useRef)(null), ne = (0, x.useRef)(null), re = (0, x.useRef)(null), F = (0, x.useRef)(null), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), ie = (0, x.useId)(), ae = (0, x.useId)();
+	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(""), P = (0, x.useRef)(null), ne = (0, x.useRef)(null), re = (0, x.useRef)(null), F = (0, x.useRef)(null), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), R = (0, x.useId)(), ie = (0, x.useId)();
 	(0, x.useEffect)(() => (I.current = !0, () => {
 		I.current = !1, L.current++;
 	}), []), (0, x.useEffect)(() => {
@@ -41922,10 +41947,10 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 	}, [s]), (0, x.useEffect)(() => {
 		A ? P.current?.showModal() : P.current?.close();
 	}, [A]);
-	function oe() {
+	function ae() {
 		L.current++, j(void 0), N(!1), te(""), requestAnimationFrame(() => F.current?.focus());
 	}
-	async function se(t) {
+	async function oe(t) {
 		t.preventDefault(), await i(async () => {
 			let t = await e({
 				operation: "grant",
@@ -41948,7 +41973,7 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 			}));
 		});
 	}
-	async function ce() {
+	async function se() {
 		if (!A) return;
 		let e = L.current;
 		try {
@@ -42015,7 +42040,7 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 			}),
 			s && /* @__PURE__ */ (0, B.jsxs)("form", {
 				className: "direct-grant-form",
-				onSubmit: se,
+				onSubmit: oe,
 				children: [
 					/* @__PURE__ */ (0, B.jsxs)("label", { children: [
 						o("被授权设备 ID", "Caller node ID"),
@@ -42204,23 +42229,23 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 			/* @__PURE__ */ (0, B.jsx)("dialog", {
 				ref: P,
 				className: "direct-token-dialog",
-				"aria-labelledby": ie,
+				"aria-labelledby": R,
 				onCancel: (e) => {
-					e.preventDefault(), oe();
+					e.preventDefault(), ae();
 				},
 				onClose: () => {
-					A && oe();
+					A && ae();
 				},
 				children: A && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-heading",
 						children: [/* @__PURE__ */ (0, B.jsx)("h3", {
-							id: ie,
+							id: R,
 							children: o("保存授权 Token", "Save access token")
 						}), /* @__PURE__ */ (0, B.jsx)("button", {
 							autoFocus: !0,
 							"aria-label": o("关闭 Token 窗口", "Close token window"),
-							onClick: oe,
+							onClick: ae,
 							children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 								size: 18,
 								"aria-hidden": "true"
@@ -42234,11 +42259,11 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						children: [o("被授权设备：", "Granted device: "), A.node]
 					}),
 					/* @__PURE__ */ (0, B.jsx)("label", {
-						htmlFor: ae,
+						htmlFor: ie,
 						children: o("新授权 Token", "New access token")
 					}),
 					/* @__PURE__ */ (0, B.jsx)("textarea", {
-						id: ae,
+						id: ie,
 						ref: ne,
 						readOnly: !0,
 						value: A.token,
@@ -42258,14 +42283,14 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsxs)("button", {
-							onClick: () => void ce(),
+							onClick: () => void se(),
 							children: [/* @__PURE__ */ (0, B.jsx)(je, {
 								size: 16,
 								"aria-hidden": "true"
 							}), M ? o("已复制", "Copied") : o("复制 Token", "Copy token")]
 						}), /* @__PURE__ */ (0, B.jsx)("button", {
 							className: "direct-primary",
-							onClick: oe,
+							onClick: ae,
 							children: o("已保存，关闭", "Saved, close")
 						})]
 					})
@@ -42482,26 +42507,26 @@ function pC() {
 	return [];
 }
 function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(uC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [te, P] = (0, x.useState)(pC), [ne, re] = (0, x.useState)(""), [F, I] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), ue = (0, x.useRef)(null), R = i?.routes.find((e) => e.node === o) || i?.routes[0], de = te.filter((e) => e.node === R?.node), pe = de.find((e) => e.id === ne) || de.at(-1), z = C?.node === R?.node ? C : void 0, me = (e) => {
-		++ce.current, a(e), w(void 0), ++se.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(uC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [te, P] = (0, x.useState)(pC), [ne, re] = (0, x.useState)(""), [F, I] = (0, x.useState)(""), [L, R] = (0, x.useState)(0), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(0), se = (0, x.useRef)(0), le = (0, x.useRef)(null), z = i?.routes.find((e) => e.node === o) || i?.routes[0], ue = te.filter((e) => e.node === z?.node), fe = ue.find((e) => e.id === ne) || ue.at(-1), pe = C?.node === z?.node ? C : void 0, me = (e) => {
+		++se.current, a(e), w(void 0), ++oe.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
 	}, he = (0, x.useCallback)(async () => {
-		let t = ++ce.current;
+		let t = ++se.current;
 		try {
 			let n = await e({ operation: "list" });
-			ae.current && t === ce.current && (a(n), w(void 0), ++se.current, E(!1), h(""));
+			ie.current && t === se.current && (a(n), w(void 0), ++oe.current, E(!1), h(""));
 		} catch (e) {
-			ae.current && t === ce.current && h(dC(e));
+			ie.current && t === se.current && h(dC(e));
 		} finally {
-			ae.current && t === ce.current && _(!1);
+			ie.current && t === se.current && _(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (ae.current = !0, he(), () => {
-		ae.current = !1, ++se.current;
+	(0, x.useEffect)(() => (ie.current = !0, he(), () => {
+		ie.current = !1, ++oe.current;
 	}), [he]), (0, x.useEffect)(() => {
 		let e = () => void he();
 		return window.addEventListener("cranibox:network-routes-changed", e), () => window.removeEventListener("cranibox:network-routes-changed", e);
 	}, [he]), (0, x.useEffect)(() => {
-		c && ue.current?.focus();
+		c && le.current?.focus();
 	}, [c]), (0, x.useEffect)(() => {
 		try {
 			sessionStorage.setItem(fC, JSON.stringify(te.map(({ node: e, id: t }) => ({
@@ -42510,8 +42535,8 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			}))));
 		} catch {}
 	}, [te]), (0, x.useEffect)(() => {
-		if (!pe || !R) return;
-		let t = !1, n = !1, r, { id: i, node: a } = pe;
+		if (!fe || !z) return;
+		let t = !1, n = !1, r, { id: i, node: a } = fe;
 		async function o() {
 			if (!(n || t || document.hidden)) {
 				n = !0;
@@ -42539,19 +42564,19 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 		};
 	}, [
 		e,
-		pe?.id,
-		R?.node,
+		fe?.id,
+		z?.node,
 		L
 	]);
 	async function ge(e) {
-		if (!oe.current) {
-			oe.current = !0, y(!0), h(""), S("");
+		if (!ae.current) {
+			ae.current = !0, y(!0), h(""), S("");
 			try {
 				await e();
 			} catch (e) {
-				ae.current && h(dC(e));
+				ie.current && h(dC(e));
 			} finally {
-				oe.current = !1, ae.current && y(!1);
+				ae.current = !1, ie.current && y(!1);
 			}
 		}
 	}
@@ -42563,41 +42588,41 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 				node: t,
 				url: u.url.trim()
 			});
-			ae.current && (me(n), s(t), l(!1), d(uC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
+			ie.current && (me(n), s(t), l(!1), d(uC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
 		});
 	}
 	async function ve() {
-		if (!R || T) return;
-		let t = R.node, n = ++se.current;
+		if (!z || T) return;
+		let t = z.node, n = ++oe.current;
 		E(!0);
 		try {
 			let r = await e({
 				operation: "probe",
 				node: t
 			});
-			ae.current && n === se.current && w({
+			ie.current && n === oe.current && w({
 				node: t,
 				peer: r.nodes[0],
 				connection: r.connection,
 				checked: Date.now()
 			});
 		} catch (e) {
-			ae.current && n === se.current && w({
+			ie.current && n === oe.current && w({
 				node: t,
 				error: dC(e),
 				checked: Date.now()
 			});
 		} finally {
-			ae.current && n === se.current && E(!1);
+			ie.current && n === oe.current && E(!1);
 		}
 	}
 	async function ye(t) {
-		t.preventDefault(), R && await ge(async () => {
+		t.preventDefault(), z && await ge(async () => {
 			let t = JSON.parse(k);
 			if (!Array.isArray(t) || !t.every((e) => typeof e == "string")) throw Error(r("参数必须是字符串 JSON 数组。", "Arguments must be a JSON array of strings."));
 			let n = await e({
 				operation: "exec",
-				node: R.node,
+				node: z.node,
 				request: {
 					program: D,
 					args: t,
@@ -42606,7 +42631,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					timeout_secs: Number(N)
 				}
 			});
-			ae.current && (P((e) => [...e, n].slice(-20)), re(n.id));
+			ie.current && (P((e) => [...e, n].slice(-20)), re(n.id));
 		});
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -42647,7 +42672,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					disabled: v,
 					onClick: () => void ge(async () => {
 						let t = await e({ operation: "identity" });
-						ae.current && me(t);
+						ie.current && me(t);
 					}),
 					children: r("创建直连身份", "Create direct identity")
 				})] })
@@ -42660,7 +42685,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			b && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), b]
@@ -42699,7 +42724,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-fields",
 						children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("目标节点 ID", "Target node ID"), /* @__PURE__ */ (0, B.jsx)("input", {
-							ref: ue,
+							ref: le,
 							required: !0,
 							readOnly: f,
 							pattern: "[A-Za-z0-9_-]{1,64}",
@@ -42768,21 +42793,21 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					"aria-label": r("直连设备列表", "Direct device list"),
 					children: i.routes.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: v,
-						"aria-pressed": R?.node === e.node,
+						"aria-pressed": z?.node === e.node,
 						onClick: () => {
-							s(e.node), re(""), l(!1), d(uC), ++se.current, E(!1);
+							s(e.node), re(""), l(!1), d(uC), ++oe.current, E(!1);
 						},
-						children: [/* @__PURE__ */ (0, B.jsx)(le, {
+						children: [/* @__PURE__ */ (0, B.jsx)(ce, {
 							size: 18,
 							"aria-hidden": "true"
 						}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.url })] })]
 					}, e.node))
-				}), R && /* @__PURE__ */ (0, B.jsxs)("div", {
+				}), z && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "direct-detail",
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: R.node }), /* @__PURE__ */ (0, B.jsx)("p", { children: R.url })] }), /* @__PURE__ */ (0, B.jsxs)("button", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: z.node }), /* @__PURE__ */ (0, B.jsx)("p", { children: z.url })] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: v || T,
 								onClick: () => void ve(),
 								children: [/* @__PURE__ */ (0, B.jsx)(cn, {
@@ -42791,20 +42816,20 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								}), T ? r("检查中…", "Checking…") : r("检查连接", "Check connection")]
 							})]
 						}),
-						z ? /* @__PURE__ */ (0, B.jsxs)("div", {
+						pe ? /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-probe",
 							children: [/* @__PURE__ */ (0, B.jsx)("p", {
-								role: z.error ? "alert" : "status",
-								children: z.error || [
-									z.peer?.os,
-									z.peer?.arch,
-									z.peer?.exec ? r("允许执行命令", "Commands granted") : r("未授予命令权限", "Commands not granted"),
-									z.peer?.terminal_sessions ? r("允许终端会话", "Terminal sessions granted") : r("未授予终端权限", "Terminal sessions not granted"),
-									z.peer?.computer && r("允许 Agent 桌面操作", "Computer Use granted"),
-									z.peer?.browser && r("允许 Agent 浏览器操作", "Browser Use granted"),
-									z.peer?.projects ? r("允许项目目录", "Project catalog granted") : r("未授予项目目录权限", "Project catalog not granted")
+								role: pe.error ? "alert" : "status",
+								children: pe.error || [
+									pe.peer?.os,
+									pe.peer?.arch,
+									pe.peer?.exec ? r("允许执行命令", "Commands granted") : r("未授予命令权限", "Commands not granted"),
+									pe.peer?.terminal_sessions ? r("允许终端会话", "Terminal sessions granted") : r("未授予终端权限", "Terminal sessions not granted"),
+									pe.peer?.computer && r("允许 Agent 桌面操作", "Computer Use granted"),
+									pe.peer?.browser && r("允许 Agent 浏览器操作", "Browser Use granted"),
+									pe.peer?.projects ? r("允许项目目录", "Project catalog granted") : r("未授予项目目录权限", "Project catalog not granted")
 								].filter(Boolean).join(" · ")
-							}), /* @__PURE__ */ (0, B.jsxs)("small", { children: [r("上次检查：", "Last checked: "), new Date(z.checked).toLocaleTimeString()] })]
+							}), /* @__PURE__ */ (0, B.jsxs)("small", { children: [r("上次检查：", "Last checked: "), new Date(pe.checked).toLocaleTimeString()] })]
 						}) : /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
 							children: r("尚未检查连接；授权和在线情况以目标设备实时响应为准。", "Connection not checked. The target determines current availability and permissions.")
@@ -42813,8 +42838,8 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 							className: "direct-actions",
 							children: [
 								n && /* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: v || !z?.peer?.terminal_sessions || !!z.error,
-									onClick: () => n(R.node),
+									disabled: v || !pe?.peer?.terminal_sessions || !!pe.error,
+									onClick: () => n(z.node),
 									children: [/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 16,
 										"aria-hidden": "true"
@@ -42824,9 +42849,9 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 									disabled: v,
 									onClick: () => {
 										p(!0), d({
-											node: R.node,
-											url: R.url,
-											allow_private_http: R.allow_private_http,
+											node: z.node,
+											url: z.url,
+											allow_private_http: z.allow_private_http,
 											token: ""
 										}), l(!0);
 									},
@@ -42838,9 +42863,9 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 										confirm(r("移除此接入端保存的连接？目标设备的授权和后台 Shell 不受影响。", "Remove this saved connection? Target grants and background shells remain active.")) && ge(async () => {
 											let t = await e({
 												operation: "forget",
-												node: R.node
+												node: z.node
 											});
-											ae.current && me(t);
+											ie.current && me(t);
 										});
 									},
 									children: [/* @__PURE__ */ (0, B.jsx)(Pn, {
@@ -42850,20 +42875,20 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						z?.peer?.browser && /* @__PURE__ */ (0, B.jsx)(rC, {
+						pe?.peer?.browser && /* @__PURE__ */ (0, B.jsx)(rC, {
 							client: e,
-							node: R.node,
+							node: z.node,
 							language: t
-						}, R.node),
+						}, z.node),
 						/* @__PURE__ */ (0, B.jsx)(lC, {
-							route: R,
-							connection: z?.connection,
+							route: z,
+							connection: pe?.connection,
 							client: e,
 							busy: v,
 							run: ge,
 							onCatalog: me,
 							t: r
-						}, R.node),
+						}, z.node),
 						/* @__PURE__ */ (0, B.jsxs)("form", {
 							className: "direct-command",
 							onSubmit: ye,
@@ -42902,7 +42927,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								/* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
 									type: "submit",
-									disabled: v || z?.peer?.exec === !1,
+									disabled: v || pe?.peer?.exec === !1,
 									children: [/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 16,
 										"aria-hidden": "true"
@@ -42910,13 +42935,13 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						!!de.length && /* @__PURE__ */ (0, B.jsxs)("div", {
+						!!ue.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-jobs",
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("任务记录", "Task records"), /* @__PURE__ */ (0, B.jsx)("select", {
-									value: pe?.id || "",
+									value: fe?.id || "",
 									onChange: (e) => re(e.target.value),
-									children: [...de].reverse().map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
+									children: [...ue].reverse().map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 										value: e.id,
 										children: e.id
 									}, e.id))
@@ -42925,52 +42950,52 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 									className: "direct-note",
 									children: r("仅在当前浏览器标签页保存最近 20 个任务 ID；刷新可恢复查询，关闭页面不会取消任务。节点退出后任务记录丢失，完成的任务记录至少保留 10 分钟。", "This tab keeps the latest 20 task IDs across reloads. Closing it does not cancel tasks. Node exit clears records; completed records are kept for at least 10 minutes.")
 								}),
-								pe && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+								fe && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 									/* @__PURE__ */ (0, B.jsxs)("div", {
 										className: "direct-heading",
 										children: [/* @__PURE__ */ (0, B.jsxs)("p", {
 											role: "status",
-											children: [pe.outcome, pe.exit_code == null ? "" : " · exit " + pe.exit_code]
+											children: [fe.outcome, fe.exit_code == null ? "" : " · exit " + fe.exit_code]
 										}), /* @__PURE__ */ (0, B.jsxs)("div", {
 											className: "direct-actions",
 											children: [/* @__PURE__ */ (0, B.jsx)("button", {
 												"aria-label": r("刷新任务输出", "Refresh task output"),
-												onClick: () => ie((e) => e + 1),
+												onClick: () => R((e) => e + 1),
 												children: /* @__PURE__ */ (0, B.jsx)(cn, {
 													size: 16,
 													"aria-hidden": "true"
 												})
 											}), /* @__PURE__ */ (0, B.jsx)("button", {
-												disabled: v || pe.outcome !== "running",
+												disabled: v || fe.outcome !== "running",
 												onClick: () => void ge(async () => {
 													await e({
 														operation: "cancel",
-														node: pe.node,
-														id: pe.id
-													}), ae.current && ie((e) => e + 1);
+														node: fe.node,
+														id: fe.id
+													}), ie.current && R((e) => e + 1);
 												}),
 												children: r("取消任务", "Cancel task")
 											})]
 										})]
 									}),
-									(F || pe.error) && /* @__PURE__ */ (0, B.jsx)("p", {
+									(F || fe.error) && /* @__PURE__ */ (0, B.jsx)("p", {
 										className: "direct-error",
 										role: "alert",
-										children: F || pe.error
+										children: F || fe.error
 									}),
-									pe.truncated && /* @__PURE__ */ (0, B.jsx)("p", {
+									fe.truncated && /* @__PURE__ */ (0, B.jsx)("p", {
 										role: "status",
 										children: r("输出超过 64 KiB，已截断。", "Output exceeded 64 KiB and was truncated.")
 									}),
 									/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("标准输出", "Standard output"), /* @__PURE__ */ (0, B.jsx)("pre", {
 										tabIndex: 0,
 										"aria-label": r("标准输出", "Standard output"),
-										children: pe.stdout || "—"
+										children: fe.stdout || "—"
 									})] }),
 									/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("错误输出", "Standard error"), /* @__PURE__ */ (0, B.jsx)("pre", {
 										tabIndex: 0,
 										"aria-label": r("错误输出", "Standard error"),
-										children: pe.stderr || "—"
+										children: fe.stderr || "—"
 									})] })
 								] })
 							]
@@ -42980,7 +43005,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			}) : /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "direct-empty",
 				children: [
-					/* @__PURE__ */ (0, B.jsx)(le, {
+					/* @__PURE__ */ (0, B.jsx)(ce, {
 						size: 28,
 						"aria-hidden": "true"
 					}),
@@ -43255,7 +43280,7 @@ function _C({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: 
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
 								onClick: () => void g(),
-								children: [p ? /* @__PURE__ */ (0, B.jsx)(fe, {
+								children: [p ? /* @__PURE__ */ (0, B.jsx)(de, {
 									size: 16,
 									"aria-hidden": "true"
 								}) : /* @__PURE__ */ (0, B.jsx)(je, {
@@ -43569,7 +43594,7 @@ function bC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 		b && /* @__PURE__ */ (0, B.jsxs)("p", {
 			role: "status",
 			className: "direct-note",
-			children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+			children: [/* @__PURE__ */ (0, B.jsx)(de, {
 				size: 16,
 				"aria-hidden": "true"
 			}), b]
@@ -43835,49 +43860,49 @@ function wC(e) {
 	}
 }
 function TC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
-	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, te] = (0, x.useState)(""), P = (0, x.useId)(), ne = (0, x.useRef)(null), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useCallback)(async () => {
-		if (oe.current || ae.current || document.hidden) return;
-		oe.current = !0;
-		let t = ++se.current;
+	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, te] = (0, x.useState)(""), P = (0, x.useId)(), ne = (0, x.useRef)(null), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), R = (0, x.useRef)(!0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(0), se = (0, x.useRef)(null), ce = (0, x.useRef)(null), le = (0, x.useCallback)(async () => {
+		if (ae.current || ie.current || document.hidden) return;
+		ae.current = !0;
+		let t = ++oe.current;
 		try {
 			let n = CC(await e({ operation: "status" }));
-			ie.current && t === se.current && (o(n), f(""));
+			R.current && t === oe.current && (o(n), f(""));
 		} catch (e) {
-			ie.current && t === se.current && f(SC(e));
+			R.current && t === oe.current && f(SC(e));
 		} finally {
-			oe.current = !1, ie.current && t === se.current && g(!1);
+			ae.current = !1, R.current && t === oe.current && g(!1);
 		}
 	}, [e]);
 	(0, x.useEffect)(() => {
-		ie.current = !0, ue();
-		let e = setInterval(() => void ue(), 5e3), t = () => {
-			document.hidden || ue();
+		R.current = !0, le();
+		let e = setInterval(() => void le(), 5e3), t = () => {
+			document.hidden || le();
 		};
 		return document.addEventListener("visibilitychange", t), () => {
-			ie.current = !1, ++se.current, clearInterval(e), document.removeEventListener("visibilitychange", t);
+			R.current = !1, ++oe.current, clearInterval(e), document.removeEventListener("visibilitychange", t);
 		};
-	}, [ue]), (0, x.useEffect)(() => {
-		re && le.current?.focus();
+	}, [le]), (0, x.useEffect)(() => {
+		re && ce.current?.focus();
 	}, [re]);
-	async function R(t, n) {
-		if (!ae.current) {
-			ae.current = !0, ++se.current, m(!0), c(""), u("");
+	async function z(t, n) {
+		if (!ie.current) {
+			ie.current = !0, ++oe.current, m(!0), c(""), u("");
 			try {
 				let r = await e(t);
-				ie.current && ([
+				R.current && ([
 					"plan",
 					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
 				].includes(t.operation) || o(CC(r)), n?.(r));
 			} catch (e) {
-				ie.current && c(SC(e));
+				R.current && c(SC(e));
 			} finally {
-				ae.current = !1, ie.current && (m(!1), g(!1));
+				ie.current = !1, R.current && (m(!1), g(!1));
 			}
 		}
 	}
-	async function de(e) {
+	async function ue(e) {
 		e.preventDefault();
 		let t = y.split(/\r?\n/).map((e) => e.trim()).filter(Boolean), n = t.length > 8 ? i("最多填写 8 个网络入口。", "Use at most 8 network entries.") : !t.length && !O ? i("填写至少一个网络入口，或在下方启用入站连接。", "Enter at least one network entry or enable incoming access below.") : "", r = /* @__PURE__ */ new Set();
 		for (let [e, a] of t.entries()) {
@@ -43899,7 +43924,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 				n = i("第 " + (e + 1) + " 个地址无效。使用 tcp://、udp://、ws:// 或 wss:// 地址；不要包含凭据或查询参数。", "Entry " + (e + 1) + " is invalid. Use tcp://, udp://, ws:// or wss:// without credentials or query parameters.");
 			}
 		}
-		te(n), n ? ne.current?.focus() : await R({
+		te(n), n ? ne.current?.focus() : await z({
 			operation: "easy_tier_join",
 			network: S.trim(),
 			token: w,
@@ -43909,8 +43934,8 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			T(""), D(!1), u(i("连接配置已保存，后台正在建立网络。", "Connection saved. The background service is joining the network."));
 		});
 	}
-	async function pe(e) {
-		e.preventDefault(), await R({
+	async function fe(e) {
+		e.preventDefault(), await z({
 			operation: "easy_tier_connect",
 			node: re,
 			token: I
@@ -43918,10 +43943,10 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			o(CC(e.network)), L(""), F(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let z = a?.easytier, me = a?.tailscale, he = z?.phase === "running" ? i("后台运行中", "Running in background") : z?.phase === "installing" ? i("正在安装…", "Installing…") : z?.phase === "restarting" ? i("正在连接…", "Connecting…") : z?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = wC(me?.login_url);
+	let pe = a?.easytier, me = a?.tailscale, he = pe?.phase === "running" ? i("后台运行中", "Running in background") : pe?.phase === "installing" ? i("正在安装…", "Installing…") : pe?.phase === "restarting" ? i("正在连接…", "Connecting…") : pe?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = wC(me?.login_url);
 	function _e(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ie.current && c(SC(e));
+			R.current && c(SC(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -43932,7 +43957,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 				className: "direct-heading",
 				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: i("设备组网", "Device networks") }), /* @__PURE__ */ (0, B.jsx)("p", { children: n === "server" ? i("在当前 Workspace 主机上管理网络，浏览器所在设备不会自动加入。", "Manage networking on this Workspace host. Your browser’s device does not join automatically.") : i("让这台设备加入可信设备网络，网页关闭后后台继续连接。", "Join a network of trusted devices. The background connection continues when this view closes.") })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 					disabled: p || h,
-					onClick: () => void ue(),
+					onClick: () => void le(),
 					"aria-label": i("刷新设备网络", "Refresh device networks"),
 					children: /* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
@@ -43952,7 +43977,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			l && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), l]
@@ -43969,17 +43994,17 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								size: 18,
 								"aria-hidden": "true"
 							}), "EasyTier"] }), /* @__PURE__ */ (0, B.jsx)("p", { children: i("自部署 · 对等连接 · 无需虚拟网卡", "Self hosted · Peer connections · No virtual adapter") })] }), /* @__PURE__ */ (0, B.jsx)("span", {
-								className: "network-phase " + (z?.phase === "running" ? "active" : ""),
+								className: "network-phase " + (pe?.phase === "running" ? "active" : ""),
 								role: "status",
 								children: he
 							})]
 						}),
-						z?.error && /* @__PURE__ */ (0, B.jsx)("p", {
+						pe?.error && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-error",
 							role: "alert",
-							children: z.error
+							children: pe.error
 						}),
-						!z?.installed && z?.phase !== "installing" && /* @__PURE__ */ (0, B.jsxs)("div", {
+						!pe?.installed && pe?.phase !== "installing" && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "network-setup",
 							children: [/* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
@@ -44018,7 +44043,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 										children: [/* @__PURE__ */ (0, B.jsx)("button", {
 											disabled: p,
 											className: "direct-primary",
-											onClick: () => void R({ operation: "install" }, () => v(void 0)),
+											onClick: () => void z({ operation: "install" }, () => v(void 0)),
 											children: p ? i("正在提交…", "Submitting…") : i("下载并安装", "Download and install")
 										}), /* @__PURE__ */ (0, B.jsx)("button", {
 											disabled: p,
@@ -44029,14 +44054,14 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								]
 							}) : /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: p,
-								onClick: () => void R({ operation: "plan" }, (e) => v(e)),
+								onClick: () => void z({ operation: "plan" }, (e) => v(e)),
 								children: [/* @__PURE__ */ (0, B.jsx)(Le, {
 									size: 16,
 									"aria-hidden": "true"
 								}), i("检查安装方案", "Review installation")]
 							})]
 						}),
-						z?.installed && !z.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsxs)("div", {
+						pe?.installed && !pe.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "network-method direct-actions",
 							role: "group",
 							"aria-label": i("连接方式", "Connection method"),
@@ -44056,7 +44081,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 						}), M === "invitation" ? /* @__PURE__ */ (0, B.jsx)(gC, {
 							busy: p,
 							t: i,
-							submit: (e, t, n) => R({
+							submit: (e, t, n) => z({
 								operation: "easy_tier_enroll",
 								url: e,
 								token: t,
@@ -44065,7 +44090,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								n(), u(i("已加入网络，后台正在连接设备。", "Network joined. The background service is connecting to devices."));
 							})
 						}) : /* @__PURE__ */ (0, B.jsxs)("form", {
-							onSubmit: de,
+							onSubmit: ue,
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "network-entry",
@@ -44106,7 +44131,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									/* @__PURE__ */ (0, B.jsxs)("span", {
 										className: "network-secret",
 										children: [/* @__PURE__ */ (0, B.jsx)("input", {
-											ref: ce,
+											ref: se,
 											type: E ? "text" : "password",
 											required: !0,
 											minLength: 32,
@@ -44171,7 +44196,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 											disabled: p,
 											onClick: () => {
 												let e = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(32));
-												T(Array.from(e, (e) => e.toString(16).padStart(2, "0")).join("")), D(!0), ce.current?.focus();
+												T(Array.from(e, (e) => e.toString(16).padStart(2, "0")).join("")), D(!0), se.current?.focus();
 											},
 											children: i("生成新网络 Token", "Generate new network token")
 										})
@@ -44185,15 +44210,15 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								})
 							]
 						})] }),
-						z?.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+						pe?.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 							/* @__PURE__ */ (0, B.jsxs)("div", {
 								className: "network-saved direct-note",
 								children: [
-									/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("网络：", "Network: "), /* @__PURE__ */ (0, B.jsx)("strong", { children: z.network })] }),
-									(z.peers ?? (z.peer ? [z.peer] : [])).map((e) => /* @__PURE__ */ (0, B.jsx)("code", { children: e }, e)),
-									z.listen_port && /* @__PURE__ */ (0, B.jsxs)("p", { children: [
+									/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("网络：", "Network: "), /* @__PURE__ */ (0, B.jsx)("strong", { children: pe.network })] }),
+									(pe.peers ?? (pe.peer ? [pe.peer] : [])).map((e) => /* @__PURE__ */ (0, B.jsx)("code", { children: e }, e)),
+									pe.listen_port && /* @__PURE__ */ (0, B.jsxs)("p", { children: [
 										i("入站端口：", "Incoming port: "),
-										z.listen_port,
+										pe.listen_port,
 										" TCP / UDP"
 									] })
 								]
@@ -44203,7 +44228,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								children: /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
 									onClick: () => {
-										confirm(i("断开 EasyTier 网络？已授权设备的终端和桌面连接将断开，目标 Shell 会继续运行。", "Disconnect EasyTier? Connections to authorized devices will close; target shells continue running.")) && R({ operation: "easy_tier_stop" });
+										confirm(i("断开 EasyTier 网络？已授权设备的终端和桌面连接将断开，目标 Shell 会继续运行。", "Disconnect EasyTier? Connections to authorized devices will close; target shells continue running.")) && z({ operation: "easy_tier_stop" });
 									},
 									children: i("断开 EasyTier", "Disconnect EasyTier")
 								})
@@ -44213,11 +44238,11 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [
 									i("发现的节点", "Discovered nodes"),
 									" ",
-									/* @__PURE__ */ (0, B.jsx)("span", { children: z.devices.length })
-								] }), z.devices.length ? /* @__PURE__ */ (0, B.jsx)("ul", { children: z.devices.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [
+									/* @__PURE__ */ (0, B.jsx)("span", { children: pe.devices.length })
+								] }), pe.devices.length ? /* @__PURE__ */ (0, B.jsx)("ul", { children: pe.devices.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [
 									e.path === "direct" ? i("点对点", "Peer to peer") : i("经网络中继", "Via network relay"),
 									e.latency_ms == null ? "" : " · " + e.latency_ms.toFixed(1) + " ms",
-									z.connections.includes(e.node) ? i(" · 已保存连接", " · Connection saved") : ""
+									pe.connections.includes(e.node) ? i(" · 已保存连接", " · Connection saved") : ""
 								] })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
 									onClick: () => {
@@ -44229,25 +44254,25 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: i("正在等待其他 Cranibox 节点加入相同网络。", "Waiting for other Cranibox nodes on the same network.")
 								})]
 							}),
-							z.invitation_error && /* @__PURE__ */ (0, B.jsx)("p", {
+							pe.invitation_error && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-error",
 								role: "alert",
-								children: z.invitation_error
+								children: pe.invitation_error
 							}),
 							n === "server" && /* @__PURE__ */ (0, B.jsx)(_C, {
-								entries: z.peers ?? (z.peer ? [z.peer] : []),
-								listenPort: z.listen_port,
-								invitations: z.invitations,
+								entries: pe.peers ?? (pe.peer ? [pe.peer] : []),
+								listenPort: pe.listen_port,
+								invitations: pe.invitations,
 								busy: p,
 								t: i,
-								create: (e, t) => R({
+								create: (e, t) => z({
 									operation: "easy_tier_invite",
 									peers: e
 								}, (e) => {
 									let n = e;
 									o(CC(n.network)), t(n.invitation);
 								}),
-								revoke: (e) => R({
+								revoke: (e) => z({
 									operation: "easy_tier_revoke_invitation",
 									id: e
 								})
@@ -44255,7 +44280,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 						] }),
 						!!re && /* @__PURE__ */ (0, B.jsxs)("form", {
 							className: "network-target",
-							onSubmit: pe,
+							onSubmit: fe,
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "direct-heading",
@@ -44281,7 +44306,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: [i("请让目标节点在“入站授权”中为以下 ID 授权：", "Ask the target to grant this ID access in Incoming access: "), /* @__PURE__ */ (0, B.jsx)("code", { children: a.node_id })]
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("目标访问 Token", "Target access token"), /* @__PURE__ */ (0, B.jsx)("input", {
-									ref: le,
+									ref: ce,
 									required: !0,
 									pattern: "[A-Fa-f0-9]{64}",
 									maxLength: 64,
@@ -44325,15 +44350,15 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							busy: p || !!me?.login_pending,
 							t: i,
 							openLink: _e,
-							review: (e) => R({ operation: "tailscale_setup_plan" }, (t) => e(t)),
-							execute: (e, t) => R({
+							review: (e) => z({ operation: "tailscale_setup_plan" }, (t) => e(t)),
+							execute: (e, t) => z({
 								operation: "tailscale_setup",
 								plan_id: e
 							}, t)
 						}),
 						me?.state === "NeedsLogin" && !me.login_pending && /* @__PURE__ */ (0, B.jsx)("button", {
 							disabled: p || me.setup?.phase === "running",
-							onClick: () => void R({ operation: "tailscale_login" }),
+							onClick: () => void z({ operation: "tailscale_login" }),
 							children: i("登录 Tailscale", "Sign in to Tailscale")
 						}),
 						me?.login_pending && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -44352,7 +44377,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: i("打开 Tailscale 登录", "Open Tailscale sign in")
 								}), /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
-									onClick: () => void R({ operation: "tailscale_cancel_login" }),
+									onClick: () => void z({ operation: "tailscale_cancel_login" }),
 									children: i("取消登录", "Cancel sign in")
 								})]
 							})]
@@ -44361,14 +44386,14 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							devices: me.devices,
 							discovery: me.discovery,
 							onDiscoveryChanged: (e) => {
-								++se.current, o(CC(e)), f("");
+								++oe.current, o(CC(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
 							disabled: p,
 							t: i,
 							onConnected: () => {
-								window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed")), ue();
+								window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed")), le();
 							}
 						})
 					]
@@ -44891,7 +44916,7 @@ var OC = [
 	{
 		id: "spaces",
 		label: V("虚拟空间", "Virtual spaces"),
-		icon: se
+		icon: oe
 	},
 	{
 		id: "terminal",
@@ -45319,7 +45344,7 @@ function AC() {
 		href: "#/overview",
 		children: [/* @__PURE__ */ (0, B.jsx)("span", {
 			className: "brand-mark",
-			children: /* @__PURE__ */ (0, B.jsx)(se, {
+			children: /* @__PURE__ */ (0, B.jsx)(oe, {
 				size: 25,
 				strokeWidth: 1.7,
 				"aria-hidden": "true"

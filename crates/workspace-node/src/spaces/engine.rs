@@ -51,7 +51,7 @@ impl Provider {
         })
     }
 }
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum SetupAction {
     ColimaInstall,
@@ -342,47 +342,53 @@ pub fn plan(action: SetupAction) -> Result<Value> {
         "source":match action { SetupAction::WslInstall=>"https://learn.microsoft.com/windows/wsl/install", SetupAction::ColimaInstall|SetupAction::ColimaStart=>"https://colima.run/docs/installation/", SetupAction::OrbstackInstall|SetupAction::OrbstackStart=>"https://docs.orbstack.dev/install", _=>"https://docs.docker.com/engine/install/ubuntu/" }}),
     )
 }
-async fn run_program(
-    program: &str,
-    args: &[&str],
-    input: Option<&[u8]>,
-    seconds: u64,
-) -> Result<String> {
-    Runner {
-        program: binary(program),
-        prefix: vec![],
-    }
-    .run(
-        &args.iter().map(|value| (*value).into()).collect::<Vec<_>>(),
-        input,
-        seconds,
-    )
-    .await
+async fn run_program(program: &str, args: &[&str], seconds: u64) -> Result<()> {
+    let mut command = Command::new(binary(program));
+    command.args(args).env("LC_ALL", "C");
+    monitor_setup(command, Duration::from_secs(seconds)).await
+}
+async fn monitor_setup(mut command: Command, timeout: Duration) -> Result<()> {
+    // System transactions must survive cancellation of their monitor. Null streams
+    // also avoid a broken pipe when the node goes away while an installer writes.
+    command
+        .kill_on_drop(false)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let mut child = command.spawn().context("Start system setup. Check that the runtime installer and system authentication agent are available.")?;
+    let status = tokio::time::timeout(timeout, child.wait()).await
+        .context("Setup monitoring timed out. The system installer may still be running. Check the system package manager and recheck the environment before retrying.")??;
+    ensure!(
+        status.success(),
+        "Setup was cancelled or failed ({status}). Check the system installer and recheck the environment before preparing another setup action."
+    );
+    Ok(())
 }
 pub async fn install(action: SetupAction) -> Result<()> {
     plan(action)?;
     match action {
         SetupAction::ColimaInstall => {
-            run_program("brew", &["install", "colima", "docker"], None, 1800).await?;
+            run_program("brew", &["install", "colima", "docker"], 1800).await?;
         }
         SetupAction::ColimaStart => {
             run_program(
                 "colima",
                 &["start", "--cpu", "2", "--memory", "4", "--disk", "60"],
-                None,
                 1800,
             )
             .await?;
         }
         SetupAction::OrbstackInstall => {
-            run_program("brew", &["install", "--cask", "orbstack"], None, 1800).await?;
-            run_program("brew", &["install", "docker"], None, 1800).await?;
+            run_program("brew", &["install", "--cask", "orbstack"], 1800).await?;
+            run_program("brew", &["install", "docker"], 1800).await?;
         }
         SetupAction::OrbstackStart => {
-            run_program("open", &["-a", "OrbStack"], None, 30).await?;
+            run_program("open", &["-a", "OrbStack"], 30).await?;
         }
         SetupAction::WslInstall => {
-            run_program("powershell.exe", &["-NoProfile","-NonInteractive","-Command", "$p = Start-Process -FilePath wsl.exe -ArgumentList '--install','--distribution','Ubuntu','--no-launch' -Verb RunAs -Wait -PassThru; exit $p.ExitCode"], None, 1800).await?;
+            run_program("powershell.exe", &["-NoProfile","-NonInteractive","-Command", "$p = Start-Process -FilePath wsl.exe -ArgumentList '--install','--distribution','Ubuntu','--no-launch' -Verb RunAs -Wait -PassThru; exit $p.ExitCode"], 1800).await?;
         }
         SetupAction::WslDocker => {
             run_program(
@@ -394,16 +400,21 @@ pub async fn install(action: SetupAction) -> Result<()> {
                     "root",
                     "--",
                     "sh",
-                    "-s",
-                    "--",
+                    "-c",
+                    DOCKER_INSTALL,
+                    "cranibox-setup",
                 ],
-                Some(DOCKER_INSTALL.as_bytes()),
                 1800,
             )
             .await?;
         }
         SetupAction::LinuxDocker => {
-            let user = run_program("id", &["-un"], None, 5).await?;
+            let user = Runner {
+                program: "id".into(),
+                prefix: vec![],
+            }
+            .run(&["-un".into()], None, 5)
+            .await?;
             run_program(
                 "pkexec",
                 &[
@@ -413,11 +424,70 @@ pub async fn install(action: SetupAction) -> Result<()> {
                     "cranibox-setup",
                     user.trim(),
                 ],
-                None,
                 1800,
             )
             .await?;
         }
     }
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn setup_monitor_does_not_kill_system_transaction_on_timeout_or_shutdown() {
+        let root = tempfile::tempdir().unwrap();
+        for timeout in [false, true] {
+            let ready = root.path().join(format!("ready-{timeout}"));
+            let release = root.path().join(format!("release-{timeout}"));
+            let done = root.path().join(format!("done-{timeout}"));
+            let mut command = Command::new("/bin/sh");
+            command.args(["-c", "printf ready > \"$1\"; attempt=0; while [ ! -f \"$2\" ] && [ \"$attempt\" -lt 1000 ]; do sleep 0.01; attempt=$((attempt + 1)); done; [ -f \"$2\" ] || exit 1; printf done > \"$3\"", "fixture"]).arg(&ready).arg(&release).arg(&done);
+            let monitor = tokio::spawn(monitor_setup(
+                command,
+                if timeout {
+                    Duration::from_millis(500)
+                } else {
+                    Duration::from_secs(10)
+                },
+            ));
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while !ready.exists() {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+            if timeout {
+                assert!(
+                    monitor
+                        .await
+                        .unwrap()
+                        .unwrap_err()
+                        .to_string()
+                        .contains("may still be running")
+                );
+            } else {
+                monitor.abort();
+                assert!(monitor.await.unwrap_err().is_cancelled());
+            }
+            std::fs::write(&release, b"continue").unwrap();
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while !done.exists() {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+        }
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "exit 7"]);
+        let error = monitor_setup(command, Duration::from_secs(5))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("cancelled or failed") && error.contains('7'));
+    }
 }

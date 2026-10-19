@@ -1523,3 +1523,34 @@ API 确认 **10 份 artifact**，包含三平台服务端、独立节点 CLI、�
 验收覆盖空配置与预置空间身份的首次启动和重启、Rust/Web/静态资源、服务与私有凭据、桌面登录保护、节点授权和错误令牌、真实命令执行及持久数据。amd64 镜像 ID **sha256:d8db47e287689a42cb238736a4bf6f9e1776ed5ba49168cad628d87bcb2acfa3**；arm64 为 **sha256:63e5881e5e8b4d09639d73103ca06760333f0cda74301806b020c48cfa3fb0c7**。Docker Hub 登录、标签提升和 Aliyun 均跳过，没有发布或改变默认公开镜像；不能计作仓库拉取、实际桌面输入、完整空间 UI 或 55fbe2a 新 VNC 修复的镜像验收。
 
 两份启动报告和完整运行元数据/核对摘要保存在私有 **/config/validation-artifacts/image-platform-gate-20261019/native-matrix-final-39193919686**，不覆盖此前队列记录。本轮收尾查询 55fbe2a 的三平台矩阵、Release 与 GitCode 仍 queued，因此其最终结果继续留待核对，没有沿用旧来源的成功结论。
+
+## 2026-10-19：虚拟空间安装生命周期与交接整理
+
+基于 **d5beb23bb9eb7a0e31adfa2845c74a91a8841b22** 修复虚拟空间的运行环境安装：此前与普通 Docker 命令共用 kill_on_drop 进程管理，节点退出或超时可能终止安装，确认也未绑定经过审阅的方案。现在安装进程与监控分离、使用空输入/输出流，避免父进程退出导致管道断开；WSL 安装脚本随命令参数传入，不依赖节点 stdin。普通 Docker 操作仍保持原有超时清理。
+
+安装方案私有持久化，只保留当前一份，绑定操作/命令并在十分钟后过期；执行前复查，原子保存消耗方案与安装中状态，再启动系统命令。分开的 CLI 调用可使用同一未过期方案，已使用方案重启后也不能重放。旧调用方没有 plan_id 时明确拒绝，不执行安装。Web/Tauri 共用连续点击保护、提交后清除旧确认、响应丢失后读取状态、错误/核对/取消焦点以及中断提示。安装结束需重新检测，不自动创建空间。协议、兼容性和 CLI 示例见[虚拟空间](virtual-spaces.md#安装确认与中断恢复)。
+
+全部构建、socket、浏览器与运行测试仍在指定远端 admin@192.168.217.6:22022、cranibox-validation、abc 用户执行；本机只编辑、静态审阅、传输与 Git。系统包安装、权限确认、Windows/macOS 原生安装器均未实际运行，未升级日常程序。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Rust 工作区 | **187 通过、3 默认忽略，169.390 秒** | cargo test --offline --workspace --exclude cranibox-node-desktop；18 个目标，未运行 Tauri Rust 测试 |
+| Rust 空间专项 | **10/10，43.267 秒含编译** | 包含在工作区，不累加；新三项验证方案与重启、超时/取消后独立 shell 继续 |
+| 空间后端集成 | **9/9，无跳过，58.917 秒** | python3 -m unittest discover -s tests -p test_virtual_spaces.py -v；真实 Rust 服务、受限 Docker 夹具，不连宿主 Docker |
+| Web 界面全量 | **140/140，372.595 秒** | npm test，addons/control-center/ui；真实 Rust Web，新安装场景为可控响应 |
+| Tauri 界面全量 | **55/55，190.777 秒** | npm test -- --workers=1，apps/node-desktop；模拟 IPC，非真实系统 GUI |
+| 两端前端构建 | **通过，18.694 / 18.302 秒** | Web 生成资源与原生 TypeScript/Vite；既有 use client 和大包提示保留 |
+| Rust 四程序构建 | **通过，55.608 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web |
+| fmt / 原生 Clippy | **通过，3.129 / 15.561 秒** | cargo fmt --all -- --check；desktop,custom-protocol --all-targets -D warnings |
+
+首轮 Rust 专项编译未通过，因为应用测试 Catalog 夹具遗漏新字段；补齐后专项及工作区通过。首轮客户端界面为 **54 通过、1 失败，89.765 秒**，同区域另有设备目录错误，新增测试的 alert 定位不唯一；只将测试定位限定为安装错误，最终 55/55。初始 rust-unit、native-ui 日志与最终 rust-unit-final、native-ui-final 分开保留，没有放宽超时或删除失败记录。前端构建时测试文件尚未限定 alert，产品源码与生成资源未因此变化。
+
+Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件循环内重复点击、已接受但响应丢失、重载不重放、安装中限制操作及中断后重新检查。布局检查 375/768/1440、明暗主题、reduced-motion、无横向溢出与确认/取消至少 44 像素；六份完整页面截图及摘要保存在私有证据目录。人工审阅 375 亮色与 1440 暗色，顶栏未遮挡正文，命令换行、核对与取消操作可读；不是手机实机验收，也不替代上一轮 VNC 完整首屏待验范围。
+
+节点退出或监控超时不主动终止已启动的安装器，不保证系统事务完成；关机、服务管理器、权限代理仍可中断，多步安装也可能尚未执行后续命令。当前不保存系统安装输出，只报告启动错误、退出码和超时；应检查系统安装器再重新检测环境。真实三平台依赖安装、Windows/macOS 桌面提供者/权限、跨物理设备以及公开兼容镜像发布仍未完成，按[需求与 P0/P1/P2](implementation-handoff-2026-10-18.md)继续，不把本轮交接当作全部原始需求实现。
+
+**2026-10-19 04:28 UTC** 查询：55fbe2a 的矩阵 **39196468666** 总状态 queued，独立 Wayland 成功、Linux Tauri 运行中、其他五项 queued。d5beb23 的 XFCE 双架构只验证运行 **39197807627** 两项 queued，publish=false；它含 VNC 修复，不含本轮空间修复。未重复触发旧运行、发布镜像或改变公开标签。当前提交推送后须核对新 CI 的完整 headSha，旧 8566f59 镜像的 44/44 或 f49341d 的三平台成功不能沿用为新版本通过。
+
+最终健康检查：容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要及 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有所属浏览器/服务残留，也未操作全局键鼠或剪贴板。
+
+私有证据 **/config/validation-artifacts/space-setup-lifecycle-20261019** 保存各轮命令、耗时、日志、源码摘要、六份截图和 final-health.json；最终待提交源码、测试、生成资源及文档与远端快照逐项核对，清单为 final-source-manifest.json。配置、凭据、截图、原始日志与辅助脚本不入 Git。
