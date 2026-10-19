@@ -2,7 +2,9 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-最新补齐 Web/Tauri 共用的[跨设备协作记录](federated-activity.md)：展开后按明确选择的来源只读汇总任务、问题/回复、结果、消息和协作 Run，保留各节点权威与身份，不需要选主。新增独立 activity 授权，默认关闭，明确包含其他发送方正文；原有消息授权不自动扩大。来源失败、撤权或连接改变后清除该来源旧内容，迟到响应不恢复记录。它是在线只读视图，尚未实现账本复制、离线写入、冲突合并或后台协作记录缓存。
+收尾补充 Windows/macOS 的[桌面准备向导](remote-desktops.md#windows--macos-准备向导)：按节点系统提供 UltraVNC Server 或系统屏幕共享说明、官方文档入口、真实回环 RFB 握手检查、配置核对和设备授权入口。Web/Tauri 共用组件；握手和保存分开，保存前再次检查。它引导用户手动准备提供者与系统权限，尚未提供这两个平台的自动安装和托管，也不代表已经通过 Windows/macOS 实机桌面验收。当前测试与历史协作记录的结果分别列在下方。
+
+此前补齐 Web/Tauri 共用的[跨设备协作记录](federated-activity.md)：展开后按明确选择的来源只读汇总任务、问题/回复、结果、消息和协作 Run，保留各节点权威与身份，不需要选主。新增独立 activity 授权，默认关闭，明确包含其他发送方正文；原有消息授权不自动扩大。来源失败、撤权或连接改变后清除该来源旧内容，迟到响应不恢复记录。它是在线只读视图，尚未实现账本复制、离线写入、冲突合并或后台协作记录缓存。
 
 产品提交 41b8ca6 的 Linux .deb/AppImage 已在指定远端 KDE 的真实窗口通过来源选择、任务问答/结果、第三方消息、类型筛选及撤权清除；原生搜索因 AT-SPI 输入接口不可用未验收。原矩阵 39186579637 最终 6 成功、1 失败，原因是旧测试的精确权限对象漏掉 activity=false；984b7af 仅修正测试与文档，产品代码、资源与依赖未变。修正提交的矩阵 **39187721392 已 7/7 成功**，三平台 Rust 程序和 Tauri 安装包已生成；终态及实际包验收来源分别记录在本页最新测试章节。
 
@@ -45,6 +47,7 @@
 | 持久终端与浮动窗口 | 可变大小、最小化到状态栏、多个会话、重新附着；服务端使用独立 Herdr，客户端使用原生 PTY | 6396b93 .deb 关闭浮动终端、收起原生窗口及操作托盘重连后，Shell PID 与启动时间不变；此前 afaa137 另验证导出变量保留。没有制造真实网关网络故障，客户端进程或系统退出后不能保留该 Shell |
 | 桌面互访 | 共用 VNC/noVNC 与 Selkies/JPEG 查看器；已有本机服务的 IPv4/IPv6 检测、配置核对及保存前复查；本机、直连及出站 WebSocket 中继；独立授权、单控制者、停止与撤权取消；文字剪贴板支持主动发送/复制、64 KiB 限制和只读 | KDE 容器 Selkies 的真实画面、完整文字输入、重连和撤权通过；Web 双向剪贴板通过；a8a97f5 原生反向获取失败，2026-10-19 修复后的 debug 及同提交 CI .deb/AppImage 的真实双向文字、持续更新、重连清空均通过。两包为私有 D-Bus 验收，未重验正常托盘与撤权。剪贴板不自动粘贴，不传图片/文件，旧 VNC 的 Unicode 取决于服务端。Windows/macOS 实机及 KDE/GNOME 的自动安装与托管未实现 |
 | 内置 VNC 托管 | Linux X11 使用 x11vnc，兼容 wlroots 的 Wayland 使用 wayvnc；守护、失败退避、节点重启恢复 | 不是一个纯 Rust 跨平台捕获实现；KDE 容器实测 VNC 屏幕捕获失败，Selkies 可用，见远程桌面文档 |
+| Windows/macOS 桌面准备 | Web/Tauri 共用三步向导；UltraVNC Server / macOS 屏幕共享的官方入口、回环端口检查、配置核对和授权跳转；失败重试、IPv6、焦点和窄屏 | 安装和系统权限仍由用户手动完成；只检查 RFB 握手，不验证认证、画面或输入。WSL2 不代表 Windows 原生环境；macOS 系统服务的局域网访问需单独限制，Cranibox 不修改监听或防火墙 |
 | 虚拟空间 | 检测、安装计划、明确执行、镜像策略、创建/停止/启动/归档/恢复、资源限制、独立身份与持久卷；桌面/编辑器独立应用入口 | 真实 Docker 生命周期与浏览器流程已测；完整 Linux amd64 KDE 镜像的干净构建、空配置首次启动及重启保留数据已通过。默认公开标签的 amd64 镜像已确认缺少空间协议标签，当前无法用它新建空间；需发布兼容镜像并验收，各 OS 系统依赖安装也未验收 |
 | 统一项目与会话目录 | ProjectID、节点工作副本、Shell 关联、网关/直连汇总；增量目录读取、删除处理、只读离线快照 | 各节点保留本地权威；不是全网数据库复制，不支持离线修改后自动合并 |
 | 关闭页面后的目录同步 | Rust 节点后台同步项目目录/会话关联与公开 Agent 登记；两套独立设置，明确选择 1–32 个已接入设备，15/30/60/300 秒，共用四路后台并发；暂停和重启恢复 | 默认关闭；只读离线快照不授予执行或当前 Agent 身份，不复制工作文件；凭据/连接变更后需要重新选择 |
@@ -61,7 +64,27 @@
 
 ## 测试情况与可信范围
 
-### 当前：跨设备协作记录（2026-10-19）
+### 当前：Windows/macOS 桌面准备向导（2026-10-19）
+
+本轮以 **336df91baed4d6a89b4cc5de8b71f36f8efafde9** 为基础，新增共用向导、固定官方文档入口及回环服务检查；没有新增依赖。所有构建和运行验证仍在 admin@192.168.217.6:22022 的 cranibox-validation 容器、abc 用户进行，本机仅编辑、静态审阅与 Git 操作。
+
+| 检查 | 最终结果 | 可信范围 |
+| --- | --- | --- |
+| Web 界面全量 | **137/137；229.045 秒** | 真实 Rust Web；新用例只替换平台状态，RFB 检查连接实际回环夹具 |
+| Tauri 界面全量 | **53/53；117.344 秒** | 模拟 IPC，含两平台文档打开失败重试、IPv6、检查/核对/保存及授权跳转 |
+| 桌面服务后端 | **11/11，无跳过；17.023 秒** | 真实 Rust 节点及隔离桌面服务夹具，不是 Windows/macOS 提供者 |
+| 原生桌面传输 | **4/4** | desktop,custom-protocol；不代替实际 GUI |
+| 构建与静态检查 | 通过 | 两端 TypeScript/Vite、Web 生成资源、cranibox 与原生 debug 构建、fmt、原生 all-targets Clippy -D warnings |
+
+新增 Web 3 项和原生 2 项包含在全量内，不重复累计。Web 覆盖无效地址不请求、握手失败后保留输入、保存前再次检查、离页丢弃迟到响应，以及检查和核对不自动启用共享；原生文档只接受三个固定标识。375/1440 像素、明暗主题及 812×375 横屏无横向溢出，文档操作至少 44 像素，覆盖 reduced-motion 与步骤焦点，保存八张平台截图并审阅窄屏和桌面截图。
+
+首轮 Web 全量为 136 通过、1 失败：旧测试仍匹配已被向导替换的平台提示文案。改为核对新标题，保留手动配置与 Linux 提示断言，最终 137/137。截图初次被固定顶栏遮挡，调整截取前的滚动位置后重验。原始失败日志、trace 和最终结果均保留；没有以修改产品行为绕过检查。
+
+Windows/macOS 的系统状态由夹具提供，不能据此宣称这两个平台的安装包、提供者、实际认证/画面/输入、系统权限、自启或休眠恢复已验收。本轮没有重新安装 Linux 发布包或重新运行全部 Rust 工作区测试；下方旧提交的包与 CI 结论保持各自版本。安装与系统权限仍需用户手动完成，WSL2 不等于 Windows 原生桌面。
+
+最终日常 Web PID 538744、客户端 PID 1403228、程序摘要和 NodeID 均保持；KDE/Selkies 未重启，容器 running/healthy、非 privileged、无宿主 Docker socket，3080/3031 匿名 401、认证 200，无所属测试进程或测试安装包残留。私有证据位于 **/config/validation-artifacts/desktop-platform-guide-20261019**，不提交凭据、配置、截图或原始日志。提交前核对源码、测试、生成资源与文档和远端快照一致；完整清单、四个程序摘要及健康检查保存在该目录。新提交的 CI 需按完整 headSha 单独核对，不能沿用下方 984b7af 的成功矩阵。
+
+### 上一轮：跨设备协作记录（2026-10-19）
 
 本轮实现与协议见[跨设备协作记录](federated-activity.md)。构建、运行和浏览器验证均在指定远端容器、abc 用户进行；没有升级日常程序、接管桌面输入或将模拟 IPC 记成实机验收。下列历史章节仍绑定各自产品提交。
 
@@ -357,7 +380,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | 顺序 | 工作 | 完成判据 |
 | --- | --- | --- |
 | P0 | 正常登录及跨设备的持续桌面流程 | 2c95dd4 的 CI .deb/AppImage 已通过隔离 KDE 双向文字、等待与重连；84454e6 两包另通过桌面服务配置及正常 KDE 总线托盘/窗口/启动项。继续在实际登录及另一物理设备验证连续双向中文/emoji/多行、超时/恢复、撤权与断网，不以隔离 XDG、debug 或模拟 IPC 替代完整日用验收 |
-| P0 | Windows/macOS 桌面互访与安装 | 原生安装、录屏/输入权限、VNC 提供者引导、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。WSL2 不是 Windows 原生验收 |
+| P0 | Windows/macOS 桌面互访与安装 | 三步提供者引导已有代码与回归；继续完成原生安装、真实提供者兼容性、录屏/输入权限、托盘/自启、真实登录和休眠恢复、网关断网及退出清理；从另一设备看到画面、输入和撤权断开。自动安装/托管仍未实现，WSL2 不是 Windows 原生验收 |
 | P0 | 发布兼容的公开产品镜像并验收 | 默认公开标签仍缺少空间协议标记，无法新建空间。新工作流的 b76aaba 只验证运行 39173924368 已成功，amd64 启动 43/43；下一步正式发布并完成真实拉取核对，补验 arm64 运行；保留各版本边界，不删除协议保护 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
 | P1 | Tailscale 系统安装/登录与 EasyTier 多设备 | 干净的三平台主机验证方案确认、管理员授权、取消/失败恢复、系统服务、Tailnet 互访与目标授权；不能以夹具代替系统安装 |
@@ -386,6 +409,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/{selkies.rs,selkies/output.rs}；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、有界画面合并、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
 | crates/workspace-node/src/desktop_service/{discovery.rs,provider.rs}；addons/control-center/ui/src/desktop/{ExistingDesktopServices.tsx,RemoteDesktopsView.tsx} | 常用回环地址和已保存服务的有界检测、提供者兼容性；共用配置核对、取消与保存前协议检查 |
+| addons/control-center/ui/src/desktop/DesktopPlatformGuide.tsx；apps/node-desktop/src-tauri/src/main.rs | Windows/macOS 三步准备向导；Tauri 通过固定文档标识打开官方页面，复用原有服务检查和保存入口；Web desktops.spec.ts / 原生 client.spec.ts 覆盖引导流程 |
 | addons/control-center/ui/src/desktop/{DesktopClipboard.tsx,clipboard.ts,VncViewer.tsx} | Web/Tauri 共用纯文本剪贴板面板、UTF-8 限制、明确复制及连接生命周期；Web desktops.spec.ts、原生 client.spec.ts 为夹具/模拟 IPC 回归 |
 | crates/workspace-runtime/src/peers/computer.rs；crates/workspace-node/src/peer/server/computer.rs | 有界桥接、类型化动作、目标 MCP；短期控制权、鉴权复查与停止 |
 | addons/control-center/ui/src/devices/ComputerSharingPanel.tsx；tests/test_computer_use.py | Web/Tauri 共用桥接管理；真实节点/桥接/Web 与可控原生动作夹具 |

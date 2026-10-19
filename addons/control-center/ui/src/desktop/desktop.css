@@ -65,3 +65,17 @@
 .desktop-discovery-results code { overflow-wrap: anywhere; font-size: 13px; }
 .desktop-discovery-results li span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .desktop-discovery-results button { flex-shrink: 0; }
+
+.desktop-platform-guide { display: grid; gap: 16px; min-width: 0; }
+.desktop-platform-guide h5 { margin: 0; font-size: 16px; line-height: 1.5; }
+.desktop-platform-guide h5:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 4px; border-radius: 4px; }
+.desktop-platform-guide .desktop-setup-steps li[aria-current="step"] { color: var(--text, inherit); font-weight: 600; }
+.desktop-platform-guide form { margin-top: 0; }
+.desktop-platform-guide code { overflow-wrap: anywhere; }
+.desktop-guide-link { display: inline-flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; color: inherit; font-size: 14px; line-height: 1.5; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.desktop-guide-link svg { flex-shrink: 0; }
+.desktop-guide-link:hover { background: var(--accent-soft, var(--surface)); }
+.desktop-guide-link:focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.desktop-guide-ready { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.desktop-guide-ready svg { flex-shrink: 0; }
+@media(max-width:600px) { .desktop-platform-guide .direct-actions > * { flex: 1 1 180px; } }

@@ -7,8 +7,9 @@ import '../devices/devices.css';
 import './desktop.css';
 import { DesktopServicePanel, type DesktopServiceClient } from './DesktopServicePanel';
 import { ExistingDesktopServices, type ExistingDesktopService } from './ExistingDesktopServices';
+import type { OpenDesktopGuide } from './DesktopPlatformGuide';
 
-export function RemoteDesktopsView({ client, connect, language = 'en', local, serviceClient, relayNodes = [] }: { client: DirectClient; connect: DesktopConnector; language?: string; local?: { id: string; name: string }; serviceClient?: DesktopServiceClient; relayNodes?: DesktopNode[] }) {
+export function RemoteDesktopsView({ client, connect, language = 'en', local, serviceClient, relayNodes = [], openGuide, onAccess }: { client: DirectClient; connect: DesktopConnector; language?: string; local?: { id: string; name: string }; serviceClient?: DesktopServiceClient; relayNodes?: DesktopNode[]; openGuide?: OpenDesktopGuide; onAccess?: () => void }) {
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
   const [catalog, setCatalog] = useState<DirectCatalog>(), [selected, setSelected] = useState(''), [active, setActive] = useState<DesktopTarget | null>(null);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -87,6 +88,6 @@ export function RemoteDesktopsView({ client, connect, language = 'en', local, se
       <p className="direct-note">{protocol === 'selkies' ? t('接入已运行的 Selkies WebSocket 服务（JPEG 编码）。连接将接管主显示器；已有 Selkies 查看器会断开。支持纯文本剪贴板，暂不支持音频和文件传输。', 'Connect a running Selkies WebSocket service with JPEG support. Connecting takes over the primary display and disconnects its existing Selkies viewer. Plain-text clipboard is supported; audio and file transfer are unavailable.') : t('填写此设备上已安装的 VNC 服务地址，Cranibox 会通过授权通道转发画面和输入。', 'Enter the address of a VNC server on this device. Cranibox forwards its display and input through an authorized connection.')}</p>
       <label>{protocol === 'selkies' ? t('本机 Selkies 地址', 'Local Selkies address') : t('本机 VNC 地址', 'Local VNC address')}<input ref={addressInput} disabled={busy} required aria-label={protocol === 'selkies' ? t('本机 Selkies 地址', 'Local Selkies address') : t('本机 VNC 地址', 'Local VNC address')} aria-describedby="desktop-vnc-address-help" value={address} onChange={event => setAddress(event.target.value)} placeholder={protocol === 'selkies' ? '127.0.0.1:8082' : '127.0.0.1:5900'} /><span id="desktop-vnc-address-help" className="direct-note">{t('使用 127.0.0.1:端口 或 [::1]:端口；访问其他设备请使用左侧设备列表。', 'Use 127.0.0.1:port or [::1]:port. Choose other devices from the list above.')}{protocol === 'selkies' && t(' 使用内部 WebSocket 端口，不是网页端口；服务需以非 token 模式运行，仅在可信容器或回环网络内开放。', ' Use the internal WebSocket port, not its web page port. The service must run without token authentication and remain inside a trusted container or loopback network.')}</span></label>
       <div className="direct-actions"><button disabled={busy} className="direct-primary" type="submit">{busy ? t('正在检查并保存…', 'Checking and saving…') : t('保存并开启共享', 'Save and enable sharing')}</button><button type="button" disabled={busy} onClick={() => { setSetup(false); configureButton.current?.focus(); }}>{t('取消', 'Cancel')}</button></div>
-    </form>}{serviceClient && <DesktopServicePanel client={serviceClient} language={language} onChanged={() => { setActive(null); void refresh(); }} />}</section>}
+    </form>}{serviceClient && <DesktopServicePanel client={serviceClient} language={language} shared={catalog.desktop} onReview={review} openGuide={openGuide} onAccess={onAccess} onChanged={() => { setActive(null); void refresh(); }} />}</section>}
   </section>;
 }

@@ -1,5 +1,55 @@
 import { expect, test } from '@playwright/test';
 
+for (const platform of ['windows', 'macos']) test('native ' + platform + ' desktop setup opens fixed guides and reviews sharing through IPC', async ({ page }) => {
+  await page.addInitScript(platform => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: null as any };
+    let failLink = true, checks = 0;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'open_desktop_guide') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (failLink) { failLink = false; throw Error('System browser unavailable'); }
+        return;
+      }
+      if (command === 'desktop_service') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (payload.command.operation === 'check') return ++checks === 1 ? { ready: false, error: 'Start the local server first' } : { ready: true };
+        return { platform, supported: false, display: '', installed: false, port: 5900 };
+      }
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (payload.command.operation === 'desktop') catalog.desktop = payload.command.desktop;
+        return structuredClone(catalog);
+      }
+      return previous(command, payload);
+    };
+  }, platform);
+  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const guide = page.getByRole('region', { name: '桌面共享准备向导', exact: true });
+  const official = guide.getByRole('link').first();
+  await official.click(); await expect(guide.getByRole('alert')).toHaveText('System browser unavailable');
+  await official.click(); await expect(guide.getByRole('alert')).toHaveCount(0);
+  await guide.getByRole('button', { name: '服务已准备，检查端口', exact: true }).click();
+  await guide.getByLabel('待检查的 VNC 地址', { exact: true }).fill('[::1]:5901');
+  await guide.getByRole('button', { name: '检查 VNC 服务', exact: true }).click();
+  await expect(guide.getByRole('alert')).toContainText('Start the local server');
+  await expect(guide.getByLabel('待检查的 VNC 地址', { exact: true })).toHaveValue('[::1]:5901');
+  await guide.getByRole('button', { name: '检查 VNC 服务', exact: true }).click();
+  await expect(guide.getByRole('status')).toContainText('[::1]:5901');
+  await guide.getByRole('button', { name: '核对并开启共享', exact: true }).click();
+  const form = page.getByRole('form', { name: '核对桌面共享配置', exact: true });
+  await expect(form.getByLabel('本机 VNC 地址', { exact: true })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop'))).toBe(false);
+  await form.getByRole('button', { name: '保存并开启共享', exact: true }).click();
+  await guide.getByRole('button', { name: '前往设备授权', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备网络', exact: true })).toHaveAttribute('aria-current', 'page');
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'open_desktop_guide').map((call: any) => call.payload)).toEqual([{ guide: platform === 'windows' ? 'windows_download' : 'mac_sharing' }, { guide: platform === 'windows' ? 'windows_download' : 'mac_sharing' }]);
+  expect(calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status').map((call: any) => call.payload.command)).toEqual(Array(3).fill({ operation: 'check', address: '[::1]:5901' }));
+  expect(calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop').map((call: any) => call.payload.command.desktop)).toEqual([{ address: '[::1]:5901' }]);
+});
+
 test('Computer Use bridge and local emergency controls use the shared native IPC', async ({ page }) => {
   await page.addInitScript(() => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;

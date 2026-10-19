@@ -237,6 +237,26 @@ async fn open_network_link(url: String) -> Result<(), String> {
     }
     open_browser(parsed.as_str()).await
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DesktopGuide {
+    WindowsDownload,
+    WindowsSettings,
+    MacSharing,
+}
+#[tauri::command]
+async fn open_desktop_guide(guide: DesktopGuide) -> Result<(), String> {
+    let url = match guide {
+        DesktopGuide::WindowsDownload => "https://uvnc.com/downloads/ultravnc.html",
+        DesktopGuide::WindowsSettings => {
+            "https://uvnc.com/docs/ultravnc-server/49-ultravnc-server-configuration.html"
+        }
+        DesktopGuide::MacSharing => {
+            "https://support.apple.com/guide/mac-help/turn-screen-sharing-on-or-off-mh11848/mac"
+        }
+    };
+    open_browser(url).await
+}
 async fn open_browser(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let mut command = tokio::process::Command::new("explorer.exe");
@@ -476,6 +496,7 @@ fn main() -> anyhow::Result<()> {
             desktop_service,
             network,
             open_network_link,
+            open_desktop_guide,
             spaces,
             terminals::terminal_open,
             terminals::terminal_input,

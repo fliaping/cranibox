@@ -1429,3 +1429,32 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 其他既有 Linux 服务、目录/文件复制、后台同步、任务/worker/依赖、Computer/Browser Use、桌面/空间集成也均通过；不与远端已有结果累计。Windows/macOS 原生构建和打包成功不代表 GUI、系统权限或实际多物理设备验收。
 
 最终 API 共 **10 份 artifact**：三平台 cranibox 服务端、cranibox-node CLI、cranibox-node-desktop 安装包及 Linux 资源报告。新 Linux 桌面 artifact **12159265408**，未将本节实际使用的旧产品包 **12158731694** 改写为新包。私有 linux-installer-41b8ca6/ci-final.json、ci-correction-artifacts.json、ci-test-summary.json 和三份 ci-correction-*.log 保留完整来源、结果与测试摘要，ci-followup.json 仍保留此前进行中状态；后续仅补交接文档。
+
+## 2026-10-19：Windows/macOS 桌面准备向导收尾
+
+本轮基于 **336df91baed4d6a89b4cc5de8b71f36f8efafde9**，新增 Web/Tauri 共用的三步准备向导：官方说明、回环 RFB 检查、配置核对，再由原有表单明确保存并开启共享。Windows 引导 UltraVNC Server，macOS 引导系统屏幕共享；Tauri 只接受固定文档标识，由 Rust 打开对应官方地址。没有引入新依赖，也没有自动安装提供者、修改系统监听/防火墙或代替用户授予权限。
+
+全部构建、浏览器及运行测试位于指定远端 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户。测试使用隔离配置、端口和进程；本机仅编辑、静态审阅、文件传输和 Git 操作。Web/Tauri 构建、Web 生成资源、cranibox 与原生 debug 构建、fmt 及原生 desktop,custom-protocol all-targets Clippy -D warnings 通过。既有 Vite 大包和依赖 use client 提示保留，未放宽检查。
+
+| 检查 | 最终结果 | 范围 |
+| --- | --- | --- |
+| Web 全量 | **137/137，229.045 秒** | 真实 Rust Web；新向导仅模拟平台状态，RFB 检查使用实际回环夹具 |
+| Tauri 界面全量 | **53/53，117.344 秒** | 模拟 IPC，不是 Windows/macOS GUI 或系统打开链接验收 |
+| 桌面服务后端 | **11/11，无跳过，17.023 秒** | 真实 Rust 节点、隔离 X11/wayvnc 夹具 |
+| 原生传输专项 | **4/4** | desktop,custom-protocol，未打开桌面查看器 |
+
+新增 Web 专项 3/3、客户端专项 2/2 另已通过，范围包含在上述全量，不累加。向导覆盖 IPv4/IPv6 回环地址校验、无效地址不发请求、连接失败保留输入、重试、异步离页丢弃、文档打开错误、核对不启用与保存前再次检查、启用后授权入口。只读取 RFB greeting，不代表 VNC 认证、画面或输入已验证；没有保存 VNC 密码。
+
+### 失败与界面检查
+
+首轮 Web 全量 **136 通过、1 失败，296.436 秒**：旧平台用例仍查找替换前的 Windows/macOS 提示文案。将断言改为新向导标题，同时保留 Linux Wayland 提示和手动配置断言；最终全量 137/137。首轮日志和 web-initial-test-results 的 trace 单独保留，没有被重跑清除。首次元素截图上方被固定顶栏覆盖，修正截图前滚动位置后重新生成；该问题来自截取区域，不作为产品通过证据。
+
+检查 375×1000、812×375、1440×1000 与明暗主题无横向溢出，文档操作高度至少 44 像素；覆盖 reduced-motion 与步骤焦点。保留两平台 × 375/1440 × 明暗主题的八份截图；人工审阅窄屏 Windows 亮色、最终 macOS 桌面暗色截图，后者确认顶栏不再遮挡。它们是 Linux 浏览器中的平台夹具，不能作为实机 OS 验收。
+
+### 版本、清理与后续
+
+本轮未重新运行全部 Rust 工作区，也没有重装 Linux 发布包；前节的 185 项、7/7 CI 与安装包结论继续绑定各自旧提交。新提交 CI 必须核对新的完整 headSha。Windows/macOS 提供者自动安装和托管、实际桌面权限/认证/画面/输入、自启/休眠，以及跨物理设备仍待验收；WSL2 不代表原生 Windows。原始需求、实现边界与 P0/P1/P2 在[交接入口](implementation-handoff-2026-10-18.md)汇总。
+
+最终远端容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID **node-82bf96c6f15d4f00923656f7877b8609** 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键盘/剪贴板。
+
+私有证据 **/config/validation-artifacts/desktop-platform-guide-20261019** 保存各轮测试/构建日志、结果 JSON、首次失败 trace、八份平台截图、最终文件与四个程序 SHA-256 清单 final-source-manifest.json，以及 final-health.json。源码、测试、生成资源和交接文档在提交前与远端快照逐项核对；配置、凭据、截图、辅助脚本和原始日志不提交 Git。

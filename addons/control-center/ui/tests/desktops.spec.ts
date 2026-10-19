@@ -1,5 +1,86 @@
 import { expect, test, type Page } from '@playwright/test';
 
+for (const platform of ['windows', 'macos']) test(platform + ' desktop setup checks the real local greeting before reviewing sharing', async ({ page }) => {
+  const commands: any[] = [], errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'status') { await route.fulfill({ json: { platform, supported: false, display: '', installed: false, port: 5900 } }); return; }
+    await route.continue();
+  });
+  await page.goto('/#/desktop');
+  await api(page, { operation: 'desktop', desktop: null });
+  await page.reload();
+  const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
+  const guide = sharing.getByRole('region', { name: 'Desktop sharing setup guide', exact: true });
+  await expect(guide).toContainText(platform === 'windows' ? 'UltraVNC Server' : 'macOS Screen Sharing');
+  await expect(guide).toContainText('does not yet install or manage VNC');
+  await expect(guide.getByRole('link').first()).toHaveAttribute('rel', 'noopener noreferrer');
+  if (platform === 'macos') await expect(guide).toContainText('does not change the system service');
+  else await expect(guide).toContainText('native Windows client');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const viewport of [{ width: 375, height: 1000 }, { width: 812, height: 375 }, { width: 1440, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(await guide.getByRole('link').first().evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+      if ([375, 1440].includes(viewport.width)) {
+        await guide.evaluate(element => window.scrollTo(0, scrollY + element.getBoundingClientRect().top - (document.querySelector('.topbar')?.getBoundingClientRect().height || 0) - 16));
+        await guide.screenshot({ path: '/tmp/cranibox-' + platform + '-setup-' + viewport.width + '-' + theme + '.png', animations: 'disabled' });
+      }
+    }
+  }
+  await guide.getByRole('button', { name: 'Server ready, check port', exact: true }).click();
+  const address = guide.getByLabel('VNC address to check', { exact: true });
+  await expect(address).toBeFocused();
+  const check = guide.getByRole('button', { name: 'Check VNC server', exact: true });
+  await address.fill('192.168.1.10:5900'); await check.click();
+  await expect(guide.getByRole('alert')).toContainText('127.0.0.1:port');
+  expect(commands.filter(command => command.operation === 'check')).toEqual([]);
+  await address.fill('127.0.0.1:19111'); await check.click();
+  await expect(guide.getByRole('alert')).toBeVisible();
+  await expect(address).toHaveValue('127.0.0.1:19111');
+  await address.fill('127.0.0.1:19110'); await check.click();
+  await expect(guide.getByRole('status')).toContainText('VNC greeting received');
+  await expect(guide.getByRole('heading')).toBeFocused();
+  await expect(guide).toContainText('does not verify authentication');
+  expect((await api(page, { operation: 'list' })).desktop).toBeNull();
+  await guide.getByRole('button', { name: 'Review and enable sharing', exact: true }).click();
+  const form = sharing.getByRole('form', { name: 'Review desktop sharing', exact: true });
+  await expect(form.getByLabel('Local VNC address', { exact: true })).toHaveValue('127.0.0.1:19110');
+  await expect(form.getByLabel('Local VNC address', { exact: true })).toBeFocused();
+  expect((await api(page, { operation: 'list' })).desktop).toBeNull();
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  try {
+    await expect(guide).toContainText('Sharing is enabled for this address');
+    expect(commands.filter(command => command.operation === 'check')).toEqual([{ operation: 'check', address: '127.0.0.1:19111' }, { operation: 'check', address: '127.0.0.1:19110' }, { operation: 'check', address: '127.0.0.1:19110' }]);
+    expect(commands.some(command => ['install', 'start', 'credentials'].includes(command.operation))).toBe(false);
+    await guide.getByRole('button', { name: 'Open device access', exact: true }).click();
+    await expect(page).toHaveURL(/#\/nodes$/);
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('leaving a pending platform setup check cannot open the sharing review', async ({ page }) => {
+  let started!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; }), delayed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation === 'status') { await route.fulfill({ json: { platform: 'windows', supported: false, display: '', port: 5900 } }); return; }
+    if (command.operation === 'check') { started(); await delayed; await route.fulfill({ json: { ready: true } }); return; }
+    await route.continue();
+  });
+  await page.goto('/#/desktop');
+  const guide = page.getByRole('region', { name: 'Desktop sharing setup guide', exact: true });
+  await guide.getByRole('button', { name: 'Server ready, check port', exact: true }).click();
+  await guide.getByRole('button', { name: 'Check VNC server', exact: true }).click(); await ready;
+  await expect(guide.getByRole('button', { name: 'Checking…', exact: true })).toBeDisabled();
+  await page.goto('/#/nodes'); release(); await page.goto('/#/desktop');
+  await expect(guide.getByRole('button', { name: 'Server ready, check port', exact: true })).toBeVisible();
+  await expect(page.getByRole('form', { name: 'Review desktop sharing', exact: true })).toHaveCount(0);
+});
+
 async function api(page: Page, command: Record<string, unknown>) {
   return page.evaluate(async command => {
     const response = await fetch('/api/peers', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': (window as any).workspaceWeb.csrf }, body: JSON.stringify(command) });
@@ -451,7 +532,7 @@ test('platform guidance keeps existing VNC setup available on Windows macOS and 
     await page.goto('/#/desktop');
     await page.reload();
     const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'macOS:' : 'Windows:');
+    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'Enable macOS Screen Sharing' : 'Prepare UltraVNC Server on Windows');
     await expect(section.getByRole('button', { name: 'Start and share desktop', exact: true })).toHaveCount(0);
     const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
     await sharing.getByRole('button', { name: 'Configure sharing', exact: true }).click();
