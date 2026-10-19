@@ -228,6 +228,11 @@ impl Identity {
     pub fn noise_private(&self) -> &[u8; 32] {
         &self.noise_private
     }
+    /// The Ed25519 signing seed, used as the iroh `SecretKey` so the iroh EndpointId
+    /// equals the pinned signing key. Stays in process; never serialize it.
+    pub fn signing_seed(&self) -> [u8; 32] {
+        self.signing.to_bytes()
+    }
     pub fn sign(&self, message: &[u8]) -> String {
         hex(&self.signing.sign(message).to_bytes())
     }

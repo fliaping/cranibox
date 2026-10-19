@@ -99,6 +99,9 @@ pub(super) struct Spec {
     pub tailscale_discovery_ports: Vec<u16>,
     /// Loopback ports are stable across restarts; destinations come from live discovery.
     pub forwards: BTreeMap<String, u16>,
+    /// C5 iroh section (`cranibox_contracts::config::IROH_SECTION`), owned by WS1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iroh: Option<cranibox_contracts::config::IrohConfig>,
 }
 impl Default for Spec {
     fn default() -> Self {
@@ -108,6 +111,7 @@ impl Default for Spec {
             tailscale_discovery_port: None,
             tailscale_discovery_ports: Vec::new(),
             forwards: BTreeMap::new(),
+            iroh: None,
         }
     }
 }
