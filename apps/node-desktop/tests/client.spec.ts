@@ -1,5 +1,103 @@
 import { expect, test } from '@playwright/test';
 
+test('native runtime setup reviews a fresh plan through shared IPC and does not retry an expired confirmation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog: any = { spaces: [], setup: null, platform: 'macos', default_image: 'local:test' };
+    let reviews = 0;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command !== 'spaces') return previous(command, payload);
+      (window as any).calls.push(structuredClone({ command, payload }));
+      const action = payload.command;
+      if (action.operation === 'preflight') return { ready: false, detail: 'Colima is not installed.', notice: '', actions: ['colima_install'], engine: null };
+      if (action.operation === 'plan') return { action: action.action, plan_id: 'native-space-review-' + ++reviews, expires_in_seconds: 600, summary: 'Install Colima.', commands: 'brew install colima docker', requires_homebrew: true };
+      if (action.operation === 'install') {
+        if (action.plan_id === 'native-space-review-1') throw Error('Setup plan expired. Review the setup action again.');
+        catalog.setup = { action: 'colima_install', phase: 'check_required', error: null };
+      }
+      return structuredClone(catalog);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
+  const section = page.getByRole('region', { name: '虚拟空间', exact: true });
+  await section.getByRole('button', { name: '新建空间', exact: true }).click();
+  await section.getByRole('button', { name: '检测环境', exact: true }).click();
+  const prepare = section.getByRole('button', { name: '安装 Colima 与 Docker CLI', exact: true });
+  await prepare.click();
+  await expect(section.getByRole('region', { name: '检查安装操作', exact: true })).toBeFocused();
+  await section.getByRole('button', { name: '确认并执行安装', exact: true }).click();
+  const setupError = section.getByRole('alert').filter({ hasText: 'Setup plan expired' });
+  await expect(setupError).toContainText('expired');
+  await expect(setupError).toBeFocused();
+  await expect(section.getByRole('button', { name: '确认并执行安装', exact: true })).toHaveCount(0);
+  await prepare.click();
+  await section.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(prepare).toBeFocused();
+  await prepare.click();
+  // Only the current plan reaches IPC; the cancelled plan is never executed.
+  await section.getByRole('button', { name: '确认并执行安装', exact: true }).click();
+  const status = section.locator('.spaces-setup-status');
+  await expect(status).toContainText('安装命令已结束');
+  await expect(status).toBeFocused();
+  await expect(section.getByLabel('空间名称', { exact: true })).toHaveCount(0);
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'spaces' && call.payload.command.operation === 'install'));
+  expect(calls.map((call: any) => call.payload.command)).toEqual([
+    { operation: 'install', action: 'colima_install', plan_id: 'native-space-review-1' },
+    { operation: 'install', action: 'colima_install', plan_id: 'native-space-review-3' },
+  ]);
+});
+
+for (const platform of ['windows', 'macos']) test('native ' + platform + ' desktop setup opens fixed guides and reviews sharing through IPC', async ({ page }) => {
+  await page.addInitScript(platform => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: null as any };
+    let failLink = true, checks = 0;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'open_desktop_guide') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (failLink) { failLink = false; throw Error('System browser unavailable'); }
+        return;
+      }
+      if (command === 'desktop_service') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (payload.command.operation === 'check') return ++checks === 1 ? { ready: false, error: 'Start the local server first' } : { ready: true };
+        return { platform, supported: false, display: '', installed: false, port: 5900 };
+      }
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        if (payload.command.operation === 'desktop') catalog.desktop = payload.command.desktop;
+        return structuredClone(catalog);
+      }
+      return previous(command, payload);
+    };
+  }, platform);
+  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const guide = page.getByRole('region', { name: '桌面共享准备向导', exact: true });
+  const official = guide.getByRole('link').first();
+  await official.click(); await expect(guide.getByRole('alert')).toHaveText('System browser unavailable');
+  await official.click(); await expect(guide.getByRole('alert')).toHaveCount(0);
+  await guide.getByRole('button', { name: '服务已准备，检查端口', exact: true }).click();
+  await guide.getByLabel('待检查的 VNC 地址', { exact: true }).fill('[::1]:5901');
+  await guide.getByRole('button', { name: '检查 VNC 服务', exact: true }).click();
+  await expect(guide.getByRole('alert')).toContainText('Start the local server');
+  await expect(guide.getByLabel('待检查的 VNC 地址', { exact: true })).toHaveValue('[::1]:5901');
+  await guide.getByRole('button', { name: '检查 VNC 服务', exact: true }).click();
+  await expect(guide.getByRole('status')).toContainText('[::1]:5901');
+  await guide.getByRole('button', { name: '核对并开启共享', exact: true }).click();
+  const form = page.getByRole('form', { name: '核对桌面共享配置', exact: true });
+  await expect(form.getByLabel('本机 VNC 地址', { exact: true })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop'))).toBe(false);
+  await form.getByRole('button', { name: '保存并开启共享', exact: true }).click();
+  await guide.getByRole('button', { name: '前往设备授权', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备网络', exact: true })).toHaveAttribute('aria-current', 'page');
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'open_desktop_guide').map((call: any) => call.payload)).toEqual([{ guide: platform === 'windows' ? 'windows_download' : 'mac_sharing' }, { guide: platform === 'windows' ? 'windows_download' : 'mac_sharing' }]);
+  expect(calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status').map((call: any) => call.payload.command)).toEqual(Array(3).fill({ operation: 'check', address: '[::1]:5901' }));
+  expect(calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop').map((call: any) => call.payload.command.desktop)).toEqual([{ address: '[::1]:5901' }]);
+});
+
 test('Computer Use bridge and local emergency controls use the shared native IPC', async ({ page }) => {
   await page.addInitScript(() => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
@@ -536,6 +634,34 @@ test('reviewed project copies use shared native IPC and require explicit approva
   expect(errors).toEqual([]);
 });
 
+test('archived spaces can change image and retry through native IPC without a relay', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const space = { id: 'archived-space', name: '保留数据的空间', provider: 'colima', image: 'old:image', pull_policy: 'always', node: 'same-node', phase: 'archived', error: null, volume: 'same-volume', ports: {} };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'spaces') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'resume') Object.assign(space, { image: payload.command.image, pull_policy: payload.command.pull_policy, phase: 'ready' });
+        return structuredClone({ spaces: [space], setup: null, platform: 'macos', default_image: 'old:image' });
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
+  const card = page.getByRole('article', { name: '保留数据的空间', exact: true });
+  await card.getByRole('button', { name: '修改镜像', exact: true }).click();
+  const form = card.getByRole('form', { name: '修改空间镜像', exact: true });
+  await form.getByLabel('镜像地址', { exact: true }).fill('cranibox-current:test');
+  await form.getByLabel('镜像拉取策略', { exact: true }).selectOption('never');
+  await form.getByRole('button', { name: '保存并重试', exact: true }).click();
+  await expect(card.getByRole('status')).toHaveText('可用');
+  await expect(card).toBeFocused();
+  await expect(card).toContainText('same-node');
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'spaces' && call.payload.command.operation === 'resume').map((call: any) => call.payload.command)).toEqual([{ operation: 'resume', id: 'archived-space', image: 'cranibox-current:test', pull_policy: 'never' }]);
+});
+
 test('virtual spaces use shared native IPC and open their enrolled terminal without a relay', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
@@ -627,7 +753,7 @@ test.beforeEach(async ({ page }) => {
       if (command === 'peers') return { nodes: [{ id: 'laptop', name: '我的笔记本', online: true, os: 'macos', mesh_group: 'personal', terminal_sessions: false }, { id: 'desktop', name: '开发主机', online: true, os: 'linux', mesh_group: 'personal', terminal_sessions: true }] };
       if (command === 'mcp_config') {
         if ((window as any).failMcp) throw Error('无法生成 MCP 配置，请重试');
-        if ((window as any).delayMcp) await new Promise(resolve => setTimeout(resolve, 250));
+        if ((window as any).delayMcp) await new Promise<void>(resolve => { (window as any).releaseMcp = resolve; });
         return { mcpServers: { 'cranibox-devices': { command: '/apps/cranibox-node-desktop', args: ['mcp', '--config', '/private/settings.json'] }, ...(payload?.includeRuns ? { 'cranibox-runs': { command: '/apps/cranibox-node-desktop', args: ['--config', '/private/settings.json', 'peer', 'runs', 'mcp'] } } : {}) } };
       }
       if (command === 'projects') {
@@ -1012,6 +1138,7 @@ test('Agent execution MCP is opt-in, clears stale config and fits small screens'
   await option.check();
   await expect(page.getByRole('button', { name: '复制配置', exact: true })).toBeDisabled();
   await expect(config).toHaveValue('');
+  await page.evaluate(() => { (window as any).releaseMcp(); });
   await expect(config).toHaveValue(/cranibox-runs/);
   const value = JSON.parse(await config.inputValue());
   expect(value.mcpServers['cranibox-runs'].args).toEqual(['--config', '/private/settings.json', 'peer', 'runs', 'mcp']);
@@ -1124,7 +1251,7 @@ test('shared incoming access uses native IPC with explicit terminal permission',
   await dialog.getByRole('button', { name: '已保存，关闭', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'direct_peers' && c.payload.command.operation === 'grant'));
-  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false }, require_verified: true } } }]);
+  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, activity: false, spaces: false }, require_verified: true } } }]);
   page.once('dialog', dialog => dialog.accept());
   await panel.getByRole('button', { name: '撤销授权 another-desktop', exact: true }).click();
   await expect(panel.getByLabel('已授权设备', { exact: true })).toContainText('尚未授权其他设备');
@@ -1283,10 +1410,20 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
       output(bytes.subarray(0, 3)); output(bytes.subarray(3));
     }
     function text(value: string) { frame(0, new TextEncoder().encode(value)); }
+    (window as any).replyClipboard = (value?: string) => text(value ?? 'clipboard,' + clipboard);
     function picture() {
       const image = Uint8Array.from(atob(images[typed ? 1 : 0]), char => char.charCodeAt(0));
       const bytes = new Uint8Array(6 + image.length); bytes.set([3, 0, 0, typed ? 2 : 1, 0, 0]); bytes.set(image, 6); frame(1, bytes);
     }
+    (window as any).stallPicture = () => {
+      const decode = window.createImageBitmap;
+      window.createImageBitmap = (async (...args: Parameters<typeof decode>) => {
+        window.createImageBitmap = decode;
+        const bitmap = await decode(...args);
+        return new Promise<ImageBitmap>(resolve => { (window as any).finishPicture = () => resolve(bitmap); });
+      }) as typeof decode;
+      picture();
+    };
     const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: { address: '127.0.0.1:8082', protocol: 'selkies' } };
     internals.invoke = async (command: string, payload: any) => {
       if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: false, error: null, quit_requested: false };
@@ -1317,7 +1454,7 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
           if (value.startsWith('SETTINGS,')) { text(JSON.stringify({ type: 'stream_resolution', width: 160, height: 100 })); picture(); }
           if (value === 'kd,97' && !typed) { typed = true; picture(); }
           if (value.startsWith('cw,')) { clipboard = value.slice(3); text('clipboard,' + clipboard); }
-          if (value === 'cr') text('clipboard,' + clipboard);
+          if (value === 'cr' && !(window as any).holdClipboardFetch) text('clipboard,' + clipboard);
         }
         return;
       }
@@ -1346,9 +1483,58 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
   expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([]);
   await panel.getByRole('button', { name: '复制到本机', exact: true }).click();
   expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([unicode]);
+  // Native IPC can deliver controls while a JPEG decode is still pending.
+  // Clipboard changes must reach the UI without waiting for that bitmap.
+  await page.evaluate(() => (window as any).stallPicture());
+  await expect.poll(() => page.evaluate(() => typeof (window as any).finishPicture)).toBe('function');
+  const updated = '解码期间的新剪贴板 👋\ncurrent clipboard';
+  try {
+    await page.evaluate(value => (window as any).replyClipboard('clipboard,' + btoa(String.fromCharCode(...new TextEncoder().encode(value)))), updated);
+    await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(updated);
+    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
+  } finally { await page.evaluate(() => (window as any).finishPicture()); }
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
   await section.getByRole('button', { name: '允许输入', exact: true }).click();
   await expect(panel.getByRole('button', { name: '发送文字', exact: true })).toBeDisabled();
   await panel.getByRole('button', { name: '获取远端文字', exact: true }).click();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  await expect(panel.getByRole('status')).toHaveText('已收到远端文字。确认内容后可复制到本机。');
+  await page.clock.install({ time: new Date('2026-10-19T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-19T12:00:01Z'));
+  await page.evaluate(() => { (window as any).holdClipboardFetch = true; });
+  const fetch = panel.getByRole('button', { name: '获取远端文字', exact: true });
+  await fetch.click();
+  const pending = panel.getByRole('button', { name: '正在获取…', exact: true });
+  await expect(pending).toBeDisabled(); await expect(pending).toHaveAttribute('aria-busy', 'true');
+  await page.clock.fastForward(9999); await expect(pending).toBeDisabled();
+  await page.clock.fastForward(1);
+  await expect(panel.getByRole('alert')).toContainText('10 秒内未收到远端文字');
+  await expect(fetch).toBeEnabled();
+  await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
+  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
+  // A late response with identical text must clear the timeout too.
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(panel.getByRole('alert')).toHaveCount(0); await expect(fetch).toBeEnabled();
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await page.evaluate(() => (window as any).replyClipboard());
+  await expect(fetch).toBeEnabled();
+  await page.clock.fastForward(10_001); await expect(panel.getByRole('alert')).toHaveCount(0);
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await page.evaluate(() => (window as any).replyClipboard('clipboard,%%%%'));
+  await expect(fetch).toBeEnabled(); await expect(panel.getByRole('alert')).toContainText('已忽略');
+  await page.clock.fastForward(10_001); await expect(panel.getByRole('alert')).not.toContainText('10 秒');
+  await fetch.click();
+  await page.clock.fastForward(10_000); await expect(panel.getByRole('alert')).toContainText('10 秒内未收到远端文字');
+  await page.evaluate(() => (window as any).replyClipboard('clipboard,'));
+  await expect(fetch).toBeEnabled(); await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue('');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await fetch.click(); await expect(pending).toBeDisabled();
+  await section.getByRole('button', { name: '剪贴板', exact: true }).click();
+  await page.clock.fastForward(10_001);
+  await section.getByRole('button', { name: '剪贴板', exact: true }).click();
+  await expect(fetch).toBeEnabled(); await expect(panel.getByRole('alert')).toHaveCount(0);
+  await page.evaluate(() => (window as any).replyClipboard());
   await expect(panel.getByLabel('远端剪贴板', { exact: true })).toHaveValue(unicode);
   await page.evaluate(() => {
     navigator.clipboard.writeText = () => new Promise((_resolve, reject) => { (window as any).rejectClipboardCopy = reject; });
@@ -1477,6 +1663,76 @@ test('the native desktop channel completes RFB, acknowledges frames and releases
   expect(await page.evaluate(() => (window as any).calls.find((call: any) => call.command === 'desktop_open').payload.options)).toEqual({ node: 'own-device', local: true });
   expect(await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_ack').length)).toBeGreaterThan(3);
   expect(errors).toEqual([]);
+});
+
+test('existing desktop discovery reviews and enables sharing through native IPC', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const catalog = { node_id: 'own-device', routes: [], grants: [], desktop: null as any };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'desktop') catalog.desktop = payload.command.desktop;
+        return structuredClone(catalog);
+      }
+      if (command === 'desktop_service') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'discover') return { services: [{ address: '127.0.0.1:8082', protocol: 'selkies', configured: false }], checked: 4 };
+        if (payload.command.operation === 'check') return { ready: true };
+        return { platform: 'linux', provider: 'wayvnc', supported: false, wayland: true, selkies_wayland: true, installed: true, display: '', port: 5900 };
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const discovery = page.getByRole('region', { name: '已有桌面服务', exact: true });
+  await discovery.getByRole('button', { name: '检测已有服务', exact: true }).click();
+  await discovery.getByRole('button', { name: '核对 Selkies · 127.0.0.1:8082', exact: true }).click();
+  const form = page.getByRole('form', { name: '核对桌面共享配置', exact: true });
+  await expect(form.getByLabel('本机 Selkies 地址', { exact: true })).toHaveValue('127.0.0.1:8082');
+  await expect(form.getByLabel('本机 Selkies 地址', { exact: true })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop'))).toBe(false);
+  await form.getByRole('button', { name: '取消', exact: true }).click();
+  await discovery.getByRole('button', { name: '核对 Selkies · 127.0.0.1:8082', exact: true }).click();
+  await form.getByRole('button', { name: '保存并开启共享', exact: true }).click();
+  await expect(page.getByRole('region', { name: '本机桌面共享', exact: true })).toContainText('已开启 · Selkies · 127.0.0.1:8082');
+  await expect(discovery.getByText('当前共享配置', { exact: true })).toBeVisible();
+  const calls = await page.evaluate(() => (window as any).calls);
+  expect(calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status').map((call: any) => call.payload.command)).toEqual([{ operation: 'discover' }, { operation: 'check', address: '127.0.0.1:8082', protocol: 'selkies' }]);
+  expect(calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'desktop').map((call: any) => call.payload.command.desktop)).toEqual([{ address: '127.0.0.1:8082', protocol: 'selkies' }]);
+  await page.getByRole('button', { name: '停止共享', exact: true }).click();
+  await expect(discovery.getByText('当前共享配置', { exact: true })).toHaveCount(0);
+});
+
+test('native VNC installation reviews a fresh plan after interrupted work without enabling sharing', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const status = { platform: 'linux', provider: 'x11vnc', supported: true, installed: false, can_install: true, wayland: false, display: ':1', port: 5900, managed: false, running: false, enabled: false, phase: 'failed', installation: { phase: 'interrupted' } };
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: 'own-device', online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') return { node_id: 'own-device', routes: [], grants: [], desktop: null };
+      if (command === 'desktop_service') {
+        (window as any).calls.push({ command, payload });
+        if (payload.command.operation === 'plan') return { id: 'native-vnc-plan', commands: 'apt-get update && apt-get install --yes --no-install-recommends x11vnc', expires_in_seconds: 600 };
+        if (payload.command.operation === 'install') Object.assign(status, { phase: 'installing', installation: { phase: 'running' } });
+        return structuredClone(status);
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  const section = page.getByRole('region', { name: '本机 VNC 服务', exact: true });
+  await expect(section.getByRole('alert')).toContainText('不会自动重复安装');
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status'))).toBe(false);
+  await section.getByRole('button', { name: '准备安装 x11vnc', exact: true }).click();
+  await expect(section.getByText('方案十分钟内有效', { exact: false })).toBeVisible();
+  await section.getByRole('button', { name: '确认并安装', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText('退出节点不会终止系统安装');
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'desktop_service' && call.payload.command.operation !== 'status'));
+  expect(calls.map((call: any) => call.payload.command)).toEqual([{ operation: 'plan' }, { operation: 'install', plan_id: 'native-vnc-plan' }]);
 });
 
 for (const wayland of [false, true]) test('managed desktop service uses native IPC and stays enabled after navigating away' + (wayland ? ' on Wayland' : ' on X11'), async ({ page }) => {
@@ -1627,6 +1883,62 @@ test('collaboration tasks share IPC and retain explicit reports without relay se
   expect(calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.command?.operation === 'create')).toHaveLength(1);
   expect(calls.find((call: any) => call.command === 'direct_peers' && call.payload.command.command?.operation === 'create').payload.command.command.target_session).toBe('44444444-4444-4444-8444-444444444444');
   expect(calls.some((call: any) => call.command === 'configure' || call.command === 'terminal_open')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('Agent background sync and offline reports use shared native IPC without relay settings', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const now = Math.floor(Date.now() / 1000);
+    const state = { owner: 'own-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] as any[] };
+    (window as any).agentOffline = false;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: state.owner, online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        const action = payload.command;
+        if (action.operation === 'list') return { node_id: state.owner, routes: [{ node: 'remote-device', url: 'https://device.example.com', allow_private_http: false }], grants: [] };
+        if (action.operation === 'tasks') return { owner: state.owner, capacity: 128, used: 0, max_attempts: 8, incoming: [], outgoing: [] };
+        if (action.operation === 'agent_sync') {
+          if (action.command.operation === 'configure') {
+            state.revision++; state.enabled = true; state.interval_seconds = action.command.interval_seconds;
+            state.nodes = action.command.nodes.map((node: string) => ({ node, phase: 'online', connection_valid: true, session_count: 1 }));
+          }
+          if (action.command.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach(node => { node.phase = 'paused'; }); }
+          return structuredClone(state);
+        }
+        if (action.operation === 'agent_sessions') return { owner: action.node || state.owner, observed_at: now, lease_secs: 300, capacity: 64, sessions: [{ id: '44444444-4444-4444-8444-444444444444', name: '审查 Agent', harness: 'native-cli', status: 'ready', revision: 1, updated_at: now, expires_at: now + 300 }], ...(action.node && (window as any).agentOffline ? { sync: { state: 'offline', synced_at: now * 1000 } } : {}) };
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: '客户端页面' });
+  await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  const agents = page.getByRole('region', { name: '所有设备的 Agent', exact: true });
+  const settings = agents.locator('.project-sync');
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('后台同步已关闭');
+  await settings.getByRole('button', { name: '设置后台同步', exact: true }).click();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('button', { name: '启用后台同步', exact: true }).click();
+  await expect(settings).toContainText('后台同步已启用');
+  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('后台同步已启用');
+  await settings.getByRole('button', { name: '暂停同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('已暂停');
+  await page.evaluate(() => { (window as any).agentOffline = true; });
+  await agents.getByRole('button', { name: '刷新所有 Agent', exact: true }).click();
+  const remote = agents.getByRole('article', { name: '设备 remote-device', exact: true });
+  await expect(remote).toContainText('离线快照');
+  await expect(remote).toContainText('审查 Agent');
+  await expect(remote.getByRole('button', { name: '委托给此 Agent', exact: true })).toBeDisabled();
+  const commands = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers').map((call: any) => call.payload.command));
+  expect(commands.filter((command: any) => command.operation === 'agent_sync' && command.command.operation === 'configure')).toEqual([{ operation: 'agent_sync', command: { operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 60 } }]);
+  expect(commands.some((command: any) => command.operation === 'project_sync')).toBe(false);
   expect(errors).toEqual([]);
 });
 
@@ -1796,4 +2108,87 @@ test('native dependency delegations use shared controls and keep dependency IDs 
   const card = page.getByRole('article', { name: '任务 测试项目', exact: true }); await expect(card).toContainText('此任务尚未发出'); await expect(card.getByRole('button', { name: '取消等待任务', exact: true })).toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls); const create = calls.find((call: any) => call.command === 'direct_peers' && call.payload.command.command?.operation === 'create').payload.command.command;
   expect(create).toMatchObject({ run_id: '11111111-1111-4111-8111-111111111111', depends_on: ['22222222-2222-4222-8222-222222222222'] }); expect(calls.some((call: any) => call.command === 'configure' || call.command === 'terminal_open')).toBe(false);
+});
+
+test('read-only collaboration records use shared native IPC with source identity and revocation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const owner = 'own-device', now = Math.floor(Date.now() / 1000);
+    const sync = { owner, revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] as any[] };
+    (window as any).activityRevoked = false;
+    (window as any).activityOffline = false;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: owner, online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        const action = payload.command;
+        if (action.operation === 'list') return { node_id: owner, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], grants: [] };
+        if (action.operation === 'tasks') return { owner, capacity: 128, used: 0, max_attempts: 8, incoming: [], outgoing: [] };
+        if (action.operation === 'agent_sessions') return { owner: action.node || owner, observed_at: now, lease_secs: 300, capacity: 64, sessions: [] };
+        if (action.operation === 'activity_sync') {
+          if (action.command.operation === 'configure') {
+            sync.revision++; sync.enabled = !!action.command.nodes.length; sync.interval_seconds = action.command.interval_seconds;
+            sync.nodes = action.command.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', record_count: 1 }));
+          }
+          if (action.command.operation === 'pause') { sync.revision++; sync.enabled = false; sync.nodes.forEach(node => { node.phase = 'paused'; }); }
+          return structuredClone(sync);
+        }
+        if (action.operation === 'activity') {
+          if (action.node && (window as any).activityRevoked) throw Error('只读协作记录授权已撤销');
+          const source = action.node || owner;
+          return { version: 1, owner: source, observed_at: now, digest: 'a'.repeat(64), tasks: [], runs: [], messages: [{ direction: 'outgoing', status: 'received', message: { id: 'message-1', sender: source, recipient: 'other-device', text: source + ' 跨设备记录 <img src=x onerror=window.unsafe=true>', created_at: now } }], ...(action.node && sync.nodes.length ? { sync: { state: (window as any).activityOffline ? 'offline' : 'online', synced_at: now * 1000 } } : {}) };
+        }
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
+  const panel = page.getByRole('region', { name: '跨设备协作记录', exact: true });
+  await panel.getByRole('button', { name: '查看协作记录', exact: true }).click();
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  const kinds = panel.getByRole('group', { name: '记录类型', exact: true });
+  await kinds.getByRole('radio', { name: '任务', exact: true }).check();
+  await expect(panel.locator('.activity-list article')).toHaveCount(0);
+  await kinds.getByRole('radio', { name: '任务', exact: true }).press('ArrowRight');
+  await expect(kinds.getByRole('radio', { name: '消息', exact: true })).toBeChecked();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await panel.getByRole('searchbox', { name: '搜索协作记录', exact: true }).fill('remote-device');
+  await expect(panel.locator('.activity-list article')).toHaveCount(1);
+  await panel.getByRole('searchbox', { name: '搜索协作记录', exact: true }).clear();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await kinds.getByRole('radio', { name: '全部类型', exact: true }).check();
+  const settings = panel.locator('.project-sync');
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('消息正文');
+  await settings.getByRole('button', { name: '设置后台同步', exact: true }).click();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('button', { name: '启用后台同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('1 条记录');
+  await page.evaluate(() => { (window as any).activityOffline = true; });
+  await panel.getByRole('button', { name: '刷新协作记录', exact: true }).click();
+  await expect(panel.getByLabel('记录来源 remote-device', { exact: true })).toContainText('离线快照 · 当前状态未经确认');
+  await settings.getByRole('button', { name: '暂停同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('已暂停');
+  await settings.getByRole('button', { name: '清空快照并关闭同步', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('已关闭协作同步并删除');
+  await expect(panel.getByLabel('记录来源 remote-device', { exact: true })).not.toContainText('离线快照');
+  await panel.locator('.activity-list summary').first().click();
+  expect(await panel.locator('img').count()).toBe(0);
+  await page.evaluate(() => { (window as any).activityRevoked = true; });
+  await panel.getByRole('button', { name: '刷新协作记录', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('授权已撤销');
+  await expect(panel.locator('.activity-list article')).toHaveCount(1);
+  await page.setViewportSize({ width: 375, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'activity'));
+  expect(calls.some((call: any) => call.payload.command.node === 'remote-device')).toBe(true);
+  expect(calls.some((call: any) => call.payload.command.node === null)).toBe(true);
+  const commands = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'activity_sync').map((call: any) => call.payload.command.command));
+  expect(commands.filter((command: any) => command.operation === 'configure')).toEqual([
+    { operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 60 },
+    { operation: 'configure', revision: 2, nodes: [], interval_seconds: 60 },
+  ]);
+  expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain('跨设备记录');
 });

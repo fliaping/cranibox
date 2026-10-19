@@ -191,6 +191,34 @@ pub struct Store {
     owner: String,
 }
 impl Store {
+    pub(super) fn activity(&self) -> Result<Vec<super::activity::Message>> {
+        use super::activity::{Direction, Message};
+        let mailbox = self.read()?;
+        let incoming = mailbox
+            .incoming
+            .values()
+            .filter(|item| !item.archived)
+            .map(|item| Message {
+                direction: Direction::Incoming,
+                message: item.message.clone(),
+                status: if item.acknowledged_at.is_some() {
+                    "acknowledged"
+                } else {
+                    "received"
+                }
+                .into(),
+            });
+        let outgoing = mailbox.outgoing.values().map(|item| Message {
+            direction: Direction::Outgoing,
+            message: item.message.clone(),
+            status: if item.status == "queued" && item.message.expires_at <= now() {
+                "expired".into()
+            } else {
+                item.status.clone()
+            },
+        });
+        Ok(incoming.chain(outgoing).collect())
+    }
     pub fn new(peers: &std::path::Path, owner: String) -> Self {
         Self {
             path: peers.with_file_name("device-messages.json"),

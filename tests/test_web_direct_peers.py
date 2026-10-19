@@ -689,7 +689,7 @@ class WebDirectPeersTests(unittest.TestCase):
         view = self.api(operation='list')
         # Grants also carry signature and pairing metadata; compare what this test is about.
         self.assertEqual([{key: grant[key] for key in ('node', 'permissions')} for grant in view['grants']],
-                         [{'node': self.target, 'permissions': {'exec': True, 'terminals': False, 'projects': False, 'desktop': False, 'computer': False, 'browser': False, 'messages': False, 'spaces': False}}])
+                         [{'node': self.target, 'permissions': {'exec': True, 'terminals': False, 'projects': False, 'desktop': False, 'computer': False, 'browser': False, 'messages': False, 'activity': False, 'spaces': False}}])
         self.assertTrue(view['grants'][0]['signed'])
         self.assertNotIn(secret, json.dumps(view))
         self.assertNotIn(rotated['token'], json.dumps(view))

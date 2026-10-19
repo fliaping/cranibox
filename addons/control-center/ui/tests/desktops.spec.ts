@@ -1,5 +1,86 @@
 import { expect, test, type Page } from '@playwright/test';
 
+for (const platform of ['windows', 'macos']) test(platform + ' desktop setup checks the real local greeting before reviewing sharing', async ({ page }) => {
+  const commands: any[] = [], errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'status') { await route.fulfill({ json: { platform, supported: false, display: '', installed: false, port: 5900 } }); return; }
+    await route.continue();
+  });
+  await page.goto('/#/desktop');
+  await api(page, { operation: 'desktop', desktop: null });
+  await page.reload();
+  const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
+  const guide = sharing.getByRole('region', { name: 'Desktop sharing setup guide', exact: true });
+  await expect(guide).toContainText(platform === 'windows' ? 'UltraVNC Server' : 'macOS Screen Sharing');
+  await expect(guide).toContainText('does not yet install or manage VNC');
+  await expect(guide.getByRole('link').first()).toHaveAttribute('rel', 'noopener noreferrer');
+  if (platform === 'macos') await expect(guide).toContainText('does not change the system service');
+  else await expect(guide).toContainText('native Windows client');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const viewport of [{ width: 375, height: 1000 }, { width: 812, height: 375 }, { width: 1440, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(await guide.getByRole('link').first().evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+      if ([375, 1440].includes(viewport.width)) {
+        await guide.evaluate(element => window.scrollTo(0, scrollY + element.getBoundingClientRect().top - (document.querySelector('.topbar')?.getBoundingClientRect().height || 0) - 16));
+        await guide.screenshot({ path: '/tmp/cranibox-' + platform + '-setup-' + viewport.width + '-' + theme + '.png', animations: 'disabled' });
+      }
+    }
+  }
+  await guide.getByRole('button', { name: 'Server ready, check port', exact: true }).click();
+  const address = guide.getByLabel('VNC address to check', { exact: true });
+  await expect(address).toBeFocused();
+  const check = guide.getByRole('button', { name: 'Check VNC server', exact: true });
+  await address.fill('192.168.1.10:5900'); await check.click();
+  await expect(guide.getByRole('alert')).toContainText('127.0.0.1:port');
+  expect(commands.filter(command => command.operation === 'check')).toEqual([]);
+  await address.fill('127.0.0.1:19111'); await check.click();
+  await expect(guide.getByRole('alert')).toBeVisible();
+  await expect(address).toHaveValue('127.0.0.1:19111');
+  await address.fill('127.0.0.1:19110'); await check.click();
+  await expect(guide.getByRole('status')).toContainText('VNC greeting received');
+  await expect(guide.getByRole('heading')).toBeFocused();
+  await expect(guide).toContainText('does not verify authentication');
+  expect((await api(page, { operation: 'list' })).desktop).toBeNull();
+  await guide.getByRole('button', { name: 'Review and enable sharing', exact: true }).click();
+  const form = sharing.getByRole('form', { name: 'Review desktop sharing', exact: true });
+  await expect(form.getByLabel('Local VNC address', { exact: true })).toHaveValue('127.0.0.1:19110');
+  await expect(form.getByLabel('Local VNC address', { exact: true })).toBeFocused();
+  expect((await api(page, { operation: 'list' })).desktop).toBeNull();
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  try {
+    await expect(guide).toContainText('Sharing is enabled for this address');
+    expect(commands.filter(command => command.operation === 'check')).toEqual([{ operation: 'check', address: '127.0.0.1:19111' }, { operation: 'check', address: '127.0.0.1:19110' }, { operation: 'check', address: '127.0.0.1:19110' }]);
+    expect(commands.some(command => ['install', 'start', 'credentials'].includes(command.operation))).toBe(false);
+    await guide.getByRole('button', { name: 'Open device access', exact: true }).click();
+    await expect(page).toHaveURL(/#\/nodes$/);
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('leaving a pending platform setup check cannot open the sharing review', async ({ page }) => {
+  let started!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; }), delayed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation === 'status') { await route.fulfill({ json: { platform: 'windows', supported: false, display: '', port: 5900 } }); return; }
+    if (command.operation === 'check') { started(); await delayed; await route.fulfill({ json: { ready: true } }); return; }
+    await route.continue();
+  });
+  await page.goto('/#/desktop');
+  const guide = page.getByRole('region', { name: 'Desktop sharing setup guide', exact: true });
+  await guide.getByRole('button', { name: 'Server ready, check port', exact: true }).click();
+  await guide.getByRole('button', { name: 'Check VNC server', exact: true }).click(); await ready;
+  await expect(guide.getByRole('button', { name: 'Checking…', exact: true })).toBeDisabled();
+  await page.goto('/#/nodes'); release(); await page.goto('/#/desktop');
+  await expect(guide.getByRole('button', { name: 'Server ready, check port', exact: true })).toBeVisible();
+  await expect(page.getByRole('form', { name: 'Review desktop sharing', exact: true })).toHaveCount(0);
+});
+
 async function api(page: Page, command: Record<string, unknown>) {
   return page.evaluate(async command => {
     const response = await fetch('/api/peers', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': (window as any).workspaceWeb.csrf }, body: JSON.stringify(command) });
@@ -260,6 +341,89 @@ test('sharing setup validates addresses and retains input for correction', async
   await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
 });
 
+test('existing desktop discovery retries, reviews without sharing and checks again before saving', async ({ page }) => {
+  const commands: Record<string, unknown>[] = [], errors: string[] = [];
+  let attempt = 0;
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation !== 'discover') { await route.continue(); return; }
+    if (++attempt === 1) { await route.fulfill({ status: 503, json: { error: 'Local node is reconnecting. Retry shortly.' } }); return; }
+    await route.fulfill({ json: { checked: 4, services: attempt === 2 ? [] : [
+      { address: '127.0.0.1:19110', protocol: 'vnc', configured: false },
+      { address: '127.0.0.1:19118', protocol: 'selkies', configured: false },
+      { address: '[::1]:5900', protocol: 'vnc', configured: false },
+    ] } });
+  });
+  await page.goto('/#/desktop');
+  const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
+  const discovery = sharing.getByRole('region', { name: 'Existing desktop services', exact: true });
+  const detect = discovery.getByRole('button', { name: 'Detect existing services', exact: true });
+  const review = discovery.getByRole('button', { name: 'Review Selkies · 127.0.0.1:19118', exact: true });
+  const form = sharing.getByRole('form', { name: 'Review desktop sharing', exact: true });
+  expect(commands.some(command => command.operation === 'discover')).toBe(false);
+  await detect.click(); await expect(discovery.getByRole('alert')).toContainText('reconnecting');
+  await detect.click(); await expect(discovery.getByRole('status')).toContainText('No ready services found');
+  await expect(discovery.getByRole('alert')).toHaveCount(0);
+  await detect.click(); await expect(discovery.getByRole('status')).toContainText('Found 3 services');
+  await review.focus(); await page.keyboard.press('Enter');
+  const address = form.getByLabel('Local Selkies address', { exact: true });
+  await expect(address).toHaveValue('127.0.0.1:19118'); await expect(address).toBeFocused();
+  await expect(form.getByLabel('Desktop protocol', { exact: true })).toHaveValue('selkies');
+  await expect(sharing.getByRole('button', { name: 'Stop sharing', exact: true })).toHaveCount(0);
+  expect(commands.some(command => command.operation === 'check')).toBe(false);
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(sharing.getByRole('button', { name: 'Configure sharing', exact: true })).toBeFocused();
+  await review.click();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const viewport of [{ width: 375, height: 1000 }, { width: 768, height: 1000 }, { width: 1024, height: 1000 }, { width: 1440, height: 1000 }, { width: 812, height: 375 }]) {
+    await page.setViewportSize(viewport);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if ([375, 1440].includes(viewport.width)) await sharing.screenshot({ path: '/tmp/cranibox-desktop-discovery-' + viewport.width + '-' + theme + '.png', animations: 'disabled' });
+    }
+  }
+  await address.fill('127.0.0.1:19111');
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  await expect(page.locator('.remote-desktops > [role="alert"]')).toContainText('unavailable');
+  await expect(address).toHaveValue('127.0.0.1:19111');
+  await expect(sharing.getByRole('button', { name: 'Stop sharing', exact: true })).toHaveCount(0);
+  await address.fill('127.0.0.1:19118');
+  await form.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
+  await expect(page.locator('.remote-desktops > [role="status"]')).toContainText('Local sharing enabled');
+  try {
+    await page.getByRole('region', { name: 'Cross-device desktops', exact: true }).getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    await expect(page.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
+    expect(commands.filter(command => command.operation === 'check')).toEqual([
+      { operation: 'check', address: '127.0.0.1:19111', protocol: 'selkies' },
+      { operation: 'check', address: '127.0.0.1:19118', protocol: 'selkies' },
+    ]);
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('leaving discovery ignores its pending result and manual configuration stays available', async ({ page }) => {
+  let started!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const delayed = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/desktop/service', async route => {
+    if (route.request().postDataJSON().operation !== 'discover') { await route.continue(); return; }
+    started(); await delayed;
+    await route.fulfill({ json: { services: [{ address: '127.0.0.1:5900', protocol: 'vnc', configured: false }], checked: 4 } });
+  });
+  await page.goto('/#/desktop');
+  const discovery = page.getByRole('region', { name: 'Existing desktop services', exact: true });
+  await discovery.getByRole('button', { name: 'Detect existing services', exact: true }).click();
+  await ready; await expect(discovery.getByRole('button', { name: 'Detecting…', exact: true })).toBeDisabled();
+  await page.getByRole('region', { name: 'Local desktop sharing', exact: true }).getByRole('button', { name: 'Configure sharing', exact: true }).click();
+  await expect(page.getByLabel('Local VNC address', { exact: true })).toBeVisible();
+  await page.goto('/#/nodes'); release();
+  await page.goto('/#/desktop');
+  await expect(discovery.getByRole('button', { name: 'Detect existing services', exact: true })).toBeEnabled();
+  await expect(discovery.locator('li')).toHaveCount(0);
+});
+
 test('username and password authentication rejects invalid credentials and reconnects privately', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#/desktop');
@@ -301,8 +465,8 @@ test('managed VNC reviews installation and preserves startup settings for recove
   await page.route('**/api/desktop/service', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
     let value: unknown = status;
-    if (command.operation === 'plan') value = { commands: 'pkexec /bin/sh -c \'apt-get install x11vnc\'', summary: 'Install x11vnc from this system’s package repositories.' };
-    if (command.operation === 'install') status.phase = 'installing';
+    if (command.operation === 'plan') value = { id: 'x11-install-plan', expires_in_seconds: 600, commands: 'pkexec /bin/sh -c \'apt-get install x11vnc\'', summary: 'Install x11vnc from this system’s package repositories.' };
+    if (command.operation === 'install') { expect(command.plan_id).toBe('x11-install-plan'); status.phase = 'installing'; }
     if (command.operation === 'start') {
       if (rejectStart) { await route.fulfill({ status: 400, json: { error: 'X11 display is unavailable. Check XAUTHORITY and retry.' } }); return; }
       Object.assign(status, { managed: true, enabled: true, running: true, phase: 'running', display: command.display, port: command.port });
@@ -368,7 +532,7 @@ test('platform guidance keeps existing VNC setup available on Windows macOS and 
     await page.goto('/#/desktop');
     await page.reload();
     const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'macOS:' : 'Windows:');
+    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'Enable macOS Screen Sharing' : 'Prepare UltraVNC Server on Windows');
     await expect(section.getByRole('button', { name: 'Start and share desktop', exact: true })).toHaveCount(0);
     const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
     await sharing.getByRole('button', { name: 'Configure sharing', exact: true }).click();
@@ -386,7 +550,7 @@ test('Selkies Wayland guidance avoids VNC installation and keeps existing server
   });
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-  await expect(section).toContainText('Choose Selkies below');
+  await expect(section).toContainText('choose Selkies in Configure sharing');
   await expect(section.getByRole('button', { name: /installation|Start and share/ })).toHaveCount(0);
   await section.getByRole('button', { name: 'Check VNC environment', exact: true }).click();
   const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
@@ -406,6 +570,50 @@ test('Selkies Wayland guidance avoids VNC installation and keeps existing server
   expect(errors).toEqual([]);
 });
 
+test('VNC installation explains interrupted work and requires a fresh plan after expiry', async ({ page }) => {
+  const commands: any[] = [], errors: string[] = [];
+  const status = { platform: 'linux', supported: true, installed: false, can_install: true, display: ':42', wayland: false, managed: false, enabled: false, running: false, phase: 'failed', port: 5900, error: 'The node restarted during VNC installation.', installation: { phase: 'interrupted' } };
+  let reviews = 0;
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'plan') return route.fulfill({ json: { id: 'plan-' + ++reviews, expires_in_seconds: 600, commands: 'pkexec /bin/sh -c apt-get', summary: 'Install x11vnc' } });
+    if (command.operation === 'install') {
+      if (command.plan_id === 'plan-1') return route.fulfill({ status: 400, json: { error: 'The VNC installation plan changed or expired. Review a new plan.' } });
+      expect(command.plan_id).toBe('plan-2');
+      Object.assign(status, { phase: 'installing', error: null, installation: { phase: 'running' } });
+    }
+    await route.fulfill({ json: status });
+  });
+  await page.goto('/#/desktop');
+  const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
+  await expect(section.getByRole('alert')).toContainText('Installation will not repeat automatically');
+  await page.reload();
+  await expect(section.getByRole('alert')).toContainText('Check your package manager');
+  expect(commands.every(command => command.operation === 'status')).toBe(true);
+  const prepare = section.getByRole('button', { name: 'Prepare x11vnc installation', exact: true });
+  await prepare.click();
+  await expect(section.getByLabel('Review VNC installation')).toContainText('valid for ten minutes');
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await section.screenshot({ path: '/tmp/cranibox-vnc-install-recovery-' + width + '-' + theme + '.png', animations: 'disabled' });
+    }
+  }
+  await section.getByRole('button', { name: 'Confirm and install', exact: true }).click();
+  await expect(section.getByLabel('Review VNC installation')).toHaveCount(0);
+  await expect(section.getByRole('alert').filter({ hasText: 'expired' })).toBeVisible();
+  await expect(prepare).toBeFocused();
+  await prepare.click();
+  await section.getByRole('button', { name: 'Confirm and install', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText('Exiting the node leaves the system installer running');
+  expect(commands.filter(command => command.operation === 'install')).toEqual([{ operation: 'install', plan_id: 'plan-1' }, { operation: 'install', plan_id: 'plan-2' }]);
+  expect(commands.some(command => command.operation === 'start')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
 test('Wayland sharing reviews wayvnc and retains display output and private credentials', async ({ page }) => {
   const commands: any[] = [], errors: string[] = [];
   const status = { provider: 'wayvnc', package: 'wayvnc', platform: 'linux', supported: true, installed: false, can_install: true, display: 'wayland-0', output: '', wayland: true, username: 'cranibox', managed: false, enabled: false, running: false, phase: 'stopped', port: 5900 };
@@ -414,8 +622,8 @@ test('Wayland sharing reviews wayvnc and retains display output and private cred
   await page.route('**/api/desktop/service', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
     let value: unknown = status;
-    if (command.operation === 'plan') value = { commands: "pkexec /bin/sh -c 'apt-get install wayvnc'", summary: 'Install wayvnc from system repositories.' };
-    if (command.operation === 'install') status.phase = 'installing';
+    if (command.operation === 'plan') value = { id: 'wayland-install-plan', expires_in_seconds: 600, commands: "pkexec /bin/sh -c 'apt-get install wayvnc'", summary: 'Install wayvnc from system repositories.' };
+    if (command.operation === 'install') { expect(command.plan_id).toBe('wayland-install-plan'); status.phase = 'installing'; }
     if (command.operation === 'start') {
       if (rejectStart) { await route.fulfill({ status: 400, json: { error: 'Wayland output is unavailable. Check the wlroots login session.' } }); return; }
       Object.assign(status, { managed: true, enabled: true, running: true, phase: 'running', display: command.display, output: command.output, port: command.port });

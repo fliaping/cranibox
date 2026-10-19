@@ -117,7 +117,7 @@ mod tests {
                 agent::Command::Space {
                     command:
                         spaces::Command::Stop { id }
-                        | spaces::Command::Resume { id }
+                        | spaces::Command::Resume { id, .. }
                         | spaces::Command::Remove { id }
                         | spaces::Command::Credentials { id },
                 } => id,

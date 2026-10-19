@@ -17,13 +17,17 @@ class DesktopServer:
     """Opaque RFB bytes: transport must preserve binary, including non-UTF8."""
     banner = b'RFB 003.008\n'
 
-    def __init__(self):
-        self.listener = socket.socket()
-        self.listener.bind(('127.0.0.1', 0))
+    def __init__(self, host='127.0.0.1', port=0):
+        ipv6 = ':' in host
+        self.listener = socket.socket(socket.AF_INET6 if ipv6 else socket.AF_INET)
+        if ipv6:
+            self.listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        self.listener.bind((host, port))
         self.listener.listen()
-        self.address = '127.0.0.1:' + str(self.listener.getsockname()[1])
+        self.address = ('[' + host + ']' if ipv6 else host) + ':' + str(self.listener.getsockname()[1])
         self.closed = threading.Event()
         self.connections = []
+        self.received = []
         self.active = 0
         threading.Thread(target=self.accept, daemon=True).start()
 
@@ -41,6 +45,7 @@ class DesktopServer:
         try:
             connection.sendall(self.banner)
             while data := connection.recv(65536):
+                self.received.append(data)
                 connection.sendall(data)
         except OSError:
             pass
@@ -110,6 +115,7 @@ class SelkiesServer(DesktopServer):
                 if opcode == 9:
                     send(payload, 10)
                 elif opcode == 1:
+                    self.received.append(payload)
                     send(b'input:' + payload, 1)
         except (OSError, EOFError, StopIteration):
             pass

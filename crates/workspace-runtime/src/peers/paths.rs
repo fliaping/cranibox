@@ -133,6 +133,9 @@ impl Store {
                 );
                 paths.remove(index);
             }
+            if route.url != paths[0].url || route.allow_insecure != paths[0].allow_insecure {
+                self.forget_activity_snapshot(&node)?;
+            }
             route.set_endpoints(paths);
             Ok(())
         })
