@@ -594,7 +594,7 @@ test('Agent background sync is opt-in, persists selection and fits narrow screen
 
 async function activity(page: Page) {
   await tasks(page);
-  const control = { calls: [] as any[], error: '', wrongOwner: false, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], wait: undefined as Promise<void> | undefined };
+  const control = { calls: [] as any[], error: '', wrongOwner: false, sync: undefined as any, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], wait: undefined as Promise<void> | undefined };
   await page.route('**/api/peers', async route => {
     const command = route.request().postDataJSON();
     if (command.operation === 'list') { await route.fulfill({ json: { node_id: 'local-device', routes: control.routes, grants: [] } }); return; }
@@ -605,10 +605,101 @@ async function activity(page: Page) {
     const owner = command.node || 'local-device', now = Math.floor(Date.now() / 1000);
     const task = { id, sender: owner, recipient: 'other-device', title: owner + ' review', description: '<img src=x onerror=window.unsafe=true> Review evidence 中文', created_at: now + 100 };
     const current = { dispatch, state: 'running', progress: 'Source progress', result: null, revision: 3, updated_at: now, questions: [{ id, text: 'Which release?', answer: 'Release 42' }] };
-    await route.fulfill({ json: { version: 1, owner: command.node && control.wrongOwner ? 'wrong-device' : owner, observed_at: now, digest: 'a'.repeat(64), tasks: [{ direction: 'outgoing', task, current, cancel_requested: false }], messages: Array.from({ length: 22 }, (_, index) => ({ direction: 'outgoing', status: 'received', message: { id: 'message-' + index, sender: owner, recipient: 'other-device', text: 'Message evidence ' + index, created_at: now - index } })), runs: [{ scope: { id: 'run-1', owner, name: 'Release collaboration', goal: 'Check every report' }, state: 'open', members: ['other-device'], revision: 1, created_at: now + 99, result: null }] } });
+    await route.fulfill({ json: { version: 1, owner: command.node && control.wrongOwner ? 'wrong-device' : owner, observed_at: now, digest: 'a'.repeat(64), tasks: [{ direction: 'outgoing', task, current, cancel_requested: false }], messages: Array.from({ length: 22 }, (_, index) => ({ direction: 'outgoing', status: 'received', message: { id: 'message-' + index, sender: owner, recipient: 'other-device', text: 'Message evidence ' + index, created_at: now - index } })), runs: [{ scope: { id: 'run-1', owner, name: 'Release collaboration', goal: 'Check every report' }, state: 'open', members: ['other-device'], revision: 1, created_at: now + 99, result: null }], ...(command.node && control.sync !== undefined ? { sync: control.sync } : {}) } });
   });
   return control;
 }
+
+test('collaboration background sync is explicit, keeps conflict edits and can pause or clear snapshots', async ({ page }) => {
+  const control = await activity(page), actions: any[] = [];
+  const state: any = { owner: 'local-device', revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] };
+  let fail = false;
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation !== 'activity_sync') return route.fallback();
+    const action = command.command; actions.push(action);
+    if (action.operation !== 'status' && (fail || action.revision !== state.revision)) return route.fulfill({ status: 400, json: { error: 'Settings changed; review selected devices.' } });
+    if (action.operation === 'configure') { state.revision++; state.enabled = !!action.nodes.length; state.interval_seconds = action.interval_seconds; state.nodes = action.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', record_count: 24, last_success: 1792386000000 })); }
+    if (action.operation === 'pause') { state.revision++; state.enabled = false; state.nodes.forEach((node: any) => { node.phase = 'paused'; }); }
+    return route.fulfill({ json: state });
+  });
+  await page.goto('/#/tasks');
+  const records = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  const settings = records.locator('.project-sync');
+  await expect(settings).toContainText('Background collaboration sync');
+  expect(actions).toHaveLength(0);
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('message content');
+  await expect(settings).toContainText('Sync is off by default');
+  await settings.getByRole('button', { name: 'Set up background sync', exact: true }).click();
+  const save = settings.getByRole('button', { name: 'Enable background sync', exact: true });
+  await expect(save).toBeDisabled();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('combobox', { name: 'Sync interval', exact: true }).selectOption('30');
+  fail = true; await save.click();
+  await expect(settings.getByRole('alert')).toContainText('Settings changed');
+  await expect(settings.getByRole('checkbox', { name: 'remote-device', exact: true })).toBeChecked();
+  await expect(settings.getByRole('combobox', { name: 'Sync interval', exact: true })).toHaveValue('30');
+  fail = false; state.revision++;
+  await settings.getByRole('button', { name: 'Refresh sync status', exact: true }).click();
+  await expect(save).toBeDisabled();
+  await settings.getByRole('button', { name: 'Continue with current version', exact: true }).click();
+  await save.click();
+  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await expect(settings.getByLabel('Device sync status')).toContainText('24 records');
+  expect(actions.filter(action => action.operation === 'configure').at(-1)).toEqual({ operation: 'configure', revision: 1, nodes: ['remote-device'], interval_seconds: 30 });
+  expect(control.calls.every(command => !command.node)).toBe(true); // Background selection does not change the viewed sources.
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1100 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (width === 375 || width === 1440) await settings.screenshot({ path: '/tmp/cranibox-activity-sync-' + width + '-' + theme + '.png' });
+    }
+  }
+  await settings.getByRole('button', { name: 'Pause sync', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('Existing snapshots remain available');
+  await records.getByRole('button', { name: 'Close collaboration records', exact: true }).click();
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await settings.locator(':scope > summary').click();
+  await expect(settings.getByLabel('Device sync status')).toContainText('Paused');
+  await settings.getByRole('button', { name: 'Clear snapshots and turn off sync', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('snapshots were deleted');
+  expect(actions.filter(action => action.operation === 'configure').at(-1)).toEqual({ operation: 'configure', revision: 3, nodes: [], interval_seconds: 30 });
+  await expect(settings.getByRole('button', { name: 'Clear snapshots and turn off sync', exact: true })).toHaveCount(0);
+});
+
+test('offline collaboration snapshots show sync time, reject malformed metadata and clear on denial', async ({ page }) => {
+  const control = await activity(page), syncedAt = 1792386000000;
+  control.sync = { state: 'offline', synced_at: syncedAt };
+  await page.goto('/#/tasks');
+  const records = page.getByRole('region', { name: 'Collaboration records across devices', exact: true });
+  await records.getByRole('button', { name: 'View collaboration records', exact: true }).click();
+  await records.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  const source = records.getByLabel('Record source remote-device', { exact: true });
+  const remote = records.getByRole('article', { name: 'Task: remote-device review', exact: true });
+  await expect(source).toContainText('Offline snapshot · current status unconfirmed');
+  await expect(source.locator('time').last()).toHaveAttribute('datetime', new Date(syncedAt).toISOString());
+  await expect(remote).toBeVisible();
+  await expect(remote.getByRole('button')).toHaveCount(0);
+  for (const sync of [{ state: 'online', synced_at: 0 }, { state: 'offline', synced_at: 'yesterday' }, { state: 'current', synced_at: syncedAt }, { state: 'offline', synced_at: syncedAt, injected: true }]) {
+    control.sync = sync;
+    await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+    await expect(source.getByRole('alert')).toContainText('Invalid collaboration records');
+    await expect(remote).toHaveCount(0);
+  }
+  control.sync = { state: 'online', synced_at: syncedAt, warning: 'Local collaboration snapshot could not be saved.' };
+  await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(source.getByRole('alert')).toContainText('could not be saved');
+  await expect(source).not.toContainText('Local snapshot saved');
+  await expect(remote).toBeVisible();
+  control.error = 'Read collaboration records grant revoked';
+  await records.getByRole('button', { name: 'Refresh collaboration records', exact: true }).click();
+  await expect(source.getByRole('alert')).toContainText('grant revoked');
+  await expect(remote).toHaveCount(0);
+  await expect(source).not.toContainText('Offline snapshot');
+});
 
 test('read collaboration records is an opt-in source view with search, reports and bounded pages', async ({ page }) => {
   const control = await activity(page), errors: string[] = [];

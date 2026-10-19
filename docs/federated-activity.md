@@ -37,10 +37,31 @@ digest 为 Rust 按确定字段顺序序列化 (version, owner, tasks, messages,
 
 读取不改来源账本，也不续期 Agent 登记。损坏账本报错并保留原文，不返回部分成功的空目录。远端错误、撤权或身份不符会清除页面上该来源旧内容；连接设置事件也会清空旧视图并忽略迟到响应。
 
-## 刷新与未实现项
+## 页面刷新与后台同步
 
-页面每 10 秒刷新，最多两个来源并发，同一轮不重叠。隐藏页面、收起面板或离页后停止自动读取；“暂停更新”停止定时读取，手动刷新仍可用。来源选择、搜索词和记录不写浏览器存储；刷新页面后重新选择来源。本轮没有后台或离线协作记录缓存，因此离线不会展示上次内容。
+页面每 10 秒刷新，最多两个来源并发，同一轮不重叠。隐藏页面、收起面板或离页后停止页面自动读取；“暂停更新”停止页面定时读取，手动刷新仍可用。来源选择、搜索词和记录不写浏览器存储；刷新页面后重新选择来源。
 
-这是统一只读视图，不是完整的任务、消息、Run 复制协议。尚未提供远端账本修改、冲突合并、离线写入同步、删除墓碑或跨节点撤权传播。来源已报告的状态不能证明 Agent 进程当前仍在运行；应回到任务/消息入口明确操作。公开 Agent 和项目目录已有各自独立的后台同步设置，与这里的页面刷新分开。
+“后台协作记录同步”是另一套默认关闭的节点设置，由 Rust 节点宿主执行，不依赖页面。先在目标取得独立 activity 授权，再在设置中明确选择最多 32 台已连接设备和 15/30/60/300 秒间隔。该选择允许将目标的任务、消息正文与 Run 完整只读快照保存到本机，可能包含目标与其他发送方的协作内容。仅手动读取、选择页面来源或已有 messages 授权都不会自动开启缓存。项目、公开 Agent 登记及协作记录三类后台同步共用最多四个并发请求。
 
-验证入口：tests/test_federated_activity.py、Rust peers::activity 单元测试、Web tasks.spec.ts/direct-devices.spec.ts 以及 Tauri client.spec.ts。当前轮次结果和平台限制见[功能与验证交接](implementation-handoff-2026-10-18.md)，失败历史保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。
+暂停后台同步保留设备选择与快照，不再开始新的后台请求；手动读取仍可更新已选择设备的快照。取消选择某台设备会删除其快照；“清空快照并关闭同步”删除全部已选协作快照并停用本策略。节点重启后恢复策略，Web/gateway 停止但独立节点仍运行时也能继续。
+
+CLI 先查询当前 revision，再提交设置；以下 revision=0 仅适用于从未配置的策略：
+
+~~~sh
+cranibox-node peer activity-sync
+cranibox-node peer activity-sync --command '{"operation":"configure","revision":0,"nodes":["NODE_B"],"interval_seconds":60}'
+~~~
+
+Web 的同源 POST /api/peers 使用 {"operation":"activity_sync","command":{"operation":"status"}}；Tauri 使用相同管理命令。修改策略需携带当前 revision，冲突必须重新读取并核对，不自动覆盖。pause 操作保留选择；configure 配合空 nodes 数组则清空并停用。
+
+快照位于 peers 配置文件旁的 .activity-snapshots 私有目录，文件以 NodeID 的 SHA-256 命名，采用 0600 权限；绑定接收方、来源、主连接地址、安全设置、凭据路径及内容。更换连接、凭据或移除设备后不能重用旧快照。请求返回时再次检查连接与策略 revision，避免清空、暂停或撤销选择后的迟到响应重新保存正文。
+
+只有网络不可达或网关暂时不可用时才允许读取已选择设备的有效快照，响应额外带 sync.state=offline 和毫秒 synced_at。observed_at、正文与 digest 保持原来源观测值，界面明确显示离线及上次同步时间。成功在线读取使用 sync.state=online；本机保存失败仍显示实时内容，但附 warning 且不宣称保存成功。目标原始响应不允许自行注入 sync 字段；接收端也校验缓存大小、schema、来源和内容摘要。
+
+目标拒绝读取、身份或正文无效会清除相应缓存及页面内容。离线期间无法立即知道远端已撤权；恢复联系后的认证拒绝才触发清除。用户可随时在本机清空快照；只读授权和本地文件权限不提供正文加密或远程擦除能力。
+
+## 未实现项
+
+这是统一只读视图与明确选择的离线快照，尚未提供完整的任务、消息、Run 复制协议、远端账本修改、冲突合并、离线写入同步、删除墓碑或跨节点撤权传播。来源已报告的状态不能证明 Agent 进程当前仍在运行；应回到任务/消息入口明确操作。公开 Agent 和项目目录仍使用各自独立的后台同步策略。
+
+验证入口：tests/test_background_activity_sync.py、tests/test_federated_activity.py、三类共享并发回归 tests/test_background_agent_sync.py、Rust peers::activity 单元测试、Web tasks.spec.ts/direct-devices.spec.ts 以及 Tauri client.spec.ts。当前轮次结果和平台限制见[功能与验证交接](implementation-handoff-2026-10-18.md)，失败历史保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。

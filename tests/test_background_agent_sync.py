@@ -1,5 +1,6 @@
 """Real node-owned public Agent snapshots, independent of browser polling."""
 import http.server
+import hashlib
 import json
 import os
 import subprocess
@@ -192,7 +193,7 @@ class BackgroundAgentSyncTests(unittest.TestCase):
         self.assertIsNone(self.snapshot())
         self.assertEqual(self.sync()['nodes'][0]['phase'], 'connection_changed')
 
-    def test_agent_and_project_pulls_share_four_slots_and_pause_stops_queue(self):
+    def test_agent_project_and_activity_pulls_share_four_slots_and_pause_stops_queue(self):
         release = threading.Event()
         lock = threading.Lock()
         observed = {'active': 0, 'peak': 0, 'started': 0}
@@ -208,6 +209,9 @@ class BackgroundAgentSyncTests(unittest.TestCase):
                 release.wait(timeout=15)
                 value = {'owner': node, 'permissions': {'projects': True}, 'revision': 0, 'projects': []} if projects else {
                     'owner': node, 'observed_at': int(time.time()), 'lease_secs': 300, 'capacity': 64, 'sessions': []}
+                if self.path.endswith('/activity'):
+                    value = {'version': 1, 'owner': node, 'observed_at': int(time.time()), 'tasks': [], 'messages': [], 'runs': [],
+                             'digest': hashlib.sha256(json.dumps([1, node, [], [], []], separators=(',', ':')).encode()).hexdigest()}
                 body = json.dumps(value).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -236,9 +240,11 @@ class BackgroundAgentSyncTests(unittest.TestCase):
             self.api(operation='connect', node=node, url=f'http://127.0.0.1:{server.server_port}', token=self.token)
         self.enable(nodes)
         self.api(operation='project_sync', command={'operation': 'configure', 'revision': 0, 'nodes': nodes, 'interval_seconds': 15})
+        self.api(operation='activity_sync', command={'operation': 'configure', 'revision': 0, 'nodes': nodes, 'interval_seconds': 15})
         until(lambda: observed['active'] == 4)
         self.sync(operation='pause', revision=self.sync()['revision'])
         self.api(operation='project_sync', command={'operation': 'pause', 'revision': 1})
+        self.api(operation='activity_sync', command={'operation': 'pause', 'revision': 1})
         release.set()
         until(lambda: observed['active'] == 0)
         time.sleep(2.2)

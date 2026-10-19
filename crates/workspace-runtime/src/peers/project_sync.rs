@@ -1,4 +1,4 @@
-//! Receiver-owned background pulls of authoritative project and Agent metadata.
+//! Receiver-owned background pulls of authoritative catalogs and collaboration observations.
 //! Membership and a saved route never opt a device into background reads.
 use super::{
     Store,
@@ -25,30 +25,39 @@ pub const MAX_PARALLEL: usize = 4;
 pub enum Kind {
     Projects,
     Agents,
+    Activity,
 }
 impl Kind {
     fn policy(self) -> &'static str {
         match self {
             Self::Projects => "project-sync.json",
             Self::Agents => "agent-sync.json",
+            Self::Activity => "activity-sync.json",
         }
     }
     fn journal(self) -> &'static str {
         match self {
             Self::Projects => "project-sync-state.json",
             Self::Agents => "agent-sync-state.json",
+            Self::Activity => "activity-sync-state.json",
         }
     }
-    fn entries(self) -> &'static str {
+    fn entries(self, value: &Value) -> Option<usize> {
         match self {
-            Self::Projects => "projects",
-            Self::Agents => "sessions",
+            Self::Projects => value["projects"].as_array().map(Vec::len),
+            Self::Agents => value["sessions"].as_array().map(Vec::len),
+            Self::Activity => Some(
+                value["tasks"].as_array()?.len()
+                    + value["messages"].as_array()?.len()
+                    + value["runs"].as_array()?.len(),
+            ),
         }
     }
     fn count(self) -> &'static str {
         match self {
             Self::Projects => "project_count",
             Self::Agents => "session_count",
+            Self::Activity => "record_count",
         }
     }
 }
@@ -221,6 +230,33 @@ fn matches(settings: &Settings, configuration: &Config, node: &str) -> bool {
         .and_then(|route| binding(&configuration.node_id, node, route).ok())
         .is_some_and(|binding| settings.nodes.get(node) == Some(&binding))
 }
+fn purge_changed_activity(
+    path: &Path,
+    configuration: &Config,
+    saved: &Settings,
+    kind: Kind,
+) -> Result<()> {
+    if kind == Kind::Activity {
+        let store = Store::new(path.to_path_buf());
+        for node in saved.nodes.keys() {
+            if !matches(saved, configuration, node) {
+                store.forget_activity_snapshot(node)?;
+            }
+        }
+    }
+    Ok(())
+}
+/// Caller holds the peer lock. Pausing keeps selected snapshots available;
+/// every policy revision invalidates an in-flight read's permission to save.
+pub(super) fn activity_selection(
+    path: &Path,
+    owner: &str,
+    node: &str,
+    binding: &str,
+) -> Result<Option<u64>> {
+    let saved = settings(path, owner, Kind::Activity)?;
+    Ok((saved.nodes.get(node).map(String::as_str) == Some(binding)).then_some(saved.revision))
+}
 fn view(settings: &Settings, configuration: &Config, journal: &Journal, kind: Kind) -> Value {
     json!({
         "owner":settings.owner, "revision":settings.revision, "enabled":settings.enabled,
@@ -252,7 +288,9 @@ pub fn manage_kind(path: &Path, command: Command, kind: Kind) -> Result<Value> {
     let configuration = Config::read(path)?;
     let _guard = config::lock_credentials(&path.with_file_name(kind.policy()))?;
     let mut saved = settings(path, &configuration.node_id, kind)?;
+    let previous = saved.nodes.clone();
     let mut state = journal(path, &configuration.node_id, kind)?;
+    purge_changed_activity(path, &configuration, &saved, kind)?;
     let revision = match &command {
         Command::Status => None,
         Command::Configure { revision, .. } | Command::Pause { revision } => Some(*revision),
@@ -272,7 +310,7 @@ pub fn manage_kind(path: &Path, command: Command, kind: Kind) -> Result<Value> {
         } => {
             interval(interval_seconds)?;
             ensure!(
-                !nodes.is_empty() && nodes.len() <= 32,
+                (kind == Kind::Activity || !nodes.is_empty()) && nodes.len() <= 32,
                 "select one to 32 catalog sync devices"
             );
             let mut bindings = BTreeMap::new();
@@ -293,7 +331,7 @@ pub fn manage_kind(path: &Path, command: Command, kind: Kind) -> Result<Value> {
             }
             saved.nodes = bindings;
             saved.interval_seconds = interval_seconds;
-            saved.enabled = true;
+            saved.enabled = !saved.nodes.is_empty();
         }
         Command::Pause { .. } => saved.enabled = false,
     }
@@ -305,6 +343,14 @@ pub fn manage_kind(path: &Path, command: Command, kind: Kind) -> Result<Value> {
         // Publish the policy before its derived journal. A crash between the
         // writes ignores old outcomes by revision and safely retries reads.
         write(&path.with_file_name(kind.policy()), &saved)?;
+        if kind == Kind::Activity {
+            let store = Store::new(path.to_path_buf());
+            for (node, binding) in previous {
+                if saved.nodes.get(&node) != Some(&binding) {
+                    store.forget_activity_snapshot(&node)?;
+                }
+            }
+        }
         state.nodes.retain(|node, outcome| {
             if saved.nodes.get(node) != Some(&outcome.binding) {
                 return false;
@@ -329,6 +375,7 @@ pub fn pending_kind(path: &Path, kind: Kind) -> Result<Vec<Job>> {
     let configuration = Config::read(path)?;
     let _guard = config::lock_credentials(&path.with_file_name(kind.policy()))?;
     let saved = settings(path, &configuration.node_id, kind)?;
+    purge_changed_activity(path, &configuration, &saved, kind)?;
     if !saved.enabled {
         return Ok(vec![]);
     }
@@ -414,6 +461,7 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
         match kind {
             Kind::Projects => store.background_projects(node, binding).await,
             Kind::Agents => store.background_agents(node, binding).await,
+            Kind::Activity => store.background_activity(node, binding).await,
         }
     })
     .await;
@@ -438,7 +486,7 @@ pub async fn run(path: &Path, job: Job) -> Result<()> {
             Ok(Ok(value)) => {
                 outcome.last_success = outcome.completed_at;
                 outcome.catalog_revision = value["revision"].as_u64();
-                outcome.entry_count = value[kind.entries()].as_array().map(Vec::len);
+                outcome.entry_count = kind.entries(&value);
                 if value["sync"]["warning"].is_string() {
                     Phase::CacheError
                 } else {

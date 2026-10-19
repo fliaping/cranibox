@@ -1,12 +1,13 @@
 export type ActivityTask = { direction: 'incoming' | 'outgoing'; task: { id: string; sender: string; recipient: string; title: string; description: string; created_at: number }; current: { dispatch: string; state: string; progress: string | null; result: string | null; revision: number; updated_at: number; questions?: { id: string; text: string; answer: string | null }[] }; cancel_requested: boolean };
 export type ActivityMessage = { direction: 'incoming' | 'outgoing'; message: { id: string; sender: string; recipient: string; text: string; created_at: number }; status: string };
 export type ActivityRun = { scope: { id: string; owner: string; name: string; goal: string }; members: string[]; state: string; revision: number; created_at: number; result: string | null };
-export type Activity = { version: 1; owner: string; observed_at: number; digest: string; tasks: ActivityTask[]; messages: ActivityMessage[]; runs: ActivityRun[] };
+export type Activity = { version: 1; owner: string; observed_at: number; digest: string; tasks: ActivityTask[]; messages: ActivityMessage[]; runs: ActivityRun[]; sync?: { state: 'online' | 'offline'; synced_at: number; warning?: string } };
 
 /** The Rust host validates the full protocol and digest; also reject an unexpected UI envelope. */
 export function activityCatalog(value: unknown, owner: string, error: string): Activity {
   const item = value as Activity | null;
   if (!item || item.version !== 1 || item.owner !== owner || !Number.isSafeInteger(item.observed_at) || item.observed_at <= 0 || item.observed_at > 253402300799 || typeof item.digest !== 'string' || !/^[a-f0-9]{64}$/.test(item.digest) || !Array.isArray(item.tasks) || item.tasks.length > 128 || !Array.isArray(item.messages) || item.messages.length > 256 || !Array.isArray(item.runs) || item.runs.length > 32) throw new Error(error);
+  if ('sync' in item && (!item.sync || !['online', 'offline'].includes(item.sync.state) || !Number.isSafeInteger(item.sync.synced_at) || item.sync.synced_at <= 0 || item.sync.synced_at > 253402300799000 || item.sync.warning != null && (typeof item.sync.warning !== 'string' || item.sync.warning.length > 4096) || Object.keys(item.sync).some(key => !['state', 'synced_at', 'warning'].includes(key)))) throw new Error(error);
   const seen = new Set<string>();
   const unique = (kind: string, id: unknown) => { const key = kind + ':' + id; if (typeof id !== 'string' || !id || seen.has(key)) return false; seen.add(key); return true; };
   const direction = (value: string, sender: string, recipient: string) => value === 'incoming' ? recipient === owner : value === 'outgoing' && sender === owner;

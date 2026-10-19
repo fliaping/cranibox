@@ -54,6 +54,11 @@ pub enum Command {
         #[arg(long)]
         command: Option<String>,
     },
+    /// Opt in to background read-only collaboration snapshots; activity access is required.
+    ActivitySync {
+        #[arg(long)]
+        command: Option<String>,
+    },
     /// Explicit Agent session registrations; remote targets support list only.
     AgentSessions {
         #[arg(long)]
@@ -399,6 +404,15 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 &path,
                 command,
                 agent_workspace_runtime::peers::project_sync::Kind::Agents,
+            )?);
+        }
+        Command::ActivitySync { command } => {
+            let command =
+                serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
+            client::print(agent_workspace_runtime::peers::project_sync::manage_kind(
+                &path,
+                command,
+                agent_workspace_runtime::peers::project_sync::Kind::Activity,
             )?);
         }
         Command::AgentSessions { node, command } => {

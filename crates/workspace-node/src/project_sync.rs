@@ -26,16 +26,15 @@ impl Service {
                         // Invalid private policy/state fails closed; the operator
                         // sees the error when opening its settings. No secrets log.
                         let Ok(Ok(pending)) = tokio::task::spawn_blocking(move || {
-                                // Broken policy for one catalog must not stop the other.
-                                let projects = project_sync::pending(&configuration).unwrap_or_default();
-                                let agents = project_sync::pending_kind(&configuration, project_sync::Kind::Agents).unwrap_or_default();
+                                // Independent policies share four slots. A broken
+                                // policy cannot stop the other kinds of sync.
+                                let mut queues = [project_sync::Kind::Projects, project_sync::Kind::Agents, project_sync::Kind::Activity]
+                                    .map(|kind| project_sync::pending_kind(&configuration, kind).unwrap_or_default().into_iter());
                                 let mut pending = Vec::new();
-                                let mut projects = projects.into_iter();
-                                let mut agents = agents.into_iter();
                                 loop {
-                                    let project = projects.next(); let agent = agents.next();
-                                    if project.is_none() && agent.is_none() { break; }
-                                    pending.extend(project); pending.extend(agent);
+                                    let before = pending.len();
+                                    for queue in &mut queues { pending.extend(queue.next()); }
+                                    if pending.len() == before { break; }
                                 }
                                 Ok::<_, anyhow::Error>(pending)
                             }).await else { continue; };

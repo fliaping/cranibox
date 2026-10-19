@@ -805,14 +805,14 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 		}
 		return c;
 	}
-	function te(e, t, n) {
+	function P(e, t, n) {
 		if (e == null) return e;
 		var r = [], i = 0;
 		return ee(e, r, "", "", function(e) {
 			return t.call(n, e, i++);
 		}), r;
 	}
-	function P(e) {
+	function F(e) {
 		if (e._status === -1) {
 			var t = e._result, n = t();
 			n.then(function(t) {
@@ -824,7 +824,7 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 		if (e._status === 1) return e._result.default;
 		throw e._result;
 	}
-	var ne = typeof reportError == "function" ? reportError : function(e) {
+	var te = typeof reportError == "function" ? reportError : function(e) {
 		if (typeof window == "object" && typeof window.ErrorEvent == "function") {
 			var t = new window.ErrorEvent("error", {
 				bubbles: !0,
@@ -839,40 +839,40 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 		}
 		console.error(e);
 	};
-	function re(e) {
+	function ne(e) {
 		var t = T.T, n = {};
 		n.types = t === null ? null : t.types, T.T = n;
 		try {
 			var r = e(), i = T.S;
-			i !== null && i(n, r), typeof r == "object" && r && typeof r.then == "function" && r.then(w, ne);
+			i !== null && i(n, r), typeof r == "object" && r && typeof r.then == "function" && r.then(w, te);
 		} catch (e) {
-			ne(e);
+			te(e);
 		} finally {
 			t !== null && n.types !== null && (t.types = n.types), T.T = t;
 		}
 	}
-	function F(e) {
+	function I(e) {
 		var t = T.T;
 		if (t !== null) {
 			var n = t.types;
 			n === null ? t.types = [e] : n.indexOf(e) === -1 && n.push(e);
-		} else re(F.bind(null, e));
+		} else ne(I.bind(null, e));
 	}
-	var I = {
-		map: te,
+	var L = {
+		map: P,
 		forEach: function(e, t, n) {
-			te(e, function() {
+			P(e, function() {
 				t.apply(this, arguments);
 			}, n);
 		},
 		count: function(e) {
 			var t = 0;
-			return te(e, function() {
+			return P(e, function() {
 				t++;
 			}), t;
 		},
 		toArray: function(e) {
-			return te(e, function(e) {
+			return P(e, function(e) {
 				return e;
 			}) || [];
 		},
@@ -881,12 +881,12 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 			return e;
 		}
 	};
-	e.Activity = f, e.Children = I, e.Component = y, e.Fragment = r, e.Profiler = a, e.PureComponent = x, e.StrictMode = i, e.Suspense = l, e.ViewTransition = p, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = T, e.__COMPILER_RUNTIME = {
+	e.Activity = f, e.Children = L, e.Component = y, e.Fragment = r, e.Profiler = a, e.PureComponent = x, e.StrictMode = i, e.Suspense = l, e.ViewTransition = p, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = T, e.__COMPILER_RUNTIME = {
 		__proto__: null,
 		c: function(e) {
 			return T.H.useMemoCache(e);
 		}
-	}, e.addTransitionType = F, e.cache = function(e) {
+	}, e.addTransitionType = I, e.cache = function(e) {
 		return function() {
 			return e.apply(null, arguments);
 		};
@@ -940,7 +940,7 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 				_status: -1,
 				_result: e
 			},
-			_init: P
+			_init: F
 		};
 	}, e.memo = function(e, t) {
 		return {
@@ -948,7 +948,7 @@ var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescr
 			type: e,
 			compare: t === void 0 ? null : t
 		};
-	}, e.startTransition = re, e.unstable_useCacheRefresh = function() {
+	}, e.startTransition = ne, e.unstable_useCacheRefresh = function() {
 		return T.H.useCacheRefresh();
 	}, e.use = function(e) {
 		return T.H.use(e);
@@ -1180,7 +1180,7 @@ var N = T(M), ee = {
 	}]]
 };
 ee.node;
-var te = T(ee), P = {
+var P = T(ee), F = {
 	name: "arrow-up-right",
 	size: 24,
 	node: [["path", {
@@ -1191,8 +1191,8 @@ var te = T(ee), P = {
 		key: "1vkiza"
 	}]]
 };
-P.node;
-var ne = T(P), re = {
+F.node;
+var te = T(F), ne = {
 	name: "arrow-up",
 	size: 24,
 	node: [["path", {
@@ -1203,8 +1203,8 @@ var ne = T(P), re = {
 		key: "x0mq9r"
 	}]]
 };
-re.node;
-var F = T(re), I = {
+ne.node;
+var I = T(ne), L = {
 	name: "bot",
 	size: 24,
 	node: [
@@ -1238,8 +1238,8 @@ var F = T(re), I = {
 		}]
 	]
 };
-I.node;
-var L = T(I), ie = {
+L.node;
+var R = T(L), re = {
 	name: "box",
 	size: 24,
 	node: [
@@ -1257,8 +1257,8 @@ var L = T(I), ie = {
 		}]
 	]
 };
-ie.node;
-var ae = T(ie), oe = {
+re.node;
+var ie = T(re), ae = {
 	name: "boxes",
 	size: 24,
 	node: [
@@ -1312,8 +1312,8 @@ var ae = T(ie), oe = {
 		}]
 	]
 };
-oe.node;
-var se = T(oe), ce = {
+ae.node;
+var oe = T(ae), se = {
 	name: "cable",
 	size: 24,
 	node: [
@@ -1347,8 +1347,8 @@ var se = T(oe), ce = {
 		}]
 	]
 };
-ce.node;
-var le = T(ce), ue = {
+se.node;
+var ce = T(se), le = {
 	name: "check-check",
 	size: 24,
 	node: [["path", {
@@ -1359,8 +1359,8 @@ var le = T(ce), ue = {
 		key: "ke71qq"
 	}]]
 };
-ue.node;
-var R = T(ue), de = {
+le.node;
+var z = T(le), ue = {
 	name: "check",
 	size: 24,
 	node: [["path", {
@@ -1368,8 +1368,8 @@ var R = T(ue), de = {
 		key: "1gmf2c"
 	}]]
 };
-de.node;
-var fe = T(de), pe = {
+ue.node;
+var de = T(ue), fe = {
 	name: "chevron-down",
 	size: 24,
 	node: [["path", {
@@ -1377,8 +1377,8 @@ var fe = T(de), pe = {
 		key: "qrunsl"
 	}]]
 };
-pe.node;
-var z = T(pe), me = {
+fe.node;
+var pe = T(fe), me = {
 	name: "chevron-up",
 	size: 24,
 	node: [["path", {
@@ -3381,23 +3381,23 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 		return null;
 	}
-	var T = Object.assign, E = Symbol.for("react.element"), D = Symbol.for("react.transitional.element"), O = Symbol.for("react.portal"), k = Symbol.for("react.fragment"), A = Symbol.for("react.strict_mode"), j = Symbol.for("react.profiler"), M = Symbol.for("react.consumer"), N = Symbol.for("react.context"), ee = Symbol.for("react.forward_ref"), te = Symbol.for("react.suspense"), P = Symbol.for("react.suspense_list"), ne = Symbol.for("react.memo"), re = Symbol.for("react.lazy"), F = Symbol.for("react.activity"), I = Symbol.for("react.legacy_hidden"), L = Symbol.for("react.memo_cache_sentinel"), ie = Symbol.for("react.view_transition"), ae = Symbol.for("react.recoverable"), oe = Symbol.iterator;
-	function se(e) {
-		return typeof e != "object" || !e ? null : (e = oe && e[oe] || e["@@iterator"], typeof e == "function" ? e : null);
+	var T = Object.assign, E = Symbol.for("react.element"), D = Symbol.for("react.transitional.element"), O = Symbol.for("react.portal"), k = Symbol.for("react.fragment"), A = Symbol.for("react.strict_mode"), j = Symbol.for("react.profiler"), M = Symbol.for("react.consumer"), N = Symbol.for("react.context"), ee = Symbol.for("react.forward_ref"), P = Symbol.for("react.suspense"), F = Symbol.for("react.suspense_list"), te = Symbol.for("react.memo"), ne = Symbol.for("react.lazy"), I = Symbol.for("react.activity"), L = Symbol.for("react.legacy_hidden"), R = Symbol.for("react.memo_cache_sentinel"), re = Symbol.for("react.view_transition"), ie = Symbol.for("react.recoverable"), ae = Symbol.iterator;
+	function oe(e) {
+		return typeof e != "object" || !e ? null : (e = ae && e[ae] || e["@@iterator"], typeof e == "function" ? e : null);
 	}
-	var ce = Symbol.for("react.client.reference");
-	function le(e) {
+	var se = Symbol.for("react.client.reference");
+	function ce(e) {
 		if (e == null) return null;
-		if (typeof e == "function") return e.$$typeof === ce ? null : e.displayName || e.name || null;
+		if (typeof e == "function") return e.$$typeof === se ? null : e.displayName || e.name || null;
 		if (typeof e == "string") return e;
 		switch (e) {
 			case k: return "Fragment";
 			case j: return "Profiler";
 			case A: return "StrictMode";
-			case te: return "Suspense";
-			case P: return "SuspenseList";
-			case F: return "Activity";
-			case ie: return "ViewTransition";
+			case P: return "Suspense";
+			case F: return "SuspenseList";
+			case I: return "Activity";
+			case re: return "ViewTransition";
 		}
 		if (typeof e == "object") switch (e.$$typeof) {
 			case O: return "Portal";
@@ -3406,29 +3406,29 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			case ee:
 				var t = e.render;
 				return e = e.displayName, e ||= (e = t.displayName || t.name || "", e === "" ? "ForwardRef" : "ForwardRef(" + e + ")"), e;
-			case ne: return t = e.displayName || null, t === null ? le(e.type) || "Memo" : t;
-			case re:
+			case te: return t = e.displayName || null, t === null ? ce(e.type) || "Memo" : t;
+			case ne:
 				t = e._payload, e = e._init;
 				try {
-					return le(e(t));
+					return ce(e(t));
 				} catch {}
 		}
 		return null;
 	}
-	var ue = Array.isArray, R = n.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, de = r.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, fe = {
+	var le = Array.isArray, z = n.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ue = r.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, de = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, pe = [], z = -1;
+	}, fe = [], pe = -1;
 	function me(e) {
 		return { current: e };
 	}
 	function he(e) {
-		0 > z || (e.current = pe[z], pe[z] = null, z--);
+		0 > pe || (e.current = fe[pe], fe[pe] = null, pe--);
 	}
 	function ge(e, t) {
-		z++, pe[z] = e.current, e.current = t;
+		pe++, fe[pe] = e.current, e.current = t;
 	}
 	var _e = me(null), ve = me(null), ye = me(null), be = me(null);
 	function xe(e, t) {
@@ -3460,7 +3460,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		t !== n && (ge(ve, e), ge(_e, n));
 	}
 	function we(e) {
-		ve.current === e && (he(_e), he(ve)), be.current === e && (he(be), lh._currentValue = fe);
+		ve.current === e && (he(_e), he(ve)), be.current === e && (he(be), lh._currentValue = de);
 	}
 	var Te, Ee;
 	function De(e) {
@@ -3768,15 +3768,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return e &= -e, 2 < e ? 8 < e ? e & 134217727 ? 32 : 268435456 : 8 : 2;
 	}
 	function gt() {
-		var e = de.p;
+		var e = ue.p;
 		return e === 0 ? (e = window.event, e === void 0 ? 32 : Th(e.type)) : e;
 	}
 	function _t(e, t) {
-		var n = de.p;
+		var n = ue.p;
 		try {
-			return de.p = e, t();
+			return ue.p = e, t();
 		} finally {
-			de.p = n;
+			ue.p = n;
 		}
 	}
 	var vt = Math.random().toString(36).slice(2), yt = "__reactFiber$" + vt, bt = "__reactProps$" + vt, xt = "__reactContainer$" + vt, St = "__reactEvents$" + vt, Ct = "__reactListeners$" + vt, wt = "__reactHandles$" + vt, Tt = "__reactResources$" + vt, Et = "__reactMarker$" + vt, Dt = "__reactLoad$" + vt;
@@ -3986,7 +3986,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (t == null) {
 			if (r != null) {
 				if (n != null) throw Error(i(92));
-				if (ue(r)) {
+				if (le(r)) {
 					if (1 < r.length) throw Error(i(93));
 					r = r[0];
 				}
@@ -4732,16 +4732,16 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (r = e, typeof r == "function") Ni(r) && (s = 1);
 		else if (typeof r == "string") s = Ym(e, n, _e.current) ? 26 : e === "html" || e === "head" || e === "body" ? 27 : 5;
 		else a: switch (r) {
-			case F: return e = Mi(31, n, t, a), e.elementType = F, e.lanes = o, e;
+			case I: return e = Mi(31, n, t, a), e.elementType = I, e.lanes = o, e;
 			case k: return Li(n.children, a, o, t);
 			case A:
 				s = 8, a |= 24;
 				break;
 			case j: return e = Mi(12, n, t, a | 2), e.elementType = j, e.lanes = o, e;
-			case te: return e = Mi(13, n, t, a), e.elementType = te, e.lanes = o, e;
-			case P: return e = Mi(19, n, t, a), e.elementType = P, e.lanes = o, e;
-			case I:
-			case ie: return e = a | 32, e = Mi(30, n, t, e), e.elementType = ie, e.lanes = o, e.stateNode = {
+			case P: return e = Mi(13, n, t, a), e.elementType = P, e.lanes = o, e;
+			case F: return e = Mi(19, n, t, a), e.elementType = F, e.lanes = o, e;
+			case L:
+			case re: return e = a | 32, e = Mi(30, n, t, e), e.elementType = re, e.lanes = o, e.stateNode = {
 				autoName: null,
 				paired: null,
 				clones: null,
@@ -4758,10 +4758,10 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					case ee:
 						s = 11;
 						break a;
-					case ne:
+					case te:
 						s = 14;
 						break a;
-					case re:
+					case ne:
 						s = 16, r = null;
 						break a;
 				}
@@ -5091,8 +5091,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			for (r.status = "rejected", r.reason = e, e = 0; e < n.length; e++) (0, n[e])(void 0);
 		}), r;
 	}
-	var Ga = R.S;
-	R.S = function(e, t) {
+	var Ga = z.S;
+	z.S = function(e, t) {
 		if (xd = Le(), typeof t == "object" && t && typeof t.then == "function" && Ha(e, t), Ia !== null) for (var n = bf; n !== null;) Fa(n, Ia), n = n.next;
 		if (n = e.types, n !== null) {
 			for (var r = bf; r !== null;) Fa(r, n), r = r.next;
@@ -5210,7 +5210,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 		function l(e, t, n, r) {
 			var i = n.type;
-			return i === k ? (e = d(e, t, n.props.children, r, n.key), co(e, n), e) : t !== null && (t.elementType === i || typeof i == "object" && i && i.$$typeof === re && B(i) === t.type) ? (t = a(t, n.props), co(t, n), t.return = e, t) : (t = Ii(n.type, n.key, n.props, null, e.mode, r), co(t, n), t.return = e, t);
+			return i === k ? (e = d(e, t, n.props.children, r, n.key), co(e, n), e) : t !== null && (t.elementType === i || typeof i == "object" && i && i.$$typeof === ne && B(i) === t.type) ? (t = a(t, n.props), co(t, n), t.return = e, t) : (t = Ii(n.type, n.key, n.props, null, e.mode, r), co(t, n), t.return = e, t);
 		}
 		function u(e, t, n, r) {
 			return t === null || t.tag !== 4 || t.stateNode.containerInfo !== n.containerInfo || t.stateNode.implementation !== n.implementation ? (t = Bi(n, e.mode, r), t.return = e, t) : (t = a(t, n.children || []), t.return = e, t);
@@ -5224,9 +5224,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				switch (t.$$typeof) {
 					case D: return n = Ii(t.type, t.key, t.props, null, e.mode, n), co(n, t), n.return = e, n;
 					case O: return t = Bi(t, e.mode, n), t.return = e, t;
-					case re: return t = B(t), f(e, t, n);
+					case ne: return t = B(t), f(e, t, n);
 				}
-				if (ue(t) || se(t)) return t = Li(t, e.mode, n, null), t.return = e, t;
+				if (le(t) || oe(t)) return t = Li(t, e.mode, n, null), t.return = e, t;
 				if (typeof t.then == "function") return f(e, so(t), n);
 				if (t.$$typeof === N) return f(e, Da(e, t), n);
 				V(e, t);
@@ -5240,9 +5240,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				switch (n.$$typeof) {
 					case D: return n.key === i ? l(e, t, n, r) : null;
 					case O: return n.key === i ? u(e, t, n, r) : null;
-					case re: return n = B(n), p(e, t, n, r);
+					case ne: return n = B(n), p(e, t, n, r);
 				}
-				if (ue(n) || se(n)) return i === null ? d(e, t, n, r, null) : null;
+				if (le(n) || oe(n)) return i === null ? d(e, t, n, r, null) : null;
 				if (typeof n.then == "function") return p(e, t, so(n), r);
 				if (n.$$typeof === N) return p(e, t, Da(e, n), r);
 				V(e, n);
@@ -5255,9 +5255,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				switch (r.$$typeof) {
 					case D: return e = e.get(r.key === null ? n : r.key) || null, l(t, e, r, i);
 					case O: return e = e.get(r.key === null ? n : r.key) || null, u(t, e, r, i);
-					case re: return r = B(r), m(e, t, n, r, i);
+					case ne: return r = B(r), m(e, t, n, r, i);
 				}
-				if (ue(r) || se(r)) return e = e.get(n) || null, d(t, e, r, i, null);
+				if (le(r) || oe(r)) return e = e.get(n) || null, d(t, e, r, i, null);
 				if (typeof r.then == "function") return m(e, t, n, so(r), i);
 				if (r.$$typeof === N) return m(e, t, n, Da(t, r), i);
 				V(t, r);
@@ -5317,7 +5317,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 											n(e, r.sibling), c = a(r, o.props.children), co(c, o), c.return = e, e = c;
 											break a;
 										}
-									} else if (r.elementType === l || typeof l == "object" && l && l.$$typeof === re && B(l) === r.type) {
+									} else if (r.elementType === l || typeof l == "object" && l && l.$$typeof === ne && B(l) === r.type) {
 										n(e, r.sibling), c = a(r, o.props), co(c, o), c.return = e, e = c;
 										break a;
 									}
@@ -5345,11 +5345,11 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 							c = Bi(o, e.mode, c), c.return = e, e = c;
 						}
 						return s(e);
-					case re: return o = B(o), _(e, r, o, c);
+					case ne: return o = B(o), _(e, r, o, c);
 				}
-				if (ue(o)) return h(e, r, o, c);
-				if (se(o)) {
-					if (l = se(o), typeof l != "function") throw Error(i(150));
+				if (le(o)) return h(e, r, o, c);
+				if (oe(o)) {
+					if (l = oe(o), typeof l != "function") throw Error(i(150));
 					return o = l.call(o), g(e, r, o, c);
 				}
 				if (typeof o.then == "function") return _(e, r, so(o), c);
@@ -5583,10 +5583,10 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return !0;
 	}
 	function $o(e, t, n, r, i, a) {
-		return Bo = a, Vo = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, R.H = e === null || e.memoizedState === null ? gc : _c, Ko = !1, a = n(r, i), Ko = !1, Go && (a = ts(t, n, r, i)), es(e), a;
+		return Bo = a, Vo = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, z.H = e === null || e.memoizedState === null ? gc : _c, Ko = !1, a = n(r, i), Ko = !1, Go && (a = ts(t, n, r, i)), es(e), a;
 	}
 	function es(e) {
-		R.H = hc;
+		z.H = hc;
 		var t = Ho !== null && Ho.next !== null;
 		if (Bo = 0, Uo = Ho = Vo = null, Wo = !1, Jo = 0, Yo = null, t) throw Error(i(300));
 		e === null || Pc || (e = e.dependencies, e !== null && wa(e) && (Pc = !0));
@@ -5600,12 +5600,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				var o = e.updateQueue;
 				o.lastEffect = null, o.events = null, o.stores = null, o.memoCache != null && (o.memoCache.index = 0);
 			}
-			R.H = vc, o = t(n, r);
+			z.H = vc, o = t(n, r);
 		} while (Go);
 		return o;
 	}
 	function ns() {
-		var e = R.H, t = e.useState()[0];
+		var e = z.H, t = e.useState()[0];
 		return t = typeof t.then == "function" ? ls(t) : t, e = e.useState()[0], (Ho === null ? null : Ho.memoizedState) !== e && (Vo.flags |= 1024), t;
 	}
 	function rs() {
@@ -5664,12 +5664,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	}
 	function ls(e) {
 		var t = Jo;
-		return Jo += 1, Yo === null && (Yo = []), e = to(Yo, e, t), t = Vo, (Uo === null ? t.memoizedState : Uo.next) === null && (t = t.alternate, R.H = t === null || t.memoizedState === null ? gc : _c), e;
+		return Jo += 1, Yo === null && (Yo = []), e = to(Yo, e, t), t = Vo, (Uo === null ? t.memoizedState : Uo.next) === null && (t = t.alternate, z.H = t === null || t.memoizedState === null ? gc : _c), e;
 	}
 	function us(e) {
 		if (typeof e == "object" && e) {
 			if (typeof e.then == "function") return ls(e);
-			if (e.$$typeof === ae) return;
+			if (e.$$typeof === ie) return;
 			if (e.$$typeof === N) return Ea(e);
 		}
 		throw Error(i(438, String(e)));
@@ -5688,7 +5688,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (t ??= {
 			data: [],
 			index: 0
-		}, n === null && (n = cs(), Vo.updateQueue = n), n.memoCache = t, n = t.data[t.index], n === void 0) for (n = t.data[t.index] = Array(e), r = 0; r < e; r++) n[r] = L;
+		}, n === null && (n = cs(), Vo.updateQueue = n), n.memoCache = t, n = t.data[t.index], n === void 0) for (n = t.data[t.index] = Array(e), r = 0; r < e; r++) n[r] = R;
 		return t.index++, n;
 	}
 	function fs(e, t) {
@@ -5851,21 +5851,21 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					o.listeners.push(e);
 				}
 			};
-			R.T === null ? o.isTransition = !1 : n(!0), r(o), n = t.pending, n === null ? (o.next = t.pending = o, Ts(t, o)) : (o.next = n.next, t.pending = n.next = o);
+			z.T === null ? o.isTransition = !1 : n(!0), r(o), n = t.pending, n === null ? (o.next = t.pending = o, Ts(t, o)) : (o.next = n.next, t.pending = n.next = o);
 		}
 	}
 	function Ts(e, t) {
 		var n = t.action, r = t.payload, i = e.state;
 		if (t.isTransition) {
-			var a = R.T, o = {};
-			o.types = a === null ? null : a.types, R.T = o;
+			var a = z.T, o = {};
+			o.types = a === null ? null : a.types, z.T = o;
 			try {
-				var s = n(i, r), c = R.S;
+				var s = n(i, r), c = z.S;
 				c !== null && c(o, s), Es(e, t, s);
 			} catch (n) {
 				Os(e, t, n);
 			} finally {
-				a !== null && o.types !== null && (a.types = o.types), R.T = a;
+				a !== null && o.types !== null && (a.types = o.types), z.T = a;
 			}
 		} else try {
 			a = n(i, r), Es(e, t, a);
@@ -6073,12 +6073,12 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return Vr(n, t) ? n : wo.current === null ? !(Bo & 106) || Bo & 1073741824 && !(id & 261930) ? (Pc = !0, e.memoizedState = n) : (e = jd(), Vo.lanes |= e, fd |= e, t) : (e = Zs(e, n, r), Vr(e, t) || (Pc = !0), e);
 	}
 	function $s(e, t, n, r, i) {
-		var a = de.p;
-		de.p = a !== 0 && 8 > a ? a : 8;
-		var o = R.T, s = {};
-		s.types = o === null ? null : o.types, R.T = s, dc(e, !1, t, n);
+		var a = ue.p;
+		ue.p = a !== 0 && 8 > a ? a : 8;
+		var o = z.T, s = {};
+		s.types = o === null ? null : o.types, z.T = s, dc(e, !1, t, n);
 		try {
-			var c = i(), l = R.S;
+			var c = i(), l = z.S;
 			l !== null && l(s, c), typeof c == "object" && c && typeof c.then == "function" ? uc(e, t, Wa(c, r), Ad(e)) : uc(e, t, r, Ad(e));
 		} catch (n) {
 			uc(e, t, {
@@ -6087,14 +6087,14 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				reason: n
 			}, Ad());
 		} finally {
-			de.p = a, o !== null && s.types !== null && (o.types = s.types), R.T = o;
+			ue.p = a, o !== null && s.types !== null && (o.types = s.types), z.T = o;
 		}
 	}
 	function ec() {}
 	function tc(e, t, n, r) {
 		if (e.tag !== 5) throw Error(i(476));
 		var a = nc(e).queue;
-		$s(e, a, t, fe, n === null ? ec : function() {
+		$s(e, a, t, de, n === null ? ec : function() {
 			return rc(e), n(r);
 		});
 	}
@@ -6102,15 +6102,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		var t = e.memoizedState;
 		if (t !== null) return t;
 		t = {
-			memoizedState: fe,
-			baseState: fe,
+			memoizedState: de,
+			baseState: de,
 			baseQueue: null,
 			queue: {
 				pending: null,
 				lanes: 0,
 				dispatch: null,
 				lastRenderedReducer: fs,
-				lastRenderedState: fe
+				lastRenderedState: de
 			},
 			next: null
 		};
@@ -6963,7 +6963,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 								t.tag = 11, t = Ic(null, t, e, r, n);
 								break a;
 							}
-							if (a === ne) {
+							if (a === te) {
 								t.tag = 14, t = Lc(null, t, e, r, n);
 								break a;
 							}
@@ -6972,7 +6972,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 								break a;
 							}
 						}
-						throw t = le(e) || e, Error(i(306, t, ""));
+						throw t = ce(e) || e, Error(i(306, t, ""));
 					}
 				}
 				return t;
@@ -8592,7 +8592,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 	}, ed = typeof WeakMap == "function" ? WeakMap : Map, td = 0, nd = null, rd = null, id = 0, ad = 0, od = null, sd = !1, cd = !1, ld = !1, ud = 0, dd = 0, fd = 0, pd = 0, md = 0, hd = 0, gd = 0, _d = null, vd = null, yd = !1, bd = 0, xd = 0, Sd = Infinity, Cd = null, wd = null, Td = 0, Ed = null, G = null, K = 0, q = 0, J = null, Y = null, X = null, Z = null, Dd = null, Od = 0, kd = null;
 	function Ad() {
-		return td & 2 && id !== 0 ? id & -id : R.T === null ? gt() : Pf();
+		return td & 2 && id !== 0 ? id & -id : z.T === null ? gt() : Pf();
 	}
 	function jd() {
 		if (hd === 0) {
@@ -8736,19 +8736,19 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		return n !== -1 && (e.timeoutHandle = -1, yp(n)), n = e.cancelPendingCommit, n !== null && (e.cancelPendingCommit = null, n()), K = 0, zd(), nd = e, rd = n = Pi(e.current, null), id = t, ad = 0, od = null, sd = !1, cd = it(e, t), ld = !1, gd = hd = md = pd = fd = dd = 0, vd = _d = null, yd = !1, ud = at(e, t), wi(), n;
 	}
 	function Vd(e, t) {
-		Vo = null, R.H = hc, t === Xa || t === Qa ? (t = ro(), ad = 3) : t === Za ? (t = ro(), ad = 4) : ad = t === Nc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, od = t, rd === null && (dd = 1, Dc(e, Hi(t, e.current)));
+		Vo = null, z.H = hc, t === Xa || t === Qa ? (t = ro(), ad = 3) : t === Za ? (t = ro(), ad = 4) : ad = t === Nc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, od = t, rd === null && (dd = 1, Dc(e, Hi(t, e.current)));
 	}
 	function Hd() {
 		var e = ko.current;
 		return e === null ? !0 : (id & 4194048) === id ? Ao === null : (id & 62914560) === id || id & 536870912 ? e === Ao : !1;
 	}
 	function Ud() {
-		var e = R.H;
-		return R.H = hc, e === null ? hc : e;
+		var e = z.H;
+		return z.H = hc, e === null ? hc : e;
 	}
 	function Wd() {
-		var e = R.A;
-		return R.A = $u, e;
+		var e = z.A;
+		return z.A = $u, e;
 	}
 	function Gd() {
 		dd = 4, sd || (id & 4194048) !== id && ko.current !== null || (cd = !0), !(fd & 134217727) && !(pd & 134217727) || nd === null || Ld(nd, id, hd, !1);
@@ -8787,7 +8787,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				Vd(e, t);
 			}
 		while (1);
-		return t && e.shellSuspendCounter++, va = _a = null, td = r, R.H = i, R.A = a, rd === null && (nd = null, id = 0, wi()), o;
+		return t && e.shellSuspendCounter++, va = _a = null, td = r, z.H = i, z.A = a, rd === null && (nd = null, id = 0, wi()), o;
 	}
 	function qd() {
 		for (; rd !== null;) Xd(rd);
@@ -8860,7 +8860,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				Vd(e, t);
 			}
 		while (1);
-		return va = _a = null, R.H = r, R.A = a, td = n, rd === null ? (nd = null, id = 0, wi(), dd) : 0;
+		return va = _a = null, z.H = r, z.A = a, td = n, rd === null ? (nd = null, id = 0, wi(), dd) : 0;
 	}
 	function Yd() {
 		for (; rd !== null && !Fe();) Xd(rd);
@@ -8954,11 +8954,11 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (q = s, s |= Ci, ut(e, n, s, r, i, a), Z = null, (n & 335544064) === n ? (Dd = La(e), r = 10262) : (Dd = null, r = 10256), (t.subtreeFlags & r) !== 0 || (t.flags & r) !== 0 ? (e.callbackNode = null, e.callbackPriority = 0, yf(Ve, function() {
 			return df(), null;
 		})) : (e.callbackNode = null, e.callbackPriority = 0), Vl = !1, r = !!(t.flags & 13878), t.subtreeFlags & 13878 || r) {
-			r = R.T, R.T = null, i = de.p, de.p = 2, a = td, td |= 4;
+			r = z.T, z.T = null, i = ue.p, ue.p = 2, a = td, td |= 4;
 			try {
 				gu(e, t, n);
 			} finally {
-				td = a, de.p = i, R.T = r;
+				td = a, ue.p = i, z.T = r;
 			}
 		}
 		Td = 1, Vl ? X = Pp(o, e.containerInfo, Dd, of, sf, af, cf, df, rf, null, null) : (of(), sf(), cf());
@@ -8977,9 +8977,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			Td = 0;
 			var e = Ed, t = G, n = K, r = !!(t.flags & 13878);
 			if (t.subtreeFlags & 13878 || r) {
-				r = R.T, R.T = null;
-				var i = de.p;
-				de.p = 2;
+				r = z.T, z.T = null;
+				var i = ue.p;
+				ue.p = 2;
 				var a = td;
 				td |= 4;
 				try {
@@ -9014,7 +9014,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 					}
 					vh = !!lp, up = lp = null;
 				} finally {
-					td = a, de.p = i, R.T = r;
+					td = a, ue.p = i, z.T = r;
 				}
 			}
 			e.current = t, Td = 2;
@@ -9025,15 +9025,15 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			Td = 0;
 			var e = Ed, t = G, n = !!(t.flags & 8772);
 			if (t.subtreeFlags & 8772 || n) {
-				n = R.T, R.T = null;
-				var r = de.p;
-				de.p = 2;
+				n = z.T, z.T = null;
+				var r = ue.p;
+				ue.p = 2;
 				var i = td;
 				td |= 4;
 				try {
 					vu(e, t.alternate, t);
 				} finally {
-					td = i, de.p = r, R.T = n;
+					td = i, ue.p = r, z.T = n;
 				}
 			}
 			Td = 3;
@@ -9049,14 +9049,14 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 				qe.onCommitFiberRoot(Ke, n, void 0, (n.current.flags & 128) == 128);
 			} catch {}
 			if (i !== null) {
-				n = R.T, a = de.p, de.p = 2, R.T = null;
+				n = z.T, a = ue.p, ue.p = 2, z.T = null;
 				try {
 					for (var o = t.onRecoverableError, s = 0; s < i.length; s++) {
 						var c = i[s];
 						o(c.value, { componentStack: c.stack });
 					}
 				} finally {
-					R.T = n, de.p = a;
+					z.T = n, ue.p = a;
 				}
 			}
 			if (i = Z, o = Dd, Dd = null, i !== null && (Z = null, o === null && (o = []), e !== null)) for (c = 0; c < i.length; c++) n = (0, i[c])(o), n !== void 0 && e.finished.finally(n);
@@ -9073,9 +9073,9 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		if (Td !== 5) return !1;
 		var e = Ed, t = q;
 		q = 0;
-		var n = ht(K), r = R.T, a = de.p;
+		var n = ht(K), r = z.T, a = ue.p;
 		try {
-			de.p = 32 > n ? 32 : n, R.T = null, n = J, J = null;
+			ue.p = 32 > n ? 32 : n, z.T = null, n = J, J = null;
 			var o = Ed, s = K;
 			if (Td = 0, G = Ed = null, K = 0, td & 6) throw Error(i(331));
 			var c = td;
@@ -9084,7 +9084,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 			} catch {}
 			return !0;
 		} finally {
-			de.p = a, R.T = r, lf(e, t);
+			ue.p = a, z.T = r, lf(e, t);
 		}
 	}
 	function ff(e, t, n) {
@@ -10752,8 +10752,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		}
 		return e.nodeType === 9 ? e : e.ownerDocument;
 	}
-	var Cm = de.d;
-	de.d = {
+	var Cm = ue.d;
+	ue.d = {
 		f: wm,
 		r: Tm,
 		D: Om,
@@ -11171,8 +11171,8 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		$$typeof: N,
 		Provider: null,
 		Consumer: null,
-		_currentValue: fe,
-		_currentValue2: fe,
+		_currentValue: de,
+		_currentValue2: de,
 		_threadCount: 0
 	};
 	function uh(e, t, n, r, i, a, o, s, c) {
@@ -11216,23 +11216,23 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	}
 	var vh = !0;
 	function yh(e, t, n, r) {
-		var i = R.T;
-		R.T = null;
-		var a = de.p;
+		var i = z.T;
+		z.T = null;
+		var a = ue.p;
 		try {
-			de.p = 2, xh(e, t, n, r);
+			ue.p = 2, xh(e, t, n, r);
 		} finally {
-			de.p = a, R.T = i;
+			ue.p = a, z.T = i;
 		}
 	}
 	function bh(e, t, n, r) {
-		var i = R.T;
-		R.T = null;
-		var a = de.p;
+		var i = z.T;
+		z.T = null;
+		var a = ue.p;
 		try {
-			de.p = 8, xh(e, t, n, r);
+			ue.p = 8, xh(e, t, n, r);
 		} finally {
-			de.p = a, R.T = i;
+			ue.p = a, z.T = i;
 		}
 	}
 	function xh(e, t, n, r) {
@@ -11577,7 +11577,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 	};
 	var Jh = n.version;
 	if (Jh !== "19.3.0") throw Error(i(527, Jh, "19.3.0"));
-	de.findDOMNode = function(e) {
+	ue.findDOMNode = function(e) {
 		var t = e._reactInternals;
 		if (t === void 0) throw typeof e.render == "function" ? Error(i(188)) : (e = Object.keys(e).join(","), Error(i(268, e)));
 		return e = d(t), e = e === null ? null : f(e), e = e === null ? null : e.stateNode, e;
@@ -11586,7 +11586,7 @@ var Kn = T(Gn), qn = /* @__PURE__ */ o(((e) => {
 		bundleType: 0,
 		version: "19.3.0",
 		rendererPackageName: "react-dom",
-		currentDispatcherRef: R,
+		currentDispatcherRef: z,
 		reconcilerVersion: "19.3.0"
 	};
 	if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u") {
@@ -13406,7 +13406,7 @@ function _o({ state: e, label: t }) {
 	};
 	return /* @__PURE__ */ (0, B.jsxs)("span", {
 		className: "status " + (n ? "good" : r ? "bad" : i ? "warning" : "neutral"),
-		children: [/* @__PURE__ */ (0, B.jsx)(go, { icon: n ? fe : r || i ? In : xe }), t || a[e || "unknown"] || e]
+		children: [/* @__PURE__ */ (0, B.jsx)(go, { icon: n ? de : r || i ? In : xe }), t || a[e || "unknown"] || e]
 	});
 }
 function vo({ title: e, children: t, action: n, className: r = "", subtitle: i }) {
@@ -13447,7 +13447,7 @@ function bo({ icon: e, label: t, value: n, detail: r, to: i }) {
 				children: [/* @__PURE__ */ (0, B.jsx)("span", {
 					className: "metric-icon",
 					children: /* @__PURE__ */ (0, B.jsx)(go, { icon: e })
-				}), /* @__PURE__ */ (0, B.jsx)(go, { icon: ne })]
+				}), /* @__PURE__ */ (0, B.jsx)(go, { icon: te })]
 			}),
 			/* @__PURE__ */ (0, B.jsx)("span", {
 				className: "metric-label",
@@ -13757,7 +13757,7 @@ function No({ agent: e }) {
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("span", {
 						className: "agent-avatar agent-" + e.id,
-						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: L })
+						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: R })
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "row-main",
@@ -13794,7 +13794,7 @@ function No({ agent: e }) {
 				className: "actions",
 				children: [
 					e.installed ? /* @__PURE__ */ (0, B.jsx)(H, {
-						icon: n ? ne : An,
+						icon: n ? te : An,
 						action: e.web_url ? "openUrl" : e.web_path ? "openPath" : "terminal",
 						extra: {
 							url: e.web_url,
@@ -13876,7 +13876,7 @@ function Io() {
 			title: V("托管浏览器", "Managed browser"),
 			description: V("桌面用户与可信 Agent 共用一个持久化浏览器。", "A persistent browser shared by the desktop user and trusted Agents."),
 			action: t.supported && /* @__PURE__ */ (0, B.jsx)(H, {
-				icon: t.mcp_configured ? ne : rn,
+				icon: t.mcp_configured ? te : rn,
 				action: t.mcp_configured ? "openManagedBrowser" : "setupBrowser",
 				disabled: !t.mcp_configured && !n.length,
 				tone: "primary",
@@ -13931,7 +13931,7 @@ function Io() {
 				children: /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "list",
 					children: [n.map((e) => /* @__PURE__ */ (0, B.jsx)(Co, {
-						icon: L,
+						icon: R,
 						title: e.label,
 						children: /* @__PURE__ */ (0, B.jsx)(_o, { state: t.mcp_agents?.includes(e.id) ? "connected" : "optional" })
 					}, e.id)), !n.length && /* @__PURE__ */ (0, B.jsx)(xo, {
@@ -13939,7 +13939,7 @@ function Io() {
 						action: /* @__PURE__ */ (0, B.jsxs)(Va, {
 							className: "text-link",
 							to: "/agents",
-							children: [V("前往 Agents", "Go to Agents"), /* @__PURE__ */ (0, B.jsx)(go, { icon: te })]
+							children: [V("前往 Agents", "Go to Agents"), /* @__PURE__ */ (0, B.jsx)(go, { icon: P })]
 						})
 					})]
 				})
@@ -21411,7 +21411,7 @@ function tp({ viewer: e, received: t, receiveError: n, receiveVersion: r, viewOn
 							type: "submit",
 							className: "direct-primary",
 							disabled: !e || i || !f || S,
-							children: [/* @__PURE__ */ (0, B.jsx)(ne, {
+							children: [/* @__PURE__ */ (0, B.jsx)(te, {
 								size: 16,
 								"aria-hidden": "true"
 							}), o("发送文字", "Send text")]
@@ -21530,17 +21530,17 @@ function np({ target: e, connect: t, language: n = "en" }) {
 		n,
 		A
 	]);
-	function te(e) {
+	function P(e) {
 		e.preventDefault(), o.current?.sendCredentials(h), g({}), m([]);
 	}
-	function P(e) {
+	function F(e) {
 		for (let t of e) {
 			let e = t.codePointAt(0);
 			o.current?.sendKey(e > 255 ? 16777216 | e : e);
 		}
 		N("");
 	}
-	async function ne() {
+	async function te() {
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
 			else if (a.current?.requestFullscreen) await a.current.requestFullscreen();
@@ -21593,7 +21593,7 @@ function np({ target: e, connect: t, language: n = "en" }) {
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							disabled: l !== "connected",
 							"aria-label": r("全屏桌面", "Fullscreen desktop"),
-							onClick: () => void ne(),
+							onClick: () => void te(),
 							children: /* @__PURE__ */ (0, B.jsx)(Dt, {
 								size: 16,
 								"aria-hidden": "true"
@@ -21631,10 +21631,10 @@ function np({ target: e, connect: t, language: n = "en" }) {
 						ee.current = !0;
 					},
 					onCompositionEnd: (e) => {
-						ee.current = !1, P(e.currentTarget.value);
+						ee.current = !1, F(e.currentTarget.value);
 					},
 					onChange: (e) => {
-						N(e.target.value), ee.current || P(e.target.value);
+						N(e.target.value), ee.current || F(e.target.value);
 					}
 				})] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "direct-actions",
@@ -21667,7 +21667,7 @@ function np({ target: e, connect: t, language: n = "en" }) {
 			}),
 			!!p.length && /* @__PURE__ */ (0, B.jsxs)("form", {
 				className: "vnc-auth",
-				onSubmit: te,
+				onSubmit: P,
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("h3", { children: r("VNC 身份验证", "VNC authentication") }),
 					/* @__PURE__ */ (0, B.jsx)("p", {
@@ -21802,7 +21802,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 				].map((e, t) => /* @__PURE__ */ (0, B.jsxs)("li", {
 					"aria-current": l === t + 1 ? "step" : void 0,
 					className: l > t + 1 ? "complete" : "",
-					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: l > t + 1 ? /* @__PURE__ */ (0, B.jsx)(fe, {
+					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: l > t + 1 ? /* @__PURE__ */ (0, B.jsx)(de, {
 						size: 14,
 						"aria-hidden": "true"
 					}) : t + 1 }), e]
@@ -21841,7 +21841,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 					children: /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: r,
 						onClick: () => D(2),
-						children: [c("服务已准备，检查端口", "Server ready, check port"), /* @__PURE__ */ (0, B.jsx)(te, {
+						children: [c("服务已准备，检查端口", "Server ready, check port"), /* @__PURE__ */ (0, B.jsx)(P, {
 							size: 16,
 							"aria-hidden": "true"
 						})]
@@ -21899,7 +21899,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 					className: "desktop-guide-ready",
 					role: "status",
 					children: [
-						/* @__PURE__ */ (0, B.jsx)(fe, {
+						/* @__PURE__ */ (0, B.jsx)(de, {
 							size: 18,
 							"aria-hidden": "true"
 						}),
@@ -21937,7 +21937,7 @@ function ip({ platform: e, client: t, language: n, disabled: r, shared: i, onRev
 							protocol: "vnc",
 							configured: j
 						}),
-						children: [c("核对并开启共享", "Review and enable sharing"), /* @__PURE__ */ (0, B.jsx)(te, {
+						children: [c("核对并开启共享", "Review and enable sharing"), /* @__PURE__ */ (0, B.jsx)(P, {
 							size: 16,
 							"aria-hidden": "true"
 						})]
@@ -22005,14 +22005,14 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 	(0, x.useEffect)(() => {
 		c && !c.running && S("");
 	}, [c?.running]);
-	let ee = c?.phase === "installing", te = c?.running, P = c?.provider === "wayvnc", ne = P ? "wayvnc" : "x11vnc", re = c?.platform === "windows" || c?.platform === "macos" ? c.platform : void 0;
+	let ee = c?.phase === "installing", P = c?.running, F = c?.provider === "wayvnc", te = F ? "wayvnc" : "x11vnc", ne = c?.platform === "windows" || c?.platform === "macos" ? c.platform : void 0;
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
 		className: "desktop-service",
 		"aria-label": s("本机 VNC 服务", "Local VNC service"),
 		children: [
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "direct-heading",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: re ? s("准备这台设备的桌面共享", "Prepare desktop sharing on this device") : s("由 Cranibox 保持桌面服务运行", "Keep the desktop service running with Cranibox") }), /* @__PURE__ */ (0, B.jsx)("p", { children: re ? s("先准备本机 VNC 服务，再通过节点的授权通道共享。", "Prepare a local VNC server, then share it through this node’s authorized connection.") : s("服务随节点在后台运行，关闭查看器不会停止共享。", "The service runs with this node. Closing a viewer keeps sharing active.") })] }), /* @__PURE__ */ (0, B.jsx)("button", {
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: ne ? s("准备这台设备的桌面共享", "Prepare desktop sharing on this device") : s("由 Cranibox 保持桌面服务运行", "Keep the desktop service running with Cranibox") }), /* @__PURE__ */ (0, B.jsx)("p", { children: ne ? s("先准备本机 VNC 服务，再通过节点的授权通道共享。", "Prepare a local VNC server, then share it through this node’s authorized connection.") : s("服务随节点在后台运行，关闭查看器不会停止共享。", "The service runs with this node. Closing a viewer keeps sharing active.") })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 					disabled: f,
 					"aria-label": s("检查 VNC 环境", "Check VNC environment"),
 					onClick: () => {
@@ -22029,8 +22029,8 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 				role: "alert",
 				children: u
 			}),
-			c ? re ? /* @__PURE__ */ (0, B.jsx)(ip, {
-				platform: re,
+			c ? ne ? /* @__PURE__ */ (0, B.jsx)(ip, {
+				platform: ne,
 				client: e,
 				language: t,
 				disabled: f,
@@ -22038,7 +22038,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 				onReview: i,
 				openGuide: a,
 				onAccess: o
-			}, re) : !c.supported || c.wayland && !P ? /* @__PURE__ */ (0, B.jsxs)("div", {
+			}, ne) : !c.supported || c.wayland && !F ? /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "desktop-platform-guide",
 				children: [/* @__PURE__ */ (0, B.jsx)("p", { children: c.selkies_wayland ? s("此设备的桌面由 Selkies 运行在 Wayland 中，当前节点无法直接托管它的 VNC 共享。可使用“检测已有服务”，或在“配置共享”选择 Selkies 并填写内部 WebSocket 地址，通过节点授权共享画面和输入。", "This device uses a Selkies Wayland desktop, which this node cannot manage as a VNC service. Use Detect existing services, or choose Selkies in Configure sharing and enter its internal WebSocket address to share display and input through node authorization.") : s("当前为 Wayland 会话。wayvnc 仅支持 Sway 等兼容的 wlroots 桌面，GNOME、KDE 和 Weston 请接入兼容 VNC 服务。", "This is a Wayland session. wayvnc requires a compatible wlroots desktop such as Sway. For GNOME, KDE and Weston, connect a compatible VNC server.") }), /* @__PURE__ */ (0, B.jsx)("p", {
 					className: "direct-note",
@@ -22051,14 +22051,14 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("li", {
 							className: c.installed ? "complete" : "",
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: c.installed ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: c.installed ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : "1" }), s("安装 VNC", "Install VNC")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
-							className: te ? "complete" : "",
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: te ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							className: P ? "complete" : "",
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: P ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : "2" }), s("启动桌面共享", "Start sharing")]
@@ -22077,14 +22077,14 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 				}),
 				ee ? /* @__PURE__ */ (0, B.jsx)("p", {
 					role: "status",
-					children: s("正在安装 " + ne + "，请在系统认证窗口确认。安装状态会自动更新；退出节点不会终止系统安装，请勿重复操作。", "Installing " + ne + ". Approve the system authentication dialog. This status updates automatically. Exiting the node leaves the system installer running; avoid repeating installation.")
-				}) : c.installed ? te ? /* @__PURE__ */ (0, B.jsxs)("div", {
+					children: s("正在安装 " + te + "，请在系统认证窗口确认。安装状态会自动更新；退出节点不会终止系统安装，请勿重复操作。", "Installing " + te + ". Approve the system authentication dialog. This status updates automatically. Exiting the node leaves the system installer running; avoid repeating installation.")
+				}) : c.installed ? P ? /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "desktop-managed-running",
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("p", {
 							role: "status",
 							children: [
-								/* @__PURE__ */ (0, B.jsx)(fe, {
+								/* @__PURE__ */ (0, B.jsx)(de, {
 									size: 16,
 									"aria-hidden": "true"
 								}),
@@ -22121,7 +22121,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 								}), s("停止托管服务", "Stop managed service")]
 							})]
 						}),
-						b && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [P && /* @__PURE__ */ (0, B.jsxs)("label", { children: [s("VNC 用户名", "VNC username"), /* @__PURE__ */ (0, B.jsx)("input", {
+						b && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [F && /* @__PURE__ */ (0, B.jsxs)("label", { children: [s("VNC 用户名", "VNC username"), /* @__PURE__ */ (0, B.jsx)("input", {
 							readOnly: !0,
 							value: c.username || "cranibox",
 							autoComplete: "off",
@@ -22148,7 +22148,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 							operation: "start",
 							display: m,
 							port: Number(v),
-							...P ? {
+							...F ? {
 								provider: "wayvnc",
 								output: g
 							} : {}
@@ -22157,14 +22157,14 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: P ? s("共享此用户已登录的 wlroots Wayland 桌面。请在该桌面会话中启动节点；不支持 GNOME、KDE 或 Weston。", "Shares this user’s existing wlroots Wayland desktop. Start the node in that login session. GNOME, KDE and Weston are unsupported.") : s("共享此用户已登录的 X11 桌面，继承 DISPLAY / XAUTHORITY。不会创建新的登录会话。", "Shares this user’s existing X11 login using DISPLAY / XAUTHORITY. It does not create a new login session.")
+							children: F ? s("共享此用户已登录的 wlroots Wayland 桌面。请在该桌面会话中启动节点；不支持 GNOME、KDE 或 Weston。", "Shares this user’s existing wlroots Wayland desktop. Start the node in that login session. GNOME, KDE and Weston are unsupported.") : s("共享此用户已登录的 X11 桌面，继承 DISPLAY / XAUTHORITY。不会创建新的登录会话。", "Shares this user’s existing X11 login using DISPLAY / XAUTHORITY. It does not create a new login session.")
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-fields",
-							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [P ? s("Wayland 显示器", "Wayland display") : s("X11 显示器", "X11 display"), /* @__PURE__ */ (0, B.jsx)("input", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [F ? s("Wayland 显示器", "Wayland display") : s("X11 显示器", "X11 display"), /* @__PURE__ */ (0, B.jsx)("input", {
 								required: !0,
-								pattern: P ? "[a-zA-Z0-9_-]{1,96}" : ":[0-9]{1,5}([.][0-9]{1,5})?",
-								placeholder: P ? "wayland-0" : ":0",
+								pattern: F ? "[a-zA-Z0-9_-]{1,96}" : ":[0-9]{1,5}([.][0-9]{1,5})?",
+								placeholder: F ? "wayland-0" : ":0",
 								value: m,
 								onChange: (e) => h(e.target.value)
 							})] }), /* @__PURE__ */ (0, B.jsxs)("label", { children: [s("本机 VNC 端口", "Local VNC port"), /* @__PURE__ */ (0, B.jsx)("input", {
@@ -22176,7 +22176,7 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 								onChange: (e) => y(e.target.value)
 							})] })]
 						}),
-						P && /* @__PURE__ */ (0, B.jsxs)("label", { children: [
+						F && /* @__PURE__ */ (0, B.jsxs)("label", { children: [
 							s("桌面输出（可选）", "Desktop output (optional)"),
 							/* @__PURE__ */ (0, B.jsx)("input", {
 								"aria-label": s("桌面输出（可选）", "Desktop output (optional)"),
@@ -22207,24 +22207,24 @@ function ap({ client: e, language: t, onChanged: n, shared: r, onReview: i, open
 							children: s("停止自动重试", "Stop automatic retries")
 						})
 					]
-				}) : /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsx)("p", { children: P ? s("需要 wayvnc 0.8 或更新版本来共享兼容的 wlroots 桌面。安装不会自动开启共享。", "wayvnc 0.8 or newer is needed for a compatible wlroots desktop. Installing it does not start sharing.") : s("需要 x11vnc 来共享当前 X11 桌面。安装完成后，仍需点击启动才会开启共享。", "x11vnc is needed to share this X11 desktop. Installing it does not start sharing.") }), c.can_install ? /* @__PURE__ */ (0, B.jsxs)("button", {
+				}) : /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsx)("p", { children: F ? s("需要 wayvnc 0.8 或更新版本来共享兼容的 wlroots 桌面。安装不会自动开启共享。", "wayvnc 0.8 or newer is needed for a compatible wlroots desktop. Installing it does not start sharing.") : s("需要 x11vnc 来共享当前 X11 桌面。安装完成后，仍需点击启动才会开启共享。", "x11vnc is needed to share this X11 desktop. Installing it does not start sharing.") }), c.can_install ? /* @__PURE__ */ (0, B.jsxs)("button", {
 					ref: A,
 					disabled: f,
 					onClick: () => void N({ operation: "plan" }),
 					children: [/* @__PURE__ */ (0, B.jsx)(Le, {
 						size: 16,
 						"aria-hidden": "true"
-					}), s("准备安装 " + ne, "Prepare " + ne + " installation")]
+					}), s("准备安装 " + te, "Prepare " + te + " installation")]
 				}) : /* @__PURE__ */ (0, B.jsx)("p", {
 					className: "direct-note",
-					children: s("请使用此系统的软件包管理器安装 " + ne + "，然后重新检查。容器内安装不会影响宿主机桌面。", "Install " + ne + " using this system’s package manager, then recheck. Installing inside a container does not share its host’s desktop.")
+					children: s("请使用此系统的软件包管理器安装 " + te + "，然后重新检查。容器内安装不会影响宿主机桌面。", "Install " + te + " using this system’s package manager, then recheck. Installing inside a container does not share its host’s desktop.")
 				})] }),
 				C && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "desktop-install-review",
 					"aria-label": s("检查 VNC 安装操作", "Review VNC installation"),
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("h4", { children: s("确认安装操作", "Review installation") }),
-						/* @__PURE__ */ (0, B.jsx)("p", { children: s("安装来自当前 Ubuntu / Debian 软件源的 " + ne + "，需要系统管理员认证。方案十分钟内有效，确认后仅执行一次。", "Install " + ne + " from this system’s Ubuntu / Debian repositories. System administrator authentication is required. This plan is valid for ten minutes and can run once.") }),
+						/* @__PURE__ */ (0, B.jsx)("p", { children: s("安装来自当前 Ubuntu / Debian 软件源的 " + te + "，需要系统管理员认证。方案十分钟内有效，确认后仅执行一次。", "Install " + te + " from this system’s Ubuntu / Debian repositories. System administrator authentication is required. This plan is valid for ten minutes and can run once.") }),
 						/* @__PURE__ */ (0, B.jsx)("pre", {
 							tabIndex: 0,
 							children: C.commands
@@ -22320,7 +22320,7 @@ function op({ client: e, language: t, disabled: n, current: r, onSelect: i }) {
 					/* @__PURE__ */ (0, B.jsxs)("div", { children: [
 						/* @__PURE__ */ (0, B.jsx)("strong", { children: e.protocol === "selkies" ? "Selkies" : "VNC" }),
 						/* @__PURE__ */ (0, B.jsx)("code", { children: e.address }),
-						r?.address === e.address && (r.protocol || "vnc") === e.protocol && /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+						r?.address === e.address && (r.protocol || "vnc") === e.protocol && /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)(de, {
 							size: 14,
 							"aria-hidden": "true"
 						}), a("当前共享配置", "Current sharing configuration")] })
@@ -22329,7 +22329,7 @@ function op({ client: e, language: t, disabled: n, current: r, onSelect: i }) {
 						disabled: n || c,
 						"aria-label": a("核对 ", "Review ") + (e.protocol === "selkies" ? "Selkies" : "VNC") + " · " + e.address,
 						onClick: () => i(e),
-						children: [a("核对配置", "Review settings"), /* @__PURE__ */ (0, B.jsx)(te, {
+						children: [a("核对配置", "Review settings"), /* @__PURE__ */ (0, B.jsx)(P, {
 							size: 16,
 							"aria-hidden": "true"
 						})]
@@ -22342,18 +22342,18 @@ function op({ client: e, language: t, disabled: n, current: r, onSelect: i }) {
 //#endregion
 //#region src/desktop/RemoteDesktopsView.tsx
 function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient: i, relayNodes: a = [], openGuide: o, onAccess: s }) {
-	let c = (e, t) => n.startsWith("zh") ? e : t, [l, u] = (0, x.useState)(), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(null), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)("127.0.0.1:5900"), [O, k] = (0, x.useState)("vnc"), [A, j] = (0, x.useState)("direct"), M = (0, x.useRef)(!0), N = (0, x.useRef)(0), ee = (0, x.useRef)(!1), te = (0, x.useRef)(null), P = (0, x.useRef)(null), ne = (0, x.useRef)(!1);
+	let c = (e, t) => n.startsWith("zh") ? e : t, [l, u] = (0, x.useState)(), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(null), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)("127.0.0.1:5900"), [O, k] = (0, x.useState)("vnc"), [A, j] = (0, x.useState)("direct"), M = (0, x.useRef)(!0), N = (0, x.useRef)(0), ee = (0, x.useRef)(!1), P = (0, x.useRef)(null), F = (0, x.useRef)(null), te = (0, x.useRef)(!1);
 	(0, x.useEffect)(() => {
-		w && ne.current && (ne.current = !1, te.current?.focus());
+		w && te.current && (te.current = !1, P.current?.focus());
 	}, [
 		w,
 		E,
 		O
 	]);
-	function re(e) {
-		ee.current || (b(""), C(""), ne.current = !0, k(e.protocol), D(e.address), T(!0), w && O === e.protocol && E === e.address && (ne.current = !1, te.current?.focus()));
+	function ne(e) {
+		ee.current || (b(""), C(""), te.current = !0, k(e.protocol), D(e.address), T(!0), w && O === e.protocol && E === e.address && (te.current = !1, P.current?.focus()));
 	}
-	let F = (0, x.useCallback)(async () => {
+	let I = (0, x.useCallback)(async () => {
 		let t = ++N.current;
 		try {
 			let n = await e({ operation: "list" });
@@ -22364,16 +22364,16 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			M.current && t === N.current && g(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (M.current = !0, F(), window.addEventListener("cranibox:peers-changed", F), window.addEventListener("focus", F), () => {
-		M.current = !1, ++N.current, window.removeEventListener("cranibox:peers-changed", F), window.removeEventListener("focus", F);
-	}), [F]);
-	let I = r ? [{
+	(0, x.useEffect)(() => (M.current = !0, I(), window.addEventListener("cranibox:peers-changed", I), window.addEventListener("focus", I), () => {
+		M.current = !1, ++N.current, window.removeEventListener("cranibox:peers-changed", I), window.removeEventListener("focus", I);
+	}), [I]);
+	let L = r ? [{
 		id: r.id,
 		name: r.name,
 		local: !0,
 		detail: c("当前接入设备", "Current access device")
 	}] : [];
-	for (let e of l?.routes || []) I.some((t) => t.id === e.node) || I.push({
+	for (let e of l?.routes || []) L.some((t) => t.id === e.node) || L.push({
 		id: e.node,
 		name: e.node,
 		local: !1,
@@ -22381,8 +22381,8 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 		direct: !0
 	});
 	for (let e of a) {
-		let t = I.find((t) => t.id === e.id);
-		t ? t.local || (t.relay = e, t.name = e.name || e.id) : I.push({
+		let t = L.find((t) => t.id === e.id);
+		t ? t.local || (t.relay = e, t.name = e.name || e.id) : L.push({
 			id: e.id,
 			name: e.name || e.id,
 			local: !1,
@@ -22390,16 +22390,16 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			relay: e
 		});
 	}
-	let L = I.find((e) => e.id === d) || I[0], ie = !!L && !L.local && (!L.direct || A === "relay"), ae = ie && (L?.relay?.online ? L.relay.desktop_relay ? "" : c("请升级目标设备客户端以启用桌面中继。", "Update the target client to enable desktop relay.") : c("设备离线，等待重新连接。", "Device offline. Waiting for it to reconnect."));
+	let R = L.find((e) => e.id === d) || L[0], re = !!R && !R.local && (!R.direct || A === "relay"), ie = re && (R?.relay?.online ? R.relay.desktop_relay ? "" : c("请升级目标设备客户端以启用桌面中继。", "Update the target client to enable desktop relay.") : c("设备离线，等待重新连接。", "Device offline. Waiting for it to reconnect."));
 	(0, x.useEffect)(() => {
-		p && !I.some((e) => e.id === p.node && e.local === p.local && (!p.relay || e.relay)) && m(null);
+		p && !L.some((e) => e.id === p.node && e.local === p.local && (!p.relay || e.relay)) && m(null);
 	}, [
 		l,
 		r?.id,
 		p,
 		a
 	]);
-	async function oe(e) {
+	async function ae(e) {
 		if (!ee.current) {
 			ee.current = !0, v(!0), b(""), C("");
 			try {
@@ -22411,8 +22411,8 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			}
 		}
 	}
-	async function se(t) {
-		t.preventDefault(), await oe(async () => {
+	async function oe(t) {
+		t.preventDefault(), await ae(async () => {
 			if (i) {
 				let e = await i({
 					operation: "check",
@@ -22431,21 +22431,21 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			M.current && (++N.current, u(t), T(!1), C(c("本机桌面共享已开启。请在设备网络的“入站授权”中授予桌面权限。", "Local sharing enabled. Grant desktop access under Incoming access in Device network.")), window.dispatchEvent(new Event("cranibox:peers-changed")));
 		});
 	}
-	async function ce() {
-		if (!L) return;
-		let t = L;
-		await oe(async () => {
+	async function se() {
+		if (!R) return;
+		let t = R;
+		await ae(async () => {
 			if (t.local) {
 				if (!l?.desktop) throw Error(c("请先配置本机桌面共享。", "Configure local desktop sharing first."));
-			} else if (!ie && !(await e({
+			} else if (!re && !(await e({
 				operation: "probe",
 				node: t.id
 			})).nodes[0]?.desktop) throw Error(c("目标设备尚未开启桌面共享，或未授予当前设备桌面权限。", "The target has not enabled desktop sharing or granted this device desktop access."));
-			if (ae) throw Error(ae);
+			if (ie) throw Error(ie);
 			M.current && m({
 				node: t.id,
 				local: t.local,
-				...ie ? { relay: !0 } : {}
+				...re ? { relay: !0 } : {}
 			});
 		});
 	}
@@ -22457,7 +22457,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 				className: "direct-heading",
 				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: c("你的设备桌面", "Your device desktops") }), /* @__PURE__ */ (0, B.jsx)("p", { children: c("从一个入口接入所有授权设备。桌面始终运行在目标设备上。", "One place for your authorized devices. Each desktop runs on its own device.") })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 					disabled: h || _,
-					onClick: () => void F(),
+					onClick: () => void I(),
 					"aria-label": c("刷新桌面设备", "Refresh desktop devices"),
 					children: /* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
@@ -22473,7 +22473,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 			S && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), S]
@@ -22485,18 +22485,18 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 					children: [/* @__PURE__ */ (0, B.jsx)("div", {
 						className: "direct-list",
 						"aria-label": c("桌面设备列表", "Desktop device list"),
-						children: I.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
+						children: L.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
 							disabled: _,
-							"aria-pressed": L?.id === e.id,
+							"aria-pressed": R?.id === e.id,
 							onClick: () => {
-								L?.id !== e.id && (f(e.id), j("direct"), m(null), b(""));
+								R?.id !== e.id && (f(e.id), j("direct"), m(null), b(""));
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)("span", {
 								className: "desktop-device-icon",
 								children: e.local ? /* @__PURE__ */ (0, B.jsx)(Vt, {
 									size: 20,
 									"aria-hidden": "true"
-								}) : /* @__PURE__ */ (0, B.jsx)(le, {
+								}) : /* @__PURE__ */ (0, B.jsx)(ce, {
 									size: 20,
 									"aria-hidden": "true"
 								})
@@ -22515,25 +22515,25 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 						className: "direct-empty",
 						role: "status",
 						children: c("正在读取桌面设备…", "Loading desktop devices…")
-					}) : L ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+					}) : R ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-heading desktop-target",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: L.name }), /* @__PURE__ */ (0, B.jsx)("p", { children: L.local ? c("本机桌面", "Local desktop") : L.detail })] }), !p && /* @__PURE__ */ (0, B.jsxs)("button", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: R.name }), /* @__PURE__ */ (0, B.jsx)("p", { children: R.local ? c("本机桌面", "Local desktop") : R.detail })] }), !p && /* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
-								disabled: _ || !!ae || L.local && !l?.desktop,
-								onClick: () => void ce(),
+								disabled: _ || !!ie || R.local && !l?.desktop,
+								onClick: () => void se(),
 								children: [/* @__PURE__ */ (0, B.jsx)(Vt, {
 									size: 16,
 									"aria-hidden": "true"
 								}), _ ? c("正在检查…", "Checking…") : c("连接桌面", "Connect desktop")]
 							})]
 						}),
-						!L.local && /* @__PURE__ */ (0, B.jsxs)("div", {
+						!R.local && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "desktop-route-options",
 							children: [
-								L.direct && L.relay && /* @__PURE__ */ (0, B.jsxs)("label", { children: [c("连接方式", "Connection route"), /* @__PURE__ */ (0, B.jsxs)("select", {
+								R.direct && R.relay && /* @__PURE__ */ (0, B.jsxs)("label", { children: [c("连接方式", "Connection route"), /* @__PURE__ */ (0, B.jsxs)("select", {
 									"aria-label": c("连接方式", "Connection route"),
-									value: ie ? "relay" : "direct",
+									value: re ? "relay" : "direct",
 									onChange: (e) => {
 										j(e.target.value), m(null);
 									},
@@ -22548,9 +22548,9 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 								/* @__PURE__ */ (0, B.jsx)("p", {
 									className: "direct-note",
 									role: "status",
-									children: ae || (ie ? c("通过中继连接，无需开放目标设备端口。", "Connect through the relay without opening ports on the target.") : c("通过已保存的地址直接连接设备。", "Connect directly using the saved device address."))
+									children: ie || (re ? c("通过中继连接，无需开放目标设备端口。", "Connect through the relay without opening ports on the target.") : c("通过已保存的地址直接连接设备。", "Connect directly using the saved device address."))
 								}),
-								ie && r && /* @__PURE__ */ (0, B.jsxs)("p", {
+								re && r && /* @__PURE__ */ (0, B.jsxs)("p", {
 									className: "direct-note",
 									children: [c("请在目标设备的入站授权中，为此 NodeID 授予桌面权限：", "Grant desktop access on the target to this NodeID: "), /* @__PURE__ */ (0, B.jsx)("code", { children: r.id })]
 								})
@@ -22571,13 +22571,13 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 									})
 								}),
 								/* @__PURE__ */ (0, B.jsx)("h3", { children: c("让设备近在眼前", "Your desktop, within reach") }),
-								/* @__PURE__ */ (0, B.jsx)("p", { children: L.local && !l?.desktop ? c("先为本机接入一个 VNC 或 Selkies 服务，即可让授权设备访问这台电脑。", "Connect a local VNC or Selkies server below to make this desktop available to authorized devices.") : c("连接后可查看屏幕、使用键盘和鼠标。断开连接不会关闭桌面。", "Connect to view the screen and use keyboard and mouse. Disconnecting keeps the desktop running.") }),
+								/* @__PURE__ */ (0, B.jsx)("p", { children: R.local && !l?.desktop ? c("先为本机接入一个 VNC 或 Selkies 服务，即可让授权设备访问这台电脑。", "Connect a local VNC or Selkies server below to make this desktop available to authorized devices.") : c("连接后可查看屏幕、使用键盘和鼠标。断开连接不会关闭桌面。", "Connect to view the screen and use keyboard and mouse. Disconnecting keeps the desktop running.") }),
 								/* @__PURE__ */ (0, B.jsxs)("span", {
 									className: "desktop-route-tag",
 									children: [/* @__PURE__ */ (0, B.jsx)(Sn, {
 										size: 14,
 										"aria-hidden": "true"
-									}), ie ? c("目标设备授权 · Workspace 中继", "Target-owned access · Workspace relay") : c("目标设备授权 · 私网直连", "Target-owned access · Private direct route")]
+									}), re ? c("目标设备授权 · Workspace 中继", "Target-owned access · Workspace relay") : c("目标设备授权 · 私网直连", "Target-owned access · Private direct route")]
 								})
 							]
 						})
@@ -22606,19 +22606,19 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 						}), c("共享这台设备的桌面", "Share this device’s desktop")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: l.desktop ? c("已开启 · ", "Enabled · ") + (l.desktop.protocol === "selkies" ? "Selkies · " : "VNC · ") + l.desktop.address : c("尚未开启。接入本机 VNC 或 Selkies 服务后，授权设备即可访问。", "Not enabled. Connect a local VNC or Selkies server to share with authorized devices.") })] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-actions",
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
-								ref: P,
+								ref: F,
 								disabled: _,
 								"aria-expanded": w,
 								onClick: () => {
 									T(!w), k(l.desktop?.protocol || "vnc"), D(l.desktop?.address || "127.0.0.1:5900");
 								},
-								children: [/* @__PURE__ */ (0, B.jsx)(z, {
+								children: [/* @__PURE__ */ (0, B.jsx)(pe, {
 									size: 16,
 									"aria-hidden": "true"
 								}), c("配置共享", "Configure sharing")]
 							}), l.desktop && /* @__PURE__ */ (0, B.jsx)("button", {
 								disabled: _,
-								onClick: () => void oe(async () => {
+								onClick: () => void ae(async () => {
 									let t = await e({
 										operation: "desktop",
 										desktop: null
@@ -22634,11 +22634,11 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 						language: n,
 						disabled: _,
 						current: l.desktop,
-						onSelect: re
+						onSelect: ne
 					}),
 					w && /* @__PURE__ */ (0, B.jsxs)("form", {
 						"aria-label": c("核对桌面共享配置", "Review desktop sharing"),
-						onSubmit: se,
+						onSubmit: oe,
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("h4", { children: c("核对桌面共享配置", "Review desktop sharing") }),
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [c("桌面服务", "Desktop protocol"), /* @__PURE__ */ (0, B.jsxs)("select", {
@@ -22664,7 +22664,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [
 								O === "selkies" ? c("本机 Selkies 地址", "Local Selkies address") : c("本机 VNC 地址", "Local VNC address"),
 								/* @__PURE__ */ (0, B.jsx)("input", {
-									ref: te,
+									ref: P,
 									disabled: _,
 									required: !0,
 									"aria-label": O === "selkies" ? c("本机 Selkies 地址", "Local Selkies address") : c("本机 VNC 地址", "Local VNC address"),
@@ -22690,7 +22690,7 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 									type: "button",
 									disabled: _,
 									onClick: () => {
-										T(!1), P.current?.focus();
+										T(!1), F.current?.focus();
 									},
 									children: c("取消", "Cancel")
 								})]
@@ -22701,11 +22701,11 @@ function sp({ client: e, connect: t, language: n = "en", local: r, serviceClient
 						client: i,
 						language: n,
 						shared: l.desktop,
-						onReview: re,
+						onReview: ne,
 						openGuide: o,
 						onAccess: s,
 						onChanged: () => {
-							m(null), F();
+							m(null), I();
 						}
 					})
 				]
@@ -22953,7 +22953,7 @@ function fp() {
 						}), n.url && /* @__PURE__ */ (0, B.jsx)(H, {
 							action: "openUrl",
 							extra: { url: n.url },
-							icon: ne,
+							icon: te,
 							children: V("打开", "Open")
 						})] }) : /* @__PURE__ */ (0, B.jsx)(H, {
 							action: "connectTailscale",
@@ -22982,7 +22982,7 @@ function fp() {
 					children: [e.public_url && /* @__PURE__ */ (0, B.jsx)(H, {
 						action: "openUrl",
 						extra: { url: e.public_url },
-						icon: ne,
+						icon: te,
 						label: V("打开 ", "Open ") + (e.host || e.name)
 					}), /* @__PURE__ */ (0, B.jsx)(H, {
 						action: "removeRoute",
@@ -23133,7 +23133,7 @@ function pp() {
 						onClick: () => r(n + 1),
 						local: !0,
 						tone: "primary",
-						children: [V("继续", "Continue"), /* @__PURE__ */ (0, B.jsx)(go, { icon: te })]
+						children: [V("继续", "Continue"), /* @__PURE__ */ (0, B.jsx)(go, { icon: P })]
 					}) : /* @__PURE__ */ (0, B.jsx)(H, {
 						action: "completeOnboarding",
 						tone: "primary",
@@ -23155,7 +23155,7 @@ function mp() {
 			title: V("工作区总览", "Workspace overview"),
 			description: V("你的 Agent、工具和运行环境，一目了然。", "Your Agents, tools, and runtime, at a glance."),
 			action: /* @__PURE__ */ (0, B.jsx)(H, {
-				icon: ne,
+				icon: te,
 				action: "openWorkspace",
 				tone: "primary",
 				children: V("打开工作区", "Open workspace")
@@ -23194,7 +23194,7 @@ function mp() {
 				"aria-hidden": "true",
 				children: [/* @__PURE__ */ (0, B.jsx)("div", {
 					className: "illustration-box",
-					children: /* @__PURE__ */ (0, B.jsx)(se, {
+					children: /* @__PURE__ */ (0, B.jsx)(oe, {
 						size: 66,
 						strokeWidth: 1
 					})
@@ -23208,7 +23208,7 @@ function mp() {
 			className: "metrics",
 			children: [
 				/* @__PURE__ */ (0, B.jsx)(bo, {
-					icon: L,
+					icon: R,
 					label: V("可用 Agents", "Available Agents"),
 					value: /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [i.length, /* @__PURE__ */ (0, B.jsxs)("small", { children: [" / ", t.length] })] }),
 					detail: V("已安装的 Agent 工具", "Installed Agent tools"),
@@ -23246,7 +23246,7 @@ function mp() {
 					className: "list",
 					children: [
 						[
-							L,
+							R,
 							"agents",
 							V("Agents", "Agents"),
 							i.map((e) => e.label).join(" · ") || V("安装第一个 Agent", "Install your first Agent")
@@ -23284,7 +23284,7 @@ function mp() {
 									children: String(r)
 								})]
 							}),
-							/* @__PURE__ */ (0, B.jsx)(go, { icon: te })
+							/* @__PURE__ */ (0, B.jsx)(go, { icon: P })
 						]
 					}, String(t)))
 				})
@@ -23294,7 +23294,7 @@ function mp() {
 				action: /* @__PURE__ */ (0, B.jsxs)(Va, {
 					className: "text-link",
 					to: "/services",
-					children: [V("查看全部", "View all"), /* @__PURE__ */ (0, B.jsx)(go, { icon: te })]
+					children: [V("查看全部", "View all"), /* @__PURE__ */ (0, B.jsx)(go, { icon: P })]
 				}),
 				children: /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "list",
@@ -23324,7 +23324,7 @@ function mp() {
 				action: /* @__PURE__ */ (0, B.jsxs)(Va, {
 					className: "text-link",
 					to: "/diagnostics",
-					children: [V("查看诊断", "Diagnostics"), /* @__PURE__ */ (0, B.jsx)(go, { icon: te })]
+					children: [V("查看诊断", "Diagnostics"), /* @__PURE__ */ (0, B.jsx)(go, { icon: P })]
 				}),
 				children: o.length ? o.map((e) => /* @__PURE__ */ (0, B.jsx)(Co, {
 					title: e.label || e.id,
@@ -23334,7 +23334,7 @@ function mp() {
 					className: "all-clear",
 					children: [/* @__PURE__ */ (0, B.jsx)("span", {
 						className: "clear-icon",
-						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: fe })
+						children: /* @__PURE__ */ (0, B.jsx)(go, { icon: de })
 					}), /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: V("没有待处理的环境检查项", "No environment checks need attention") }), /* @__PURE__ */ (0, B.jsx)("p", {
 						className: "muted",
 						children: V("浏览器和桌面配置可在对应页面查看。", "Review browser and desktop configuration on their pages.")
@@ -23799,7 +23799,7 @@ function xp({ client: e, node: t, language: n, paused: r, selected: i = "", onSe
 		className: "agent-session-directory",
 		children: [
 			/* @__PURE__ */ (0, B.jsxs)("summary", { children: [
-				/* @__PURE__ */ (0, B.jsx)(L, {
+				/* @__PURE__ */ (0, B.jsx)(R, {
 					size: 18,
 					"aria-hidden": "true"
 				}),
@@ -23877,53 +23877,53 @@ function Cp() {
 	].join("-");
 }
 function wp({ client: e, language: t = "en", onDevices: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(!1), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)("incoming"), [M, N] = (0, x.useState)(""), [ee, te] = (0, x.useState)(!0), P = (0, x.useRef)(!0), ne = (0, x.useRef)(!1), re = (0, x.useRef)(!1), F = (0, x.useRef)(0), I = (0, x.useRef)(void 0), L = (0, x.useRef)(null), ie = (0, x.useRef)(!1), ae = (0, x.useId)(), oe = (i?.routes || []).filter((e) => e.node !== o?.owner), se = D ? D.sender === o?.owner ? D.target_session : D.sender_session : void 0, ce = new TextEncoder().encode(T).length, le = o?.max_text_bytes || 8192, ue = (0, x.useCallback)(async () => {
-		if (re.current || ne.current || document.hidden) return;
-		re.current = !0;
-		let t = ++F.current;
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(!1), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)("incoming"), [M, N] = (0, x.useState)(""), [ee, P] = (0, x.useState)(!0), F = (0, x.useRef)(!0), te = (0, x.useRef)(!1), ne = (0, x.useRef)(!1), I = (0, x.useRef)(0), L = (0, x.useRef)(void 0), R = (0, x.useRef)(null), re = (0, x.useRef)(!1), ie = (0, x.useId)(), ae = (i?.routes || []).filter((e) => e.node !== o?.owner), oe = D ? D.sender === o?.owner ? D.target_session : D.sender_session : void 0, se = new TextEncoder().encode(T).length, ce = o?.max_text_bytes || 8192, le = (0, x.useCallback)(async () => {
+		if (ne.current || te.current || document.hidden) return;
+		ne.current = !0;
+		let t = ++I.current;
 		_(!0);
 		try {
 			let [n, r] = await Promise.all([e({ operation: "list" }), e({
 				operation: "messages",
 				command: { operation: "list" }
 			})]);
-			P.current && t === F.current && (a(n), s(r), l(""), S(Date.now()));
+			F.current && t === I.current && (a(n), s(r), l(""), S(Date.now()));
 		} catch (e) {
-			P.current && t === F.current && l(Sp(e));
+			F.current && t === I.current && l(Sp(e));
 		} finally {
-			re.current = !1, P.current && _(!1);
+			ne.current = !1, F.current && _(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (P.current = !0, ue(), () => {
-		P.current = !1, ++F.current;
-	}), [ue]), (0, x.useEffect)(() => {
-		!m && ie.current && (ie.current = !1, L.current?.focus());
+	(0, x.useEffect)(() => (F.current = !0, le(), () => {
+		F.current = !1, ++I.current;
+	}), [le]), (0, x.useEffect)(() => {
+		!m && re.current && (re.current = !1, R.current?.focus());
 	}, [m]), (0, x.useEffect)(() => {
 		if (v) return;
-		let e = () => void ue(), t = setInterval(e, 3e3);
+		let e = () => void le(), t = setInterval(e, 3e3);
 		return document.addEventListener("visibilitychange", e), window.addEventListener("cranibox:peers-changed", e), () => {
 			clearInterval(t), document.removeEventListener("visibilitychange", e), window.removeEventListener("cranibox:peers-changed", e);
 		};
-	}, [ue, v]);
-	async function de(t, n) {
-		if (!ne.current) {
-			ne.current = !0, ++F.current, h(!0), d(""), p("");
+	}, [le, v]);
+	async function ue(t, n) {
+		if (!te.current) {
+			te.current = !0, ++I.current, h(!0), d(""), p("");
 			try {
 				let r = await e({
 					operation: "messages",
 					command: t
 				});
-				if (!P.current) return;
+				if (!F.current) return;
 				s(r), S(Date.now()), l(""), n?.();
 			} catch (e) {
-				P.current && (d(Sp(e)), t.operation === "send" && (ie.current = !0));
+				F.current && (d(Sp(e)), t.operation === "send" && (re.current = !0));
 			} finally {
-				ne.current = !1, P.current && h(!1);
+				te.current = !1, F.current && h(!1);
 			}
 		}
 	}
-	async function fe(e) {
-		if (e.preventDefault(), !T.trim() || ce > le || !ee || !oe.some((e) => e.node === C)) return;
+	async function de(e) {
+		if (e.preventDefault(), !T.trim() || se > ce || !ee || !ae.some((e) => e.node === C)) return;
 		let t = JSON.stringify([
 			C,
 			M,
@@ -23931,12 +23931,12 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 			D?.thread,
 			D?.id
 		]);
-		I.current?.key !== t && (I.current = {
+		L.current?.key !== t && (L.current = {
 			key: t,
 			id: Cp()
-		}), await de({
+		}), await ue({
 			operation: "send",
-			id: I.current.id,
+			id: L.current.id,
 			node: C,
 			text: T,
 			...M ? { target_session: M } : {},
@@ -23945,17 +23945,17 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 				in_reply_to: D.id
 			} : {}
 		}, () => {
-			E(""), O(void 0), I.current = void 0, j("outgoing"), p(r("消息已保存在本机发件箱。节点服务会投递，并在断线后重试。", "Saved in this device’s outbox. The node service delivers it and retries after an outage."));
+			E(""), O(void 0), L.current = void 0, j("outgoing"), p(r("消息已保存在本机发件箱。节点服务会投递，并在断线后重试。", "Saved in this device’s outbox. The node service delivers it and retries after an outage."));
 		});
 	}
-	function pe(e) {
+	function fe(e) {
 		let t = e.sender === o?.owner ? e.recipient : e.sender;
 		if (T && !confirm(r("替换当前草稿并回复这条消息？", "Replace the current draft and reply to this message?"))) return;
 		w(t);
 		let n = (e.sender === o?.owner ? e.target_session : e.sender_session) || "";
-		N(n), te((e) => n === M && t === C ? e : !n), O(e), E(""), d(""), p(""), L.current?.focus();
+		N(n), P((e) => n === M && t === C ? e : !n), O(e), E(""), d(""), p(""), R.current?.focus();
 	}
-	let z = (e) => ({
+	let pe = (e) => ({
 		queued: r("本机排队", "Queued locally"),
 		received: r("目标已收到", "Received by device"),
 		acknowledged: r("已确认收件", "Acknowledged"),
@@ -23979,7 +23979,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 						children: v ? r("恢复自动刷新", "Resume updates") : r("暂停自动刷新", "Pause updates")
 					}), /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: g || m,
-						onClick: () => void ue(),
+						onClick: () => void le(),
 						children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
@@ -24009,7 +24009,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 					className: "messages-compose",
 					children: [/* @__PURE__ */ (0, B.jsxs)("form", {
 						className: "direct-editor",
-						onSubmit: fe,
+						onSubmit: de,
 						"aria-label": r("撰写设备消息", "Compose device message"),
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("h3", { children: r("新消息", "New message") }),
@@ -24018,17 +24018,17 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								disabled: m || !!D,
 								value: C,
 								onChange: (e) => {
-									w(e.target.value), N(""), te(!0);
+									w(e.target.value), N(""), P(!0);
 								},
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "",
 									children: r("选择已连接设备", "Choose a connected device")
-								}), oe.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
+								}), ae.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 									value: e.node,
 									children: e.node
 								}, e.node))]
 							})] }),
-							!oe.length && /* @__PURE__ */ (0, B.jsx)("p", {
+							!ae.length && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
 								children: r("先在设备网络中添加直连、EasyTier 或 Tailscale 连接。", "First add a direct, EasyTier or Tailscale connection in Device network.")
 							}),
@@ -24039,8 +24039,8 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								paused: v,
 								selected: M,
 								onSelect: N,
-								onValidChange: te,
-								disabled: m || !!se,
+								onValidChange: P,
+								disabled: m || !!oe,
 								purpose: "message"
 							}, C),
 							D && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -24050,7 +24050,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 									disabled: m,
 									"aria-label": r("取消回复", "Cancel reply"),
 									onClick: () => {
-										O(void 0), N(""), te(!0), L.current?.focus();
+										O(void 0), N(""), P(!0), R.current?.focus();
 									},
 									children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 										size: 16,
@@ -24059,21 +24059,21 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 								})]
 							}),
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("消息内容", "Message text"), /* @__PURE__ */ (0, B.jsx)("textarea", {
-								ref: L,
+								ref: R,
 								rows: 6,
 								value: T,
 								disabled: m,
-								"aria-describedby": ae,
-								"aria-invalid": ce > le || void 0,
+								"aria-describedby": ie,
+								"aria-invalid": se > ce || void 0,
 								onChange: (e) => E(e.target.value)
 							})] }),
 							/* @__PURE__ */ (0, B.jsxs)("p", {
-								id: ae,
-								className: ce > le ? "direct-error" : "direct-note",
+								id: ie,
+								className: se > ce ? "direct-error" : "direct-note",
 								children: [
-									ce,
+									se,
 									" / ",
-									le,
+									ce,
 									" ",
 									r("UTF-8 字节 · 纯文本", "UTF-8 bytes · Plain text")
 								]
@@ -24086,7 +24086,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 							/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
 								type: "submit",
-								disabled: m || !T.trim() || ce > le || !ee || !oe.some((e) => e.node === C),
+								disabled: m || !T.trim() || se > ce || !ee || !ae.some((e) => e.node === C),
 								children: [/* @__PURE__ */ (0, B.jsx)(gn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -24157,7 +24157,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 							]
 						}),
 						me.map((e) => {
-							let n = e.message, i = A === "incoming" ? n.sender : n.recipient, a = oe.some((e) => e.node === i);
+							let n = e.message, i = A === "incoming" ? n.sender : n.recipient, a = ae.some((e) => e.node === i);
 							return /* @__PURE__ */ (0, B.jsxs)("article", {
 								className: "message-card",
 								"aria-label": r("消息 ", "Message ") + n.id,
@@ -24166,7 +24166,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 										className: "message-heading",
 										children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("small", { children: A === "incoming" ? r("来自", "From") : r("发送至", "To") }), /* @__PURE__ */ (0, B.jsx)("strong", { children: i })] }), /* @__PURE__ */ (0, B.jsx)("span", {
 											className: "message-status message-" + e.status,
-											children: A === "incoming" && e.status === "received" ? r("待确认收件", "Awaiting acknowledgement") : z(e.status)
+											children: A === "incoming" && e.status === "received" ? r("待确认收件", "Awaiting acknowledgement") : pe(e.status)
 										})]
 									}),
 									n.target_session && /* @__PURE__ */ (0, B.jsxs)("p", {
@@ -24195,11 +24195,11 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 										children: [
 											A === "incoming" && e.status !== "acknowledged" && /* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
-												onClick: () => void de({
+												onClick: () => void ue({
 													operation: "acknowledge",
 													id: n.id
 												}),
-												children: [/* @__PURE__ */ (0, B.jsx)(R, {
+												children: [/* @__PURE__ */ (0, B.jsx)(z, {
 													size: 16,
 													"aria-hidden": "true"
 												}), r("确认收件", "Acknowledge receipt")]
@@ -24207,7 +24207,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											/* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m || !a,
 												title: a ? void 0 : r("需要先配置反向连接和消息授权", "Configure a reverse connection and message grant first"),
-												onClick: () => pe(n),
+												onClick: () => fe(n),
 												children: [/* @__PURE__ */ (0, B.jsx)(un, {
 													size: 16,
 													"aria-hidden": "true"
@@ -24215,7 +24215,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											}),
 											A === "outgoing" && e.status !== "acknowledged" && n.expires_at * 1e3 > Date.now() && /* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
-												onClick: () => void de({
+												onClick: () => void ue({
 													operation: "retry",
 													id: n.id
 												}),
@@ -24227,7 +24227,7 @@ function wp({ client: e, language: t = "en", onDevices: n }) {
 											/* @__PURE__ */ (0, B.jsxs)("button", {
 												disabled: m,
 												onClick: () => {
-													confirm(A === "outgoing" ? r("删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。", "Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.") : r("隐藏这条来信？去重和收件回执会保留到投递截止。", "Hide this incoming message? Deduplication and receipts remain until its delivery deadline.")) && de({
+													confirm(A === "outgoing" ? r("删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。", "Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.") : r("隐藏这条来信？去重和收件回执会保留到投递截止。", "Hide this incoming message? Deduplication and receipts remain until its delivery deadline.")) && ue({
 														operation: "archive",
 														id: n.id
 													});
@@ -24282,7 +24282,7 @@ function Dp({ client: e, owner: t, language: n, kind: r = "projects" }) {
 				size: 17,
 				"aria-hidden": "true"
 			}),
-			/* @__PURE__ */ (0, B.jsx)("strong", { children: r === "agents" ? o ? "后台 Agent 目录同步" : "Background Agent directory sync" : o ? "后台目录同步" : "Background catalog sync" }),
+			/* @__PURE__ */ (0, B.jsx)("strong", { children: r === "activity" ? o ? "后台协作记录同步" : "Background collaboration sync" : r === "agents" ? o ? "后台 Agent 目录同步" : "Background Agent directory sync" : o ? "后台目录同步" : "Background catalog sync" }),
 			/* @__PURE__ */ (0, B.jsx)("span", { children: o ? "按设备启用 · 关闭页面后继续" : "Choose devices · continues after closing" })
 		] }), i && /* @__PURE__ */ (0, B.jsx)(Op, {
 			client: e,
@@ -24293,7 +24293,7 @@ function Dp({ client: e, owner: t, language: n, kind: r = "projects" }) {
 	});
 }
 function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
-	let i = (e, t) => n.startsWith("zh") ? e : t, a = r === "agents", [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(), [u, d] = (0, x.useState)(!1), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(""), b = (0, x.useRef)(!0), S = (0, x.useRef)(!1), C = (0, x.useRef)(!1), w = (0, x.useRef)(0), T = (0, x.useCallback)((e) => {
+	let i = (e, t) => n.startsWith("zh") ? e : t, a = r === "agents", o = r === "activity", s = (0, x.useId)(), [c, l] = (0, x.useState)(), [u, d] = (0, x.useState)(), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(!1), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(""), [b, S] = (0, x.useState)(""), C = (0, x.useRef)(!0), w = (0, x.useRef)(!1), T = (0, x.useRef)(!1), E = (0, x.useRef)(0), D = (0, x.useCallback)((e) => {
 		if (!e || typeof e.owner != "string" || t && e.owner !== t || !Number.isSafeInteger(e.revision) || typeof e.enabled != "boolean" || ![
 			15,
 			30,
@@ -24301,50 +24301,50 @@ function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
 			300
 		].includes(e.interval_seconds) || !Array.isArray(e.available_nodes) || !Array.isArray(e.nodes)) throw Error("Unexpected catalog sync settings. Reload the intended device.");
 		return e;
-	}, [t]), E = (0, x.useCallback)((t) => e({
-		operation: a ? "agent_sync" : "project_sync",
+	}, [t]), O = (0, x.useCallback)((t) => e({
+		operation: r === "activity" ? "activity_sync" : r === "agents" ? "agent_sync" : "project_sync",
 		command: t
-	}), [e, a]), D = (0, x.useCallback)(async () => {
-		if (S.current || C.current || document.hidden) return;
-		S.current = !0;
-		let e = ++w.current;
-		p(!0);
+	}), [e, r]), k = (0, x.useCallback)(async () => {
+		if (w.current || T.current || document.hidden) return;
+		w.current = !0;
+		let e = ++E.current;
+		h(!0);
 		try {
-			let t = T(await E({ operation: "status" }));
-			b.current && e === w.current && (s(t), h(""));
+			let t = D(await O({ operation: "status" }));
+			C.current && e === E.current && (l(t), _(""));
 		} catch (t) {
-			b.current && e === w.current && h(Ep(t));
+			C.current && e === E.current && _(Ep(t));
 		} finally {
-			S.current = !1, b.current && p(!1);
+			w.current = !1, C.current && h(!1);
 		}
-	}, [T, E]);
+	}, [D, O]);
 	(0, x.useEffect)(() => {
-		b.current = !0, D();
-		let e = () => void D(), t = setInterval(e, 5e3);
+		C.current = !0, k();
+		let e = () => void k(), t = setInterval(e, 5e3);
 		return document.addEventListener("visibilitychange", e), window.addEventListener("cranibox:peers-changed", e), () => {
-			b.current = !1, ++w.current, clearInterval(t), document.removeEventListener("visibilitychange", e), window.removeEventListener("cranibox:peers-changed", e);
+			C.current = !1, ++E.current, clearInterval(t), document.removeEventListener("visibilitychange", e), window.removeEventListener("cranibox:peers-changed", e);
 		};
-	}, [D]);
-	async function O(e, t) {
-		if (!C.current) {
-			C.current = !0, ++w.current, d(!0), _(""), y("");
+	}, [k]);
+	async function A(e, t) {
+		if (!T.current) {
+			T.current = !0, ++E.current, p(!0), y(""), S("");
 			try {
-				let n = T(await E(e));
-				b.current && (s(n), l(void 0), h(""), y(t));
+				let n = D(await O(e));
+				C.current && (l(n), d(void 0), _(""), S(t), o && window.dispatchEvent(new Event("cranibox:activity-sync-changed")));
 			} catch (e) {
-				b.current && _(Ep(e));
+				C.current && y(Ep(e));
 			} finally {
-				C.current = !1, b.current && d(!1);
+				T.current = !1, C.current && p(!1);
 			}
 		}
 	}
-	function k(e) {
-		e.preventDefault(), c && O({
+	function j(e) {
+		e.preventDefault(), u && A({
 			operation: "configure",
-			...c
+			...u
 		}, i("已保存，节点将在后台同步选定设备。", "Saved. This node will synchronize the selected devices in the background."));
 	}
-	let A = (e) => ({
+	let M = (e) => ({
 		waiting: i("等待同步", "Waiting"),
 		checking: i("正在同步", "Syncing"),
 		online: i("同步成功", "Up to date"),
@@ -24354,64 +24354,64 @@ function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
 		cache_error: i("已读取，但本机快照保存失败", "Read succeeded; local snapshot could not be saved"),
 		paused: i("已暂停", "Paused"),
 		connection_changed: i("连接已移除或变更，需要重新选择", "Connection removed or changed; select it again")
-	})[e] || i("状态未知，请刷新", "Unknown status; refresh"), j = [.../* @__PURE__ */ new Set([...o?.available_nodes || [], ...c?.nodes || []])], M = !!c && o?.revision !== c.revision, N = u || !!m, ee = c?.nodes.some((e) => !o?.available_nodes.includes(e));
+	})[e] || i("状态未知，请刷新", "Unknown status; refresh"), N = [.../* @__PURE__ */ new Set([...c?.available_nodes || [], ...u?.nodes || []])], ee = !!u && c?.revision !== u.revision, P = f || !!g, F = u?.nodes.some((e) => !c?.available_nodes.includes(e));
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "project-sync-body",
 		children: [
 			/* @__PURE__ */ (0, B.jsx)("p", {
 				className: "projects-note",
-				children: a ? i("此节点会定期读取选定设备的公开 Agent 登记，保存本机只读快照。需要目标的消息权限。离线记录不代表当前状态，不能用于选择执行 Agent。", "This node periodically reads selected devices’ public Agent registrations and keeps a local read-only snapshot. Target message access is required. Offline reports are unconfirmed and cannot select an execution Agent.") : i("运行此界面的节点会定期读取选定设备的项目目录和会话关联，保存本机只读快照。需要目标的项目目录权限。", "The node behind this interface periodically reads selected devices’ project catalogs and session links, keeping a local read-only snapshot. Target project access is required.")
+				children: o ? i("此节点会定期读取选定设备的任务、消息正文和协作 Run，保存本机只读快照。需要目标单独授予“只读协作记录”，可能包含与其他设备的协作内容。默认关闭，请只选择需要保存在本机的设备。", "This node periodically saves read-only snapshots of selected devices’ tasks, message content and collaboration Runs. A separate Read collaboration records grant is required. This may include their conversations with other devices. Sync is off by default; select only content you want stored here.") : a ? i("此节点会定期读取选定设备的公开 Agent 登记，保存本机只读快照。需要目标的消息权限。离线记录不代表当前状态，不能用于选择执行 Agent。", "This node periodically reads selected devices’ public Agent registrations and keeps a local read-only snapshot. Target message access is required. Offline reports are unconfirmed and cannot select an execution Agent.") : i("运行此界面的节点会定期读取选定设备的项目目录和会话关联，保存本机只读快照。需要目标的项目目录权限。", "The node behind this interface periodically reads selected devices’ project catalogs and session links, keeping a local read-only snapshot. Target project access is required.")
 			}),
-			o && /* @__PURE__ */ (0, B.jsxs)("div", {
+			c && /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "project-sync-heading",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: o.enabled ? i("后台同步已启用", "Background sync enabled") : i("后台同步已关闭", "Background sync off") }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("同步节点：", "Syncing node: "), /* @__PURE__ */ (0, B.jsx)("code", { children: o.owner })] })] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
-					o.nodes.length,
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: c.enabled ? i("后台同步已启用", "Background sync enabled") : i("后台同步已关闭", "Background sync off") }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("同步节点：", "Syncing node: "), /* @__PURE__ */ (0, B.jsx)("code", { children: c.owner })] })] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+					c.nodes.length,
 					" ",
 					i("台设备", "devices"),
 					" · ",
-					o.interval_seconds < 60 ? o.interval_seconds + i(" 秒", " seconds") : o.interval_seconds / 60 + i(" 分钟", " minutes")
+					c.interval_seconds < 60 ? c.interval_seconds + i(" 秒", " seconds") : c.interval_seconds / 60 + i(" 分钟", " minutes")
 				] })]
 			}),
-			!o && f && /* @__PURE__ */ (0, B.jsx)("p", {
+			!c && m && /* @__PURE__ */ (0, B.jsx)("p", {
 				role: "status",
 				children: i("正在读取同步设置…", "Loading sync settings…")
 			}),
-			m && /* @__PURE__ */ (0, B.jsxs)("p", {
+			g && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "projects-error",
 				role: "alert",
-				children: [m, o && i(" · 以下为上次读取的设置。", " · Showing previously read settings.")]
-			}),
-			g && /* @__PURE__ */ (0, B.jsx)("p", {
-				className: "projects-error",
-				role: "alert",
-				children: g
+				children: [g, c && i(" · 以下为上次读取的设置。", " · Showing previously read settings.")]
 			}),
 			v && /* @__PURE__ */ (0, B.jsx)("p", {
+				className: "projects-error",
+				role: "alert",
+				children: v
+			}),
+			b && /* @__PURE__ */ (0, B.jsx)("p", {
 				className: "project-sync-notice",
 				role: "status",
-				children: v
+				children: b
 			}),
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "project-sync-actions",
 				children: [
-					o && !c && /* @__PURE__ */ (0, B.jsx)("button", {
+					c && !u && /* @__PURE__ */ (0, B.jsx)("button", {
 						type: "button",
-						disabled: N,
+						disabled: P,
 						onClick: () => {
-							l({
-								revision: o.revision,
-								nodes: o.nodes.map((e) => e.node),
-								interval_seconds: o.interval_seconds
-							}), _(""), y("");
+							d({
+								revision: c.revision,
+								nodes: c.nodes.map((e) => e.node),
+								interval_seconds: c.interval_seconds
+							}), y(""), S("");
 						},
-						children: o.enabled ? i("修改同步设备", "Edit sync devices") : i("设置后台同步", "Set up background sync")
+						children: c.enabled ? i("修改同步设备", "Edit sync devices") : i("设置后台同步", "Set up background sync")
 					}),
-					o?.enabled && /* @__PURE__ */ (0, B.jsxs)("button", {
+					c?.enabled && /* @__PURE__ */ (0, B.jsxs)("button", {
 						type: "button",
-						disabled: N,
-						onClick: () => void O({
+						disabled: P,
+						onClick: () => void A({
 							operation: "pause",
-							revision: o.revision
+							revision: c.revision
 						}, i("后台同步已暂停。现有快照仍可查看。", "Background sync paused. Existing snapshots remain available.")),
 						children: [/* @__PURE__ */ (0, B.jsx)($t, {
 							size: 16,
@@ -24420,8 +24420,8 @@ function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("button", {
 						type: "button",
-						disabled: u || f,
-						onClick: () => void D(),
+						disabled: f || m,
+						onClick: () => void k(),
 						children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
@@ -24429,52 +24429,65 @@ function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
 					})
 				]
 			}),
-			c && /* @__PURE__ */ (0, B.jsxs)("form", {
+			o && c && !!c.nodes.length && !u && /* @__PURE__ */ (0, B.jsx)("button", {
+				type: "button",
+				disabled: P,
+				onClick: () => void A({
+					operation: "configure",
+					revision: c.revision,
+					nodes: [],
+					interval_seconds: c.interval_seconds
+				}, i("已关闭协作同步并删除本机保存的协作快照。", "Collaboration sync off. Locally saved collaboration snapshots were deleted.")),
+				children: i("清空快照并关闭同步", "Clear snapshots and turn off sync")
+			}),
+			u && /* @__PURE__ */ (0, B.jsxs)("form", {
 				className: "project-sync-form",
-				onSubmit: k,
+				onSubmit: j,
 				"aria-label": i("后台同步设置", "Background sync settings"),
 				children: [
-					M && /* @__PURE__ */ (0, B.jsxs)("div", {
+					ee && /* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "projects-error",
 						role: "alert",
 						children: [/* @__PURE__ */ (0, B.jsx)("span", { children: i("设置已在其他入口变更。请重新核对所选设备。", "Settings changed elsewhere. Review your selected devices again.") }), /* @__PURE__ */ (0, B.jsx)("button", {
 							type: "button",
-							disabled: N || !o,
-							onClick: () => o && l({
-								...c,
-								revision: o.revision
+							disabled: P || !c,
+							onClick: () => c && d({
+								...u,
+								revision: c.revision
 							}),
 							children: i("使用当前版本继续修改", "Continue with current version")
 						})]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("fieldset", {
-						disabled: N,
+						disabled: P,
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("legend", { children: i("要同步的设备", "Devices to synchronize") }),
-							!j.length && /* @__PURE__ */ (0, B.jsx)("p", {
+							!N.length && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "projects-note",
-								children: a ? i("请先在设备页面添加直连设备并取得消息权限。", "First add a direct device and obtain message access on the Devices page.") : i("请先在设备页面添加直连设备并取得项目目录权限。", "First add a direct device and obtain project catalog access on the Devices page.")
+								children: o ? i("请先在设备页面添加直连设备并取得只读协作记录权限。", "First add a direct device and obtain Read collaboration records access on the Devices page.") : a ? i("请先在设备页面添加直连设备并取得消息权限。", "First add a direct device and obtain message access on the Devices page.") : i("请先在设备页面添加直连设备并取得项目目录权限。", "First add a direct device and obtain project catalog access on the Devices page.")
 							}),
-							j.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
+							N.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
 								className: "project-sync-check",
 								children: [/* @__PURE__ */ (0, B.jsx)("input", {
 									type: "checkbox",
-									checked: c.nodes.includes(e),
-									onChange: (t) => l({
-										...c,
-										nodes: t.target.checked ? [...c.nodes, e] : c.nodes.filter((t) => t !== e)
+									checked: u.nodes.includes(e),
+									onChange: (t) => d({
+										...u,
+										nodes: t.target.checked ? [...u.nodes, e] : u.nodes.filter((t) => t !== e)
 									})
-								}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("code", { children: e }), !o?.available_nodes.includes(e) && /* @__PURE__ */ (0, B.jsx)("small", { children: i("连接已移除，请取消选择", "Connection removed; deselect this device") })] })]
+								}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("code", { children: e }), !c?.available_nodes.includes(e) && /* @__PURE__ */ (0, B.jsx)("small", { children: i("连接已移除，请取消选择", "Connection removed; deselect this device") })] })]
 							}, e))
 						]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("label", {
 						className: "project-sync-interval",
+						htmlFor: s,
 						children: [i("同步间隔", "Sync interval"), /* @__PURE__ */ (0, B.jsxs)("select", {
-							value: c.interval_seconds,
-							disabled: N,
-							onChange: (e) => l({
-								...c,
+							id: s,
+							value: u.interval_seconds,
+							disabled: P,
+							onChange: (e) => d({
+								...u,
 								interval_seconds: Number(e.target.value)
 							}),
 							children: [
@@ -24499,49 +24512,52 @@ function Op({ client: e, owner: t, language: n, kind: r = "projects" }) {
 					}),
 					/* @__PURE__ */ (0, B.jsx)("p", {
 						className: "projects-note",
-						children: i("最多选择 32 台设备。只同步目录记录，不复制项目文件，不启动 Shell 或 Agent。关闭页面后继续；暂停后不再开始新读取，已发出的请求会结束。", "Choose up to 32 devices. Sync reads catalog records; it does not copy files or start shells or Agents. It continues after closing. Pausing prevents new reads; in-flight requests finish.")
+						children: o ? i("最多选择 32 台设备。关闭页面后继续同步；暂停保留快照，取消选择会删除相应快照。只更新只读视图，不启动 Shell 或 Agent。", "Choose up to 32 devices. Sync continues after closing. Pause keeps snapshots; deselecting a device deletes its snapshot. This only updates the read-only view and never starts a shell or Agent.") : i("最多选择 32 台设备。只同步目录记录，不复制项目文件，不启动 Shell 或 Agent。关闭页面后继续；暂停后不再开始新读取，已发出的请求会结束。", "Choose up to 32 devices. Sync reads catalog records; it does not copy files or start shells or Agents. It continues after closing. Pausing prevents new reads; in-flight requests finish.")
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "project-sync-actions",
 						children: [/* @__PURE__ */ (0, B.jsx)("button", {
 							type: "submit",
 							className: "projects-primary",
-							disabled: N || M || !c.nodes.length || c.nodes.length > 32 || ee,
-							children: u ? i("正在保存…", "Saving…") : o?.enabled ? i("保存同步设置", "Save sync settings") : i("启用后台同步", "Enable background sync")
+							disabled: P || ee || !u.nodes.length || u.nodes.length > 32 || F,
+							children: f ? i("正在保存…", "Saving…") : c?.enabled ? i("保存同步设置", "Save sync settings") : i("启用后台同步", "Enable background sync")
 						}), /* @__PURE__ */ (0, B.jsx)("button", {
 							type: "button",
-							disabled: u,
+							disabled: f,
 							onClick: () => {
-								l(void 0), _("");
+								d(void 0), y("");
 							},
 							children: i("取消修改", "Cancel changes")
 						})]
 					})
 				]
 			}),
-			!!o?.nodes.length && /* @__PURE__ */ (0, B.jsx)("ul", {
+			!!c?.nodes.length && /* @__PURE__ */ (0, B.jsx)("ul", {
 				className: "project-sync-results",
 				"aria-label": i("各设备同步状态", "Device sync status"),
-				children: o.nodes.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [
-					/* @__PURE__ */ (0, B.jsx)("code", { children: e.node }),
-					/* @__PURE__ */ (0, B.jsx)("strong", { children: A(e.phase) }),
-					e.last_success && /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("上次成功：", "Last successful sync: "), /* @__PURE__ */ (0, B.jsx)("time", {
-						dateTime: new Date(e.last_success).toISOString(),
-						children: new Date(e.last_success).toLocaleString()
-					})] }),
-					e.last_attempt && e.last_attempt !== e.last_success && /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("最近尝试：", "Last attempted: "), /* @__PURE__ */ (0, B.jsx)("time", {
-						dateTime: new Date(e.last_attempt).toISOString(),
-						children: new Date(e.last_attempt).toLocaleString()
-					})] })
-				] }), (a ? e.session_count : e.project_count) != null && /* @__PURE__ */ (0, B.jsxs)("span", { children: [
-					a ? e.session_count : e.project_count,
-					" ",
-					a ? i("条登记", "registrations") : i("个项目", "projects")
-				] })] }, e.node))
+				children: c.nodes.map((e) => {
+					let t = o ? e.record_count : a ? e.session_count : e.project_count;
+					return /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [
+						/* @__PURE__ */ (0, B.jsx)("code", { children: e.node }),
+						/* @__PURE__ */ (0, B.jsx)("strong", { children: M(e.phase) }),
+						e.last_success && /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("上次成功：", "Last successful sync: "), /* @__PURE__ */ (0, B.jsx)("time", {
+							dateTime: new Date(e.last_success).toISOString(),
+							children: new Date(e.last_success).toLocaleString(n)
+						})] }),
+						e.last_attempt && e.last_attempt !== e.last_success && /* @__PURE__ */ (0, B.jsxs)("small", { children: [i("最近尝试：", "Last attempted: "), /* @__PURE__ */ (0, B.jsx)("time", {
+							dateTime: new Date(e.last_attempt).toISOString(),
+							children: new Date(e.last_attempt).toLocaleString(n)
+						})] })
+					] }), t != null && /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+						t,
+						" ",
+						o ? i("条记录", "records") : a ? i("条登记", "registrations") : i("个项目", "projects")
+					] })] }, e.node);
+				})
 			}),
 			/* @__PURE__ */ (0, B.jsx)("p", {
 				className: "projects-note",
-				children: i("离线快照可能已过期，不能用于操作远端会话。目标拒绝读取或返回无效目录后，会清除相应快照。", "Offline snapshots may be stale and cannot operate remote sessions. A denied read or invalid owner catalog removes that cached snapshot.")
+				children: o ? i("离线快照可能已过期，不代表当前任务或 Agent 状态。目标拒绝读取、返回无效记录或连接变更后，会清除相应快照。撤权只能在下次成功联系目标时得知。", "Offline snapshots may be stale and do not confirm current task or Agent status. A denied read, invalid records or connection change removes the snapshot. Revocation is learned when the target can next be reached.") : i("离线快照可能已过期，不能用于操作远端会话。目标拒绝读取或返回无效目录后，会清除相应快照。", "Offline snapshots may be stale and cannot operate remote sessions. A denied read or invalid owner catalog removes that cached snapshot.")
 			})
 		]
 	});
@@ -24669,7 +24685,7 @@ function kp({ client: e, devices: t, owner: n, language: r, paused: i, disabled:
 		children: [
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "agent-federation-heading",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(L, {
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(R, {
 					size: 20,
 					"aria-hidden": "true"
 				}), s("所有设备的 Agent", "Agents across devices")] }), /* @__PURE__ */ (0, B.jsxs)("p", {
@@ -24814,7 +24830,7 @@ function kp({ client: e, devices: t, owner: n, language: r, paused: i, disabled:
 											onClick: () => {
 												n && yp(t, n, performance.now()) && o(e.owner, t.id);
 											},
-											children: [s("委托给此 Agent", "Delegate to this Agent"), /* @__PURE__ */ (0, B.jsx)(ne, {
+											children: [s("委托给此 Agent", "Delegate to this Agent"), /* @__PURE__ */ (0, B.jsx)(te, {
 												size: 16,
 												"aria-hidden": "true"
 											})]
@@ -24833,7 +24849,11 @@ function kp({ client: e, devices: t, owner: n, language: r, paused: i, disabled:
 //#region src/tasks/activity-catalog.ts
 function Ap(e, t, n) {
 	let r = e;
-	if (!r || r.version !== 1 || r.owner !== t || !Number.isSafeInteger(r.observed_at) || r.observed_at <= 0 || r.observed_at > 253402300799 || typeof r.digest != "string" || !/^[a-f0-9]{64}$/.test(r.digest) || !Array.isArray(r.tasks) || r.tasks.length > 128 || !Array.isArray(r.messages) || r.messages.length > 256 || !Array.isArray(r.runs) || r.runs.length > 32) throw Error(n);
+	if (!r || r.version !== 1 || r.owner !== t || !Number.isSafeInteger(r.observed_at) || r.observed_at <= 0 || r.observed_at > 253402300799 || typeof r.digest != "string" || !/^[a-f0-9]{64}$/.test(r.digest) || !Array.isArray(r.tasks) || r.tasks.length > 128 || !Array.isArray(r.messages) || r.messages.length > 256 || !Array.isArray(r.runs) || r.runs.length > 32 || "sync" in r && (!r.sync || !["online", "offline"].includes(r.sync.state) || !Number.isSafeInteger(r.sync.synced_at) || r.sync.synced_at <= 0 || r.sync.synced_at > 0xe677d21fd818 || r.sync.warning != null && (typeof r.sync.warning != "string" || r.sync.warning.length > 4096) || Object.keys(r.sync).some((e) => ![
+		"state",
+		"synced_at",
+		"warning"
+	].includes(e)))) throw Error(n);
 	let i = /* @__PURE__ */ new Set(), a = (e, t) => {
 		let n = e + ":" + t;
 		return typeof t != "string" || !t || i.has(n) ? !1 : (i.add(n), !0);
@@ -24861,7 +24881,7 @@ function jp(e) {
 				children: [t ? /* @__PURE__ */ (0, B.jsx)(he, {
 					size: 16,
 					"aria-hidden": "true"
-				}) : /* @__PURE__ */ (0, B.jsx)(z, {
+				}) : /* @__PURE__ */ (0, B.jsx)(pe, {
 					size: 16,
 					"aria-hidden": "true"
 				}), i ? t ? "收起协作记录" : "查看协作记录" : t ? "Close collaboration records" : "View collaboration records"]
@@ -24895,8 +24915,8 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 	]), D = f.scope === E ? f.views : {};
 	(0, x.useEffect)(() => {
 		let e = () => d((e) => e + 1);
-		return window.addEventListener("cranibox:peers-changed", e), window.addEventListener("cranibox:network-routes-changed", e), () => {
-			window.removeEventListener("cranibox:peers-changed", e), window.removeEventListener("cranibox:network-routes-changed", e);
+		return window.addEventListener("cranibox:peers-changed", e), window.addEventListener("cranibox:network-routes-changed", e), window.addEventListener("cranibox:activity-sync-changed", e), () => {
+			window.removeEventListener("cranibox:peers-changed", e), window.removeEventListener("cranibox:network-routes-changed", e), window.removeEventListener("cranibox:activity-sync-changed", e);
 		};
 	}, []), (0, x.useEffect)(() => {
 		let t = !1, r = !1;
@@ -25027,7 +25047,13 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 		children: [
 			/* @__PURE__ */ (0, B.jsx)("p", {
 				className: "direct-note",
-				children: o("来源节点保存权威记录。这里仅汇总最近读取的内容，同一任务可在不同来源各有记录；不会合并进本机账本，也不代表 Agent 正在运行。收起后停止读取。", "Each source owns its records. These are the last observations; the same task can appear under multiple sources. Nothing is merged into this device’s ledger, and reports do not prove a running Agent. Closing this panel stops reads.")
+				children: o("来源节点保存权威记录。这里仅汇总最近读取的内容，同一任务可在不同来源各有记录；不会合并进本机账本，也不代表 Agent 正在运行。收起后停止页面读取；已启用的后台同步继续。", "Each source owns its records. These are the last observations; the same task can appear under multiple sources. Nothing is merged into this device’s ledger, and reports do not prove a running Agent. Closing stops page reads; enabled background sync continues.")
+			}),
+			/* @__PURE__ */ (0, B.jsx)(Dp, {
+				client: e,
+				owner: n,
+				language: r,
+				kind: "activity"
 			}),
 			/* @__PURE__ */ (0, B.jsxs)("fieldset", {
 				className: "activity-sources",
@@ -25066,21 +25092,38 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 				className: "activity-source-status",
 				children: w.map((e) => {
 					let t = D[e], n = t?.snapshot;
-					return /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e }), t?.error ? /* @__PURE__ */ (0, B.jsx)("p", {
-						className: "direct-error",
-						role: "alert",
-						children: t.error
-					}) : n ? /* @__PURE__ */ (0, B.jsxs)("p", { children: [
-						o("来源读取时间：", "Source observation: "),
-						/* @__PURE__ */ (0, B.jsx)("time", {
-							dateTime: (/* @__PURE__ */ new Date(n.observed_at * 1e3)).toISOString(),
-							children: N(n.observed_at)
-						}),
-						/* @__PURE__ */ (0, B.jsxs)("small", { children: [o("内容指纹：", "Content digest: "), /* @__PURE__ */ (0, B.jsx)("code", { children: n.digest.slice(0, 12) })] })
-					] }) : /* @__PURE__ */ (0, B.jsx)("p", {
-						role: "status",
-						children: o("等待读取", "Waiting to read")
-					})] }, e);
+					return /* @__PURE__ */ (0, B.jsxs)("div", {
+						"aria-label": o("记录来源 ", "Record source ") + e,
+						children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e }), t?.error ? /* @__PURE__ */ (0, B.jsx)("p", {
+							className: "direct-error",
+							role: "alert",
+							children: t.error
+						}) : n ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+							/* @__PURE__ */ (0, B.jsxs)("p", { children: [
+								o("来源读取时间：", "Source observation: "),
+								/* @__PURE__ */ (0, B.jsx)("time", {
+									dateTime: (/* @__PURE__ */ new Date(n.observed_at * 1e3)).toISOString(),
+									children: N(n.observed_at)
+								}),
+								/* @__PURE__ */ (0, B.jsxs)("small", { children: [o("内容指纹：", "Content digest: "), /* @__PURE__ */ (0, B.jsx)("code", { children: n.digest.slice(0, 12) })] })
+							] }),
+							n.sync && /* @__PURE__ */ (0, B.jsxs)("p", {
+								className: n.sync.state === "offline" ? "activity-stale" : "direct-note",
+								children: [n.sync.state === "offline" ? o("离线快照 · 当前状态未经确认", "Offline snapshot · current status unconfirmed") : n.sync.warning ? o("实时记录 · 本机快照保存失败", "Live records · local snapshot unavailable") : o("已保存本机快照", "Local snapshot saved"), /* @__PURE__ */ (0, B.jsxs)("small", { children: [o("上次同步：", "Last synced: "), /* @__PURE__ */ (0, B.jsx)("time", {
+									dateTime: new Date(n.sync.synced_at).toISOString(),
+									children: new Date(n.sync.synced_at).toLocaleString(r)
+								})] })]
+							}),
+							n.sync?.warning && /* @__PURE__ */ (0, B.jsx)("p", {
+								className: "direct-error",
+								role: "alert",
+								children: n.sync.warning
+							})
+						] }) : /* @__PURE__ */ (0, B.jsx)("p", {
+							role: "status",
+							children: o("等待读取", "Waiting to read")
+						})]
+					}, e);
 				})
 			}),
 			w.some((e) => D[e]?.error) && /* @__PURE__ */ (0, B.jsxs)("p", {
@@ -25114,7 +25157,7 @@ function Mp({ client: e, devices: t, owner: n, language: r, paused: i, onDevices
 					}, e))]
 				})] })]
 			}),
-			w.length ? !k.length && !M ? /* @__PURE__ */ (0, B.jsx)("p", { children: o("没有匹配记录。读取失败的来源不会保留旧内容。", "No matching records. Unavailable sources retain no previous content.") }) : null : /* @__PURE__ */ (0, B.jsx)("p", { children: o("请选择要查看的来源设备。", "Select a source device to view its records.") }),
+			w.length ? !k.length && !M ? /* @__PURE__ */ (0, B.jsx)("p", { children: o("没有匹配记录。没有可用离线快照时，读取失败的来源不会显示旧内容。", "No matching records. Failed sources show previous content only when an explicitly saved offline snapshot is available.") }) : null : /* @__PURE__ */ (0, B.jsx)("p", { children: o("请选择要查看的来源设备。", "Select a source device to view its records.") }),
 			/* @__PURE__ */ (0, B.jsx)("div", {
 				className: "activity-list",
 				children: k.slice(j * 20, j * 20 + 20).map((e) => /* @__PURE__ */ (0, B.jsxs)("article", {
@@ -25254,15 +25297,15 @@ function Ip({ client: e, language: t, paused: n, devices: r }) {
 	});
 }
 function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
-	let a = (e, n) => t.startsWith("zh") ? e : n, [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)("custom-cli"), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)("[]"), [v, y] = (0, x.useState)("codex"), [b, S] = (0, x.useState)("read_only"), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(!1), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(0), oe = (0, x.useRef)(void 0), se = (0, x.useRef)(void 0);
-	(0, x.useEffect)(() => (i(M), () => i(!1)), [M, i]), (0, x.useEffect)(() => (I.current = !0, () => {
-		I.current = !1, ae.current++;
+	let a = (e, n) => t.startsWith("zh") ? e : n, [o, s] = (0, x.useState)(), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)("custom-cli"), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)("[]"), [v, y] = (0, x.useState)("codex"), [b, S] = (0, x.useState)("read_only"), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)(!1), [F, te] = (0, x.useState)(""), [ne, I] = (0, x.useState)(""), L = (0, x.useRef)(!0), R = (0, x.useRef)(!1), re = (0, x.useRef)(!1), ie = (0, x.useRef)(0), ae = (0, x.useRef)(void 0), oe = (0, x.useRef)(void 0);
+	(0, x.useEffect)(() => (i(M), () => i(!1)), [M, i]), (0, x.useEffect)(() => (L.current = !0, () => {
+		L.current = !1, ie.current++;
 	}), []);
-	let ce = (0, x.useCallback)(async () => {
-		if (ie.current || L.current || document.hidden) return;
-		ie.current = !0;
-		let t = ++ae.current;
-		te(!0);
+	let se = (0, x.useCallback)(async () => {
+		if (re.current || R.current || document.hidden) return;
+		re.current = !0;
+		let t = ++ie.current;
+		P(!0);
 		try {
 			let n = await e({
 				operation: "executions",
@@ -25271,9 +25314,9 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 			});
 			if (!n || !Array.isArray(n.executions)) throw Error("Invalid execution catalog. Update the device service.");
 			if (r && n.owner !== r) throw Error("Execution device identity mismatch. Reconnect the intended device.");
-			if (!I.current || t !== ae.current) return;
-			s(n), ne("");
-			let i = oe.current;
+			if (!L.current || t !== ie.current) return;
+			s(n), te("");
+			let i = ae.current;
 			if (i) {
 				let n = await e({
 					operation: "executions",
@@ -25285,7 +25328,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						stderr_offset: i.stderr.next_offset
 					}
 				});
-				if (I.current && t === ae.current && oe.current === i) {
+				if (L.current && t === ie.current && ae.current === i) {
 					let e = {
 						...n,
 						stdout: {
@@ -25297,29 +25340,29 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							text: i.stderr.text + n.stderr.text
 						}
 					};
-					oe.current = e, j(e);
+					ae.current = e, j(e);
 				}
 			}
 		} catch (e) {
-			I.current && t === ae.current && (ne(Pp(e)), r && (s(void 0), oe.current = void 0, j(void 0)));
+			L.current && t === ie.current && (te(Pp(e)), r && (s(void 0), ae.current = void 0, j(void 0)));
 		} finally {
-			ie.current = !1, I.current && te(!1);
+			re.current = !1, L.current && P(!1);
 		}
 	}, [e, r]);
 	(0, x.useEffect)(() => {
-		ce();
-		let e = n ? void 0 : setInterval(() => void ce(), 3e3), t = () => {
-			n || ce();
+		se();
+		let e = n ? void 0 : setInterval(() => void se(), 3e3), t = () => {
+			n || se();
 		};
 		return document.addEventListener("visibilitychange", t), () => {
 			clearInterval(e), document.removeEventListener("visibilitychange", t);
 		};
-	}, [ce, n]);
-	async function le(t) {
-		if (ie.current || L.current) return;
-		ie.current = !0;
-		let n = ++ae.current;
-		te(!0), ne("");
+	}, [se, n]);
+	async function ce(t) {
+		if (re.current || R.current) return;
+		re.current = !0;
+		let n = ++ie.current;
+		P(!0), te("");
 		try {
 			let i = await e({
 				operation: "executions",
@@ -25329,16 +25372,16 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					id: t
 				}
 			});
-			I.current && n === ae.current && (oe.current = i, j(i));
+			L.current && n === ie.current && (ae.current = i, j(i));
 		} catch (e) {
-			I.current && n === ae.current && ne(Pp(e));
+			L.current && n === ie.current && te(Pp(e));
 		} finally {
-			ie.current = !1, I.current && te(!1);
+			re.current = !1, L.current && P(!1);
 		}
 	}
-	async function ue(t) {
-		if (!L.current) {
-			ae.current++, L.current = !0, N(!0), ne(""), E(""), F("");
+	async function le(t) {
+		if (!R.current) {
+			ie.current++, R.current = !0, N(!0), te(""), E(""), I("");
 			try {
 				let n = await e({
 					operation: "executions",
@@ -25347,18 +25390,18 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 				});
 				if (!n || !Array.isArray(n.executions)) throw Error("Invalid execution catalog. Update the device service.");
 				if (r && n.owner !== r) throw Error("Execution device identity mismatch. Reconnect the intended device.");
-				if (!I.current) return;
-				s(n), t.operation === "start" && (O(void 0), se.current = void 0, F(a("已保存启动请求。节点服务会更新实际进程状态。", "Launch request saved. The node service will report the actual process state."))), t.operation === "stop" && F(a("已请求停止，请等待进程退出状态。", "Stop requested. Wait for the process exit state.")), t.operation === "archive" && (oe.current?.execution.id === t.id && (oe.current = void 0, j(void 0)), F(a("已归档并清除输出，运行 ID 保留用于去重。", "Archived and output removed. The run ID remains for deduplication.")));
+				if (!L.current) return;
+				s(n), t.operation === "start" && (O(void 0), oe.current = void 0, I(a("已保存启动请求。节点服务会更新实际进程状态。", "Launch request saved. The node service will report the actual process state."))), t.operation === "stop" && I(a("已请求停止，请等待进程退出状态。", "Stop requested. Wait for the process exit state.")), t.operation === "archive" && (ae.current?.execution.id === t.id && (ae.current = void 0, j(void 0)), I(a("已归档并清除输出，运行 ID 保留用于去重。", "Archived and output removed. The run ID remains for deduplication.")));
 			} catch (e) {
-				I.current && (t.operation === "start" ? E(Pp(e)) : ne(Pp(e)));
+				L.current && (t.operation === "start" ? E(Pp(e)) : te(Pp(e)));
 			} finally {
-				L.current = !1, I.current && N(!1);
+				R.current = !1, L.current && N(!1);
 			}
 		}
 	}
-	async function R(t) {
-		if (t.preventDefault(), !L.current) {
-			ae.current++, L.current = !0, N(!0), ne(""), E(""), F("");
+	async function z(t) {
+		if (t.preventDefault(), !R.current) {
+			ie.current++, R.current = !0, N(!0), te(""), E(""), I("");
 			try {
 				if (v === "custom") {
 					let e = JSON.parse(g);
@@ -25387,32 +25430,32 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						}
 					});
 					if (!t?.launch || typeof t.available != "boolean") throw Error(a("节点尚不支持 Agent 启动，请更新节点服务。", "Update the node service to enable Agent launches."));
-					I.current && O(t);
+					L.current && O(t);
 				}
 			} catch (e) {
-				I.current && E(Pp(e));
+				L.current && E(Pp(e));
 			} finally {
-				L.current = !1, I.current && N(!1);
+				R.current = !1, L.current && N(!1);
 			}
 		}
 	}
-	function de() {
+	function ue() {
 		if (!D || D.available === !1) return;
 		let e = JSON.stringify(D.launch);
-		se.current?.key !== e && (se.current = {
+		oe.current?.key !== e && (oe.current = {
 			key: e,
 			id: Fp()
-		}), ue({
+		}), le({
 			operation: "start",
-			id: se.current.id,
+			id: oe.current.id,
 			launch: D.launch
 		});
 	}
-	let fe = (e) => ({
+	let de = (e) => ({
 		read_only: a("只读", "Read only"),
 		workspace_write: a("修改工作区", "Write to workspace"),
 		edit_files: a("读写文件工具", "File editing tools")
-	})[e], pe = (e, t) => e === "codex" ? t === "read_only" ? a("使用 Codex 只读沙箱；无法交互确认的操作会被拒绝。", "Uses the Codex read-only sandbox. Operations requiring interactive approval are denied.") : a("允许在 Codex 工作区沙箱内执行命令和修改文件；不启用跳过沙箱选项。", "Allows commands and file changes within the Codex workspace sandbox. Sandbox bypass is disabled.") : a("Claude 仅开放读取、查找工具；选择读写后增加 Edit、Write。不开放 Shell 或 MCP 工具。这是工具限制，不是系统沙箱，文件工具仍使用节点账户权限。", "Claude exposes Read, Glob and Grep, adding Edit and Write for file editing. Shell and MCP tools are disabled. This is a tool restriction, not an OS sandbox; file tools use the node account’s permissions."), z = (e) => ({
+	})[e], fe = (e, t) => e === "codex" ? t === "read_only" ? a("使用 Codex 只读沙箱；无法交互确认的操作会被拒绝。", "Uses the Codex read-only sandbox. Operations requiring interactive approval are denied.") : a("允许在 Codex 工作区沙箱内执行命令和修改文件；不启用跳过沙箱选项。", "Allows commands and file changes within the Codex workspace sandbox. Sandbox bypass is disabled.") : a("Claude 仅开放读取、查找工具；选择读写后增加 Edit、Write。不开放 Shell 或 MCP 工具。这是工具限制，不是系统沙箱，文件工具仍使用节点账户权限。", "Claude exposes Read, Glob and Grep, adding Edit and Write for file editing. Shell and MCP tools are disabled. This is a tool restriction, not an OS sandbox; file tools use the node account’s permissions."), pe = (e) => ({
 		queued: a("等待节点启动", "Awaiting node launch"),
 		starting: a("正在启动", "Starting"),
 		running: a("进程运行中", "Process running"),
@@ -25433,7 +25476,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 				className: "direct-actions",
 				children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 					disabled: ee || M,
-					onClick: () => void ce(),
+					onClick: () => void se(),
 					children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
 						"aria-hidden": "true"
@@ -25448,16 +25491,16 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					a("运行", "active")
 				] })]
 			}),
-			P && /* @__PURE__ */ (0, B.jsxs)("p", {
+			F && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-error",
 				role: "alert",
-				children: [P, o && a(" · 当前显示上次记录。", " · Showing the previous records.")]
+				children: [F, o && a(" · 当前显示上次记录。", " · Showing the previous records.")]
 			}),
-			re && /* @__PURE__ */ (0, B.jsx)("p", {
+			ne && /* @__PURE__ */ (0, B.jsx)("p", {
 				role: "status",
-				children: re
+				children: ne
 			}),
-			!o && !P && /* @__PURE__ */ (0, B.jsx)("p", {
+			!o && !F && /* @__PURE__ */ (0, B.jsx)("p", {
 				role: "status",
 				children: a("正在读取运行记录…", "Reading execution records…")
 			}),
@@ -25469,7 +25512,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "managed-run-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.name }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.harness })] }), /* @__PURE__ */ (0, B.jsx)("span", { children: z(e.state) })]
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.name }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.harness })] }), /* @__PURE__ */ (0, B.jsx)("span", { children: pe(e.state) })]
 						}),
 						/* @__PURE__ */ (0, B.jsx)("code", { children: e.id }),
 						/* @__PURE__ */ (0, B.jsxs)("small", { children: [a("Agent 会话：", "Agent session: "), e.session_id] }),
@@ -25482,15 +25525,15 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							className: "direct-actions",
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: M || ee,
-								onClick: () => void le(e.id),
+								onClick: () => void ce(e.id),
 								children: [/* @__PURE__ */ (0, B.jsx)(qe, {
 									size: 16,
 									"aria-hidden": "true"
 								}), a("查看输出", "View output")]
 							}), Np(e.state) ? /* @__PURE__ */ (0, B.jsxs)("button", {
-								disabled: M || !!P || e.state === "stopping",
+								disabled: M || !!F || e.state === "stopping",
 								onClick: () => {
-									window.confirm(a("停止此运行及其子进程？未保存的工作可能丢失。", "Stop this run and its child processes? Unsaved work may be lost.")) && ue({
+									window.confirm(a("停止此运行及其子进程？未保存的工作可能丢失。", "Stop this run and its child processes? Unsaved work may be lost.")) && le({
 										operation: "stop",
 										id: e.id
 									});
@@ -25500,9 +25543,9 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 									"aria-hidden": "true"
 								}), a("停止运行", "Stop run")]
 							}) : /* @__PURE__ */ (0, B.jsxs)("button", {
-								disabled: M || !!P,
+								disabled: M || !!F,
 								onClick: () => {
-									window.confirm(a("归档此记录并删除保存的输出？", "Archive this record and delete its saved output?")) && ue({
+									window.confirm(a("归档此记录并删除保存的输出？", "Archive this record and delete its saved output?")) && le({
 										operation: "archive",
 										id: e.id
 									});
@@ -25524,12 +25567,12 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: A.execution.name }), /* @__PURE__ */ (0, B.jsx)("button", {
 							onClick: () => {
-								ae.current++, oe.current = void 0, j(void 0);
+								ie.current++, ae.current = void 0, j(void 0);
 							},
 							children: a("关闭输出", "Close output")
 						})]
 					}),
-					/* @__PURE__ */ (0, B.jsx)("p", { children: z(A.execution.state) }),
+					/* @__PURE__ */ (0, B.jsx)("p", { children: pe(A.execution.state) }),
 					/* @__PURE__ */ (0, B.jsxs)("dl", { children: [
 						/* @__PURE__ */ (0, B.jsx)("dt", { children: a("程序", "Program") }),
 						/* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: A.launch.program }) }),
@@ -25566,7 +25609,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("运行名称", "Run name") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: D.launch.name })] }),
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("Agent / 程序", "Agent / program") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: D.adapter === "codex" ? "Codex" : D.adapter === "claude_code" ? "Claude Code" : D.launch.harness })] }),
 								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("工作目录", "Working directory") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: D.launch.cwd }) })] }),
-								D.access && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("执行权限", "Execution access") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: fe(D.access) })] })
+								D.access && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: a("执行权限", "Execution access") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: de(D.access) })] })
 							]
 						}),
 						D.launch.stdin !== void 0 && /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: a("任务说明", "Task instructions") }), /* @__PURE__ */ (0, B.jsx)("pre", {
@@ -25575,7 +25618,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						})] }),
 						D.adapter && D.access && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
-							children: pe(D.adapter, D.access)
+							children: fe(D.adapter, D.access)
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("details", {
 							className: "managed-run-command",
@@ -25598,10 +25641,10 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 						T && /* @__PURE__ */ (0, B.jsxs)("p", {
 							className: "direct-error",
 							role: "alert",
-							children: [T, se.current && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+							children: [T, oe.current && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 								/* @__PURE__ */ (0, B.jsx)("br", {}),
 								a("请求 ID：", "Request ID: "),
-								/* @__PURE__ */ (0, B.jsx)("code", { children: se.current.id }),
+								/* @__PURE__ */ (0, B.jsx)("code", { children: oe.current.id }),
 								/* @__PURE__ */ (0, B.jsx)("br", {}),
 								a("请求可能已保存。请刷新记录确认，或使用相同内容再次确认；不会为此次重试创建新的运行 ID。", "The request may already be saved. Refresh the records to check, or confirm the same launch again; this retry retains the run ID.")
 							] })]
@@ -25611,7 +25654,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
 								disabled: M || !o || D.available === !1,
-								onClick: de,
+								onClick: ue,
 								children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -25619,7 +25662,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 							}), /* @__PURE__ */ (0, B.jsx)("button", {
 								disabled: M,
 								onClick: () => {
-									O(void 0), ne(""), E("");
+									O(void 0), te(""), E("");
 								},
 								children: a("返回编辑", "Back to edit")
 							})]
@@ -25627,7 +25670,7 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 					]
 				}) : /* @__PURE__ */ (0, B.jsxs)("form", {
 					className: "direct-editor managed-run-form",
-					onSubmit: R,
+					onSubmit: z,
 					"aria-label": a("启动 Agent 或程序", "Launch an Agent or program"),
 					"aria-busy": M,
 					children: [
@@ -25726,19 +25769,19 @@ function Lp({ client: e, language: t, paused: n, node: r, onLock: i }) {
 								onChange: (e) => S(e.target.value),
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "read_only",
-									children: fe("read_only")
+									children: de("read_only")
 								}), v === "codex" ? /* @__PURE__ */ (0, B.jsx)("option", {
 									value: "workspace_write",
-									children: fe("workspace_write")
+									children: de("workspace_write")
 								}) : /* @__PURE__ */ (0, B.jsx)("option", {
 									value: "edit_files",
-									children: fe("edit_files")
+									children: de("edit_files")
 								})]
 							})] }),
 							/* @__PURE__ */ (0, B.jsx)("p", {
 								id: "managed-run-access-help",
 								className: "direct-note",
-								children: pe(v, b)
+								children: fe(v, b)
 							}),
 							/* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
@@ -25770,7 +25813,7 @@ function zp(e) {
 		className: "automatic-worker",
 		onToggle: (e) => n(e.currentTarget.open),
 		children: [/* @__PURE__ */ (0, B.jsxs)("summary", { children: [
-			/* @__PURE__ */ (0, B.jsx)(L, {
+			/* @__PURE__ */ (0, B.jsx)(R, {
 				size: 19,
 				"aria-hidden": "true"
 			}),
@@ -25826,7 +25869,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			}
 		}
 	}
-	function te() {
+	function P() {
 		o && (l({
 			revision: o.revision,
 			options: o.policy ? structuredClone(o.policy) : {
@@ -25843,7 +25886,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			}
 		}), d(void 0), w(!1), y(""), S(""));
 	}
-	function P(e) {
+	function F(e) {
 		c && (l({
 			...c,
 			options: {
@@ -25852,10 +25895,10 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			}
 		}), d(void 0), w(!1));
 	}
-	function ne(e) {
-		e.preventDefault(), c && re(c);
+	function te(e) {
+		e.preventDefault(), c && ne(c);
 	}
-	function re(e) {
+	function ne(e) {
 		ee(async () => {
 			let n = await j({
 				operation: "prepare",
@@ -25865,14 +25908,14 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			T.current && (d(n), w(!1));
 		});
 	}
-	let F = f || i || !!g, I = !!o?.policy?.enabled, L = o?.runs.filter((e) => e.phase === "active").length || 0, ie = [.../* @__PURE__ */ new Set([...o?.senders.map((e) => e.node) || [], ...c?.options.senders || []])], ae = (e) => ({
+	let I = f || i || !!g, L = !!o?.policy?.enabled, R = o?.runs.filter((e) => e.phase === "active").length || 0, re = [.../* @__PURE__ */ new Set([...o?.senders.map((e) => e.node) || [], ...c?.options.senders || []])], ie = (e) => ({
 		active: a("正在执行", "Running"),
 		reserved: a("等待进程入队", "Waiting to enqueue"),
 		paused: a("已暂停启动", "Launch paused"),
 		review_required: a("需要核对结果", "Review needed"),
 		grant_revoked: a("授权已失效", "Grant no longer valid"),
 		reported: a("已回报", "Reported")
-	})[e] || e, oe = (e) => e === "human_review" ? a("人工核对后回报", "Human review before reporting") : a("自动回报 Agent 提案", "Report Agent proposals automatically");
+	})[e] || e, ae = (e) => e === "human_review" ? a("人工核对后回报", "Human review before reporting") : a("自动回报 Agent 提案", "Report Agent proposals automatically");
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "automatic-worker-body",
 		children: [
@@ -25886,8 +25929,8 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 			}),
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "automatic-worker-status",
-				children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: I ? a("自动接单已启用", "Automatic acceptance enabled") : a("自动接单已关闭", "Automatic acceptance off") }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
-					L,
+				children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: L ? a("自动接单已启用", "Automatic acceptance enabled") : a("自动接单已关闭", "Automatic acceptance off") }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+					R,
 					" / ",
 					o?.policy?.parallel || 1,
 					" ",
@@ -25907,7 +25950,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						" · ",
 						o.policy.agent.access === "read_only" ? a("只读", "Read only") : a("允许修改文件", "File changes allowed"),
 						" · ",
-						oe(o.policy.report)
+						ae(o.policy.report)
 					] }),
 					/* @__PURE__ */ (0, B.jsx)("code", { children: o.policy.agent.cwd }),
 					o.policy.senders.map((e) => /* @__PURE__ */ (0, B.jsxs)("p", { children: [
@@ -25926,12 +25969,12 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 				className: "direct-actions",
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("button", {
-						disabled: F || !o,
-						onClick: te,
+						disabled: I || !o,
+						onClick: P,
 						children: a("配置自动接单", "Configure automatic worker")
 					}),
-					I && /* @__PURE__ */ (0, B.jsxs)("button", {
-						disabled: F,
+					L && /* @__PURE__ */ (0, B.jsxs)("button", {
+						disabled: I,
 						onClick: () => {
 							o && ee(async () => {
 								let e = M(await j({
@@ -25971,7 +26014,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 				children: b
 			}),
 			c && !u && /* @__PURE__ */ (0, B.jsxs)("form", {
-				onSubmit: ne,
+				onSubmit: te,
 				"aria-label": a("配置本机自动接单", "Configure this device’s automatic worker"),
 				children: [
 					o && o.revision !== c.revision && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -25983,13 +26026,13 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 							className: "direct-actions",
 							children: /* @__PURE__ */ (0, B.jsx)("button", {
 								type: "button",
-								disabled: F || !c.options.senders.length || !c.options.agent.cwd.trim(),
+								disabled: I || !c.options.senders.length || !c.options.agent.cwd.trim(),
 								onClick: () => {
 									let e = {
 										...c,
 										revision: o.revision
 									};
-									l(e), re(e);
+									l(e), ne(e);
 								},
 								children: a("保留修改并重新检查", "Keep edits and review again")
 							})
@@ -26000,21 +26043,21 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						children: [/* @__PURE__ */ (0, B.jsx)("input", {
 							type: "checkbox",
 							checked: c.options.enabled,
-							disabled: F,
-							onChange: (e) => P({ enabled: e.target.checked })
+							disabled: I,
+							onChange: (e) => F({ enabled: e.target.checked })
 						}), /* @__PURE__ */ (0, B.jsx)("span", { children: a("确认保存后启用自动接单", "Enable automatic acceptance after confirmation") })]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("fieldset", {
-						disabled: F,
+						disabled: I,
 						children: [
 							/* @__PURE__ */ (0, B.jsx)("legend", { children: a("允许自动接单的发送设备", "Trusted task senders") }),
-							!ie.length && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请先在设备页面向另一台设备授予消息权限。", "First grant another device messages access on the Devices page.") }),
-							ie.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
+							!re.length && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请先在设备页面向另一台设备授予消息权限。", "First grant another device messages access on the Devices page.") }),
+							re.map((e) => /* @__PURE__ */ (0, B.jsxs)("label", {
 								className: "automatic-worker-check",
 								children: [/* @__PURE__ */ (0, B.jsx)("input", {
 									type: "checkbox",
 									checked: c.options.senders.includes(e),
-									onChange: (t) => P({ senders: t.target.checked ? [...c.options.senders, e] : c.options.senders.filter((t) => t !== e) })
+									onChange: (t) => F({ senders: t.target.checked ? [...c.options.senders, e] : c.options.senders.filter((t) => t !== e) })
 								}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("code", { children: e }), !o?.senders.some((t) => t.node === e) && /* @__PURE__ */ (0, B.jsx)("small", { children: a("消息授权已移除，请取消选择", "Messages grant removed; deselect this device") })] })]
 							}, e))
 						]
@@ -26022,9 +26065,9 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "automatic-worker-fields",
 						children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [a("接单 Agent", "Worker Agent"), /* @__PURE__ */ (0, B.jsxs)("select", {
-							disabled: F,
+							disabled: I,
 							value: c.options.agent.adapter,
-							onChange: (e) => P({ agent: {
+							onChange: (e) => F({ agent: {
 								...c.options.agent,
 								adapter: e.target.value,
 								access: "read_only"
@@ -26037,9 +26080,9 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 								children: "Claude Code"
 							})]
 						})] }), /* @__PURE__ */ (0, B.jsxs)("label", { children: [a("接单权限", "Worker access"), /* @__PURE__ */ (0, B.jsxs)("select", {
-							disabled: F,
+							disabled: I,
 							value: c.options.agent.access,
-							onChange: (e) => P({ agent: {
+							onChange: (e) => F({ agent: {
 								...c.options.agent,
 								access: e.target.value
 							} }),
@@ -26054,9 +26097,9 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("label", { children: [a("固定工作目录", "Fixed working directory"), /* @__PURE__ */ (0, B.jsx)("input", {
 						required: !0,
-						disabled: F,
+						disabled: I,
 						value: c.options.agent.cwd,
-						onChange: (e) => P({ agent: {
+						onChange: (e) => F({ agent: {
 							...c.options.agent,
 							cwd: e.target.value
 						} }),
@@ -26071,18 +26114,18 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 							max: 4,
 							step: 1,
 							value: Number.isNaN(c.options.parallel) ? "" : c.options.parallel,
-							disabled: F,
-							onChange: (e) => P({ parallel: e.target.valueAsNumber })
+							disabled: I,
+							onChange: (e) => F({ parallel: e.target.valueAsNumber })
 						})] }), /* @__PURE__ */ (0, B.jsxs)("label", { children: [a("结果回报方式", "Result reporting"), /* @__PURE__ */ (0, B.jsxs)("select", {
-							disabled: F,
+							disabled: I,
 							value: c.options.report,
-							onChange: (e) => P({ report: e.target.value }),
+							onChange: (e) => F({ report: e.target.value }),
 							children: [/* @__PURE__ */ (0, B.jsx)("option", {
 								value: "human_review",
-								children: oe("human_review")
+								children: ae("human_review")
 							}), /* @__PURE__ */ (0, B.jsx)("option", {
 								value: "agent_proposal",
-								children: oe("agent_proposal")
+								children: ae("agent_proposal")
 							})]
 						})] })]
 					}),
@@ -26094,7 +26137,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "submit",
-							disabled: F || o && o.revision !== c.revision || !c.options.senders.length || !c.options.agent.cwd.trim(),
+							disabled: I || o && o.revision !== c.revision || !c.options.senders.length || !c.options.agent.cwd.trim(),
 							children: [/* @__PURE__ */ (0, B.jsx)(Sn, {
 								size: 16,
 								"aria-hidden": "true"
@@ -26126,7 +26169,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						" ",
 						a("个并发进程", "parallel processes"),
 						" · ",
-						oe(u.options.report)
+						ae(u.options.report)
 					] }),
 					/* @__PURE__ */ (0, B.jsxs)("p", { children: [
 						/* @__PURE__ */ (0, B.jsx)("strong", { children: u.options.agent.adapter === "codex" ? "Codex" : "Claude Code" }),
@@ -26162,7 +26205,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						children: [/* @__PURE__ */ (0, B.jsx)("input", {
 							type: "checkbox",
 							checked: C,
-							disabled: F,
+							disabled: I,
 							"aria-describedby": k,
 							onChange: (e) => w(e.target.checked)
 						}), /* @__PURE__ */ (0, B.jsx)("span", { children: a("我已核对发送设备、目录、权限与回报方式", "I reviewed the senders, directory, access and reporting policy") })]
@@ -26171,7 +26214,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "direct-primary",
-							disabled: F || !C || !u.available,
+							disabled: I || !C || !u.available,
 							onClick: () => void ee(async () => {
 								let e = M(await j({
 									operation: "save",
@@ -26197,7 +26240,7 @@ function Bp({ client: e, owner: t, language: n, paused: r, disabled: i }) {
 				"aria-label": a("自动接单运行", "Automatic task runs"),
 				children: o.runs.filter((e) => e.phase !== "reported").map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
 					/* @__PURE__ */ (0, B.jsx)("strong", { children: e.title }),
-					/* @__PURE__ */ (0, B.jsxs)("span", { children: [ae(e.phase), e.state && ` · ${e.state}`] }),
+					/* @__PURE__ */ (0, B.jsxs)("span", { children: [ie(e.phase), e.state && ` · ${e.state}`] }),
 					/* @__PURE__ */ (0, B.jsx)("code", { children: e.task }),
 					e.error && /* @__PURE__ */ (0, B.jsx)("p", {
 						className: "direct-error",
@@ -26221,7 +26264,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		adapter: "codex",
 		access: "read_only",
 		cwd: ""
-	}), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)(""), j = (0, x.useRef)(null), M = (0, x.useRef)(!0), N = (0, x.useRef)(!1), ee = (0, x.useRef)(0), te = (0, x.useRef)(void 0), P = (0, x.useId)();
+	}), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)(""), j = (0, x.useRef)(null), M = (0, x.useRef)(!0), N = (0, x.useRef)(!1), ee = (0, x.useRef)(0), P = (0, x.useRef)(void 0), F = (0, x.useId)();
 	(0, x.useEffect)(() => (M.current = !0, ++ee.current, () => {
 		M.current = !1, ++ee.current;
 	}), [
@@ -26230,7 +26273,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		n,
 		r
 	]);
-	let ne = (0, x.useCallback)(async (e) => {
+	let te = (0, x.useCallback)(async (e) => {
 		if (N.current) return;
 		N.current = !0;
 		let t = ee.current;
@@ -26242,7 +26285,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		} finally {
 			N.current = !1, M.current && h(!1);
 		}
-	}, []), re = (0, x.useCallback)((r) => e({
+	}, []), ne = (0, x.useCallback)((r) => e({
 		operation: "tasks",
 		command: {
 			operation: "run",
@@ -26254,7 +26297,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		e,
 		t,
 		n
-	]), F = (0, x.useCallback)((e, i, a = !1) => {
+	]), I = (0, x.useCallback)((e, i, a = !1) => {
 		if (e?.owner !== r || e?.task !== t || e?.dispatch !== n || !e.run?.id || !e.run?.session || e.execution && (e.execution.id !== e.run.id || e.execution.session_id !== e.run.session) || typeof e.stdout?.text != "string" || typeof e.stderr?.text != "string") throw Error("Unexpected task execution identity. Refresh the task before continuing.");
 		if (!M.current || i !== ee.current) return;
 		if (e.run.proposal && (![
@@ -26262,7 +26305,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 			"failed",
 			"cancelled"
 		].includes(e.run.proposal.outcome) || typeof e.run.proposal.result != "string" || new TextEncoder().encode(e.run.proposal.result).length > 8192)) throw Error("Invalid Agent candidate result.");
-		let o = a && te.current?.run.id === e.run.id ? te.current : void 0, s = {
+		let o = a && P.current?.run.id === e.run.id ? P.current : void 0, s = {
 			...e,
 			stdout: {
 				...e.stdout,
@@ -26273,29 +26316,29 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 				text: (o?.stderr.text || "") + e.stderr.text
 			}
 		};
-		te.current = s, E(s), w(void 0), (!e.execution || !Vp(e.execution.state)) && !e.stdout.text && !e.stderr.text && _(!1);
+		P.current = s, E(s), w(void 0), (!e.execution || !Vp(e.execution.state)) && !e.stdout.text && !e.stderr.text && _(!1);
 	}, [
 		r,
 		t,
 		n
-	]), I = (0, x.useCallback)(() => ne(async (e) => {
-		let t = te.current;
-		F(await re({
+	]), L = (0, x.useCallback)(() => te(async (e) => {
+		let t = P.current;
+		I(await ne({
 			operation: "get",
 			stdout_offset: t?.stdout.next_offset || 0,
 			stderr_offset: t?.stderr.next_offset || 0
 		}), e, !0);
 	}), [
-		ne,
-		F,
-		re
+		te,
+		I,
+		ne
 	]);
 	(0, x.useEffect)(() => {
-		i && (p(!0), I());
-	}, [i, I]), (0, x.useEffect)(() => {
+		i && (p(!0), L());
+	}, [i, L]), (0, x.useEffect)(() => {
 		if (!g || c || s || !f) return;
 		let e = () => {
-			document.hidden || I();
+			document.hidden || L();
 		}, t = setInterval(e, 2e3);
 		return document.addEventListener("visibilitychange", e), () => {
 			clearInterval(t), document.removeEventListener("visibilitychange", e);
@@ -26305,9 +26348,9 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		c,
 		s,
 		f,
-		I
+		L
 	]);
-	let L = m || s, ie = T?.execution?.state, ae = new TextEncoder().encode(k).length, oe = ie ? {
+	let R = m || s, re = T?.execution?.state, ie = new TextEncoder().encode(k).length, ae = re ? {
 		queued: d("排队中", "Queued"),
 		starting: d("启动中", "Starting"),
 		running: d("运行中", "Running"),
@@ -26316,14 +26359,14 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 		failed: d("运行失败，待核对结果", "Execution failed · review result"),
 		cancelled: d("进程已停止，待报告", "Process stopped · report needed"),
 		interrupted: d("节点重启中断，请检查实际结果", "Interrupted by node restart · inspect results")
-	}[ie] || ie : d("已保留领取记录，进程尚未入队", "Claim reserved · process not queued"), se = (e) => {
+	}[re] || re : d("已保留领取记录，进程尚未入队", "Claim reserved · process not queued"), oe = (e) => {
 		M.current && e === ee.current && (_(!0), u());
-	}, ce = (e) => ne(async (t) => {
-		F(await re({
+	}, se = (e) => te(async (t) => {
+		I(await ne({
 			operation: "start",
 			options: e.options,
 			digest: e.digest
-		}), t), se(t);
+		}), t), oe(t);
 	});
 	return /* @__PURE__ */ (0, B.jsxs)("div", {
 		className: "task-run",
@@ -26331,7 +26374,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 			className: "task-run-toggle",
 			type: "button",
 			"aria-expanded": f,
-			"aria-controls": P + "-panel",
+			"aria-controls": F + "-panel",
 			disabled: s,
 			onClick: () => p((e) => !e),
 			children: [/* @__PURE__ */ (0, B.jsx)(An, {
@@ -26339,7 +26382,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 				"aria-hidden": "true"
 			}), i || T ? d("任务 Agent 与结果", "Task Agent and result") : d("用 Agent 处理", "Run with Agent")]
 		}), f && /* @__PURE__ */ (0, B.jsxs)("section", {
-			id: P + "-panel",
+			id: F + "-panel",
 			"aria-label": d("任务 Agent 执行", "Task Agent execution"),
 			children: [
 				/* @__PURE__ */ (0, B.jsxs)("ol", {
@@ -26351,11 +26394,11 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							children: ["1 · ", d("检查并确认", "Review")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
-							"aria-current": T && (!ie || Vp(ie)) ? "step" : void 0,
+							"aria-current": T && (!re || Vp(re)) ? "step" : void 0,
 							children: ["2 · ", d("执行与查看", "Run")]
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("li", {
-							"aria-current": T && ie && !Vp(ie) ? "step" : void 0,
+							"aria-current": T && re && !Vp(re) ? "step" : void 0,
 							children: ["3 · ", d("核对并报告", "Report")]
 						})
 					]
@@ -26366,8 +26409,8 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 				}),
 				!T && !C && /* @__PURE__ */ (0, B.jsxs)("form", {
 					onSubmit: (e) => {
-						e.preventDefault(), ne(async (e) => {
-							let i = await re({
+						e.preventDefault(), te(async (e) => {
+							let i = await ne({
 								operation: "prepare",
 								options: b
 							});
@@ -26379,7 +26422,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "task-run-fields",
 							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [d("任务 Agent", "Task Agent"), /* @__PURE__ */ (0, B.jsxs)("select", {
-								disabled: L || !o,
+								disabled: R || !o,
 								value: b.adapter,
 								onChange: (e) => S({
 									...b,
@@ -26394,7 +26437,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 									children: "Claude Code"
 								})]
 							})] }), /* @__PURE__ */ (0, B.jsxs)("label", { children: [d("任务权限", "Task access"), /* @__PURE__ */ (0, B.jsxs)("select", {
-								disabled: L || !o,
+								disabled: R || !o,
 								value: b.access,
 								onChange: (e) => S({
 									...b,
@@ -26411,7 +26454,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("label", { children: [d("任务工作目录", "Task working directory"), /* @__PURE__ */ (0, B.jsx)("input", {
 							required: !0,
-							disabled: L || !o,
+							disabled: R || !o,
 							value: b.cwd,
 							onChange: (e) => S({
 								...b,
@@ -26424,7 +26467,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							children: [/* @__PURE__ */ (0, B.jsx)("input", {
 								type: "checkbox",
 								checked: !!b.communication,
-								disabled: L || !o,
+								disabled: R || !o,
 								onChange: (e) => S({
 									...b,
 									communication: e.target.checked
@@ -26445,7 +26488,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							type: "submit",
-							disabled: L || !o || !b.cwd.trim(),
+							disabled: R || !o || !b.cwd.trim(),
 							children: d("检查任务执行", "Review task execution")
 						})
 					]
@@ -26484,15 +26527,15 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								className: "direct-primary",
 								type: "button",
-								disabled: L || !o || !C.available,
-								onClick: () => void ce(C),
+								disabled: R || !o || !C.available,
+								onClick: () => void se(C),
 								children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 									size: 16,
 									"aria-hidden": "true"
 								}), d("确认领取并启动", "Confirm claim and start")]
 							}), /* @__PURE__ */ (0, B.jsx)("button", {
 								type: "button",
-								disabled: L,
+								disabled: R,
 								onClick: () => w(void 0),
 								children: d("返回修改", "Back to edit")
 							})]
@@ -26508,9 +26551,9 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "button",
-							disabled: L,
+							disabled: R,
 							onClick: () => {
-								_(!0), I();
+								_(!0), L();
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 								size: 16,
@@ -26519,17 +26562,17 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						}),
 						T && /* @__PURE__ */ (0, B.jsx)("button", {
 							type: "button",
-							disabled: L,
+							disabled: R,
 							"aria-pressed": g,
 							onClick: () => _((e) => !e),
 							children: g ? d("暂停输出更新", "Pause output updates") : d("恢复输出更新", "Resume output updates")
 						}),
 						T?.execution && Vp(T.execution.state) && /* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "button",
-							disabled: L || ie === "stopping",
+							disabled: R || re === "stopping",
 							onClick: () => {
-								confirm(d("停止此任务的 Agent 及其子进程？停止后仍需核对并报告结果。", "Stop this task’s Agent and its child processes? Review and report the result afterward.")) && ne(async (e) => {
-									F(await re({ operation: "stop" }), e), se(e);
+								confirm(d("停止此任务的 Agent 及其子进程？停止后仍需核对并报告结果。", "Stop this task’s Agent and its child processes? Review and report the result afterward.")) && te(async (e) => {
+									I(await ne({ operation: "stop" }), e), oe(e);
 								});
 							},
 							children: [/* @__PURE__ */ (0, B.jsx)(En, {
@@ -26560,7 +26603,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 					/* @__PURE__ */ (0, B.jsxs)("p", {
 						role: "status",
 						"aria-atomic": "true",
-						children: [oe, T.execution?.exit_code != null && " · " + d("退出码 ", "Exit code ") + T.execution.exit_code]
+						children: [ae, T.execution?.exit_code != null && " · " + d("退出码 ", "Exit code ") + T.execution.exit_code]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("p", {
 						className: "direct-note",
@@ -26572,8 +26615,8 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 					}),
 					!T.execution && !a && !T.run.automatic && /* @__PURE__ */ (0, B.jsx)("button", {
 						type: "button",
-						disabled: L || !o,
-						onClick: () => void ce(T.run),
+						disabled: R || !o,
+						onClick: () => void se(T.run),
 						children: d("继续提交原运行", "Resume the same launch")
 					}),
 					["stdout", "stderr"].map((e) => /* @__PURE__ */ (0, B.jsxs)("details", {
@@ -26608,7 +26651,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							}),
 							!a && /* @__PURE__ */ (0, B.jsx)("button", {
 								type: "button",
-								disabled: L || !ie || Vp(ie),
+								disabled: R || !re || Vp(re),
 								onClick: () => {
 									let e = T.run.proposal;
 									e && (!k && !D || confirm(d("用 Agent 候选结果替换当前报告草稿？", "Replace the current report draft with the Agent candidate result?"))) && (A(e.result), O(e.outcome), j.current?.focus());
@@ -26623,8 +26666,8 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 						onSubmit: (e) => {
 							e.preventDefault();
 							let t = D;
-							!t || !k.trim() || ae > 8192 || ne(async (e) => {
-								await re({
+							!t || !k.trim() || ie > 8192 || te(async (e) => {
+								await ne({
 									operation: "finish",
 									outcome: t,
 									result: k
@@ -26640,7 +26683,7 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							/* @__PURE__ */ (0, B.jsxs)("label", { children: [d("任务结果", "Task outcome"), /* @__PURE__ */ (0, B.jsxs)("select", {
 								required: !0,
 								value: D,
-								disabled: L || !!ie && Vp(ie),
+								disabled: R || !!re && Vp(re),
 								onChange: (e) => O(e.target.value),
 								children: [
 									/* @__PURE__ */ (0, B.jsx)("option", {
@@ -26666,17 +26709,17 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 								ref: j,
 								rows: 4,
 								required: !0,
-								disabled: L,
+								disabled: R,
 								value: k,
-								"aria-describedby": P,
-								"aria-invalid": ae > 8192 || void 0,
+								"aria-describedby": F,
+								"aria-invalid": ie > 8192 || void 0,
 								onChange: (e) => A(e.target.value)
 							})] }),
 							/* @__PURE__ */ (0, B.jsxs)("small", {
-								id: P,
-								className: ae > 8192 ? "direct-error" : "direct-note",
+								id: F,
+								className: ie > 8192 ? "direct-error" : "direct-note",
 								children: [
-									ae,
+									ie,
 									" / 8192 ",
 									d("字节", "bytes")
 								]
@@ -26684,8 +26727,8 @@ function Up({ client: e, id: t, dispatch: n, owner: r, hasRun: i, done: a, canSt
 							/* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
 								className: "direct-primary",
-								disabled: L || !!ie && Vp(ie) || !D || !k.trim() || ae > 8192,
-								children: [/* @__PURE__ */ (0, B.jsx)(R, {
+								disabled: R || !!re && Vp(re) || !D || !k.trim() || ie > 8192,
+								children: [/* @__PURE__ */ (0, B.jsx)(z, {
 									size: 16,
 									"aria-hidden": "true"
 								}), d("提交已核对的结果", "Submit reviewed result")]
@@ -26982,7 +27025,7 @@ function Zp({ run: e, language: t, disabled: n, selected: r, mutate: i, onSelect
 						disabled: n || f.active > 0,
 						"aria-expanded": c,
 						onClick: () => l((e) => !e),
-						children: [/* @__PURE__ */ (0, B.jsx)(R, {
+						children: [/* @__PURE__ */ (0, B.jsx)(z, {
 							size: 16,
 							"aria-hidden": "true"
 						}), s("核对并结束协作", "Review and close collaboration")]
@@ -27226,32 +27269,32 @@ function tm() {
 }
 var nm = (e) => new TextEncoder().encode(e).length;
 function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
-	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!0), [p, m] = (0, x.useState)(0), [h, g] = (0, x.useState)([]), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, A] = (0, x.useState)("outgoing"), [j, M] = (0, x.useState)(!1), [N, ee] = (0, x.useState)(!1), [P, ne] = (0, x.useState)(!1), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), [ie, ae] = (0, x.useState)(""), [oe, se] = (0, x.useState)(""), [ce, le] = (0, x.useState)(), ue = (0, x.useRef)(!0), de = (0, x.useRef)(!1), fe = (0, x.useRef)(!1), pe = (0, x.useRef)(0), z = (0, x.useRef)(void 0), me = (0, x.useRef)(/* @__PURE__ */ new Map()), he = (0, x.useRef)(null), ge = (0, x.useRef)(!1), _e = (0, x.useId)(), ve = (a?.routes || []).filter((e) => e.node !== s?.owner), ye = s?.collaborations || [], be = ye.find((e) => e.scope.id === _), xe = _ ? ve.filter((e) => be?.state === "open" && be.members.includes(e.node)) : ve, Se = (s?.outgoing || []).filter((e) => !!_ && e.task.collaboration?.id === _ && e.task.collaboration?.owner === s?.owner), Ce = h.length <= 8 && h.every((e) => Se.some((t) => t.task.id === e));
+	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!0), [p, m] = (0, x.useState)(0), [h, g] = (0, x.useState)([]), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, A] = (0, x.useState)("outgoing"), [j, M] = (0, x.useState)(!1), [N, ee] = (0, x.useState)(!1), [F, te] = (0, x.useState)(!1), [ne, I] = (0, x.useState)(""), [L, R] = (0, x.useState)(""), [re, ie] = (0, x.useState)(""), [ae, oe] = (0, x.useState)(""), [se, ce] = (0, x.useState)(), le = (0, x.useRef)(!0), ue = (0, x.useRef)(!1), de = (0, x.useRef)(!1), fe = (0, x.useRef)(0), pe = (0, x.useRef)(void 0), me = (0, x.useRef)(/* @__PURE__ */ new Map()), he = (0, x.useRef)(null), ge = (0, x.useRef)(!1), _e = (0, x.useId)(), ve = (a?.routes || []).filter((e) => e.node !== s?.owner), ye = s?.collaborations || [], be = ye.find((e) => e.scope.id === _), xe = _ ? ve.filter((e) => be?.state === "open" && be.members.includes(e.node)) : ve, Se = (s?.outgoing || []).filter((e) => !!_ && e.task.collaboration?.id === _ && e.task.collaboration?.owner === s?.owner), Ce = h.length <= 8 && h.every((e) => Se.some((t) => t.task.id === e));
 	function we(e) {
 		e !== _ && g([]), v(e);
 	}
 	let Te = (0, x.useCallback)(async () => {
-		if (de.current || fe.current || document.hidden) return;
-		de.current = !0;
-		let t = ++pe.current;
+		if (ue.current || de.current || document.hidden) return;
+		ue.current = !0;
+		let t = ++fe.current;
 		ee(!0);
 		try {
 			let [n, r] = await Promise.all([e({ operation: "list" }), e({
 				operation: "tasks",
 				command: { operation: "list" }
 			})]);
-			ue.current && t === pe.current && (o(n), c(r), F(""));
+			le.current && t === fe.current && (o(n), c(r), I(""));
 		} catch (e) {
-			ue.current && t === pe.current && F(em(e));
+			le.current && t === fe.current && I(em(e));
 		} finally {
-			de.current = !1, ue.current && ee(!1);
+			ue.current = !1, le.current && ee(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (ue.current = !0, Te(), () => {
-		ue.current = !1, ++pe.current;
+	(0, x.useEffect)(() => (le.current = !0, Te(), () => {
+		le.current = !1, ++fe.current;
 	}), [Te]), (0, x.useEffect)(() => {
-		!P && ge.current && (ge.current = !1, he.current?.focus());
-	}, [P]), (0, x.useEffect)(() => {
+		!F && ge.current && (ge.current = !1, he.current?.focus());
+	}, [F]), (0, x.useEffect)(() => {
 		if (j) return;
 		let e = () => void Te(), t = setInterval(e, 3e3);
 		return document.addEventListener("visibilitychange", e), window.addEventListener("cranibox:peers-changed", e), () => {
@@ -27259,18 +27302,18 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 		};
 	}, [Te, j]);
 	async function Ee(t, n) {
-		if (!fe.current) {
-			fe.current = !0, ++pe.current, ne(!0), L(""), ae(""), se("");
+		if (!de.current) {
+			de.current = !0, ++fe.current, te(!0), R(""), ie(""), oe("");
 			try {
 				let r = await e({
 					operation: "tasks",
 					command: t
 				});
-				ue.current && (c(r), F(""), n?.());
+				le.current && (c(r), I(""), n?.());
 			} catch (e) {
-				ue.current && ((t.operation === "collaboration" ? ae : L)(em(e)), t.operation === "create" && (ge.current = !0));
+				le.current && ((t.operation === "collaboration" ? ie : R)(em(e)), t.operation === "create" && (ge.current = !0));
 			} finally {
-				fe.current = !1, ue.current && ne(!1);
+				de.current = !1, le.current && te(!1);
 			}
 		}
 	}
@@ -27284,14 +27327,14 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			_,
 			[...h].sort()
 		]);
-		z.current?.key !== t && (z.current = {
+		pe.current?.key !== t && (pe.current = {
 			key: t,
 			id: tm(),
 			dispatch: tm()
 		}), await Ee({
 			operation: "create",
-			id: z.current.id,
-			dispatch: z.current.dispatch,
+			id: pe.current.id,
+			dispatch: pe.current.dispatch,
 			node: S,
 			title: w,
 			description: E,
@@ -27299,7 +27342,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			..._ ? { run_id: _ } : {},
 			...h.length ? { depends_on: [...h].sort() } : {}
 		}, () => {
-			T(""), D(""), g([]), z.current = void 0, A("outgoing"), b(be ? Xp(be.scope) : ""), se(h.length ? i("任务与依赖已保存。只有前置任务均报告成功后，才会发给目标设备。", "Task and prerequisites saved. Delegation waits until every prerequisite reports success.") : i("委托已保存在本机。接收方可确认启动 Agent、通过 MCP 领取，或按其自动接单配置处理。", "Delegation saved. The recipient can confirm an Agent launch, claim through MCP, or use its automatic worker policy."));
+			T(""), D(""), g([]), pe.current = void 0, A("outgoing"), b(be ? Xp(be.scope) : ""), oe(h.length ? i("任务与依赖已保存。只有前置任务均报告成功后，才会发给目标设备。", "Task and prerequisites saved. Delegation waits until every prerequisite reports success.") : i("委托已保存在本机。接收方可确认启动 Agent、通过 MCP 领取，或按其自动接单配置处理。", "Delegation saved. The recipient can confirm an Agent launch, claim through MCP, or use its automatic worker policy."));
 		});
 	}
 	let Oe = (e) => ({
@@ -27320,9 +27363,9 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 			await navigator.clipboard.writeText(t + "\nTaskID: " + e.task.id + "\nDispatchID: " + e.current.dispatch + (e.task.target_session ? "\nTarget session UUID: " + e.task.target_session + "\nRegister or renew this session using device_agent_sessions before claiming." : "") + "\n" + JSON.stringify({
 				name: "device_tasks",
 				arguments: { operation: "list" }
-			})), ue.current && se(i("已复制领取说明，可交给这台设备上已配置 MCP 的 Agent。", "Instructions copied for an Agent with MCP configured on this device."));
+			})), le.current && oe(i("已复制领取说明，可交给这台设备上已配置 MCP 的 Agent。", "Instructions copied for an Agent with MCP configured on this device."));
 		} catch {
-			ue.current && L(i("复制失败。可在任务详情中选中 TaskID 与 DispatchID，并让 Agent 使用 device_tasks 读取。", "Copy failed. Select TaskID and DispatchID in the details and ask your Agent to read device_tasks."));
+			le.current && R(i("复制失败。可在任务详情中选中 TaskID 与 DispatchID，并让 Agent 使用 device_tasks 读取。", "Copy failed. Select TaskID and DispatchID in the details and ask your Agent to read device_tasks."));
 		}
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -27347,7 +27390,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 							children: j ? i("恢复自动刷新", "Resume updates") : i("暂停自动刷新", "Pause updates")
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("button", {
-							disabled: N || P,
+							disabled: N || F,
 							onClick: () => void Te(),
 							children: [/* @__PURE__ */ (0, B.jsx)(cn, {
 								size: 16,
@@ -27357,10 +27400,10 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 					]
 				})]
 			}),
-			re && /* @__PURE__ */ (0, B.jsxs)("p", {
+			ne && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-error",
 				role: "alert",
-				children: [re, s && i(" · 显示上次读取的记录，远端执行状态可能已变化。", " · Showing the last saved view; remote execution may have changed.")]
+				children: [ne, s && i(" · 显示上次读取的记录，远端执行状态可能已变化。", " · Showing the last saved view; remote execution may have changed.")]
 			}),
 			s ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 				/* @__PURE__ */ (0, B.jsxs)("div", {
@@ -27381,9 +27424,9 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 					owner: s.owner,
 					language: t,
 					paused: j,
-					disabled: P || !!re,
+					disabled: F || !!ne,
 					onDelegate: (e, t) => {
-						_ && (!be || be.state !== "open" || !be.members.includes(e)) ? L(i("该 Agent 不属于当前选择的协作设备。请更改所属协作，或选择参与设备上的 Agent。", "This Agent is not on a participating device in the selected collaboration. Change the collaboration or choose an Agent on a member device.")) : (C(e), u(t), f(!1), m((e) => e + 1), he.current?.focus());
+						_ && (!be || be.state !== "open" || !be.members.includes(e)) ? R(i("该 Agent 不属于当前选择的协作设备。请更改所属协作，或选择参与设备上的 Agent。", "This Agent is not on a participating device in the selected collaboration. Change the collaboration or choose an Agent on a member device.")) : (C(e), u(t), f(!1), m((e) => e + 1), he.current?.focus());
 					}
 				}),
 				/* @__PURE__ */ (0, B.jsx)(jp, {
@@ -27405,17 +27448,17 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 					owner: s.owner,
 					language: t,
 					paused: j,
-					disabled: P || !!re
+					disabled: F || !!ne
 				}),
 				s.collaborations && /* @__PURE__ */ (0, B.jsx)(Qp, {
 					runs: ye,
 					routes: ve.map((e) => e.node),
 					language: t,
-					disabled: P || !!re,
+					disabled: F || !!ne,
 					used: s.collaboration_used || 0,
 					capacity: s.collaboration_capacity || 32,
 					selected: y,
-					error: ie,
+					error: re,
 					identifier: tm,
 					mutate: Ee,
 					onSelect: (e) => {
@@ -27492,15 +27535,15 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 									]
 								})]
 							}),
-							I && /* @__PURE__ */ (0, B.jsx)("p", {
+							L && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-error",
 								role: "alert",
-								children: I
+								children: L
 							}),
-							oe && /* @__PURE__ */ (0, B.jsx)("p", {
+							ae && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "messages-notice",
 								role: "status",
-								children: oe
+								children: ae
 							}),
 							!Me.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 								className: "direct-empty",
@@ -27557,7 +27600,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 										}),
 										a.result && /* @__PURE__ */ (0, B.jsxs)("div", {
 											className: "task-report task-result task-" + a.state,
-											children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [/* @__PURE__ */ (0, B.jsx)(R, {
+											children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [/* @__PURE__ */ (0, B.jsx)(z, {
 												size: 17,
 												"aria-hidden": "true"
 											}), u ? i("本机取消记录", "Local cancellation") : i("执行方报告", "Worker report")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: a.result })]
@@ -27566,8 +27609,8 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 											questions: a.questions || [],
 											pending: n.pending_answer,
 											language: t,
-											busy: P,
-											canAnswer: !c && !re && !n.blocked && !n.cancel_requested && a.state === "running",
+											busy: F,
+											canAnswer: !c && !ne && !n.blocked && !n.cancel_requested && a.state === "running",
 											onAnswer: (e, t, n) => void Ee({
 												operation: "answer",
 												id: r.id,
@@ -27608,7 +27651,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 											hasRun: !!n.run,
 											done: o,
 											canStart: ["available", "running"].includes(a.state) && !!n.grant_active && !n.claim_expired,
-											disabled: P || !!re,
+											disabled: F || !!ne,
 											paused: j,
 											language: t,
 											onChange: () => void Te()
@@ -27644,7 +27687,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 											className: "direct-actions",
 											children: [
 												c && !o && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P,
+													disabled: F,
 													onClick: () => void Ne(n),
 													children: [/* @__PURE__ */ (0, B.jsx)(je, {
 														size: 16,
@@ -27652,8 +27695,8 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 													}), i("复制 Agent 领取说明", "Copy Agent instructions")]
 												}),
 												c && a.state === "available" && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P,
-													onClick: () => le({
+													disabled: F,
+													onClick: () => ce({
 														id: r.id,
 														dispatch: a.dispatch,
 														reason: ""
@@ -27664,7 +27707,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 													}), i("拒绝任务", "Decline task")]
 												}),
 												!o && !n.cancel_requested && a.state !== "cancel_requested" && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P || !c && n.blocked && !l,
+													disabled: F || !c && n.blocked && !l,
 													onClick: () => {
 														confirm(l ? i("取消这项尚未发出的等待任务？目标设备不会收到本次尝试。", "Cancel this unsent waiting task? This attempt will never reach the target.") : i("请求停止此任务？正在执行的工作需要 Agent 在安全边界停止并明确确认；此操作不会强制终止程序。", "Request cancellation? A running Agent must stop at a safe boundary and confirm. This does not forcibly terminate a process.")) && Ee({
 															operation: "cancel",
@@ -27678,7 +27721,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 													}), l ? i("取消等待任务", "Cancel waiting task") : i("请求停止", "Request cancellation")]
 												}),
 												!c && !o && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P,
+													disabled: F,
 													onClick: () => void Ee({
 														operation: "sync",
 														id: r.id,
@@ -27690,7 +27733,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 													}), l ? i("重新检查依赖", "Recheck prerequisites") : i("同步原尝试", "Sync same attempt")]
 												}),
 												!c && (!r.collaboration || ye.some((e) => e.scope.id === r.collaboration?.id && e.state === "open")) && ["failed", "cancelled"].includes(a.state) && n.history.length < s.max_attempts && r.expires_at * 1e3 > Date.now() && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P || n.blocked,
+													disabled: F || n.blocked,
 													onClick: () => {
 														if (!confirm(i("在同一设备上创建一次新的尝试？已确认结束的旧尝试会保留，Agent 需要重新领取。", "Create a new attempt on the same device? The finished attempt is retained and an Agent must claim again."))) return;
 														let e = r.id + a.dispatch, t = me.current.get(e);
@@ -27707,7 +27750,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 													}), i("创建新尝试", "Create new attempt")]
 												}),
 												o && (c || !r.collaboration) && /* @__PURE__ */ (0, B.jsxs)("button", {
-													disabled: P,
+													disabled: F,
 													onClick: () => void Ee({
 														operation: "archive",
 														id: r.id,
@@ -27720,35 +27763,35 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 												})
 											]
 										}),
-										ce?.id === r.id && /* @__PURE__ */ (0, B.jsxs)("form", {
+										se?.id === r.id && /* @__PURE__ */ (0, B.jsxs)("form", {
 											className: "task-decline",
 											"aria-label": i("拒绝原因", "Decline reason"),
 											onSubmit: (e) => {
-												e.preventDefault(), ce.reason.trim() && nm(ce.reason) <= 8192 && Ee({
+												e.preventDefault(), se.reason.trim() && nm(se.reason) <= 8192 && Ee({
 													operation: "decline",
-													...ce
-												}, () => le(void 0));
+													...se
+												}, () => ce(void 0));
 											},
 											children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("拒绝原因", "Decline reason"), /* @__PURE__ */ (0, B.jsx)("textarea", {
 												autoFocus: !0,
 												rows: 3,
 												required: !0,
-												value: ce.reason,
-												disabled: P,
-												onChange: (e) => le({
-													...ce,
+												value: se.reason,
+												disabled: F,
+												onChange: (e) => ce({
+													...se,
 													reason: e.target.value
 												})
 											})] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 												className: "direct-actions",
 												children: [/* @__PURE__ */ (0, B.jsx)("button", {
 													type: "submit",
-													disabled: P || !ce.reason.trim() || nm(ce.reason) > 8192,
+													disabled: F || !se.reason.trim() || nm(se.reason) > 8192,
 													children: i("确认拒绝", "Confirm decline")
 												}), /* @__PURE__ */ (0, B.jsx)("button", {
 													type: "button",
-													disabled: P,
-													onClick: () => le(void 0),
+													disabled: F,
+													onClick: () => ce(void 0),
 													children: i("返回", "Back")
 												})]
 											})]
@@ -27771,7 +27814,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 								/* @__PURE__ */ (0, B.jsx)("h3", { children: i("委托新任务", "Delegate a task") }),
 								s.collaborations && /* @__PURE__ */ (0, B.jsxs)("label", { children: [i("所属协作", "Delegate within collaboration"), /* @__PURE__ */ (0, B.jsxs)("select", {
 									value: _,
-									disabled: P,
+									disabled: F,
 									onChange: (e) => {
 										we(e.target.value);
 										let t = ye.find((t) => t.scope.id === e.target.value);
@@ -27799,12 +27842,12 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 									selected: h,
 									onChange: g,
 									language: t,
-									disabled: P,
+									disabled: F,
 									status: Oe
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("执行设备", "Target device"), /* @__PURE__ */ (0, B.jsxs)("select", {
 									required: !0,
-									disabled: P,
+									disabled: F,
 									value: S,
 									onChange: (e) => {
 										C(e.target.value), u(""), f(!0);
@@ -27825,12 +27868,12 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 									selected: l,
 									onSelect: u,
 									onValidChange: f,
-									disabled: P
+									disabled: F
 								}, S + ":" + p),
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("任务标题", "Task title"), /* @__PURE__ */ (0, B.jsx)("input", {
 									ref: he,
 									value: w,
-									disabled: P,
+									disabled: F,
 									required: !0,
 									"aria-invalid": nm(w) > 240 || void 0,
 									onChange: (e) => T(e.target.value)
@@ -27838,7 +27881,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("任务说明与完成条件", "Description and completion criteria"), /* @__PURE__ */ (0, B.jsx)("textarea", {
 									rows: 6,
 									value: E,
-									disabled: P,
+									disabled: F,
 									required: !0,
 									"aria-describedby": _e,
 									"aria-invalid": nm(E) > 8192 || void 0,
@@ -27862,11 +27905,11 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 								/* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
 									type: "submit",
-									disabled: P || !Ce || !w.trim() || !E.trim() || nm(w) > 240 || nm(E) > 8192 || !d || !xe.some((e) => e.node === S),
+									disabled: F || !Ce || !w.trim() || !E.trim() || nm(w) > 240 || nm(E) > 8192 || !d || !xe.some((e) => e.node === S),
 									children: [/* @__PURE__ */ (0, B.jsx)(gn, {
 										size: 16,
 										"aria-hidden": "true"
-									}), P ? i("正在保存…", "Saving…") : h.length ? i("保存并等待前置任务", "Save and wait for prerequisites") : i("保存并委托", "Save and delegate")]
+									}), F ? i("正在保存…", "Saving…") : h.length ? i("保存并等待前置任务", "Save and wait for prerequisites") : i("保存并委托", "Save and delegate")]
 								})
 							]
 						}), /* @__PURE__ */ (0, B.jsxs)("aside", {
@@ -27886,7 +27929,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 										children: i("设备与授权", "Devices and access")
 									}), r && /* @__PURE__ */ (0, B.jsxs)("button", {
 										onClick: r,
-										children: [i("设备消息", "Device messages"), /* @__PURE__ */ (0, B.jsx)(te, {
+										children: [i("设备消息", "Device messages"), /* @__PURE__ */ (0, B.jsx)(P, {
 											size: 16,
 											"aria-hidden": "true"
 										})]
@@ -27898,7 +27941,7 @@ function rm({ client: e, language: t = "en", onDevices: n, onMessages: r }) {
 				})
 			] }) : /* @__PURE__ */ (0, B.jsx)("p", {
 				role: "status",
-				children: re ? i("无法读取任务，请检查设备服务后重试。", "Tasks could not be read. Check the device service and retry.") : i("正在读取协作任务…", "Reading collaboration tasks…")
+				children: ne ? i("无法读取任务，请检查设备服务后重试。", "Tasks could not be read. Check the device service and retry.") : i("正在读取协作任务…", "Reading collaboration tasks…")
 			})
 		]
 	});
@@ -28309,7 +28352,7 @@ var hm = () => ({
 function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 	let a = (e, t) => r.startsWith("zh") ? e : t, [o, s] = (0, x.useState)(!1), [c, l] = (0, x.useState)(""), [u, d] = (0, x.useState)([]), [f, p] = (0, x.useState)(""), m = (0, x.useId)(), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(hm), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)([]), O = (0, x.useRef)(!0), k = (0, x.useRef)(!1), A = (0, x.useRef)(null), j = (0, x.useRef)(0), M = (0, x.useRef)(0), N = (0, x.useRef)(e), ee = (0, x.useRef)(u);
 	N.current = e, ee.current = u;
-	let P = ym(n?.node), ne = t.filter((e, t, n) => e.online && e.can_copy && ym(e.id) && ym(e.id) !== P && n.findIndex((t) => t.online && t.can_copy && ym(t.id) === ym(e.id)) === t), re = !!n && !n.offline_synced_at && t.some((e) => e.id === n.node && e.online && e.can_copy) && !!P, F = u.find((e) => e.id === f);
+	let F = ym(n?.node), te = t.filter((e, t, n) => e.online && e.can_copy && ym(e.id) && ym(e.id) !== F && n.findIndex((t) => t.online && t.can_copy && ym(t.id) === ym(e.id)) === t), ne = !!n && !n.offline_synced_at && t.some((e) => e.id === n.node && e.online && e.can_copy) && !!F, I = u.find((e) => e.id === f);
 	(0, x.useEffect)(() => (O.current = !0, () => {
 		O.current = !1;
 	}), []), (0, x.useEffect)(() => {
@@ -28319,9 +28362,9 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 	}, [n?.id]), (0, x.useEffect)(() => {
 		o && A.current?.focus();
 	}, [o]);
-	let I = !!y || u.some((e) => xm(e.state));
+	let L = !!y || u.some((e) => xm(e.state));
 	(0, x.useEffect)(() => {
-		if (!o || !I) return;
+		if (!o || !L) return;
 		let e = !1, t = !1, n = window.setInterval(async () => {
 			if (t) return;
 			t = !0;
@@ -28330,7 +28373,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 				let t = await N.current({ operation: "copy_activity" });
 				if (e || !O.current || n !== j.current || !Array.isArray(t.copies)) return;
 				if (t.copies.some((e) => !ee.current.some((t) => t.id === e.id && t.state === e.state))) {
-					if (await ie(), !e && k.current) {
+					if (await re(), !e && k.current) {
 						let e = t.copies.find((e) => xm(e.state));
 						e && p(e.id);
 					}
@@ -28345,8 +28388,8 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 		return () => {
 			e = !0, window.clearInterval(n);
 		};
-	}, [o, I]);
-	async function L(e, t) {
+	}, [o, L]);
+	async function R(e, t) {
 		if (!k.current) {
 			k.current = !0, b(e), C("");
 			try {
@@ -28354,14 +28397,14 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			} catch (e) {
 				O.current && C(vm(e));
 				try {
-					await ie(!0);
+					await re(!0);
 				} catch {}
 			} finally {
 				k.current = !1, O.current && b("");
 			}
 		}
 	}
-	async function ie(e = !1) {
+	async function re(e = !1) {
 		let t = ++M.current, n = j.current, r = await N.current({ operation: "copy_list" });
 		if (!Array.isArray(r.copies)) throw Error("Unexpected copy history");
 		if (O.current && n === j.current && t === M.current && (d(r.copies), D(r.unavailable || []), e)) {
@@ -28369,15 +28412,15 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			e && p(e.id);
 		}
 	}
-	function ae(e) {
+	function ie(e) {
 		j.current++, O.current && (d((t) => [e, ...t.filter((t) => t.id !== e.id)]), p(e.id), T(!1));
 	}
-	let oe = (e) => ({
+	let ae = (e) => ({
 		goal: a("目标与约束", "Goal and constraints"),
 		progress: a("当前进展与决定", "Progress and decisions"),
 		next_steps: a("接下来要做的事", "Next steps"),
 		verification: a("验证结果与待解决问题", "Verification and unresolved issues")
-	})[e], se = h && (!_.goal.trim() || gm.some((e) => new TextEncoder().encode(_[e]).length > _m[e] || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(_[e]))), ce = (e) => ({
+	})[e], oe = h && (!_.goal.trim() || gm.some((e) => new TextEncoder().encode(_[e]).length > _m[e] || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(_[e]))), se = (e) => ({
 		preparing: a("正在生成快照", "Preparing snapshot"),
 		prepare_paused: a("快照生成已暂停", "Snapshot preparation paused"),
 		receiving: a("正在传输文件", "Transferring files"),
@@ -28396,7 +28439,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 			type: "button",
 			"aria-expanded": o,
 			onClick: () => {
-				s((e) => !e), o || L(a("读取记录…", "Loading history…"), ie);
+				s((e) => !e), o || R(a("读取记录…", "Loading history…"), re);
 			},
 			children: [/* @__PURE__ */ (0, B.jsx)(je, {
 				size: 17,
@@ -28420,9 +28463,9 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 				/* @__PURE__ */ (0, B.jsx)("p", { children: a("包含当前文件和未提交修改；常见凭据、Git 历史、依赖和构建目录会跳过。请检查清单，确认没有其他敏感文件。新版节点支持分块续传，每次最多 2 GiB、单文件 1 GiB。Shell 和 Agent 运行状态不随文件复制。", "Includes current files and uncommitted changes. Common credentials, Git history, dependencies and build folders are skipped. Review the manifest for other sensitive files. Updated nodes support resumable chunks up to 2 GiB total and 1 GiB per file. Running shells and agents stay on their current device.") }),
 				/* @__PURE__ */ (0, B.jsxs)("form", {
 					onSubmit: (t) => {
-						t.preventDefault(), !se && re && ne.some((e) => ym(e.id) === c) && L(a("生成快照…", "Preparing snapshot…"), async () => ae(await e({
+						t.preventDefault(), !oe && ne && te.some((e) => ym(e.id) === c) && R(a("生成快照…", "Preparing snapshot…"), async () => ie(await e({
 							operation: "copy_prepare",
-							source: P,
+							source: F,
 							target: c,
 							replica_id: n.id.slice(n.id.lastIndexOf("/") + 1),
 							...h ? { handoff: _ } : {}
@@ -28431,10 +28474,10 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("p", { children: [
 							/* @__PURE__ */ (0, B.jsx)("strong", { children: a("来源：", "Source: ") }),
-							t.find((e) => e.id === n?.node)?.name || P || a("请选择设备上的工作副本", "Select a working copy on a device"),
-							P && /* @__PURE__ */ (0, B.jsx)("code", { children: n?.path })
+							t.find((e) => e.id === n?.node)?.name || F || a("请选择设备上的工作副本", "Select a working copy on a device"),
+							F && /* @__PURE__ */ (0, B.jsx)("code", { children: n?.path })
 						] }),
-						!re && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请选择本机或在线直连设备的工作副本。远端需同时授予项目目录和执行命令权限。", "Choose a working copy on this device or an online direct device. Remote sources must grant both project catalog and command access.") }),
+						!ne && /* @__PURE__ */ (0, B.jsx)("p", { children: a("请选择本机或在线直连设备的工作副本。远端需同时授予项目目录和执行命令权限。", "Choose a working copy on this device or an online direct device. Remote sources must grant both project catalog and command access.") }),
 						/* @__PURE__ */ (0, B.jsxs)("label", { children: [a("目标设备", "Copy destination"), /* @__PURE__ */ (0, B.jsxs)("select", {
 							ref: A,
 							required: !0,
@@ -28444,7 +28487,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							children: [/* @__PURE__ */ (0, B.jsx)("option", {
 								value: "",
 								children: a("选择设备", "Choose a device")
-							}), ne.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
+							}), te.map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 								value: ym(e.id),
 								children: e.name || ym(e.id)
 							}, e.id))]
@@ -28465,7 +28508,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 								gm.map((e) => {
 									let t = new TextEncoder().encode(_[e]).length;
 									return /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [
-										oe(e),
+										ae(e),
 										e === "goal" && a("（必填）", " (required)"),
 										/* @__PURE__ */ (0, B.jsx)("textarea", {
 											rows: e === "goal" ? 3 : 4,
@@ -28495,8 +28538,8 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("button", {
 							type: "submit",
-							disabled: !!y || se || !re || !ne.some((e) => ym(e.id) === c),
-							children: [a("生成并预览快照", "Prepare and preview snapshot"), /* @__PURE__ */ (0, B.jsx)(te, {
+							disabled: !!y || oe || !ne || !te.some((e) => ym(e.id) === c),
+							children: [a("生成并预览快照", "Prepare and preview snapshot"), /* @__PURE__ */ (0, B.jsx)(P, {
 								size: 16,
 								"aria-hidden": "true"
 							})]
@@ -28509,7 +28552,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 						type: "button",
 						disabled: !!y,
 						"aria-label": a("刷新复制记录", "Refresh copy history"),
-						onClick: () => void L(a("读取记录…", "Loading history…"), ie),
+						onClick: () => void R(a("读取记录…", "Loading history…"), re),
 						children: /* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 16,
 							"aria-hidden": "true"
@@ -28532,7 +28575,7 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							" → ",
 							e.target,
 							" · ",
-							ce(e.state)
+							se(e.state)
 						]
 					}, e.id))]
 				})] }),
@@ -28544,76 +28587,76 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 						disabled: !!y,
 						"aria-label": a("移除不可用记录 ", "Remove unavailable record ") + t,
 						onClick: () => {
-							confirm(a("删除该本机记录和暂存快照？目标文件仍保留，这不会取消已经发出的复制。", "Delete this local record and staged snapshot? Target files remain. This does not cancel a copy already sent.")) && L(a("移除记录…", "Removing record…"), async () => {
+							confirm(a("删除该本机记录和暂存快照？目标文件仍保留，这不会取消已经发出的复制。", "Delete this local record and staged snapshot? Target files remain. This does not cancel a copy already sent.")) && R(a("移除记录…", "Removing record…"), async () => {
 								await e({
 									operation: "copy_discard",
 									id: t
-								}), j.current++, await ie();
+								}), j.current++, await re();
 							});
 						},
 						children: a("移除本机记录", "Remove local record")
 					})] }, t))]
 				}),
-				F && /* @__PURE__ */ (0, B.jsxs)("div", {
+				I && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "projects-copy-review",
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("div", {
 							role: "status",
 							"aria-atomic": "true",
 							children: /* @__PURE__ */ (0, B.jsxs)("strong", { children: [
-								F.summary.name,
+								I.summary.name,
 								" · ",
-								ce(F.state)
+								se(I.state)
 							] })
 						}),
 						/* @__PURE__ */ (0, B.jsxs)("p", { children: [
-							F.source,
+							I.source,
 							" → ",
-							F.target,
-							/* @__PURE__ */ (0, B.jsx)("code", { children: F.result?.path || F.target_root })
+							I.target,
+							/* @__PURE__ */ (0, B.jsx)("code", { children: I.result?.path || I.target_root })
 						] }),
 						/* @__PURE__ */ (0, B.jsxs)("p", { children: [
-							F.summary.files.length,
+							I.summary.files.length,
 							" ",
 							a("个文件", "files"),
 							" · ",
-							bm(F.summary.bytes),
+							bm(I.summary.bytes),
 							" · ",
-							new Date(F.created_at).toLocaleString()
+							new Date(I.created_at).toLocaleString()
 						] }),
-						F.progress && F.state !== "completed" && F.state !== "prepared" && /* @__PURE__ */ (0, B.jsxs)("div", {
+						I.progress && I.state !== "completed" && I.state !== "prepared" && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-copy-progress",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: F.progress.phase === "preparing" ? a("准备快照", "Preparing snapshot") : a("传输到目标设备", "Transferring to destination") }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
-								bm(F.progress.bytes),
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: I.progress.phase === "preparing" ? a("准备快照", "Preparing snapshot") : a("传输到目标设备", "Transferring to destination") }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+								bm(I.progress.bytes),
 								" / ",
-								bm(F.progress.total)
+								bm(I.progress.total)
 							] })] }), /* @__PURE__ */ (0, B.jsx)("progress", {
 								"aria-label": a("项目复制进度", "Project copy progress"),
-								max: F.progress.total || 1,
-								value: Math.min(F.progress.bytes, F.progress.total)
+								max: I.progress.total || 1,
+								value: Math.min(I.progress.bytes, I.progress.total)
 							})]
 						}),
-						F.protocol === 1 && /* @__PURE__ */ (0, B.jsx)("p", { children: a("本次使用旧版节点协议：最多 16 MiB、单文件 4 MiB。两端升级后即可使用分块续传。", "This copy uses the legacy node protocol: 16 MiB total and 4 MiB per file. Update both endpoints to enable resumable chunks.") }),
+						I.protocol === 1 && /* @__PURE__ */ (0, B.jsx)("p", { children: a("本次使用旧版节点协议：最多 16 MiB、单文件 4 MiB。两端升级后即可使用分块续传。", "This copy uses the legacy node protocol: 16 MiB total and 4 MiB per file. Update both endpoints to enable resumable chunks.") }),
 						/* @__PURE__ */ (0, B.jsx)(mm, {
-							job: F,
+							job: I,
 							language: r,
 							formatSize: bm
-						}, F.id + F.digest),
-						F.summary.handoff && /* @__PURE__ */ (0, B.jsxs)("details", {
+						}, I.id + I.digest),
+						I.summary.handoff && /* @__PURE__ */ (0, B.jsxs)("details", {
 							className: "projects-handoff-review",
 							children: [
 								/* @__PURE__ */ (0, B.jsx)("summary", { children: a("检查 Agent 交接说明", "Review Agent handoff") }),
-								/* @__PURE__ */ (0, B.jsx)("code", { children: F.summary.handoff_path }),
-								gm.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: oe(e) }), /* @__PURE__ */ (0, B.jsx)("p", { children: F.summary.handoff[e] || a("未填写", "Not provided") })] }, e))
+								/* @__PURE__ */ (0, B.jsx)("code", { children: I.summary.handoff_path }),
+								gm.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h4", { children: ae(e) }), /* @__PURE__ */ (0, B.jsx)("p", { children: I.summary.handoff[e] || a("未填写", "Not provided") })] }, e))
 							]
 						}),
-						F.digest && /* @__PURE__ */ (0, B.jsxs)("p", { children: [a("快照校验值：", "Snapshot checksum: "), /* @__PURE__ */ (0, B.jsx)("code", { children: F.digest })] }),
-						F.error && /* @__PURE__ */ (0, B.jsx)("div", {
+						I.digest && /* @__PURE__ */ (0, B.jsxs)("p", { children: [a("快照校验值：", "Snapshot checksum: "), /* @__PURE__ */ (0, B.jsx)("code", { children: I.digest })] }),
+						I.error && /* @__PURE__ */ (0, B.jsx)("div", {
 							className: "projects-error",
 							role: "alert",
-							children: F.error
+							children: I.error
 						}),
-						F.state === "prepared" && /* @__PURE__ */ (0, B.jsxs)("label", {
+						I.state === "prepared" && /* @__PURE__ */ (0, B.jsxs)("label", {
 							className: "projects-copy-check",
 							children: [/* @__PURE__ */ (0, B.jsx)("input", {
 								type: "checkbox",
@@ -28631,17 +28674,17 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 							"uncertain",
 							"copied",
 							"incomplete"
-						].includes(F.state) && /* @__PURE__ */ (0, B.jsx)("p", { children: a("可以关闭页面，接入端会继续处理。进程退出或网络中断后，重新打开本记录继续；传输阶段请先查询目标回执，沿用原 ID。暂存快照保留 24 小时。", "You can close this page while the endpoint continues. After a process restart or network interruption, reopen this record to resume. Check the target receipt before resuming a transfer with the same ID. Staged snapshots expire after 24 hours.") }),
+						].includes(I.state) && /* @__PURE__ */ (0, B.jsx)("p", { children: a("可以关闭页面，接入端会继续处理。进程退出或网络中断后，重新打开本记录继续；传输阶段请先查询目标回执，沿用原 ID。暂存快照保留 24 小时。", "You can close this page while the endpoint continues. After a process restart or network interruption, reopen this record to resume. Check the target receipt before resuming a transfer with the same ID. Staged snapshots expire after 24 hours.") }),
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-copy-actions",
 							children: [
-								["preparing", "prepare_paused"].includes(F.state) && /* @__PURE__ */ (0, B.jsx)("button", {
+								["preparing", "prepare_paused"].includes(I.state) && /* @__PURE__ */ (0, B.jsx)("button", {
 									type: "button",
 									className: "projects-primary",
 									disabled: !!y,
-									onClick: () => void L(a("继续生成快照…", "Resuming snapshot…"), async () => ae(await e({
+									onClick: () => void R(a("继续生成快照…", "Resuming snapshot…"), async () => ie(await e({
 										operation: "copy_prepare_resume",
-										id: F.id
+										id: I.id
 									}))),
 									children: a("继续生成快照", "Resume snapshot preparation")
 								}),
@@ -28652,24 +28695,24 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 									"sending",
 									"receiving",
 									"publishing"
-								].includes(F.state) && /* @__PURE__ */ (0, B.jsxs)("button", {
+								].includes(I.state) && /* @__PURE__ */ (0, B.jsxs)("button", {
 									type: "button",
 									className: "projects-primary",
-									disabled: !!y || F.state === "prepared" && !w,
+									disabled: !!y || I.state === "prepared" && !w,
 									onClick: () => {
-										(F.state === "prepared" || confirm(a("使用相同复制 ID 查询并继续？目标会复用原回执，不覆盖已完成的目录。", "Resume using the same copy ID? The target reuses its receipt and preserves an already completed directory."))) && L(a("正在复制…", "Copying…"), async () => {
+										(I.state === "prepared" || confirm(a("使用相同复制 ID 查询并继续？目标会复用原回执，不覆盖已完成的目录。", "Resume using the same copy ID? The target reuses its receipt and preserves an already completed directory."))) && R(a("正在复制…", "Copying…"), async () => {
 											let t = await e({
 												operation: "copy_commit",
-												id: F.id,
-												digest: F.digest
+												id: I.id,
+												digest: I.digest
 											});
-											ae(t), t.state === "completed" && await i();
+											ie(t), t.state === "completed" && await i();
 										});
 									},
-									children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+									children: [/* @__PURE__ */ (0, B.jsx)(de, {
 										size: 16,
 										"aria-hidden": "true"
-									}), F.state === "prepared" ? a("确认复制此快照", "Copy reviewed snapshot") : a("使用原 ID 继续", "Resume original copy")]
+									}), I.state === "prepared" ? a("确认复制此快照", "Copy reviewed snapshot") : a("使用原 ID 继续", "Resume original copy")]
 								}),
 								[
 									"sending",
@@ -28677,15 +28720,15 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 									"copied",
 									"receiving",
 									"publishing"
-								].includes(F.state) && /* @__PURE__ */ (0, B.jsx)("button", {
+								].includes(I.state) && /* @__PURE__ */ (0, B.jsx)("button", {
 									type: "button",
 									disabled: !!y,
-									onClick: () => void L(a("查询回执…", "Checking receipt…"), async () => {
+									onClick: () => void R(a("查询回执…", "Checking receipt…"), async () => {
 										let t = await e({
 											operation: "copy_status",
-											id: F.id
+											id: I.id
 										});
-										ae(t), t.state === "completed" && await i();
+										ie(t), t.state === "completed" && await i();
 									}),
 									children: a("查询目标回执", "Check target receipt")
 								}),
@@ -28693,23 +28736,23 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 									type: "button",
 									disabled: !!y,
 									onClick: () => {
-										confirm(a("删除本机复制记录和暂存快照？目标上的文件仍保留；这不会取消已经发送的复制。", "Delete this local record and staged snapshot? Target files remain. This does not cancel a copy already sent.")) && L(a("移除记录…", "Removing record…"), async () => {
+										confirm(a("删除本机复制记录和暂存快照？目标上的文件仍保留；这不会取消已经发送的复制。", "Delete this local record and staged snapshot? Target files remain. This does not cancel a copy already sent.")) && R(a("移除记录…", "Removing record…"), async () => {
 											await e({
 												operation: "copy_discard",
-												id: F.id
-											}), j.current++, O.current && p(""), await ie();
+												id: I.id
+											}), j.current++, O.current && p(""), await re();
 										});
 									},
 									children: a("移除本机记录", "Remove local record")
 								})
 							]
 						}),
-						F.state === "completed" && F.summary.handoff && /* @__PURE__ */ (0, B.jsx)(pm, {
+						I.state === "completed" && I.summary.handoff && /* @__PURE__ */ (0, B.jsx)(pm, {
 							client: e,
-							job: F,
+							job: I,
 							language: r,
 							disabled: !!y
-						}, F.id)
+						}, I.id)
 					]
 				}),
 				y && /* @__PURE__ */ (0, B.jsx)("p", {
@@ -28729,35 +28772,35 @@ function Sm({ client: e, devices: t, replica: n, language: r, onComplete: i }) {
 //#region src/projects/ProjectsView.tsx
 var Cm = (e) => e instanceof Error ? e.message : String(e);
 function wm({ client: e, devices: t, language: n = "en", sources: r }) {
-	let i = (e, t) => n.startsWith("zh") ? e : t, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(null), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(0), [P, ne] = (0, x.useState)(""), [re, F] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(null), se = (0, x.useRef)(""), ce = a?.projects.find((e) => e.id === s) || a?.projects[0], le = ce?.replicas.find((e) => e.id === l) || ce?.replicas[0], ue = le && t.find((e) => e.id === (le.node || "")), R = le?.offline_synced_at !== void 0, de = !R && !!ue?.online && ue.terminal_sessions !== !1, fe = (e) => {
-		++L.current, o(e);
-	}, pe = (0, x.useCallback)(async () => {
-		if (ae.current || ie.current) return;
-		ae.current = !0;
-		let t = ++L.current;
+	let i = (e, t) => n.startsWith("zh") ? e : t, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(""), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(null), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)(0), [F, te] = (0, x.useState)(""), [ne, I] = (0, x.useState)(""), L = (0, x.useRef)(!0), R = (0, x.useRef)(0), re = (0, x.useRef)(!1), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(null), oe = (0, x.useRef)(""), se = a?.projects.find((e) => e.id === s) || a?.projects[0], ce = se?.replicas.find((e) => e.id === l) || se?.replicas[0], le = ce && t.find((e) => e.id === (ce.node || "")), z = ce?.offline_synced_at !== void 0, ue = !z && !!le?.online && le.terminal_sessions !== !1, de = (e) => {
+		++R.current, o(e);
+	}, fe = (0, x.useCallback)(async () => {
+		if (ie.current || re.current) return;
+		ie.current = !0;
+		let t = ++R.current;
 		try {
 			let n = await e.projects({ operation: "list" });
-			I.current && t === L.current && (o(n), m(""));
+			L.current && t === R.current && (o(n), m(""));
 		} catch (e) {
-			I.current && t === L.current && m(Cm(e));
+			L.current && t === R.current && m(Cm(e));
 		} finally {
-			ae.current = !1, I.current && g(!1);
+			ie.current = !1, L.current && g(!1);
 		}
 	}, [e]);
 	(0, x.useEffect)(() => {
-		I.current = !0, pe();
+		L.current = !0, fe();
 		let e = () => {
-			document.hidden || (pe(), te((e) => e + 1));
+			document.hidden || (fe(), P((e) => e + 1));
 		}, t = setInterval(e, 1e4);
 		return window.addEventListener("focus", e), document.addEventListener("visibilitychange", e), () => {
-			I.current = !1, ++L.current, clearInterval(t), window.removeEventListener("focus", e), document.removeEventListener("visibilitychange", e);
+			L.current = !1, ++R.current, clearInterval(t), window.removeEventListener("focus", e), document.removeEventListener("visibilitychange", e);
 		};
-	}, [pe]), (0, x.useEffect)(() => {
-		y && oe.current?.focus();
+	}, [fe]), (0, x.useEffect)(() => {
+		y && ae.current?.focus();
 	}, [y]), (0, x.useEffect)(() => {
-		let t = !0, n = le?.id || "";
-		if ((se.current !== n || !de) && (k(void 0), ne("")), se.current = n, j(""), !le || !de) N(!1);
-		else return N(!0), e.terminals(le.node, { operation: "list" }).then((e) => {
+		let t = !0, n = ce?.id || "";
+		if ((oe.current !== n || !ue) && (k(void 0), te("")), oe.current = n, j(""), !ce || !ue) N(!1);
+		else return N(!0), e.terminals(ce.node, { operation: "list" }).then((e) => {
 			t && k(e);
 		}).catch((e) => {
 			t && j(Cm(e));
@@ -28768,36 +28811,36 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 		};
 	}, [
 		e,
-		le?.id,
-		le?.node,
-		de,
+		ce?.id,
+		ce?.node,
+		ue,
 		ee
 	]);
-	async function z(e) {
-		if (!ie.current) {
-			ie.current = !0, ++L.current, v(!0), m("");
+	async function pe(e) {
+		if (!re.current) {
+			re.current = !0, ++R.current, v(!0), m("");
 			try {
 				await e();
 			} catch (e) {
-				I.current && m(Cm(e));
+				L.current && m(Cm(e));
 			} finally {
-				ie.current = !1, I.current && (v(!1), te((e) => e + 1));
+				re.current = !1, L.current && (v(!1), P((e) => e + 1));
 			}
 		}
 	}
 	function me(n) {
 		if (n.preventDefault(), !t.some((e) => e.id === E && e.projects !== !1)) return;
 		let r = new Set(a?.projects.map((e) => e.id));
-		z(async () => {
+		pe(async () => {
 			let t = await e.projects({
 				operation: "register",
-				name: y === "replica" ? ce.name : S.trim(),
+				name: y === "replica" ? se.name : S.trim(),
 				node: E || null,
 				path: w.trim(),
-				project_id: y === "replica" ? ce.id : null
+				project_id: y === "replica" ? se.id : null
 			});
-			if (!I.current) return;
-			fe(t);
+			if (!L.current) return;
+			de(t);
 			let n = t.projects.find((e) => e.replicas.some((e) => e.node === (E || null) && e.path === w.trim())) || t.projects.find((e) => !r.has(e.id));
 			n && (c(n.id), u(n.replicas.find((e) => e.node === (E || null) && e.path === w.trim())?.id || "")), b(null), C(""), T("");
 		});
@@ -28808,18 +28851,18 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 	async function ge(t) {
 		let n = await e.projects({
 			operation: "bind",
-			replica_id: le.id,
+			replica_id: ce.id,
 			terminal_id: t.id
 		});
-		I.current && (fe(n), ne(""));
+		L.current && (de(n), te(""));
 	}
 	function _e(t) {
-		if (t.preventDefault(), !le) return;
-		let n = le;
-		z(async () => {
+		if (t.preventDefault(), !ce) return;
+		let n = ce;
+		pe(async () => {
 			let t = await e.terminals(n.node, {
 				operation: "create",
-				name: re.trim() || Array.from(ce.name).slice(0, 64).join("") + " · Shell",
+				name: ne.trim() || Array.from(se.name).slice(0, 64).join("") + " · Shell",
 				cwd: n.path
 			});
 			if (!t.session) throw Error(i("节点没有返回会话。请刷新会话列表后检查，避免重复创建。", "No session returned. Refresh the session list before creating another."));
@@ -28828,10 +28871,10 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 			} catch (e) {
 				throw Error(i("Shell 已创建，但关联失败。请从“关联已有会话”找回：", "Shell created, but linking failed. Recover it with “Link existing session”: ") + Cm(e));
 			}
-			I.current && (F(""), await e.open(n.node, t.session));
+			L.current && (I(""), await e.open(n.node, t.session));
 		});
 	}
-	let ve = O?.sessions.filter((e) => !le?.sessions.some((t) => t.terminal_id === e.id)) || [], ye = a?.projects.filter((e) => (e.name + " " + e.replicas.map((e) => e.path).join(" ")).toLowerCase().includes(d.toLowerCase())) || [];
+	let ve = O?.sessions.filter((e) => !ce?.sessions.some((t) => t.terminal_id === e.id)) || [], ye = a?.projects.filter((e) => (e.name + " " + e.replicas.map((e) => e.path).join(" ")).toLowerCase().includes(d.toLowerCase())) || [];
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
 		className: "projects-view",
 		"aria-label": i("项目与会话", "Projects and sessions"),
@@ -28845,7 +28888,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						disabled: _ || h,
 						"aria-label": i("刷新项目", "Refresh projects"),
 						onClick: () => {
-							pe(), te((e) => e + 1);
+							fe(), P((e) => e + 1);
 						},
 						children: /* @__PURE__ */ (0, B.jsx)(cn, {
 							size: 17,
@@ -28867,9 +28910,9 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 			e.copy && /* @__PURE__ */ (0, B.jsx)(Sm, {
 				client: e.copy,
 				devices: t,
-				replica: le,
+				replica: ce,
 				language: n,
-				onComplete: pe
+				onComplete: fe
 			}),
 			p && /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "projects-error",
@@ -28877,7 +28920,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 				children: [p, /* @__PURE__ */ (0, B.jsx)("button", {
 					type: "button",
 					disabled: _,
-					onClick: () => void pe(),
+					onClick: () => void fe(),
 					children: i("重新读取", "Reload")
 				})]
 			}),
@@ -28900,7 +28943,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						})]
 					}),
 					y === "new" && /* @__PURE__ */ (0, B.jsxs)("label", { children: [i("项目名称", "Project name"), /* @__PURE__ */ (0, B.jsx)("input", {
-						ref: oe,
+						ref: ae,
 						required: !0,
 						maxLength: 80,
 						value: S,
@@ -28919,7 +28962,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}, e.id))
 					})] }),
 					/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("设备上的绝对目录", "Absolute directory on device"), /* @__PURE__ */ (0, B.jsx)("input", {
-						ref: y === "replica" ? oe : void 0,
+						ref: y === "replica" ? ae : void 0,
 						required: !0,
 						maxLength: 4096,
 						placeholder: i("例如 /home/me/project 或 C:/Projects/app", "e.g. /home/me/project or C:/Projects/app"),
@@ -28968,7 +29011,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							"aria-label": i("项目列表", "Project list"),
 							children: ye.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
-								"aria-pressed": ce?.id === e.id,
+								"aria-pressed": se?.id === e.id,
 								disabled: _ || !!y,
 								onClick: () => {
 									c(e.id), u("");
@@ -28994,13 +29037,13 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 					]
 				}), /* @__PURE__ */ (0, B.jsx)("div", {
 					className: "projects-detail",
-					children: ce && le ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+					children: se && ce ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: ce.name }), /* @__PURE__ */ (0, B.jsx)("code", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: se.name }), /* @__PURE__ */ (0, B.jsx)("code", {
 								className: "projects-id",
-								title: ce.id,
-								children: ce.id
+								title: se.id,
+								children: se.id
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
 								disabled: _ || !t.some((e) => e.projects !== !1),
@@ -29015,10 +29058,10 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							className: "projects-replica-label",
 							children: [i("工作副本", "Working copy"), /* @__PURE__ */ (0, B.jsx)("select", {
 								"aria-label": i("工作副本", "Working copy"),
-								value: le.id,
+								value: ce.id,
 								disabled: _ || !!y,
 								onChange: (e) => u(e.target.value),
-								children: ce.replicas.map((e) => /* @__PURE__ */ (0, B.jsxs)("option", {
+								children: se.replicas.map((e) => /* @__PURE__ */ (0, B.jsxs)("option", {
 									value: e.id,
 									children: [
 										t.find((t) => t.id === (e.node || ""))?.name || e.node || i("Workspace 主机", "Workspace host"),
@@ -29035,14 +29078,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 									size: 19,
 									"aria-hidden": "true"
 								}),
-								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: ue?.name || le.node || i("Workspace 主机", "Workspace host") }), /* @__PURE__ */ (0, B.jsx)("code", { children: le.path })] }),
+								/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: le?.name || ce.node || i("Workspace 主机", "Workspace host") }), /* @__PURE__ */ (0, B.jsx)("code", { children: ce.path })] }),
 								/* @__PURE__ */ (0, B.jsx)("span", {
-									className: "projects-status " + (de ? "is-online" : ""),
-									children: de ? i("在线", "Online") : i("离线或终端不可用", "Offline or terminals unavailable")
+									className: "projects-status " + (ue ? "is-online" : ""),
+									children: ue ? i("在线", "Online") : i("离线或终端不可用", "Offline or terminals unavailable")
 								})
 							]
 						}),
-						R && /* @__PURE__ */ (0, B.jsxs)("div", {
+						z && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "projects-snapshot",
 							children: [/* @__PURE__ */ (0, B.jsx)(Hn, {
 								size: 18,
@@ -29050,8 +29093,8 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							}), /* @__PURE__ */ (0, B.jsxs)("div", { children: [
 								/* @__PURE__ */ (0, B.jsx)("strong", { children: i("离线快照", "Offline snapshot") }),
 								/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("上次同步：", "Last synced: "), /* @__PURE__ */ (0, B.jsx)("time", {
-									dateTime: new Date(le.offline_synced_at).toISOString(),
-									children: new Date(le.offline_synced_at).toLocaleString()
+									dateTime: new Date(ce.offline_synced_at).toISOString(),
+									children: new Date(ce.offline_synced_at).toLocaleString()
 								})] }),
 								/* @__PURE__ */ (0, B.jsx)("p", { children: i("目录和关联会话可能已变化。恢复连接并刷新后，才能编辑记录或操作 Shell。", "Directories and linked sessions may have changed. Reconnect and refresh before editing records or using shells.") })
 							] })]
@@ -29060,7 +29103,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							className: "projects-heading",
 							children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: i("关联的 Shell 会话", "Linked shell sessions") }), /* @__PURE__ */ (0, B.jsx)("span", {
 								className: "projects-note",
-								children: le.sessions.length
+								children: ce.sessions.length
 							})]
 						}),
 						M && /* @__PURE__ */ (0, B.jsx)("p", {
@@ -29075,34 +29118,34 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}),
 						/* @__PURE__ */ (0, B.jsx)("ul", {
 							className: "projects-sessions",
-							children: le.sessions.map((t) => {
-								let n = O?.sessions.find((e) => e.id === t.terminal_id), r = de && n?.status === "running";
+							children: ce.sessions.map((t) => {
+								let n = O?.sessions.find((e) => e.id === t.terminal_id), r = ue && n?.status === "running";
 								return /* @__PURE__ */ (0, B.jsxs)("li", { children: [
 									/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 18,
 										"aria-hidden": "true"
 									}),
-									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: n?.name || t.terminal_id }), /* @__PURE__ */ (0, B.jsx)("small", { children: !de || A || M ? i("等待设备确认状态", "Waiting for device status") : O?.installed ? n ? n.status === "running" ? i("运行中", "Running") : i("已结束", "Ended") : i("原会话已不在设备上", "Session no longer on device") : i("终端服务不可用", "Terminal service unavailable") })] }),
+									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: n?.name || t.terminal_id }), /* @__PURE__ */ (0, B.jsx)("small", { children: !ue || A || M ? i("等待设备确认状态", "Waiting for device status") : O?.installed ? n ? n.status === "running" ? i("运行中", "Running") : i("已结束", "Ended") : i("原会话已不在设备上", "Session no longer on device") : i("终端服务不可用", "Terminal service unavailable") })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", {
 										className: "projects-actions",
 										children: [/* @__PURE__ */ (0, B.jsx)("button", {
 											type: "button",
 											disabled: _ || !r || M || !!A,
-											onClick: () => void z(async () => {
-												await e.open(le.node, n);
+											onClick: () => void pe(async () => {
+												await e.open(ce.node, n);
 											}),
 											children: i("打开", "Open")
 										}), /* @__PURE__ */ (0, B.jsx)("button", {
 											type: "button",
 											"aria-label": i("解除关联 ", "Unlink ") + (n?.name || t.terminal_id),
-											disabled: _ || R,
-											onClick: () => void z(async () => {
+											disabled: _ || z,
+											onClick: () => void pe(async () => {
 												let n = await e.projects({
 													operation: "unbind",
-													replica_id: le.id,
+													replica_id: ce.id,
 													terminal_id: t.terminal_id
 												});
-												I.current && fe(n);
+												L.current && de(n);
 											}),
 											children: /* @__PURE__ */ (0, B.jsx)(Rn, {
 												size: 16,
@@ -29113,7 +29156,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 								] }, t.id);
 							})
 						}),
-						!le.sessions.length && /* @__PURE__ */ (0, B.jsx)("p", {
+						!ce.sessions.length && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "projects-note",
 							children: i("还没有关联会话。可以新建 Shell，或关联这个设备上的已有会话。", "Create a shell or link an existing session on this device.")
 						}),
@@ -29122,14 +29165,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							onSubmit: _e,
 							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("新会话名称", "New session name"), /* @__PURE__ */ (0, B.jsx)("input", {
 								maxLength: 80,
-								value: re,
-								placeholder: ce.name.slice(0, 64) + " · Shell",
-								disabled: _ || !de,
-								onChange: (e) => F(e.target.value)
+								value: ne,
+								placeholder: se.name.slice(0, 64) + " · Shell",
+								disabled: _ || !ue,
+								onChange: (e) => I(e.target.value)
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
 								className: "projects-primary",
-								disabled: _ || !de || !O?.installed || M,
+								disabled: _ || !ue || !O?.installed || M,
 								children: [/* @__PURE__ */ (0, B.jsx)(rn, {
 									size: 16,
 									"aria-hidden": "true"
@@ -29140,14 +29183,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 							className: "projects-session-form",
 							onSubmit: (e) => {
 								e.preventDefault();
-								let t = ve.find((e) => e.id === P);
-								t && z(() => ge(t));
+								let t = ve.find((e) => e.id === F);
+								t && pe(() => ge(t));
 							},
 							children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("关联已有会话", "Link existing session"), /* @__PURE__ */ (0, B.jsxs)("select", {
 								"aria-label": i("关联已有会话", "Link existing session"),
-								value: P,
-								disabled: _ || !de || !ve.length || M || !!A,
-								onChange: (e) => ne(e.target.value),
+								value: F,
+								disabled: _ || !ue || !ve.length || M || !!A,
+								onChange: (e) => te(e.target.value),
 								children: [/* @__PURE__ */ (0, B.jsx)("option", {
 									value: "",
 									children: i("选择此设备上的会话", "Choose a session on this device")
@@ -29161,7 +29204,7 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 								}, e.id))]
 							})] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "submit",
-								disabled: _ || !P || !de || M || !!A,
+								disabled: _ || !F || !ue || M || !!A,
 								children: [/* @__PURE__ */ (0, B.jsx)(_t, {
 									size: 16,
 									"aria-hidden": "true"
@@ -29170,14 +29213,14 @@ function wm({ client: e, devices: t, language: n = "en", sources: r }) {
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							type: "button",
-							disabled: _ || R || !!y,
+							disabled: _ || z || !!y,
 							onClick: () => {
-								window.confirm(i("仅移除这个工作副本的记录。文件和 Shell 都会保留。继续？", "Remove this working copy from the catalog? Files and shells will be kept.")) && z(async () => {
+								window.confirm(i("仅移除这个工作副本的记录。文件和 Shell 都会保留。继续？", "Remove this working copy from the catalog? Files and shells will be kept.")) && pe(async () => {
 									let t = await e.projects({
 										operation: "forget",
-										replica_id: le.id
+										replica_id: ce.id
 									});
-									I.current && fe(t);
+									L.current && de(t);
 								});
 							},
 							children: i("移除目录记录", "Remove directory record")
@@ -29381,7 +29424,7 @@ function Em({ client: e, direct: t, devices: n, language: r = "en", local: i, ga
 				children: o("汇总各节点授权的项目。离线快照只供查看，重连后刷新；已确认撤权的来源会被移除。读取失败不代表项目或会话已删除。", "Projects are read from their owning nodes. Offline snapshots are read-only; refresh after reconnecting. Confirmed revocations remove the cached source. An unavailable catalog does not mean its projects or sessions were deleted.")
 			}),
 			/* @__PURE__ */ (0, B.jsx)("ul", { children: s.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
-				e.id ? /* @__PURE__ */ (0, B.jsx)(le, {
+				e.id ? /* @__PURE__ */ (0, B.jsx)(ce, {
 					size: 16,
 					"aria-hidden": "true"
 				}) : /* @__PURE__ */ (0, B.jsx)(Fe, {
@@ -29545,7 +29588,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 		children: [
 			/* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "direct-heading",
-				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(le, {
+				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsxs)("h3", { children: [/* @__PURE__ */ (0, B.jsx)(ce, {
 					size: 18,
 					"aria-hidden": "true"
 				}), i("其他设备", "Other devices")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: i("从已连接的设备读取授权空间目录。空间的管理和访问仍由归属设备控制。", "Read shared space directories from connected devices. Each owner controls management and access.") })] }), /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -29607,7 +29650,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 						e.catalog?.spaces.length ? /* @__PURE__ */ (0, B.jsx)("ul", {
 							className: "remote-space-list",
 							children: e.catalog.spaces.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [
-								/* @__PURE__ */ (0, B.jsx)(ae, {
+								/* @__PURE__ */ (0, B.jsx)(ie, {
 									size: 18,
 									"aria-hidden": "true"
 								}),
@@ -29643,7 +29686,7 @@ function Am({ client: e, language: t, phaseName: n, onDevices: r }) {
 							g > 0 && i(`${g} 个正在检查`, `${g} checking`)
 						].filter(Boolean).join(" · ")
 					}),
-					/* @__PURE__ */ (0, B.jsx)(z, {
+					/* @__PURE__ */ (0, B.jsx)(pe, {
 						size: 16,
 						"aria-hidden": "true"
 					})
@@ -29703,7 +29746,7 @@ var jm = [
 	wsl: "WSL2 · Ubuntu"
 };
 function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, onProjects: i, direct: a, onDevices: o }) {
-	let s = (e, n) => t.startsWith("zh") ? e : n, [c, l] = (0, x.useState)(null), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)("docker"), [D, O] = (0, x.useState)(null), [k, A] = (0, x.useState)(null), [j, M] = (0, x.useState)(""), [ee, P] = (0, x.useState)(""), [ne, re] = (0, x.useState)("always"), [F, I] = (0, x.useState)(null), [L, ie] = (0, x.useState)(!1), [oe, se] = (0, x.useState)(null), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useRef)(null), R = (0, x.useRef)(!1), de = (0, x.useRef)(!1), pe = (0, x.useRef)(null), z = (0, x.useRef)(null), me = (0, x.useRef)(!1), he = (0, x.useRef)(null), ge = (0, x.useRef)(null), ve = (0, x.useRef)(!1), ye = (0, x.useRef)(null), be = (0, x.useRef)(null), xe = (0, x.useRef)(!1), Se = (0, x.useRef)(null), Ce = (0, x.useId)(), we = !!c?.spaces.some((e) => jm.includes(e.phase)) || c?.setup?.phase === "installing", Te = g || we, Ee = (e) => ({
+	let s = (e, n) => t.startsWith("zh") ? e : n, [c, l] = (0, x.useState)(null), [u, d] = (0, x.useState)(""), [f, p] = (0, x.useState)(""), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!1), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)("docker"), [D, O] = (0, x.useState)(null), [k, A] = (0, x.useState)(null), [j, M] = (0, x.useState)(""), [ee, F] = (0, x.useState)(""), [te, ne] = (0, x.useState)("always"), [I, L] = (0, x.useState)(null), [R, re] = (0, x.useState)(!1), [ae, oe] = (0, x.useState)(null), se = (0, x.useRef)(null), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), z = (0, x.useRef)(!1), ue = (0, x.useRef)(!1), fe = (0, x.useRef)(null), pe = (0, x.useRef)(null), me = (0, x.useRef)(!1), he = (0, x.useRef)(null), ge = (0, x.useRef)(null), ve = (0, x.useRef)(!1), ye = (0, x.useRef)(null), be = (0, x.useRef)(null), xe = (0, x.useRef)(!1), Se = (0, x.useRef)(null), Ce = (0, x.useId)(), we = !!c?.spaces.some((e) => jm.includes(e.phase)) || c?.setup?.phase === "installing", Te = g || we, Ee = (e) => ({
 		preparing: s("准备中", "Preparing"),
 		pulling: s("下载镜像", "Downloading image"),
 		creating: s("创建容器", "Creating container"),
@@ -29723,15 +29766,15 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		Se.current !== t && (Se.current = t, window.dispatchEvent(new Event("cranibox:peers-changed")));
 	}
 	async function ke() {
-		if (!R.current) {
-			R.current = !0;
+		if (!z.current) {
+			z.current = !0;
 			try {
 				let t = await e({ operation: "list" });
-				Oe(t), p(""), de.current || (de.current = !0, E(t.platform === "windows" ? "wsl" : t.platform === "macos" ? "colima" : "docker"), P(t.default_image));
+				Oe(t), p(""), ue.current || (ue.current = !0, E(t.platform === "windows" ? "wsl" : t.platform === "macos" ? "colima" : "docker"), F(t.default_image));
 			} catch (e) {
 				p(String(e));
 			} finally {
-				R.current = !1;
+				z.current = !1;
 			}
 		}
 	}
@@ -29746,16 +29789,16 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 			e = !0, clearInterval(n), document.removeEventListener("visibilitychange", t);
 		};
 	}, [e, we]), (0, x.useEffect)(() => {
-		v && pe.current?.focus();
+		v && fe.current?.focus();
 	}, [v, b]), (0, x.useEffect)(() => {
 		v && k ? he.current?.focus() : ve.current && (ve.current = !1, ge.current?.focus());
 	}, [v, k]), (0, x.useEffect)(() => {
 		u && ye.current?.focus();
 	}, [u]), (0, x.useEffect)(() => {
-		oe?.error && le.current?.focus();
-	}, [oe?.error]), (0, x.useEffect)(() => {
-		!oe && ue.current && (ue.current.focus(), ue.current = null);
-	}, [oe]), (0, x.useEffect)(() => {
+		ae?.error && ce.current?.focus();
+	}, [ae?.error]), (0, x.useEffect)(() => {
+		!ae && le.current && (le.current.focus(), le.current = null);
+	}, [ae]), (0, x.useEffect)(() => {
 		xe.current && c?.setup && (xe.current = !1, be.current?.focus());
 	}, [c]);
 	async function Ae(t, n = d) {
@@ -29805,38 +29848,38 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 			name: j.trim(),
 			provider: T,
 			image: ee,
-			pull_policy: ne
-		}) && (y(!1), S(0), M(""), h(s("空间正在后台创建，可以关闭此页面。", "Your space is being created in the background. You can close this page.")), z.current?.focus());
+			pull_policy: te
+		}) && (y(!1), S(0), M(""), h(s("空间正在后台创建，可以关闭此页面。", "Your space is being created in the background. You can close this page.")), pe.current?.focus());
 	}
 	async function Ie(e, t) {
 		(t !== "stop" || window.confirm(s("停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？", "Stopping this space interrupts its Agents and shells. Data is retained. Continue?"))) && (t !== "remove" || window.confirm(s("归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？", "Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?"))) && await Ae({
 			operation: t,
 			id: e.id
-		}) && (I(null), h(s("操作已在后台开始。", "Operation started in the background.")));
+		}) && (L(null), h(s("操作已在后台开始。", "Operation started in the background.")));
 	}
 	async function Re(e) {
 		let t = await Ae({
 			operation: "credentials",
 			id: e.id
 		});
-		t && (I({
+		t && (L({
 			id: e.id,
 			...t
-		}), ie(!1));
+		}), re(!1));
 	}
 	async function ze(e, t) {
-		oe && oe.id === e.id && (se((e) => e && {
+		ae && ae.id === e.id && (oe((e) => e && {
 			...e,
 			error: ""
 		}), await Ae({
 			operation: "resume",
 			id: e.id,
-			image: oe.image,
-			pull_policy: oe.pullPolicy
-		}, (t) => se((n) => n?.id === e.id ? {
+			image: ae.image,
+			pull_policy: ae.pullPolicy
+		}, (t) => oe((n) => n?.id === e.id ? {
 			...n,
 			error: t
-		} : n)) && (ue.current = t, se(null), I(null), h(s("已保存镜像设置，正在后台重试。空间身份和数据卷保持不变。", "Image settings saved. Retrying in the background with the same space identity and data volume."))));
+		} : n)) && (le.current = t, oe(null), L(null), h(s("已保存镜像设置，正在后台重试。空间身份和数据卷保持不变。", "Image settings saved. Retrying in the background with the same space identity and data volume."))));
 	}
 	let Be = (e) => ({
 		always: s("每次拉取", "Always pull"),
@@ -29856,7 +29899,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		"docker"
 	] : c?.platform === "windows" ? ["wsl", "docker"] : ["docker"];
 	function Ue() {
-		y(!1), A(null), z.current?.focus();
+		y(!1), A(null), pe.current?.focus();
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
 		className: "direct-devices virtual-spaces",
@@ -29882,7 +29925,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							"aria-hidden": "true"
 						})
 					}), /* @__PURE__ */ (0, B.jsxs)("button", {
-						ref: z,
+						ref: pe,
 						className: "direct-primary",
 						disabled: !c || Te,
 						onClick: () => {
@@ -29923,7 +29966,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 				})]
 			}),
 			v && /* @__PURE__ */ (0, B.jsxs)("div", {
-				ref: pe,
+				ref: fe,
 				tabIndex: -1,
 				className: "spaces-wizard",
 				"aria-label": s("创建空间向导", "Create space wizard"),
@@ -29948,7 +29991,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 						].map((e, t) => /* @__PURE__ */ (0, B.jsxs)("li", {
 							className: t <= b ? "active" : "",
 							"aria-current": t === b ? "step" : void 0,
-							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: t < b ? /* @__PURE__ */ (0, B.jsx)(fe, {
+							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: t < b ? /* @__PURE__ */ (0, B.jsx)(de, {
 								size: 14,
 								"aria-hidden": "true"
 							}) : t + 1 }), e]
@@ -30112,7 +30155,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										maxLength: 240,
 										pattern: "[A-Za-z0-9._/:@-]+",
 										value: ee,
-										onChange: (e) => P(e.target.value)
+										onChange: (e) => F(e.target.value)
 									})] }),
 									/* @__PURE__ */ (0, B.jsx)("label", {
 										htmlFor: Ce + "-pull-policy",
@@ -30120,8 +30163,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									}),
 									/* @__PURE__ */ (0, B.jsx)("select", {
 										id: Ce + "-pull-policy",
-										value: ne,
-										onChange: (e) => re(e.target.value),
+										value: te,
+										onChange: (e) => ne(e.target.value),
 										children: [
 											"always",
 											"missing",
@@ -30133,7 +30176,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									}),
 									/* @__PURE__ */ (0, B.jsx)("p", {
 										className: "spaces-muted",
-										children: ne === "never" ? s("使用 Docker 引擎上已有的兼容镜像，不访问镜像仓库；缺少镜像时会提示处理。适合离线环境或本地构建。", "Use a compatible image already on the Docker engine, without contacting a registry. Missing images need to be built or loaded first. Suitable for offline use or local builds.") : s("使用兼容 Cranibox 的 Linux 镜像。策略也用于归档后的重建；恢复现有容器不会自动升级。", "Use a compatible Cranibox Linux image. This policy also applies when restoring an archive; resuming an existing container does not upgrade it.")
+										children: te === "never" ? s("使用 Docker 引擎上已有的兼容镜像，不访问镜像仓库；缺少镜像时会提示处理。适合离线环境或本地构建。", "Use a compatible image already on the Docker engine, without contacting a registry. Missing images need to be built or loaded first. Suitable for offline use or local builds.") : s("使用兼容 Cranibox 的 Linux 镜像。策略也用于归档后的重建；恢复现有容器不会自动升级。", "Use a compatible Cranibox Linux image. This policy also applies when restoring an archive; resuming an existing container does not upgrade it.")
 									})
 								]
 							}),
@@ -30150,7 +30193,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									className: "direct-primary",
 									type: "submit",
 									disabled: Te || !j.trim(),
-									children: [s("下一步", "Next"), /* @__PURE__ */ (0, B.jsx)(te, {
+									children: [s("下一步", "Next"), /* @__PURE__ */ (0, B.jsx)(P, {
 										size: 16,
 										"aria-hidden": "true"
 									})]
@@ -30169,7 +30212,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("资源上限", "Resource limits") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: "2 CPU · 4 GiB RAM" })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("数据存储", "Storage") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: s("独立持久数据卷 · /config", "Dedicated persistent volume · /config") })] }),
 									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像", "Image") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: /* @__PURE__ */ (0, B.jsx)("code", { children: ee }) })] }),
-									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像拉取策略", "Image pull policy") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: Be(ne) })] })
+									/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("dt", { children: s("镜像拉取策略", "Image pull policy") }), /* @__PURE__ */ (0, B.jsx)("dd", { children: Be(te) })] })
 								]
 							}),
 							/* @__PURE__ */ (0, B.jsx)("p", {
@@ -30204,7 +30247,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 				children: [
 					/* @__PURE__ */ (0, B.jsx)("div", {
 						className: "spaces-empty-icon",
-						children: /* @__PURE__ */ (0, B.jsx)(ae, {
+						children: /* @__PURE__ */ (0, B.jsx)(ie, {
 							size: 40,
 							strokeWidth: 1.5,
 							"aria-hidden": "true"
@@ -30246,7 +30289,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 							className: "space-card-head",
 							children: [/* @__PURE__ */ (0, B.jsx)("span", {
 								className: "space-icon",
-								children: /* @__PURE__ */ (0, B.jsx)(ae, {
+								children: /* @__PURE__ */ (0, B.jsx)(ie, {
 									size: 23,
 									"aria-hidden": "true"
 								})
@@ -30333,7 +30376,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									})
 								] }) : !jm.includes(e.phase) && /* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
-									disabled: Te || oe?.id === e.id,
+									disabled: Te || ae?.id === e.id,
 									onClick: () => void Ie(e, "resume"),
 									children: [/* @__PURE__ */ (0, B.jsx)(tn, {
 										size: 16,
@@ -30351,10 +30394,10 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 									"archived"
 								].includes(e.phase) && /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: Te,
-									"aria-expanded": oe?.id === e.id,
+									"aria-expanded": ae?.id === e.id,
 									"aria-controls": Ce + "-image-" + e.id,
 									onClick: (t) => {
-										ce.current = t.currentTarget, y(!1), d(""), se({
+										se.current = t.currentTarget, y(!1), d(""), oe({
 											id: e.id,
 											image: e.image,
 											pullPolicy: e.pull_policy || "always",
@@ -30365,7 +30408,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 								})
 							]
 						}),
-						oe?.id === e.id && [
+						ae?.id === e.id && [
 							"failed",
 							"interrupted",
 							"archived"
@@ -30393,8 +30436,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										required: !0,
 										maxLength: 240,
 										pattern: "[A-Za-z0-9._/:@-]+",
-										value: oe.image,
-										onChange: (e) => se((t) => t && {
+										value: ae.image,
+										onChange: (e) => oe((t) => t && {
 											...t,
 											image: e.target.value
 										})
@@ -30405,8 +30448,8 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 											children: s("镜像拉取策略", "Image pull policy")
 										}), /* @__PURE__ */ (0, B.jsx)("select", {
 											id: Ce + "-image-policy-" + e.id,
-											value: oe.pullPolicy,
-											onChange: (e) => se((t) => t && {
+											value: ae.pullPolicy,
+											onChange: (e) => oe((t) => t && {
 												...t,
 												pullPolicy: e.target.value
 											}),
@@ -30421,12 +30464,12 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										})]
 									})]
 								}),
-								oe.error && /* @__PURE__ */ (0, B.jsx)("p", {
-									ref: le,
+								ae.error && /* @__PURE__ */ (0, B.jsx)("p", {
+									ref: ce,
 									tabIndex: -1,
 									className: "direct-error",
 									role: "alert",
-									children: oe.error
+									children: ae.error
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "direct-actions",
@@ -30439,7 +30482,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 										type: "button",
 										disabled: Te,
 										onClick: () => {
-											se(null), ce.current?.focus();
+											oe(null), se.current?.focus();
 										},
 										children: s("取消", "Cancel")
 									})]
@@ -30473,27 +30516,27 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: Te,
-									onClick: () => F?.id === e.id ? I(null) : void Re(e),
-									children: F?.id === e.id ? s("隐藏凭据", "Hide credentials") : s("查看登录凭据", "View login credentials")
+									onClick: () => I?.id === e.id ? L(null) : void Re(e),
+									children: I?.id === e.id ? s("隐藏凭据", "Hide credentials") : s("查看登录凭据", "View login credentials")
 								}),
-								F?.id === e.id && /* @__PURE__ */ (0, B.jsxs)("div", {
+								I?.id === e.id && /* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "space-credentials",
 									children: [
 										/* @__PURE__ */ (0, B.jsxs)("p", { children: [
 											s("用户名", "Username"),
 											": ",
-											/* @__PURE__ */ (0, B.jsx)("code", { children: F.username })
+											/* @__PURE__ */ (0, B.jsx)("code", { children: I.username })
 										] }),
 										/* @__PURE__ */ (0, B.jsxs)("label", { children: [s("空间密码", "Space password"), /* @__PURE__ */ (0, B.jsx)("input", {
 											type: "password",
 											readOnly: !0,
 											autoComplete: "off",
-											value: F.password
+											value: I.password
 										})] }),
 										/* @__PURE__ */ (0, B.jsxs)("button", {
 											onClick: async () => {
 												try {
-													await navigator.clipboard.writeText(F.password), ie(!0);
+													await navigator.clipboard.writeText(I.password), re(!0);
 												} catch {
 													d(s("无法复制，请选中密码手动复制。", "Copy failed. Select the password and copy manually."));
 												}
@@ -30501,7 +30544,7 @@ function Nm({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 											children: [/* @__PURE__ */ (0, B.jsx)(je, {
 												size: 16,
 												"aria-hidden": "true"
-											}), L ? s("已复制", "Copied") : s("复制密码", "Copy password")]
+											}), R ? s("已复制", "Copied") : s("复制密码", "Copy password")]
 										})
 									]
 								})
@@ -30733,7 +30776,7 @@ function Rm({ state: e, label: t }) {
 	let { t: n } = sm(), r = e === "connected", i = e === "disconnected";
 	return /* @__PURE__ */ (0, B.jsxs)("span", {
 		className: "status " + (r ? "good" : i ? "warning" : "neutral"),
-		children: [/* @__PURE__ */ (0, B.jsx)(r ? fe : i ? In : xe, {
+		children: [/* @__PURE__ */ (0, B.jsx)(r ? de : i ? In : xe, {
 			size: 18,
 			"aria-hidden": "true"
 		}), t || n("已连接", "Connected")]
@@ -34450,17 +34493,17 @@ var hy = class {
 				for (v = r[0] + 1; v < r[1]; v++) j &&= i === this._isCellInSelection(v, t);
 				j &&= !n || a < r[0] || a >= r[1], j ? (A = !0, N = new cy(this._workCell, e.translateToString(!0, r[0], r[1]), r[1] - r[0]), M = r[1] - 1, m = N.getWidth()) : E = r[1];
 			}
-			let ee = this._isCellInSelection(k, t), te = n && k === a, P = O && k >= l && k <= u, ne = !1;
+			let ee = this._isCellInSelection(k, t), P = n && k === a, F = O && k >= l && k <= u, te = !1;
 			this._decorationService.forEachDecorationAtCell(k, t, void 0, (e) => {
-				ne = !0;
+				te = !0;
 			});
-			let re = N.getChars() || sh;
-			if (re === " " && (N.isUnderline() || N.isOverline()) && (re = "\xA0"), T = m * s - c.get(re, N.isBold(), N.isItalic()), !h) h = this._document.createElement("span");
-			else if (g && (ee && w || !ee && !w && N.bg === y) && (ee && w && p.selectionForeground || N.fg === b) && N.extended.ext === x && P === S && T === C && !te && !A && !ne && j) {
-				N.isInvisible() ? _ += sh : _ += re, g++;
+			let ne = N.getChars() || sh;
+			if (ne === " " && (N.isUnderline() || N.isOverline()) && (ne = "\xA0"), T = m * s - c.get(ne, N.isBold(), N.isItalic()), !h) h = this._document.createElement("span");
+			else if (g && (ee && w || !ee && !w && N.bg === y) && (ee && w && p.selectionForeground || N.fg === b) && N.extended.ext === x && F === S && T === C && !P && !A && !te && j) {
+				N.isInvisible() ? _ += sh : _ += ne, g++;
 				continue;
 			} else g && (h.textContent = _), h = this._document.createElement("span"), g = 0, _ = "";
-			if (y = N.bg, b = N.fg, x = N.extended.ext, S = P, C = T, w = ee, A && a >= k && a <= M && (a = k), !this._coreService.isCursorHidden && te && this._coreService.isCursorInitialized) {
+			if (y = N.bg, b = N.fg, x = N.extended.ext, S = F, C = T, w = ee, A && a >= k && a <= M && (a = k), !this._coreService.isCursorHidden && P && this._coreService.isCursorInitialized) {
 				if (D.push("xterm-cursor"), this._coreBrowserService.isFocused) o && D.push("xterm-cursor-blink"), D.push(r === "bar" ? "xterm-cursor-bar" : r === "underline" ? "xterm-cursor-underline" : "xterm-cursor-block");
 				else if (i) switch (i) {
 					case "outline":
@@ -34482,41 +34525,41 @@ var hy = class {
 					this._optionsService.rawOptions.drawBoldTextInBrightColors && N.isBold() && e < 8 && (e += 8), h.style.textDecorationColor = p.ansi[e].css;
 				}
 			}
-			N.isOverline() && (D.push("xterm-overline"), _ === " " && (_ = "\xA0")), N.isStrikethrough() && D.push("xterm-strikethrough"), P && (h.style.textDecoration = "underline");
-			let F = N.getFgColor(), I = N.getFgColorMode(), L = N.getBgColor(), ie = N.getBgColorMode(), ae = !!N.isInverse();
-			if (ae) {
-				let e = F;
-				F = L, L = e;
-				let t = I;
-				I = ie, ie = t;
+			N.isOverline() && (D.push("xterm-overline"), _ === " " && (_ = "\xA0")), N.isStrikethrough() && D.push("xterm-strikethrough"), F && (h.style.textDecoration = "underline");
+			let I = N.getFgColor(), L = N.getFgColorMode(), R = N.getBgColor(), re = N.getBgColorMode(), ie = !!N.isInverse();
+			if (ie) {
+				let e = I;
+				I = R, R = e;
+				let t = L;
+				L = re, re = t;
 			}
-			let oe, se, ce = !1;
+			let ae, oe, se = !1;
 			this._decorationService.forEachDecorationAtCell(k, t, void 0, (e) => {
-				e.options.layer !== "top" && ce || (e.backgroundColorRGB && (ie = 50331648, L = e.backgroundColorRGB.rgba >> 8 & 16777215, oe = e.backgroundColorRGB), e.foregroundColorRGB && (I = 50331648, F = e.foregroundColorRGB.rgba >> 8 & 16777215, se = e.foregroundColorRGB), ce = e.options.layer === "top");
-			}), !ce && ee && (oe = this._coreBrowserService.isFocused ? p.selectionBackgroundOpaque : p.selectionInactiveBackgroundOpaque, L = oe.rgba >> 8 & 16777215, ie = 50331648, ce = !0, p.selectionForeground && (I = 50331648, F = p.selectionForeground.rgba >> 8 & 16777215, se = p.selectionForeground)), ce && D.push("xterm-decoration-top");
-			let le;
-			switch (ie) {
+				e.options.layer !== "top" && se || (e.backgroundColorRGB && (re = 50331648, R = e.backgroundColorRGB.rgba >> 8 & 16777215, ae = e.backgroundColorRGB), e.foregroundColorRGB && (L = 50331648, I = e.foregroundColorRGB.rgba >> 8 & 16777215, oe = e.foregroundColorRGB), se = e.options.layer === "top");
+			}), !se && ee && (ae = this._coreBrowserService.isFocused ? p.selectionBackgroundOpaque : p.selectionInactiveBackgroundOpaque, R = ae.rgba >> 8 & 16777215, re = 50331648, se = !0, p.selectionForeground && (L = 50331648, I = p.selectionForeground.rgba >> 8 & 16777215, oe = p.selectionForeground)), se && D.push("xterm-decoration-top");
+			let ce;
+			switch (re) {
 				case 16777216:
 				case 33554432:
-					le = p.ansi[L], D.push(`xterm-bg-${L}`);
+					ce = p.ansi[R], D.push(`xterm-bg-${R}`);
 					break;
 				case 50331648:
-					le = ty.toColor(L >> 16, L >> 8 & 255, L & 255), this._addStyle(h, `background-color:#${gy((L >>> 0).toString(16), "0", 6)}`);
+					ce = ty.toColor(R >> 16, R >> 8 & 255, R & 255), this._addStyle(h, `background-color:#${gy((R >>> 0).toString(16), "0", 6)}`);
 					break;
-				default: ae ? (le = p.foreground, D.push("xterm-bg-257")) : le = p.background;
+				default: ie ? (ce = p.foreground, D.push("xterm-bg-257")) : ce = p.background;
 			}
-			switch (oe || N.isDim() && (oe = ny.multiplyOpacity(le, .5)), I) {
+			switch (ae || N.isDim() && (ae = ny.multiplyOpacity(ce, .5)), L) {
 				case 16777216:
 				case 33554432:
-					N.isBold() && F < 8 && this._optionsService.rawOptions.drawBoldTextInBrightColors && (F += 8), this._applyMinimumContrast(h, le, p.ansi[F], N, oe, void 0) || D.push(`xterm-fg-${F}`);
+					N.isBold() && I < 8 && this._optionsService.rawOptions.drawBoldTextInBrightColors && (I += 8), this._applyMinimumContrast(h, ce, p.ansi[I], N, ae, void 0) || D.push(`xterm-fg-${I}`);
 					break;
 				case 50331648:
-					let e = ty.toColor(F >> 16 & 255, F >> 8 & 255, F & 255);
-					this._applyMinimumContrast(h, le, e, N, oe, se) || this._addStyle(h, `color:#${gy(F.toString(16), "0", 6)}`);
+					let e = ty.toColor(I >> 16 & 255, I >> 8 & 255, I & 255);
+					this._applyMinimumContrast(h, ce, e, N, ae, oe) || this._addStyle(h, `color:#${gy(I.toString(16), "0", 6)}`);
 					break;
-				default: this._applyMinimumContrast(h, le, p.foreground, N, oe, se) || ae && D.push("xterm-fg-257");
+				default: this._applyMinimumContrast(h, ce, p.foreground, N, ae, oe) || ie && D.push("xterm-fg-257");
 			}
-			D.length &&= (h.className = D.join(" "), 0), !te && !A && !ne && j ? g++ : h.textContent = _, T !== this.defaultSpacing && (h.style.letterSpacing = `${T}px`), d.push(h), k = M;
+			D.length &&= (h.className = D.join(" "), 0), !P && !A && !te && j ? g++ : h.textContent = _, T !== this.defaultSpacing && (h.style.letterSpacing = `${T}px`), d.push(h), k = M;
 		}
 		return h && g && (h.textContent = _), d;
 	}
@@ -40045,11 +40088,11 @@ function VS({ label: e, children: t }) {
 //#endregion
 //#region src/terminal/TerminalPane.tsx
 function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename: a, onEnd: o }) {
-	let { t: s, connect: c } = sm(), l = (0, x.useRef)(null), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = (0, x.useRef)(!1), g = (0, x.useRef)(0), _ = (0, x.useRef)(!1), v = (0, x.useRef)(void 0), y = (0, x.useRef)(!0), b = (0, x.useRef)(void 0), S = (0, x.useRef)(0), C = (0, x.useRef)(() => {}), [w, T] = (0, x.useState)("disconnected"), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(e.initialCommand || ""), [A, M] = (0, x.useState)(!!e.initialCommand), [ee, P] = (0, x.useState)(14), [ne, re] = (0, x.useState)(!1), I = (0, x.useRef)(!1), L = w === "connected", ie = L || w === "connecting", ae = (0, x.useCallback)((e = !0) => {
+	let { t: s, connect: c } = sm(), l = (0, x.useRef)(null), u = (0, x.useRef)(null), d = (0, x.useRef)(null), f = (0, x.useRef)(null), p = (0, x.useRef)(null), m = (0, x.useRef)(null), h = (0, x.useRef)(!1), g = (0, x.useRef)(0), _ = (0, x.useRef)(!1), v = (0, x.useRef)(void 0), y = (0, x.useRef)(!0), b = (0, x.useRef)(void 0), S = (0, x.useRef)(0), C = (0, x.useRef)(() => {}), [w, T] = (0, x.useState)("disconnected"), [E, D] = (0, x.useState)(""), [O, k] = (0, x.useState)(e.initialCommand || ""), [A, M] = (0, x.useState)(!!e.initialCommand), [ee, F] = (0, x.useState)(14), [te, ne] = (0, x.useState)(!1), L = (0, x.useRef)(!1), R = w === "connected", re = R || w === "connecting", ie = (0, x.useCallback)((e = !0) => {
 		e && (y.current = !1), g.current++, _.current = !1, window.clearTimeout(v.current), window.clearTimeout(b.current), m.current?.close(), m.current = null, h.current && T("disconnected");
-	}, []), oe = (0, x.useCallback)(() => {
+	}, []), ae = (0, x.useCallback)(() => {
 		h.current && y.current && (window.clearTimeout(b.current), T("connecting"), b.current = window.setTimeout(() => C.current(), Math.min(1e3 * 2 ** S.current++, 15e3)));
-	}, []), se = (0, x.useCallback)(async (t = !1) => {
+	}, []), oe = (0, x.useCallback)(async (t = !1) => {
 		if (_.current || m.current || !n || !f.current) return;
 		y.current = !0, window.clearTimeout(b.current), _.current = !0, T("connecting"), D("");
 		let r = ++g.current, i = f.current;
@@ -40057,7 +40100,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 			l.current?.clientWidth && p.current?.fit();
 			let n = () => h.current && r === g.current;
 			i.reset(), v.current = window.setTimeout(() => {
-				n() && (D(s("接入超时，请重试或检查节点。", "Attachment timed out. Retry or check the node.")), ae(!1), oe());
+				n() && (D(s("接入超时，请重试或检查节点。", "Attachment timed out. Retry or check the node.")), ie(!1), ae());
 			}, 2e4);
 			let a = !1, o = await c({
 				node: e.node,
@@ -40079,7 +40122,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					n() && (y.current = !1);
 				},
 				closed: () => {
-					a = !0, n() && (m.current = null, window.clearTimeout(v.current), _.current = !1, T("disconnected"), oe());
+					a = !0, n() && (m.current = null, window.clearTimeout(v.current), _.current = !1, T("disconnected"), ae());
 				}
 			});
 			if (!n() || a) {
@@ -40092,21 +40135,21 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 				rows: i.rows
 			});
 		} catch (e) {
-			h.current && r === g.current && (window.clearTimeout(v.current), _.current = !1, D(e instanceof Error ? e.message : String(e)), T("disconnected"), oe());
+			h.current && r === g.current && (window.clearTimeout(v.current), _.current = !1, D(e instanceof Error ? e.message : String(e)), T("disconnected"), ae());
 		}
 	}, [
 		e.node,
 		e.id,
 		n,
 		c,
-		ae,
-		oe
+		ie,
+		ae
 	]);
 	(0, x.useEffect)(() => {
 		C.current = () => {
-			y.current && se();
+			y.current && oe();
 		};
-	}, [se]), (0, x.useEffect)(() => {
+	}, [oe]), (0, x.useEffect)(() => {
 		h.current = !0;
 		let e = new LS({
 			cursorBlink: !0,
@@ -40136,16 +40179,16 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 			});
 		}, s = new ResizeObserver(o);
 		s.observe(l.current), o();
-		let c = () => re(document.fullscreenElement === u.current);
+		let c = () => ne(document.fullscreenElement === u.current);
 		return document.addEventListener("fullscreenchange", c), () => {
-			h.current = !1, ae(), s.disconnect(), cancelAnimationFrame(a), document.removeEventListener("fullscreenchange", c), r.dispose(), i.dispose(), e.dispose(), f.current = null, p.current = null;
+			h.current = !1, ie(), s.disconnect(), cancelAnimationFrame(a), document.removeEventListener("fullscreenchange", c), r.dispose(), i.dispose(), e.dispose(), f.current = null, p.current = null;
 		};
-	}, [ae]), (0, x.useEffect)(() => {
-		n && y.current ? se() : n || ae(!1);
+	}, [ie]), (0, x.useEffect)(() => {
+		n && y.current ? oe() : n || ie(!1);
 	}, [
 		n,
-		se,
-		ae
+		oe,
+		ie
 	]), (0, x.useEffect)(() => {
 		if (!t) return;
 		let n = requestAnimationFrame(() => {
@@ -40155,33 +40198,33 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 	}, [t, w]), (0, x.useEffect)(() => {
 		f.current && (f.current.options.fontSize = ee, l.current?.clientWidth && p.current?.fit());
 	}, [ee]);
-	function ce(e) {
-		return !m.current || !L ? !1 : (m.current.send({
+	function se(e) {
+		return !m.current || !R ? !1 : (m.current.send({
 			type: "input",
 			data: e
 		}), !0);
 	}
-	function le() {
-		L && !I.current && m.current && (O && f.current?.paste(O), ce("\r") && k(""), d.current?.focus());
+	function ce() {
+		R && !L.current && m.current && (O && f.current?.paste(O), se("\r") && k(""), d.current?.focus());
 	}
-	async function ue() {
+	async function le() {
 		try {
 			document.fullscreenElement === u.current ? await document.exitFullscreen() : await u.current?.requestFullscreen();
 		} catch {
 			D(s("当前浏览器不支持全屏。", "This browser does not support fullscreen."));
 		}
 	}
-	let R = (e, t, n) => {
+	let z = (e, t, n) => {
 		let r = n;
 		return /* @__PURE__ */ (0, B.jsx)("button", {
 			className: "terminal-key",
 			type: "button",
 			"aria-label": e,
 			title: e,
-			disabled: !L,
+			disabled: !R,
 			onPointerDown: (e) => e.preventDefault(),
 			onClick: () => {
-				ce(t) && document.activeElement !== d.current && f.current?.focus();
+				se(t) && document.activeElement !== d.current && f.current?.focus();
 			},
 			children: r ? /* @__PURE__ */ (0, B.jsx)(r, {
 				size: 17,
@@ -40221,10 +40264,10 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 						}),
 						/* @__PURE__ */ (0, B.jsx)(Lm, {
 							local: !0,
-							icon: ie ? Bn : tn,
-							disabled: !n && !ie,
-							label: ie ? s("脱离", "Detach") : s("重新接回", "Reattach"),
-							onClick: () => ie ? ae() : void se()
+							icon: re ? Bn : tn,
+							disabled: !n && !re,
+							label: re ? s("脱离", "Detach") : s("重新接回", "Reattach"),
+							onClick: () => re ? ie() : void oe()
 						}),
 						/* @__PURE__ */ (0, B.jsxs)(VS, {
 							label: s("终端操作 ", "Terminal actions ") + e.name,
@@ -40236,8 +40279,8 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
-									disabled: ie || !n,
-									onClick: () => void se(!0),
+									disabled: re || !n,
+									onClick: () => void oe(!0),
 									children: s("接管已有连接", "Take over attachment")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
@@ -40253,19 +40296,19 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
 									disabled: ee >= 22,
-									onClick: () => P((e) => Math.min(22, e + 1)),
+									onClick: () => F((e) => Math.min(22, e + 1)),
 									children: s("放大字号", "Increase font size")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
 									disabled: ee <= 10,
-									onClick: () => P((e) => Math.max(10, e - 1)),
+									onClick: () => F((e) => Math.max(10, e - 1)),
 									children: s("缩小字号", "Decrease font size")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
-									onClick: () => void ue(),
-									children: ne ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen")
+									onClick: () => void le(),
+									children: te ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen")
 								}),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									role: "menuitem",
@@ -40300,14 +40343,14 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					className: "terminal-screen",
 					ref: l,
 					"aria-label": s("交互式终端 ", "Interactive terminal ") + e.name
-				}), !ie && /* @__PURE__ */ (0, B.jsxs)("div", {
+				}), !re && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "terminal-detached",
 					children: [/* @__PURE__ */ (0, B.jsx)("span", { children: n ? s("后台会话继续运行", "Your session keeps running") : s("节点离线，恢复后可重新接回", "Node offline. Reattach when it returns.") }), /* @__PURE__ */ (0, B.jsx)(Lm, {
 						local: !0,
 						tone: "primary",
 						icon: tn,
 						disabled: !n,
-						onClick: () => void se(),
+						onClick: () => void oe(),
 						children: s("重新接回", "Reattach")
 					})]
 				})]
@@ -40318,15 +40361,15 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 					className: "terminal-keybar",
 					"aria-label": s("终端快捷键", "Terminal shortcuts"),
 					children: [
-						R("Esc", "\x1B"),
-						R("Tab", "	"),
-						R("Ctrl+C", ""),
-						R("Ctrl+D", ""),
-						R(s("上方向键", "Arrow up"), "\x1B[A", F),
-						R(s("下方向键", "Arrow down"), "\x1B[B", j),
-						R(s("左方向键", "Arrow left"), "\x1B[D", N),
-						R(s("右方向键", "Arrow right"), "\x1B[C", te),
-						R("Enter", "\r", Ne),
+						z("Esc", "\x1B"),
+						z("Tab", "	"),
+						z("Ctrl+C", ""),
+						z("Ctrl+D", ""),
+						z(s("上方向键", "Arrow up"), "\x1B[A", I),
+						z(s("下方向键", "Arrow down"), "\x1B[B", j),
+						z(s("左方向键", "Arrow left"), "\x1B[D", N),
+						z(s("右方向键", "Arrow right"), "\x1B[C", P),
+						z("Enter", "\r", Ne),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "terminal-key terminal-input-toggle",
 							"aria-label": s("命令输入栏", "Command input"),
@@ -40341,9 +40384,9 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "terminal-key terminal-fullscreen",
-							"aria-label": ne ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen"),
-							onClick: () => void ue(),
-							children: ne ? /* @__PURE__ */ (0, B.jsx)(Ft, {
+							"aria-label": te ? s("退出全屏", "Exit fullscreen") : s("全屏", "Fullscreen"),
+							onClick: () => void le(),
+							children: te ? /* @__PURE__ */ (0, B.jsx)(Ft, {
 								size: 17,
 								"aria-hidden": "true"
 							}) : /* @__PURE__ */ (0, B.jsx)(Dt, {
@@ -40355,7 +40398,7 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 				}), /* @__PURE__ */ (0, B.jsxs)("form", {
 					className: "terminal-composer" + (A ? " is-shown" : ""),
 					onSubmit: (e) => {
-						e.preventDefault(), le();
+						e.preventDefault(), ce();
 					},
 					children: [
 						/* @__PURE__ */ (0, B.jsx)("label", {
@@ -40368,26 +40411,26 @@ function HS({ entry: e, visible: t, online: n, machine: r, onClose: i, onRename:
 							ref: d,
 							value: O,
 							rows: 1,
-							disabled: !L,
+							disabled: !R,
 							autoCorrect: "off",
 							autoCapitalize: "off",
 							spellCheck: !1,
 							placeholder: s("输入命令，支持中文与粘贴…", "Write a command, then send…"),
 							onChange: (e) => k(e.target.value),
 							onCompositionStart: () => {
-								I.current = !0;
+								L.current = !0;
 							},
 							onCompositionEnd: () => {
-								I.current = !1;
+								L.current = !1;
 							},
 							onKeyDown: (e) => {
-								e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && (e.preventDefault(), le());
+								e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229 && (e.preventDefault(), ce());
 							}
 						}),
 						/* @__PURE__ */ (0, B.jsx)("button", {
 							className: "terminal-send",
 							type: "submit",
-							disabled: !L,
+							disabled: !R,
 							"aria-label": s("发送命令", "Send command"),
 							title: s("发送命令", "Send command"),
 							children: /* @__PURE__ */ (0, B.jsx)(mn, {
@@ -40421,7 +40464,7 @@ function qS({ visible: e = !0 }) {
 	let { t, targets: n, includeLocal: r, localNode: i, manage: a } = sm(), o = ao(), { select: s, consume: c, report: l, launch: u } = o, d = o.selection.node || i || "", f = o.selection.id, p = US({
 		node: d,
 		id: f
-	}), [m, h] = (0, x.useState)(KS), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(null), [b, S] = (0, x.useState)(!0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(!1), [k, A] = (0, x.useState)(!1), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)(""), [te, P] = (0, x.useState)(null), [ne, re] = (0, x.useState)(""), F = (0, x.useRef)(!0), I = (0, x.useRef)(!1), L = (0, x.useRef)(0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(""), oe = (0, x.useRef)(null), se = (e) => n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)), ce = se(d), le = d ? !!ce?.available : r, ue = (e) => e ? se(e)?.name || e : r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device"), R = (e) => e ? !!se(e)?.available : r, de = v?.sessions || [], fe = de.filter((e) => (e.name + " " + e.cwd).toLowerCase().includes(T.toLowerCase())), pe = m.find((e) => US(e) === p);
+	}), [m, h] = (0, x.useState)(KS), [g, _] = (0, x.useState)(""), [v, y] = (0, x.useState)(null), [b, S] = (0, x.useState)(!0), [C, w] = (0, x.useState)(""), [T, E] = (0, x.useState)(""), [D, O] = (0, x.useState)(!1), [k, A] = (0, x.useState)(!1), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)(""), [P, F] = (0, x.useState)(null), [te, ne] = (0, x.useState)(""), I = (0, x.useRef)(!0), L = (0, x.useRef)(!1), R = (0, x.useRef)(0), re = (0, x.useRef)(!1), ie = (0, x.useRef)(""), ae = (0, x.useRef)(null), oe = (e) => n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)), se = oe(d), ce = d ? !!se?.available : r, le = (e) => e ? oe(e)?.name || e : r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device"), z = (e) => e ? !!oe(e)?.available : r, ue = v?.sessions || [], de = ue.filter((e) => (e.name + " " + e.cwd).toLowerCase().includes(T.toLowerCase())), fe = m.find((e) => US(e) === p);
 	(0, x.useEffect)(() => {
 		let e = (e) => (n.find((t) => t.id === e) || n.find((t) => t.aliases?.includes(e)))?.id || e;
 		h((t) => t.some((t) => e(t.node) !== t.node) ? t.map((t) => ({
@@ -40451,15 +40494,15 @@ function qS({ visible: e = !0 }) {
 			node: i
 		}).filter((e, t, n) => n.findIndex((t) => US(t) === US(e)) === t) : e);
 	}, [i]);
-	let z = (0, x.useCallback)(async (e = !1) => {
-		let t = ++L.current;
-		if (!le) y(null), S(!1);
+	let pe = (0, x.useCallback)(async (e = !1) => {
+		let t = ++R.current;
+		if (!ce) y(null), S(!1);
 		else {
 			e && S(!0);
 			try {
 				let e = await a(d, { operation: "list" });
-				if (!F.current || t !== L.current) return;
-				oe.current = d, y(e), h((t) => t.flatMap((t) => {
+				if (!I.current || t !== R.current) return;
+				ae.current = d, y(e), h((t) => t.flatMap((t) => {
 					if (t.node !== d) return [t];
 					let n = e.sessions.find((e) => e.id === t.id);
 					return n?.status === "running" ? [{
@@ -40469,27 +40512,27 @@ function qS({ visible: e = !0 }) {
 					}] : n?.status === "unknown" ? [t] : [];
 				}));
 			} catch (e) {
-				F.current && t === L.current && w(e instanceof Error ? e.message : String(e));
+				I.current && t === R.current && w(e instanceof Error ? e.message : String(e));
 			} finally {
-				F.current && t === L.current && S(!1);
+				I.current && t === R.current && S(!1);
 			}
 		}
 	}, [
 		d,
-		le,
+		ce,
 		a
 	]);
-	(0, x.useEffect)(() => (F.current = !0, () => {
-		F.current = !1, L.current++;
+	(0, x.useEffect)(() => (I.current = !0, () => {
+		I.current = !1, R.current++;
 	}), []), (0, x.useEffect)(() => {
-		oe.current = null, y(null), E(""), w(""), z(!0);
+		ae.current = null, y(null), E(""), w(""), pe(!0);
 		let e = globalThis.setInterval(() => {
-			!document.hidden && !I.current && z();
+			!document.hidden && !L.current && pe();
 		}, 15e3);
 		return () => {
-			L.current++, globalThis.clearInterval(e);
+			R.current++, globalThis.clearInterval(e);
 		};
-	}, [z]), (0, x.useEffect)(() => {
+	}, [pe]), (0, x.useEffect)(() => {
 		try {
 			sessionStorage.setItem(WS, JSON.stringify(m.map(({ node: e, id: t, name: n, cwd: r }) => ({
 				node: e,
@@ -40500,7 +40543,7 @@ function qS({ visible: e = !0 }) {
 		} catch {}
 		g && !m.some((e) => US(e) === g) && _("");
 	}, [m, g]), (0, x.useEffect)(() => {
-		if (!ie.current && (ie.current = !0, !f && !o.selection.node && m.length && !u)) {
+		if (!re.current && (re.current = !0, !f && !o.selection.node && m.length && !u)) {
 			let e = m[0];
 			s({
 				node: e.node,
@@ -40514,7 +40557,7 @@ function qS({ visible: e = !0 }) {
 		s,
 		u
 	]), (0, x.useEffect)(() => {
-		if (ae.current !== p && (ae.current = ""), b || !f || pe || !v || ae.current === p) return;
+		if (ie.current !== p && (ie.current = ""), b || !f || fe || !v || ie.current === p) return;
 		let e = v.sessions.find((e) => e.id === f && e.status === "running");
 		e && m.length < GS && h((t) => t.some((e) => US(e) === p) ? t : [...t, {
 			node: d,
@@ -40526,15 +40569,15 @@ function qS({ visible: e = !0 }) {
 		v,
 		f,
 		d,
-		pe,
+		fe,
 		p,
 		m.length,
 		b
 	]), (0, x.useEffect)(() => {
-		l(m.length, pe?.name || "");
+		l(m.length, fe?.name || "");
 	}, [
 		m.length,
-		pe?.name,
+		fe?.name,
 		l
 	]);
 	function me(e) {
@@ -40557,10 +40600,10 @@ function qS({ visible: e = !0 }) {
 			}
 			h((e) => [...e, r]);
 		}
-		n && pe && p !== i ? (_(i), A(!1)) : (g === i && _(p), me(r));
+		n && fe && p !== i ? (_(i), A(!1)) : (g === i && _(p), me(r));
 	}
 	function ge(e) {
-		e === p && (ae.current = e);
+		e === p && (ie.current = e);
 		let t = m.filter((t) => US(t) !== e);
 		h(t), e === g && _(""), e === p && me(t.find((e) => e.node === d) || t[0] || {
 			node: d,
@@ -40576,8 +40619,8 @@ function qS({ visible: e = !0 }) {
 			inline: "nearest"
 		});
 	}, [p, e]), (0, x.useEffect)(() => {
-		if (!(!u || !e || b || I.current || d !== (u.node === void 0 ? d : u.node || i || "") || le && oe.current !== d) && (c(u.serial), !u.session)) {
-			if (!le || !v?.installed) w(d && d !== i ? t("节点终端暂不可用，请检查客户端连接。", "Terminals are unavailable. Check the node connection.") : t("工作区终端暂不可用，请检查 herdr。", "Workspace terminals are unavailable. Check herdr."));
+		if (!(!u || !e || b || L.current || d !== (u.node === void 0 ? d : u.node || i || "") || ce && ae.current !== d) && (c(u.serial), !u.session)) {
+			if (!ce || !v?.installed) w(d && d !== i ? t("节点终端暂不可用，请检查客户端连接。", "Terminals are unavailable. Check the node connection.") : t("工作区终端暂不可用，请检查 herdr。", "Workspace terminals are unavailable. Check herdr."));
 			else {
 				if (!u.command) {
 					let e = v.sessions.find((e) => e.id === f && e.status === "running") || v.sessions.find((e) => e.status === "running");
@@ -40586,12 +40629,12 @@ function qS({ visible: e = !0 }) {
 						return;
 					}
 				}
-				m.length >= GS ? w(t("最多同时打开 4 个标签。先关闭一个标签，后台会话会保留。", "Up to 4 tabs can be open. Close a tab to keep its session running.")) : (I.current = !0, O(!0), w(""), a(d, {
+				m.length >= GS ? w(t("最多同时打开 4 个标签。先关闭一个标签，后台会话会保留。", "Up to 4 tabs can be open. Close a tab to keep its session running.")) : (L.current = !0, O(!0), w(""), a(d, {
 					operation: "create",
-					name: u.name || t("终端 ", "Terminal ") + (de.length + 1),
+					name: u.name || t("终端 ", "Terminal ") + (ue.length + 1),
 					cwd: u.cwd || null
 				}).then((e) => {
-					F.current && (h((t) => [...t, {
+					I.current && (h((t) => [...t, {
 						node: d,
 						id: e.session.id,
 						name: e.session.name,
@@ -40600,11 +40643,11 @@ function qS({ visible: e = !0 }) {
 					}]), me({
 						node: d,
 						id: e.session.id
-					}), z());
+					}), pe());
 				}).catch((e) => {
-					F.current && w(e instanceof Error ? e.message : String(e));
+					I.current && w(e instanceof Error ? e.message : String(e));
 				}).finally(() => {
-					I.current = !1, F.current && O(!1);
+					L.current = !1, I.current && O(!1);
 				}));
 			}
 		}
@@ -40615,34 +40658,34 @@ function qS({ visible: e = !0 }) {
 		d,
 		i,
 		v,
-		le,
+		ce,
 		f,
 		m.length,
 		c
 	]);
 	function ve() {
-		M(""), ee(""), w(""), A(!1), P({ operation: "create" });
+		M(""), ee(""), w(""), A(!1), F({ operation: "create" });
 	}
 	function ye(e, t, n = d) {
-		re(t.name), w(""), A(!1), P({
+		ne(t.name), w(""), A(!1), F({
 			operation: e,
 			session: t,
 			node: n
 		});
 	}
 	async function be() {
-		if (!te || I.current) return;
-		let e = te.operation === "create" ? d : te.node;
-		I.current = !0, O(!0), w("");
+		if (!P || L.current) return;
+		let e = P.operation === "create" ? d : P.node;
+		L.current = !0, O(!0), w("");
 		try {
-			if (te.operation === "create") {
+			if (P.operation === "create") {
 				if (m.length >= GS) throw Error(t("先关闭一个标签再创建；后台会话不会停止。", "Close a tab before creating another. Its session keeps running."));
 				let n = await a(e, {
 					operation: "create",
-					name: j.trim() || t("终端 ", "Terminal ") + (de.length + 1),
+					name: j.trim() || t("终端 ", "Terminal ") + (ue.length + 1),
 					cwd: N.trim() || null
 				});
-				if (!F.current) return;
+				if (!I.current) return;
 				h((t) => [...t, {
 					node: e,
 					id: n.session.id,
@@ -40654,24 +40697,24 @@ function qS({ visible: e = !0 }) {
 				});
 			} else {
 				if (await a(e, {
-					operation: te.operation,
-					id: te.session.id,
-					...te.operation === "rename" ? { name: ne.trim() } : {}
-				}), !F.current) return;
+					operation: P.operation,
+					id: P.session.id,
+					...P.operation === "rename" ? { name: te.trim() } : {}
+				}), !I.current) return;
 				let t = US({
 					node: e,
-					id: te.session.id
+					id: P.session.id
 				});
-				te.operation === "end" ? ge(t) : h((e) => e.map((e) => US(e) === t ? {
+				P.operation === "end" ? ge(t) : h((e) => e.map((e) => US(e) === t ? {
 					...e,
-					name: ne.trim()
+					name: te.trim()
 				} : e));
 			}
-			P(null), await z();
+			F(null), await pe();
 		} catch (e) {
-			F.current && w(e instanceof Error ? e.message : String(e));
+			I.current && w(e instanceof Error ? e.message : String(e));
 		} finally {
-			I.current = !1, F.current && O(!1);
+			L.current = !1, I.current && O(!1);
 		}
 	}
 	let xe = (e) => ({
@@ -40701,7 +40744,7 @@ function qS({ visible: e = !0 }) {
 						disabled: !r,
 						children: r ? t("当前工作区", "This workspace") : t("选择设备", "Choose a device")
 					}),
-					d && !ce && /* @__PURE__ */ (0, B.jsx)("option", {
+					d && !se && /* @__PURE__ */ (0, B.jsx)("option", {
 						value: d,
 						children: d
 					}),
@@ -40717,7 +40760,7 @@ function qS({ visible: e = !0 }) {
 			children: [/* @__PURE__ */ (0, B.jsxs)("h2", { children: [
 				t("会话", "Sessions"),
 				" ",
-				/* @__PURE__ */ (0, B.jsx)("span", { children: de.length })
+				/* @__PURE__ */ (0, B.jsx)("span", { children: ue.length })
 			] }), /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "actions",
 				children: [/* @__PURE__ */ (0, B.jsx)(Lm, {
@@ -40725,12 +40768,12 @@ function qS({ visible: e = !0 }) {
 					icon: cn,
 					label: t("刷新会话", "Refresh sessions"),
 					disabled: b || D,
-					onClick: () => void z(!0)
+					onClick: () => void pe(!0)
 				}), /* @__PURE__ */ (0, B.jsx)(Lm, {
 					local: !0,
 					icon: rn,
 					label: t("新建会话", "New session"),
-					disabled: !le || !v?.installed || D,
+					disabled: !ce || !v?.installed || D,
 					onClick: ve
 				})]
 			})]
@@ -40754,18 +40797,18 @@ function qS({ visible: e = !0 }) {
 				})
 			]
 		}),
-		!le && /* @__PURE__ */ (0, B.jsx)("p", {
+		!ce && /* @__PURE__ */ (0, B.jsx)("p", {
 			className: "terminal-list-note",
 			children: d ? t("此设备的终端暂不可用，请检查连接与授权。", "Terminals are unavailable. Check the device connection and grants.") : t("选择已授权的直连设备以查看会话。", "Choose an authorized direct device to view its sessions.")
 		}),
-		le && v && !v.installed && /* @__PURE__ */ (0, B.jsx)("p", {
+		ce && v && !v.installed && /* @__PURE__ */ (0, B.jsx)("p", {
 			className: "terminal-list-note",
 			children: d && d !== i ? t("节点终端暂不可用，请更新客户端后刷新。", "Terminals are unavailable. Update the node client, then refresh.") : t("工作区未安装 herdr，请安装后刷新。", "Install herdr in this workspace, then refresh.")
 		}),
 		/* @__PURE__ */ (0, B.jsxs)("div", {
 			className: "terminal-session-list",
 			"aria-label": t("会话列表", "Session list"),
-			children: [fe.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", {
+			children: [de.map((e) => /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "terminal-session-row" + (e.id === f ? " selected" : ""),
 				children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 					className: "terminal-session-select",
@@ -40815,7 +40858,7 @@ function qS({ visible: e = !0 }) {
 						})
 					]
 				})]
-			}, e.id)), !fe.length && /* @__PURE__ */ (0, B.jsxs)("div", {
+			}, e.id)), !de.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "terminal-list-empty",
 				children: [
 					/* @__PURE__ */ (0, B.jsx)(Ze, {
@@ -40874,11 +40917,11 @@ function qS({ visible: e = !0 }) {
 										className: "terminal-tab" + (n === p ? " active" : "") + (n === g ? " beside" : ""),
 										children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 											role: "tab",
-											tabIndex: n === p || !pe && m[0] === e ? 0 : -1,
+											tabIndex: n === p || !fe && m[0] === e ? 0 : -1,
 											"aria-selected": n === p,
 											"aria-controls": "pane-" + e.id,
 											id: "tab-" + e.id,
-											title: ue(e.node) + " · " + e.name,
+											title: le(e.node) + " · " + e.name,
 											onClick: (t) => {
 												t.detail && t.currentTarget.blur(), _e(e);
 											},
@@ -40914,7 +40957,7 @@ function qS({ visible: e = !0 }) {
 								local: !0,
 								icon: rn,
 								label: t("新建会话", "New session"),
-								disabled: !le || !v?.installed || D || m.length >= GS,
+								disabled: !ce || !v?.installed || D || m.length >= GS,
 								onClick: ve
 							}),
 							g && /* @__PURE__ */ (0, B.jsx)(Lm, {
@@ -40925,7 +40968,7 @@ function qS({ visible: e = !0 }) {
 							})
 						]
 					}),
-					C && !te && /* @__PURE__ */ (0, B.jsxs)("div", {
+					C && !P && /* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "terminal-alert",
 						role: "alert",
 						children: [/* @__PURE__ */ (0, B.jsx)("span", { children: C }), /* @__PURE__ */ (0, B.jsx)(Lm, {
@@ -40936,25 +40979,25 @@ function qS({ visible: e = !0 }) {
 						})]
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("div", {
-						className: "terminal-panes" + (pe && g && g !== p ? " is-split" : ""),
+						className: "terminal-panes" + (fe && g && g !== p ? " is-split" : ""),
 						children: [m.map((t) => {
 							let n = US(t);
 							return /* @__PURE__ */ (0, B.jsx)("div", {
 								id: "pane-" + t.id,
 								role: "tabpanel",
 								"aria-labelledby": "tab-" + t.id,
-								className: "terminal-panel" + (n === p ? " active" : n === g && pe ? " beside" : ""),
+								className: "terminal-panel" + (n === p ? " active" : n === g && fe ? " beside" : ""),
 								children: /* @__PURE__ */ (0, B.jsx)(HS, {
 									entry: t,
-									visible: e && (n === p || !!pe && n === g),
-									online: R(t.node),
-									machine: ue(t.node),
+									visible: e && (n === p || !!fe && n === g),
+									online: z(t.node),
+									machine: le(t.node),
 									onClose: () => ge(n),
 									onRename: () => ye("rename", xe(t), t.node),
 									onEnd: () => ye("end", xe(t), t.node)
 								})
 							}, n);
-						}), !pe && /* @__PURE__ */ (0, B.jsxs)("div", {
+						}), !fe && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "terminal-welcome",
 							children: [
 								/* @__PURE__ */ (0, B.jsx)("div", {
@@ -40971,7 +41014,7 @@ function qS({ visible: e = !0 }) {
 									local: !0,
 									tone: "primary",
 									icon: rn,
-									disabled: !le || !v?.installed || D,
+									disabled: !ce || !v?.installed || D,
 									onClick: ve,
 									children: t("新建会话", "New session")
 								}),
@@ -40984,7 +41027,7 @@ function qS({ visible: e = !0 }) {
 					}),
 					/* @__PURE__ */ (0, B.jsxs)("footer", {
 						className: "terminal-statusbar",
-						children: [/* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("span", { className: "connection-dot " + (le ? "" : "warning") }), ue(d)] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
+						children: [/* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("span", { className: "connection-dot " + (ce ? "" : "warning") }), le(d)] }), /* @__PURE__ */ (0, B.jsxs)("span", { children: [
 							m.length,
 							"/",
 							GS,
@@ -41004,10 +41047,10 @@ function qS({ visible: e = !0 }) {
 				onCancel: () => A(!1),
 				children: Se
 			}),
-			te && /* @__PURE__ */ (0, B.jsx)(zm, {
-				title: te.operation === "create" ? t("新建会话", "New session") : te.operation === "rename" ? t("重命名会话", "Rename session") : t("结束会话", "End session"),
+			P && /* @__PURE__ */ (0, B.jsx)(zm, {
+				title: P.operation === "create" ? t("新建会话", "New session") : P.operation === "rename" ? t("重命名会话", "Rename session") : t("结束会话", "End session"),
 				onCancel: () => {
-					D || (P(null), w(""));
+					D || (F(null), w(""));
 				},
 				className: "terminal-session-dialog",
 				children: /* @__PURE__ */ (0, B.jsxs)("form", {
@@ -41015,13 +41058,13 @@ function qS({ visible: e = !0 }) {
 						e.preventDefault(), be();
 					},
 					children: [
-						te.operation === "create" ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+						P.operation === "create" ? /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 							/* @__PURE__ */ (0, B.jsxs)("p", {
 								className: "terminal-dialog-machine",
 								children: [/* @__PURE__ */ (0, B.jsx)(vn, {
 									size: 16,
 									"aria-hidden": "true"
-								}), ue(d)]
+								}), le(d)]
 							}),
 							/* @__PURE__ */ (0, B.jsxs)("label", {
 								className: "field",
@@ -41050,19 +41093,19 @@ function qS({ visible: e = !0 }) {
 								className: "muted",
 								children: t("创建后自动打开，关闭窗口也不会中断。", "Opens automatically. Closing this window keeps it running.")
 							})
-						] }) : te.operation === "rename" ? /* @__PURE__ */ (0, B.jsxs)("label", {
+						] }) : P.operation === "rename" ? /* @__PURE__ */ (0, B.jsxs)("label", {
 							className: "field",
 							children: [/* @__PURE__ */ (0, B.jsx)("span", { children: t("会话名称", "Session name") }), /* @__PURE__ */ (0, B.jsx)("input", {
 								autoFocus: !0,
 								required: !0,
 								maxLength: 80,
-								value: ne,
+								value: te,
 								disabled: D,
-								onChange: (e) => re(e.target.value)
+								onChange: (e) => ne(e.target.value)
 							})]
 						}) : /* @__PURE__ */ (0, B.jsxs)("p", { children: [
 							t("结束“", "End “"),
-							te.session.name,
+							P.session.name,
 							t("”？此会话的命令与后台任务将停止。关闭标签可以保留它们。", "”? Commands and background tasks will stop. Close its tab to keep them running.")
 						] }),
 						C && /* @__PURE__ */ (0, B.jsx)("p", {
@@ -41076,15 +41119,15 @@ function qS({ visible: e = !0 }) {
 								local: !0,
 								disabled: D,
 								onClick: () => {
-									P(null), w("");
+									F(null), w("");
 								},
 								children: t("取消", "Cancel")
 							}), /* @__PURE__ */ (0, B.jsx)(Lm, {
 								local: !0,
 								type: "submit",
-								tone: te.operation === "end" ? "danger" : "primary",
+								tone: P.operation === "end" ? "danger" : "primary",
 								disabled: D,
-								children: D ? t("正在处理…", "Working…") : te.operation === "create" ? t("创建并打开", "Create and open") : te.operation === "rename" ? t("保存", "Save") : t("结束会话", "End session")
+								children: D ? t("正在处理…", "Working…") : P.operation === "create" ? t("创建并打开", "Create and open") : P.operation === "rename" ? t("保存", "Save") : t("结束会话", "End session")
 							})]
 						})
 					]
@@ -42060,18 +42103,18 @@ function sC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 //#endregion
 //#region src/devices/DirectAccessPanel.tsx
 function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
-	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)(""), P = (0, x.useRef)(null), ne = (0, x.useRef)(null), re = (0, x.useRef)(null), F = (0, x.useRef)(null), I = (0, x.useRef)(!0), L = (0, x.useRef)(0), ie = (0, x.useId)(), ae = (0, x.useId)();
-	(0, x.useEffect)(() => (I.current = !0, () => {
-		I.current = !1, L.current++;
+	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, x.useState)(!1), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(!1), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!1), [_, v] = (0, x.useState)(!1), [y, b] = (0, x.useState)(!1), [S, C] = (0, x.useState)(!1), [w, T] = (0, x.useState)(!1), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)(), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)(""), F = (0, x.useRef)(null), te = (0, x.useRef)(null), ne = (0, x.useRef)(null), I = (0, x.useRef)(null), L = (0, x.useRef)(!0), R = (0, x.useRef)(0), re = (0, x.useId)(), ie = (0, x.useId)();
+	(0, x.useEffect)(() => (L.current = !0, () => {
+		L.current = !1, R.current++;
 	}), []), (0, x.useEffect)(() => {
-		s && re.current?.focus();
+		s && ne.current?.focus();
 	}, [s]), (0, x.useEffect)(() => {
-		A ? P.current?.showModal() : P.current?.close();
+		A ? F.current?.showModal() : F.current?.close();
 	}, [A]);
-	function oe() {
-		L.current++, j(void 0), N(!1), te(""), requestAnimationFrame(() => F.current?.focus());
+	function ae() {
+		R.current++, j(void 0), N(!1), P(""), requestAnimationFrame(() => I.current?.focus());
 	}
-	async function se(t) {
+	async function oe(t) {
 		t.preventDefault(), await i(async () => {
 			let t = await e({
 				operation: "grant",
@@ -42088,19 +42131,19 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					spaces: _
 				}
 			});
-			I.current && (a(t.catalog), c(!1), u(""), f(!1), m(!1), D(!1), k(!1), C(!1), T(!1), g(!1), b(!1), v(!1), N(!1), te(""), L.current++, j({
+			L.current && (a(t.catalog), c(!1), u(""), f(!1), m(!1), D(!1), k(!1), C(!1), T(!1), g(!1), b(!1), v(!1), N(!1), P(""), R.current++, j({
 				node: t.node,
 				token: t.token
 			}));
 		});
 	}
-	async function ce() {
+	async function se() {
 		if (!A) return;
-		let e = L.current;
+		let e = R.current;
 		try {
-			await navigator.clipboard.writeText(A.token), I.current && e === L.current && (N(!0), te(""));
+			await navigator.clipboard.writeText(A.token), L.current && e === R.current && (N(!0), P(""));
 		} catch {
-			I.current && e === L.current && (ne.current?.focus(), ne.current?.select(), te(o("无法自动复制。Token 已选中，请手动复制。", "Automatic copy unavailable. The token is selected for manual copying.")));
+			L.current && e === R.current && (te.current?.focus(), te.current?.select(), P(o("无法自动复制。Token 已选中，请手动复制。", "Automatic copy unavailable. The token is selected for manual copying.")));
 		}
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -42113,7 +42156,7 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					size: 18,
 					"aria-hidden": "true"
 				}), o("入站授权", "Incoming access")] }), /* @__PURE__ */ (0, B.jsx)("p", { children: o("决定哪些设备可以访问此接入端。出站连接和入站授权分别管理。", "Choose which devices may access this endpoint. Incoming grants are managed separately from outbound connections.") })] }), /* @__PURE__ */ (0, B.jsxs)("button", {
-					ref: F,
+					ref: I,
 					disabled: r,
 					onClick: () => {
 						c((e) => !e), u(""), f(!1), m(!1), D(!1), k(!1), C(!1), T(!1), g(!1), b(!1), v(!1);
@@ -42161,12 +42204,12 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 			}),
 			s && /* @__PURE__ */ (0, B.jsxs)("form", {
 				className: "direct-grant-form",
-				onSubmit: se,
+				onSubmit: oe,
 				children: [
 					/* @__PURE__ */ (0, B.jsxs)("label", { children: [
 						o("被授权设备 ID", "Caller node ID"),
 						/* @__PURE__ */ (0, B.jsx)("input", {
-							ref: re,
+							ref: ne,
 							required: !0,
 							pattern: "[A-Za-z0-9_-]{1,64}",
 							maxLength: 64,
@@ -42334,7 +42377,7 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 									operation: "revoke",
 									node: t.node
 								});
-								I.current && a(n);
+								L.current && a(n);
 							});
 						},
 						children: [/* @__PURE__ */ (0, B.jsx)(Pn, {
@@ -42348,25 +42391,25 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 				})]
 			}),
 			/* @__PURE__ */ (0, B.jsx)("dialog", {
-				ref: P,
+				ref: F,
 				className: "direct-token-dialog",
-				"aria-labelledby": ie,
+				"aria-labelledby": re,
 				onCancel: (e) => {
-					e.preventDefault(), oe();
+					e.preventDefault(), ae();
 				},
 				onClose: () => {
-					A && oe();
+					A && ae();
 				},
 				children: A && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-heading",
 						children: [/* @__PURE__ */ (0, B.jsx)("h3", {
-							id: ie,
+							id: re,
 							children: o("保存授权 Token", "Save access token")
 						}), /* @__PURE__ */ (0, B.jsx)("button", {
 							autoFocus: !0,
 							"aria-label": o("关闭 Token 窗口", "Close token window"),
-							onClick: oe,
+							onClick: ae,
 							children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 								size: 18,
 								"aria-hidden": "true"
@@ -42380,12 +42423,12 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 						children: [o("被授权设备：", "Granted device: "), A.node]
 					}),
 					/* @__PURE__ */ (0, B.jsx)("label", {
-						htmlFor: ae,
+						htmlFor: ie,
 						children: o("新授权 Token", "New access token")
 					}),
 					/* @__PURE__ */ (0, B.jsx)("textarea", {
-						id: ae,
-						ref: ne,
+						id: ie,
+						ref: te,
 						readOnly: !0,
 						value: A.token,
 						rows: 3,
@@ -42404,14 +42447,14 @@ function cC({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-actions",
 						children: [/* @__PURE__ */ (0, B.jsxs)("button", {
-							onClick: () => void ce(),
+							onClick: () => void se(),
 							children: [/* @__PURE__ */ (0, B.jsx)(je, {
 								size: 16,
 								"aria-hidden": "true"
 							}), M ? o("已复制", "Copied") : o("复制 Token", "Copy token")]
 						}), /* @__PURE__ */ (0, B.jsx)("button", {
 							className: "direct-primary",
-							onClick: oe,
+							onClick: ae,
 							children: o("已保存，关闭", "Saved, close")
 						})]
 					})
@@ -42513,7 +42556,7 @@ function lC({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a,
 					disabled: r,
 					"aria-label": o("设为首选路径：", "Prefer path: ") + e.url,
 					onClick: () => void O("prefer_path", e.url),
-					children: [/* @__PURE__ */ (0, B.jsx)(F, {
+					children: [/* @__PURE__ */ (0, B.jsx)(I, {
 						size: 16,
 						"aria-hidden": "true"
 					}), o("设为首选", "Prefer")]
@@ -42628,36 +42671,36 @@ function pC() {
 	return [];
 }
 function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(uC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [te, P] = (0, x.useState)(pC), [ne, re] = (0, x.useState)(""), [F, I] = (0, x.useState)(""), [L, ie] = (0, x.useState)(0), ae = (0, x.useRef)(!0), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(0), ue = (0, x.useRef)(null), R = i?.routes.find((e) => e.node === o) || i?.routes[0], de = te.filter((e) => e.node === R?.node), pe = de.find((e) => e.id === ne) || de.at(-1), z = C?.node === R?.node ? C : void 0, me = (e) => {
-		++ce.current, a(e), w(void 0), ++se.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, x.useState)(), [o, s] = (0, x.useState)(""), [c, l] = (0, x.useState)(!1), [u, d] = (0, x.useState)(uC), [f, p] = (0, x.useState)(!1), [m, h] = (0, x.useState)(""), [g, _] = (0, x.useState)(!0), [v, y] = (0, x.useState)(!1), [b, S] = (0, x.useState)(""), [C, w] = (0, x.useState)(), [T, E] = (0, x.useState)(!1), [D, O] = (0, x.useState)(""), [k, A] = (0, x.useState)("[]"), [j, M] = (0, x.useState)(""), [N, ee] = (0, x.useState)("60"), [P, F] = (0, x.useState)(pC), [te, ne] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), [R, re] = (0, x.useState)(0), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(0), se = (0, x.useRef)(0), le = (0, x.useRef)(null), z = i?.routes.find((e) => e.node === o) || i?.routes[0], ue = P.filter((e) => e.node === z?.node), fe = ue.find((e) => e.id === te) || ue.at(-1), pe = C?.node === z?.node ? C : void 0, me = (e) => {
+		++se.current, a(e), w(void 0), ++oe.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
 	}, he = (0, x.useCallback)(async () => {
-		let t = ++ce.current;
+		let t = ++se.current;
 		try {
 			let n = await e({ operation: "list" });
-			ae.current && t === ce.current && (a(n), w(void 0), ++se.current, E(!1), h(""));
+			ie.current && t === se.current && (a(n), w(void 0), ++oe.current, E(!1), h(""));
 		} catch (e) {
-			ae.current && t === ce.current && h(dC(e));
+			ie.current && t === se.current && h(dC(e));
 		} finally {
-			ae.current && t === ce.current && _(!1);
+			ie.current && t === se.current && _(!1);
 		}
 	}, [e]);
-	(0, x.useEffect)(() => (ae.current = !0, he(), () => {
-		ae.current = !1, ++se.current;
+	(0, x.useEffect)(() => (ie.current = !0, he(), () => {
+		ie.current = !1, ++oe.current;
 	}), [he]), (0, x.useEffect)(() => {
 		let e = () => void he();
 		return window.addEventListener("cranibox:network-routes-changed", e), () => window.removeEventListener("cranibox:network-routes-changed", e);
 	}, [he]), (0, x.useEffect)(() => {
-		c && ue.current?.focus();
+		c && le.current?.focus();
 	}, [c]), (0, x.useEffect)(() => {
 		try {
-			sessionStorage.setItem(fC, JSON.stringify(te.map(({ node: e, id: t }) => ({
+			sessionStorage.setItem(fC, JSON.stringify(P.map(({ node: e, id: t }) => ({
 				node: e,
 				id: t
 			}))));
 		} catch {}
-	}, [te]), (0, x.useEffect)(() => {
-		if (!pe || !R) return;
-		let t = !1, n = !1, r, { id: i, node: a } = pe;
+	}, [P]), (0, x.useEffect)(() => {
+		if (!fe || !z) return;
+		let t = !1, n = !1, r, { id: i, node: a } = fe;
 		async function o() {
 			if (!(n || t || document.hidden)) {
 				n = !0;
@@ -42668,15 +42711,15 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 						id: i
 					});
 					if (t) return;
-					P((e) => e.map((e) => e.id === i && e.node === a ? n : e)), I(""), n.outcome === "running" && (r = setTimeout(o, 1e3));
+					F((e) => e.map((e) => e.id === i && e.node === a ? n : e)), L(""), n.outcome === "running" && (r = setTimeout(o, 1e3));
 				} catch (e) {
-					t || I(dC(e));
+					t || L(dC(e));
 				} finally {
 					n = !1;
 				}
 			}
 		}
-		I(""), o();
+		L(""), o();
 		let s = () => {
 			clearTimeout(r), o();
 		};
@@ -42685,19 +42728,19 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 		};
 	}, [
 		e,
-		pe?.id,
-		R?.node,
-		L
+		fe?.id,
+		z?.node,
+		R
 	]);
 	async function ge(e) {
-		if (!oe.current) {
-			oe.current = !0, y(!0), h(""), S("");
+		if (!ae.current) {
+			ae.current = !0, y(!0), h(""), S("");
 			try {
 				await e();
 			} catch (e) {
-				ae.current && h(dC(e));
+				ie.current && h(dC(e));
 			} finally {
-				oe.current = !1, ae.current && y(!1);
+				ae.current = !1, ie.current && y(!1);
 			}
 		}
 	}
@@ -42709,41 +42752,41 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 				node: t,
 				url: u.url.trim()
 			});
-			ae.current && (me(n), s(t), l(!1), d(uC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
+			ie.current && (me(n), s(t), l(!1), d(uC), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
 		});
 	}
 	async function ve() {
-		if (!R || T) return;
-		let t = R.node, n = ++se.current;
+		if (!z || T) return;
+		let t = z.node, n = ++oe.current;
 		E(!0);
 		try {
 			let r = await e({
 				operation: "probe",
 				node: t
 			});
-			ae.current && n === se.current && w({
+			ie.current && n === oe.current && w({
 				node: t,
 				peer: r.nodes[0],
 				connection: r.connection,
 				checked: Date.now()
 			});
 		} catch (e) {
-			ae.current && n === se.current && w({
+			ie.current && n === oe.current && w({
 				node: t,
 				error: dC(e),
 				checked: Date.now()
 			});
 		} finally {
-			ae.current && n === se.current && E(!1);
+			ie.current && n === oe.current && E(!1);
 		}
 	}
 	async function ye(t) {
-		t.preventDefault(), R && await ge(async () => {
+		t.preventDefault(), z && await ge(async () => {
 			let t = JSON.parse(k);
 			if (!Array.isArray(t) || !t.every((e) => typeof e == "string")) throw Error(r("参数必须是字符串 JSON 数组。", "Arguments must be a JSON array of strings."));
 			let n = await e({
 				operation: "exec",
-				node: R.node,
+				node: z.node,
 				request: {
 					program: D,
 					args: t,
@@ -42752,7 +42795,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					timeout_secs: Number(N)
 				}
 			});
-			ae.current && (P((e) => [...e, n].slice(-20)), re(n.id));
+			ie.current && (F((e) => [...e, n].slice(-20)), ne(n.id));
 		});
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -42793,7 +42836,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					disabled: v,
 					onClick: () => void ge(async () => {
 						let t = await e({ operation: "identity" });
-						ae.current && me(t);
+						ie.current && me(t);
 					}),
 					children: r("创建直连身份", "Create direct identity")
 				})] })
@@ -42806,7 +42849,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			b && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), b]
@@ -42845,7 +42888,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					/* @__PURE__ */ (0, B.jsxs)("div", {
 						className: "direct-fields",
 						children: [/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("目标节点 ID", "Target node ID"), /* @__PURE__ */ (0, B.jsx)("input", {
-							ref: ue,
+							ref: le,
 							required: !0,
 							readOnly: f,
 							pattern: "[A-Za-z0-9_-]{1,64}",
@@ -42914,21 +42957,21 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 					"aria-label": r("直连设备列表", "Direct device list"),
 					children: i.routes.map((e) => /* @__PURE__ */ (0, B.jsxs)("button", {
 						disabled: v,
-						"aria-pressed": R?.node === e.node,
+						"aria-pressed": z?.node === e.node,
 						onClick: () => {
-							s(e.node), re(""), l(!1), d(uC), ++se.current, E(!1);
+							s(e.node), ne(""), l(!1), d(uC), ++oe.current, E(!1);
 						},
-						children: [/* @__PURE__ */ (0, B.jsx)(le, {
+						children: [/* @__PURE__ */ (0, B.jsx)(ce, {
 							size: 18,
 							"aria-hidden": "true"
 						}), /* @__PURE__ */ (0, B.jsxs)("span", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsx)("small", { children: e.url })] })]
 					}, e.node))
-				}), R && /* @__PURE__ */ (0, B.jsxs)("div", {
+				}), z && /* @__PURE__ */ (0, B.jsxs)("div", {
 					className: "direct-detail",
 					children: [
 						/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-heading",
-							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: R.node }), /* @__PURE__ */ (0, B.jsx)("p", { children: R.url })] }), /* @__PURE__ */ (0, B.jsxs)("button", {
+							children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h3", { children: z.node }), /* @__PURE__ */ (0, B.jsx)("p", { children: z.url })] }), /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: v || T,
 								onClick: () => void ve(),
 								children: [/* @__PURE__ */ (0, B.jsx)(cn, {
@@ -42937,20 +42980,20 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								}), T ? r("检查中…", "Checking…") : r("检查连接", "Check connection")]
 							})]
 						}),
-						z ? /* @__PURE__ */ (0, B.jsxs)("div", {
+						pe ? /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-probe",
 							children: [/* @__PURE__ */ (0, B.jsx)("p", {
-								role: z.error ? "alert" : "status",
-								children: z.error || [
-									z.peer?.os,
-									z.peer?.arch,
-									z.peer?.exec ? r("允许执行命令", "Commands granted") : r("未授予命令权限", "Commands not granted"),
-									z.peer?.terminal_sessions ? r("允许终端会话", "Terminal sessions granted") : r("未授予终端权限", "Terminal sessions not granted"),
-									z.peer?.computer && r("允许 Agent 桌面操作", "Computer Use granted"),
-									z.peer?.browser && r("允许 Agent 浏览器操作", "Browser Use granted"),
-									z.peer?.projects ? r("允许项目目录", "Project catalog granted") : r("未授予项目目录权限", "Project catalog not granted")
+								role: pe.error ? "alert" : "status",
+								children: pe.error || [
+									pe.peer?.os,
+									pe.peer?.arch,
+									pe.peer?.exec ? r("允许执行命令", "Commands granted") : r("未授予命令权限", "Commands not granted"),
+									pe.peer?.terminal_sessions ? r("允许终端会话", "Terminal sessions granted") : r("未授予终端权限", "Terminal sessions not granted"),
+									pe.peer?.computer && r("允许 Agent 桌面操作", "Computer Use granted"),
+									pe.peer?.browser && r("允许 Agent 浏览器操作", "Browser Use granted"),
+									pe.peer?.projects ? r("允许项目目录", "Project catalog granted") : r("未授予项目目录权限", "Project catalog not granted")
 								].filter(Boolean).join(" · ")
-							}), /* @__PURE__ */ (0, B.jsxs)("small", { children: [r("上次检查：", "Last checked: "), new Date(z.checked).toLocaleTimeString()] })]
+							}), /* @__PURE__ */ (0, B.jsxs)("small", { children: [r("上次检查：", "Last checked: "), new Date(pe.checked).toLocaleTimeString()] })]
 						}) : /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-note",
 							children: r("尚未检查连接；授权和在线情况以目标设备实时响应为准。", "Connection not checked. The target determines current availability and permissions.")
@@ -42959,8 +43002,8 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 							className: "direct-actions",
 							children: [
 								n && /* @__PURE__ */ (0, B.jsxs)("button", {
-									disabled: v || !z?.peer?.terminal_sessions || !!z.error,
-									onClick: () => n(R.node),
+									disabled: v || !pe?.peer?.terminal_sessions || !!pe.error,
+									onClick: () => n(z.node),
 									children: [/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 16,
 										"aria-hidden": "true"
@@ -42970,9 +43013,9 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 									disabled: v,
 									onClick: () => {
 										p(!0), d({
-											node: R.node,
-											url: R.url,
-											allow_private_http: R.allow_private_http,
+											node: z.node,
+											url: z.url,
+											allow_private_http: z.allow_private_http,
 											token: ""
 										}), l(!0);
 									},
@@ -42984,9 +43027,9 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 										confirm(r("移除此接入端保存的连接？目标设备的授权和后台 Shell 不受影响。", "Remove this saved connection? Target grants and background shells remain active.")) && ge(async () => {
 											let t = await e({
 												operation: "forget",
-												node: R.node
+												node: z.node
 											});
-											ae.current && me(t);
+											ie.current && me(t);
 										});
 									},
 									children: [/* @__PURE__ */ (0, B.jsx)(Pn, {
@@ -42996,20 +43039,20 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						z?.peer?.browser && /* @__PURE__ */ (0, B.jsx)(rC, {
+						pe?.peer?.browser && /* @__PURE__ */ (0, B.jsx)(rC, {
 							client: e,
-							node: R.node,
+							node: z.node,
 							language: t
-						}, R.node),
+						}, z.node),
 						/* @__PURE__ */ (0, B.jsx)(lC, {
-							route: R,
-							connection: z?.connection,
+							route: z,
+							connection: pe?.connection,
 							client: e,
 							busy: v,
 							run: ge,
 							onCatalog: me,
 							t: r
-						}, R.node),
+						}, z.node),
 						/* @__PURE__ */ (0, B.jsxs)("form", {
 							className: "direct-command",
 							onSubmit: ye,
@@ -43048,7 +43091,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								/* @__PURE__ */ (0, B.jsxs)("button", {
 									className: "direct-primary",
 									type: "submit",
-									disabled: v || z?.peer?.exec === !1,
+									disabled: v || pe?.peer?.exec === !1,
 									children: [/* @__PURE__ */ (0, B.jsx)(An, {
 										size: 16,
 										"aria-hidden": "true"
@@ -43056,13 +43099,13 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						!!de.length && /* @__PURE__ */ (0, B.jsxs)("div", {
+						!!ue.length && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "direct-jobs",
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("任务记录", "Task records"), /* @__PURE__ */ (0, B.jsx)("select", {
-									value: pe?.id || "",
-									onChange: (e) => re(e.target.value),
-									children: [...de].reverse().map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
+									value: fe?.id || "",
+									onChange: (e) => ne(e.target.value),
+									children: [...ue].reverse().map((e) => /* @__PURE__ */ (0, B.jsx)("option", {
 										value: e.id,
 										children: e.id
 									}, e.id))
@@ -43071,52 +43114,52 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 									className: "direct-note",
 									children: r("仅在当前浏览器标签页保存最近 20 个任务 ID；刷新可恢复查询，关闭页面不会取消任务。节点退出后任务记录丢失，完成的任务记录至少保留 10 分钟。", "This tab keeps the latest 20 task IDs across reloads. Closing it does not cancel tasks. Node exit clears records; completed records are kept for at least 10 minutes.")
 								}),
-								pe && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+								fe && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 									/* @__PURE__ */ (0, B.jsxs)("div", {
 										className: "direct-heading",
 										children: [/* @__PURE__ */ (0, B.jsxs)("p", {
 											role: "status",
-											children: [pe.outcome, pe.exit_code == null ? "" : " · exit " + pe.exit_code]
+											children: [fe.outcome, fe.exit_code == null ? "" : " · exit " + fe.exit_code]
 										}), /* @__PURE__ */ (0, B.jsxs)("div", {
 											className: "direct-actions",
 											children: [/* @__PURE__ */ (0, B.jsx)("button", {
 												"aria-label": r("刷新任务输出", "Refresh task output"),
-												onClick: () => ie((e) => e + 1),
+												onClick: () => re((e) => e + 1),
 												children: /* @__PURE__ */ (0, B.jsx)(cn, {
 													size: 16,
 													"aria-hidden": "true"
 												})
 											}), /* @__PURE__ */ (0, B.jsx)("button", {
-												disabled: v || pe.outcome !== "running",
+												disabled: v || fe.outcome !== "running",
 												onClick: () => void ge(async () => {
 													await e({
 														operation: "cancel",
-														node: pe.node,
-														id: pe.id
-													}), ae.current && ie((e) => e + 1);
+														node: fe.node,
+														id: fe.id
+													}), ie.current && re((e) => e + 1);
 												}),
 												children: r("取消任务", "Cancel task")
 											})]
 										})]
 									}),
-									(F || pe.error) && /* @__PURE__ */ (0, B.jsx)("p", {
+									(I || fe.error) && /* @__PURE__ */ (0, B.jsx)("p", {
 										className: "direct-error",
 										role: "alert",
-										children: F || pe.error
+										children: I || fe.error
 									}),
-									pe.truncated && /* @__PURE__ */ (0, B.jsx)("p", {
+									fe.truncated && /* @__PURE__ */ (0, B.jsx)("p", {
 										role: "status",
 										children: r("输出超过 64 KiB，已截断。", "Output exceeded 64 KiB and was truncated.")
 									}),
 									/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("标准输出", "Standard output"), /* @__PURE__ */ (0, B.jsx)("pre", {
 										tabIndex: 0,
 										"aria-label": r("标准输出", "Standard output"),
-										children: pe.stdout || "—"
+										children: fe.stdout || "—"
 									})] }),
 									/* @__PURE__ */ (0, B.jsxs)("label", { children: [r("错误输出", "Standard error"), /* @__PURE__ */ (0, B.jsx)("pre", {
 										tabIndex: 0,
 										"aria-label": r("错误输出", "Standard error"),
-										children: pe.stderr || "—"
+										children: fe.stderr || "—"
 									})] })
 								] })
 							]
@@ -43126,7 +43169,7 @@ function mC({ client: e, language: t = "en", onOpenTerminal: n }) {
 			}) : /* @__PURE__ */ (0, B.jsxs)("div", {
 				className: "direct-empty",
 				children: [
-					/* @__PURE__ */ (0, B.jsx)(le, {
+					/* @__PURE__ */ (0, B.jsx)(ce, {
 						size: 28,
 						"aria-hidden": "true"
 					}),
@@ -43220,7 +43263,7 @@ function hC({ source: e, onCancel: t, onMigrated: n }) {
 						type: "submit",
 						className: "button primary",
 						disabled: s || !r.trim() || r.trim() === e,
-						children: [/* @__PURE__ */ (0, B.jsx)(te, {
+						children: [/* @__PURE__ */ (0, B.jsx)(P, {
 							size: 16,
 							"aria-hidden": "true"
 						}), s ? V("正在迁移…", "Migrating…") : V("确认迁移", "Migrate identity")]
@@ -43401,7 +43444,7 @@ function _C({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: 
 							children: [/* @__PURE__ */ (0, B.jsxs)("button", {
 								type: "button",
 								onClick: () => void g(),
-								children: [p ? /* @__PURE__ */ (0, B.jsx)(fe, {
+								children: [p ? /* @__PURE__ */ (0, B.jsx)(de, {
 									size: 16,
 									"aria-hidden": "true"
 								}) : /* @__PURE__ */ (0, B.jsx)(je, {
@@ -43715,7 +43758,7 @@ function bC({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 		b && /* @__PURE__ */ (0, B.jsxs)("p", {
 			role: "status",
 			className: "direct-note",
-			children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+			children: [/* @__PURE__ */ (0, B.jsx)(de, {
 				size: 16,
 				"aria-hidden": "true"
 			}), b]
@@ -43981,49 +44024,49 @@ function wC(e) {
 	}
 }
 function TC({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
-	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, te] = (0, x.useState)(""), P = (0, x.useId)(), ne = (0, x.useRef)(null), [re, F] = (0, x.useState)(""), [I, L] = (0, x.useState)(""), ie = (0, x.useRef)(!0), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(!1), se = (0, x.useRef)(0), ce = (0, x.useRef)(null), le = (0, x.useRef)(null), ue = (0, x.useCallback)(async () => {
-		if (oe.current || ae.current || document.hidden) return;
-		oe.current = !0;
-		let t = ++se.current;
+	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, x.useState)(), [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(""), [p, m] = (0, x.useState)(!1), [h, g] = (0, x.useState)(!0), [_, v] = (0, x.useState)(), [y, b] = (0, x.useState)(""), [S, C] = (0, x.useState)("cranibox"), [w, T] = (0, x.useState)(""), [E, D] = (0, x.useState)(!1), [O, k] = (0, x.useState)(!1), [A, j] = (0, x.useState)("11010"), [M, N] = (0, x.useState)("invitation"), [ee, P] = (0, x.useState)(""), F = (0, x.useId)(), te = (0, x.useRef)(null), [ne, I] = (0, x.useState)(""), [L, R] = (0, x.useState)(""), re = (0, x.useRef)(!0), ie = (0, x.useRef)(!1), ae = (0, x.useRef)(!1), oe = (0, x.useRef)(0), se = (0, x.useRef)(null), ce = (0, x.useRef)(null), le = (0, x.useCallback)(async () => {
+		if (ae.current || ie.current || document.hidden) return;
+		ae.current = !0;
+		let t = ++oe.current;
 		try {
 			let n = CC(await e({ operation: "status" }));
-			ie.current && t === se.current && (o(n), f(""));
+			re.current && t === oe.current && (o(n), f(""));
 		} catch (e) {
-			ie.current && t === se.current && f(SC(e));
+			re.current && t === oe.current && f(SC(e));
 		} finally {
-			oe.current = !1, ie.current && t === se.current && g(!1);
+			ae.current = !1, re.current && t === oe.current && g(!1);
 		}
 	}, [e]);
 	(0, x.useEffect)(() => {
-		ie.current = !0, ue();
-		let e = setInterval(() => void ue(), 5e3), t = () => {
-			document.hidden || ue();
+		re.current = !0, le();
+		let e = setInterval(() => void le(), 5e3), t = () => {
+			document.hidden || le();
 		};
 		return document.addEventListener("visibilitychange", t), () => {
-			ie.current = !1, ++se.current, clearInterval(e), document.removeEventListener("visibilitychange", t);
+			re.current = !1, ++oe.current, clearInterval(e), document.removeEventListener("visibilitychange", t);
 		};
-	}, [ue]), (0, x.useEffect)(() => {
-		re && le.current?.focus();
-	}, [re]);
-	async function R(t, n) {
-		if (!ae.current) {
-			ae.current = !0, ++se.current, m(!0), c(""), u("");
+	}, [le]), (0, x.useEffect)(() => {
+		ne && ce.current?.focus();
+	}, [ne]);
+	async function z(t, n) {
+		if (!ie.current) {
+			ie.current = !0, ++oe.current, m(!0), c(""), u("");
 			try {
 				let r = await e(t);
-				ie.current && ([
+				re.current && ([
 					"plan",
 					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
 				].includes(t.operation) || o(CC(r)), n?.(r));
 			} catch (e) {
-				ie.current && c(SC(e));
+				re.current && c(SC(e));
 			} finally {
-				ae.current = !1, ie.current && (m(!1), g(!1));
+				ie.current = !1, re.current && (m(!1), g(!1));
 			}
 		}
 	}
-	async function de(e) {
+	async function ue(e) {
 		e.preventDefault();
 		let t = y.split(/\r?\n/).map((e) => e.trim()).filter(Boolean), n = t.length > 8 ? i("最多填写 8 个网络入口。", "Use at most 8 network entries.") : !t.length && !O ? i("填写至少一个网络入口，或在下方启用入站连接。", "Enter at least one network entry or enable incoming access below.") : "", r = /* @__PURE__ */ new Set();
 		for (let [e, a] of t.entries()) {
@@ -44045,7 +44088,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 				n = i("第 " + (e + 1) + " 个地址无效。使用 tcp://、udp://、ws:// 或 wss:// 地址；不要包含凭据或查询参数。", "Entry " + (e + 1) + " is invalid. Use tcp://, udp://, ws:// or wss:// without credentials or query parameters.");
 			}
 		}
-		te(n), n ? ne.current?.focus() : await R({
+		P(n), n ? te.current?.focus() : await z({
 			operation: "easy_tier_join",
 			network: S.trim(),
 			token: w,
@@ -44055,19 +44098,19 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			T(""), D(!1), u(i("连接配置已保存，后台正在建立网络。", "Connection saved. The background service is joining the network."));
 		});
 	}
-	async function pe(e) {
-		e.preventDefault(), await R({
+	async function fe(e) {
+		e.preventDefault(), await z({
 			operation: "easy_tier_connect",
-			node: re,
-			token: I
+			node: ne,
+			token: L
 		}, (e) => {
-			o(CC(e.network)), L(""), F(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
+			o(CC(e.network)), R(""), I(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let z = a?.easytier, me = a?.tailscale, he = z?.phase === "running" ? i("后台运行中", "Running in background") : z?.phase === "installing" ? i("正在安装…", "Installing…") : z?.phase === "restarting" ? i("正在连接…", "Connecting…") : z?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = wC(me?.login_url);
+	let pe = a?.easytier, me = a?.tailscale, he = pe?.phase === "running" ? i("后台运行中", "Running in background") : pe?.phase === "installing" ? i("正在安装…", "Installing…") : pe?.phase === "restarting" ? i("正在连接…", "Connecting…") : pe?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), ge = wC(me?.login_url);
 	function _e(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ie.current && c(SC(e));
+			re.current && c(SC(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, B.jsxs)("section", {
@@ -44078,7 +44121,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 				className: "direct-heading",
 				children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("h2", { children: i("设备组网", "Device networks") }), /* @__PURE__ */ (0, B.jsx)("p", { children: n === "server" ? i("在当前 Workspace 主机上管理网络，浏览器所在设备不会自动加入。", "Manage networking on this Workspace host. Your browser’s device does not join automatically.") : i("让这台设备加入可信设备网络，网页关闭后后台继续连接。", "Join a network of trusted devices. The background connection continues when this view closes.") })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 					disabled: p || h,
-					onClick: () => void ue(),
+					onClick: () => void le(),
 					"aria-label": i("刷新设备网络", "Refresh device networks"),
 					children: /* @__PURE__ */ (0, B.jsx)(cn, {
 						size: 16,
@@ -44098,7 +44141,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			l && /* @__PURE__ */ (0, B.jsxs)("p", {
 				className: "direct-note",
 				role: "status",
-				children: [/* @__PURE__ */ (0, B.jsx)(fe, {
+				children: [/* @__PURE__ */ (0, B.jsx)(de, {
 					size: 16,
 					"aria-hidden": "true"
 				}), l]
@@ -44115,17 +44158,17 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								size: 18,
 								"aria-hidden": "true"
 							}), "EasyTier"] }), /* @__PURE__ */ (0, B.jsx)("p", { children: i("自部署 · 对等连接 · 无需虚拟网卡", "Self hosted · Peer connections · No virtual adapter") })] }), /* @__PURE__ */ (0, B.jsx)("span", {
-								className: "network-phase " + (z?.phase === "running" ? "active" : ""),
+								className: "network-phase " + (pe?.phase === "running" ? "active" : ""),
 								role: "status",
 								children: he
 							})]
 						}),
-						z?.error && /* @__PURE__ */ (0, B.jsx)("p", {
+						pe?.error && /* @__PURE__ */ (0, B.jsx)("p", {
 							className: "direct-error",
 							role: "alert",
-							children: z.error
+							children: pe.error
 						}),
-						!z?.installed && z?.phase !== "installing" && /* @__PURE__ */ (0, B.jsxs)("div", {
+						!pe?.installed && pe?.phase !== "installing" && /* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "network-setup",
 							children: [/* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-note",
@@ -44164,7 +44207,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 										children: [/* @__PURE__ */ (0, B.jsx)("button", {
 											disabled: p,
 											className: "direct-primary",
-											onClick: () => void R({ operation: "install" }, () => v(void 0)),
+											onClick: () => void z({ operation: "install" }, () => v(void 0)),
 											children: p ? i("正在提交…", "Submitting…") : i("下载并安装", "Download and install")
 										}), /* @__PURE__ */ (0, B.jsx)("button", {
 											disabled: p,
@@ -44175,14 +44218,14 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								]
 							}) : /* @__PURE__ */ (0, B.jsxs)("button", {
 								disabled: p,
-								onClick: () => void R({ operation: "plan" }, (e) => v(e)),
+								onClick: () => void z({ operation: "plan" }, (e) => v(e)),
 								children: [/* @__PURE__ */ (0, B.jsx)(Le, {
 									size: 16,
 									"aria-hidden": "true"
 								}), i("检查安装方案", "Review installation")]
 							})]
 						}),
-						z?.installed && !z.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsxs)("div", {
+						pe?.installed && !pe.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [/* @__PURE__ */ (0, B.jsxs)("div", {
 							className: "network-method direct-actions",
 							role: "group",
 							"aria-label": i("连接方式", "Connection method"),
@@ -44202,7 +44245,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 						}), M === "invitation" ? /* @__PURE__ */ (0, B.jsx)(gC, {
 							busy: p,
 							t: i,
-							submit: (e, t, n) => R({
+							submit: (e, t, n) => z({
 								operation: "easy_tier_enroll",
 								url: e,
 								token: t,
@@ -44211,16 +44254,16 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								n(), u(i("已加入网络，后台正在连接设备。", "Network joined. The background service is connecting to devices."));
 							})
 						}) : /* @__PURE__ */ (0, B.jsxs)("form", {
-							onSubmit: de,
+							onSubmit: ue,
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "network-entry",
 									children: [/* @__PURE__ */ (0, B.jsx)("label", {
-										htmlFor: P,
+										htmlFor: F,
 										children: i("网络入口", "Network entry addresses")
 									}), /* @__PURE__ */ (0, B.jsx)("textarea", {
-										id: P,
-										ref: ne,
+										id: F,
+										ref: te,
 										rows: 3,
 										required: !O,
 										value: y,
@@ -44229,20 +44272,20 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 										autoCapitalize: "off",
 										autoCorrect: "off",
 										"aria-invalid": !!ee,
-										"aria-describedby": P + "-help" + (ee ? " " + P + "-error" : ""),
+										"aria-describedby": F + "-help" + (ee ? " " + F + "-error" : ""),
 										placeholder: "tcp://device.example.com:11010\nwss://backup.example.com/mesh",
 										onChange: (e) => {
-											b(e.target.value), te("");
+											b(e.target.value), P("");
 										}
 									})]
 								}),
 								/* @__PURE__ */ (0, B.jsx)("small", {
-									id: P + "-help",
+									id: F + "-help",
 									className: "direct-note network-entry-help",
 									children: i("每行一个地址，最多 8 个。使用多台在线成员作为入口，单个入口离线后仍可通过其他成员重新接入。首台设备可在下方开启入站端口。", "One address per line, up to 8. Add several online members so another can reconnect you if an entry goes offline. The first device can enable an incoming port below.")
 								}),
 								ee && /* @__PURE__ */ (0, B.jsx)("p", {
-									id: P + "-error",
+									id: F + "-error",
 									className: "direct-error",
 									role: "alert",
 									children: ee
@@ -44252,7 +44295,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									/* @__PURE__ */ (0, B.jsxs)("span", {
 										className: "network-secret",
 										children: [/* @__PURE__ */ (0, B.jsx)("input", {
-											ref: ce,
+											ref: se,
 											type: E ? "text" : "password",
 											required: !0,
 											minLength: 32,
@@ -44317,7 +44360,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 											disabled: p,
 											onClick: () => {
 												let e = crypto.getRandomValues(/* @__PURE__ */ new Uint8Array(32));
-												T(Array.from(e, (e) => e.toString(16).padStart(2, "0")).join("")), D(!0), ce.current?.focus();
+												T(Array.from(e, (e) => e.toString(16).padStart(2, "0")).join("")), D(!0), se.current?.focus();
 											},
 											children: i("生成新网络 Token", "Generate new network token")
 										})
@@ -44331,15 +44374,15 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								})
 							]
 						})] }),
-						z?.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
+						pe?.enabled && /* @__PURE__ */ (0, B.jsxs)(B.Fragment, { children: [
 							/* @__PURE__ */ (0, B.jsxs)("div", {
 								className: "network-saved direct-note",
 								children: [
-									/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("网络：", "Network: "), /* @__PURE__ */ (0, B.jsx)("strong", { children: z.network })] }),
-									(z.peers ?? (z.peer ? [z.peer] : [])).map((e) => /* @__PURE__ */ (0, B.jsx)("code", { children: e }, e)),
-									z.listen_port && /* @__PURE__ */ (0, B.jsxs)("p", { children: [
+									/* @__PURE__ */ (0, B.jsxs)("p", { children: [i("网络：", "Network: "), /* @__PURE__ */ (0, B.jsx)("strong", { children: pe.network })] }),
+									(pe.peers ?? (pe.peer ? [pe.peer] : [])).map((e) => /* @__PURE__ */ (0, B.jsx)("code", { children: e }, e)),
+									pe.listen_port && /* @__PURE__ */ (0, B.jsxs)("p", { children: [
 										i("入站端口：", "Incoming port: "),
-										z.listen_port,
+										pe.listen_port,
 										" TCP / UDP"
 									] })
 								]
@@ -44349,7 +44392,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								children: /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
 									onClick: () => {
-										confirm(i("断开 EasyTier 网络？已授权设备的终端和桌面连接将断开，目标 Shell 会继续运行。", "Disconnect EasyTier? Connections to authorized devices will close; target shells continue running.")) && R({ operation: "easy_tier_stop" });
+										confirm(i("断开 EasyTier 网络？已授权设备的终端和桌面连接将断开，目标 Shell 会继续运行。", "Disconnect EasyTier? Connections to authorized devices will close; target shells continue running.")) && z({ operation: "easy_tier_stop" });
 									},
 									children: i("断开 EasyTier", "Disconnect EasyTier")
 								})
@@ -44359,15 +44402,15 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [
 									i("发现的节点", "Discovered nodes"),
 									" ",
-									/* @__PURE__ */ (0, B.jsx)("span", { children: z.devices.length })
-								] }), z.devices.length ? /* @__PURE__ */ (0, B.jsx)("ul", { children: z.devices.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [
+									/* @__PURE__ */ (0, B.jsx)("span", { children: pe.devices.length })
+								] }), pe.devices.length ? /* @__PURE__ */ (0, B.jsx)("ul", { children: pe.devices.map((e) => /* @__PURE__ */ (0, B.jsxs)("li", { children: [/* @__PURE__ */ (0, B.jsxs)("div", { children: [/* @__PURE__ */ (0, B.jsx)("strong", { children: e.node }), /* @__PURE__ */ (0, B.jsxs)("small", { children: [
 									e.path === "direct" ? i("点对点", "Peer to peer") : i("经网络中继", "Via network relay"),
 									e.latency_ms == null ? "" : " · " + e.latency_ms.toFixed(1) + " ms",
-									z.connections.includes(e.node) ? i(" · 已保存连接", " · Connection saved") : ""
+									pe.connections.includes(e.node) ? i(" · 已保存连接", " · Connection saved") : ""
 								] })] }), /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
 									onClick: () => {
-										L(""), F(e.node);
+										R(""), I(e.node);
 									},
 									children: i("接入", "Connect")
 								})] }, e.node)) }) : /* @__PURE__ */ (0, B.jsx)("p", {
@@ -44375,46 +44418,46 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: i("正在等待其他 Cranibox 节点加入相同网络。", "Waiting for other Cranibox nodes on the same network.")
 								})]
 							}),
-							z.invitation_error && /* @__PURE__ */ (0, B.jsx)("p", {
+							pe.invitation_error && /* @__PURE__ */ (0, B.jsx)("p", {
 								className: "direct-error",
 								role: "alert",
-								children: z.invitation_error
+								children: pe.invitation_error
 							}),
 							n === "server" && /* @__PURE__ */ (0, B.jsx)(_C, {
-								entries: z.peers ?? (z.peer ? [z.peer] : []),
-								listenPort: z.listen_port,
-								invitations: z.invitations,
+								entries: pe.peers ?? (pe.peer ? [pe.peer] : []),
+								listenPort: pe.listen_port,
+								invitations: pe.invitations,
 								busy: p,
 								t: i,
-								create: (e, t) => R({
+								create: (e, t) => z({
 									operation: "easy_tier_invite",
 									peers: e
 								}, (e) => {
 									let n = e;
 									o(CC(n.network)), t(n.invitation);
 								}),
-								revoke: (e) => R({
+								revoke: (e) => z({
 									operation: "easy_tier_revoke_invitation",
 									id: e
 								})
 							})
 						] }),
-						!!re && /* @__PURE__ */ (0, B.jsxs)("form", {
+						!!ne && /* @__PURE__ */ (0, B.jsxs)("form", {
 							className: "network-target",
-							onSubmit: pe,
+							onSubmit: fe,
 							children: [
 								/* @__PURE__ */ (0, B.jsxs)("div", {
 									className: "direct-heading",
 									children: [/* @__PURE__ */ (0, B.jsxs)("h4", { children: [
 										i("接入节点", "Connect node"),
 										" ",
-										re
+										ne
 									] }), /* @__PURE__ */ (0, B.jsx)("button", {
 										type: "button",
 										disabled: p,
 										"aria-label": i("关闭节点接入", "Close node connection"),
 										onClick: () => {
-											F(""), L("");
+											I(""), R("");
 										},
 										children: /* @__PURE__ */ (0, B.jsx)(Kn, {
 											size: 16,
@@ -44427,14 +44470,14 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: [i("请让目标节点在“入站授权”中为以下 ID 授权：", "Ask the target to grant this ID access in Incoming access: "), /* @__PURE__ */ (0, B.jsx)("code", { children: a.node_id })]
 								}),
 								/* @__PURE__ */ (0, B.jsxs)("label", { children: [i("目标访问 Token", "Target access token"), /* @__PURE__ */ (0, B.jsx)("input", {
-									ref: le,
+									ref: ce,
 									required: !0,
 									pattern: "[A-Fa-f0-9]{64}",
 									maxLength: 64,
 									type: "password",
 									autoComplete: "off",
-									value: I,
-									onChange: (e) => L(e.target.value)
+									value: L,
+									onChange: (e) => R(e.target.value)
 								})] }),
 								/* @__PURE__ */ (0, B.jsx)("button", {
 									className: "direct-primary",
@@ -44471,15 +44514,15 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							busy: p || !!me?.login_pending,
 							t: i,
 							openLink: _e,
-							review: (e) => R({ operation: "tailscale_setup_plan" }, (t) => e(t)),
-							execute: (e, t) => R({
+							review: (e) => z({ operation: "tailscale_setup_plan" }, (t) => e(t)),
+							execute: (e, t) => z({
 								operation: "tailscale_setup",
 								plan_id: e
 							}, t)
 						}),
 						me?.state === "NeedsLogin" && !me.login_pending && /* @__PURE__ */ (0, B.jsx)("button", {
 							disabled: p || me.setup?.phase === "running",
-							onClick: () => void R({ operation: "tailscale_login" }),
+							onClick: () => void z({ operation: "tailscale_login" }),
 							children: i("登录 Tailscale", "Sign in to Tailscale")
 						}),
 						me?.login_pending && /* @__PURE__ */ (0, B.jsxs)("div", {
@@ -44498,7 +44541,7 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									children: i("打开 Tailscale 登录", "Open Tailscale sign in")
 								}), /* @__PURE__ */ (0, B.jsx)("button", {
 									disabled: p,
-									onClick: () => void R({ operation: "tailscale_cancel_login" }),
+									onClick: () => void z({ operation: "tailscale_cancel_login" }),
 									children: i("取消登录", "Cancel sign in")
 								})]
 							})]
@@ -44507,14 +44550,14 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							devices: me.devices,
 							discovery: me.discovery,
 							onDiscoveryChanged: (e) => {
-								++se.current, o(CC(e)), f("");
+								++oe.current, o(CC(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
 							disabled: p,
 							t: i,
 							onConnected: () => {
-								window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed")), ue();
+								window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed")), le();
 							}
 						})
 					]
@@ -44526,8 +44569,8 @@ function TC({ client: e, language: t = "en", host: n = "local", openExternal: r 
 //#endregion
 //#region src/pages/Nodes.tsx
 function EC() {
-	let { snapshot: e, refresh: t, notify: n } = mo(), { openTerminal: r } = ao(), i = (0, x.useCallback)((e) => lo("/api/peers", e), []), a = (0, x.useCallback)((e) => lo("/api/network", e), []), o = e?.remote_nodes, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(null), [p, m] = (0, x.useState)(() => location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "ws://" + location.host : "wss://" + location.host), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)("[]"), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)("60"), [E, D] = (0, x.useState)({}), [O, k] = (0, x.useState)(null), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, te] = (0, x.useState)("");
-	async function P(e, n, r) {
+	let { snapshot: e, refresh: t, notify: n } = mo(), { openTerminal: r } = ao(), i = (0, x.useCallback)((e) => lo("/api/peers", e), []), a = (0, x.useCallback)((e) => lo("/api/network", e), []), o = e?.remote_nodes, [s, c] = (0, x.useState)(""), [l, u] = (0, x.useState)(""), [d, f] = (0, x.useState)(null), [p, m] = (0, x.useState)(() => location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "ws://" + location.host : "wss://" + location.host), [h, g] = (0, x.useState)(""), [_, v] = (0, x.useState)(""), [y, b] = (0, x.useState)("[]"), [S, C] = (0, x.useState)(""), [w, T] = (0, x.useState)("60"), [E, D] = (0, x.useState)({}), [O, k] = (0, x.useState)(null), [A, j] = (0, x.useState)(""), [M, N] = (0, x.useState)(!1), [ee, P] = (0, x.useState)("");
+	async function F(e, n, r) {
 		if (!M) {
 			N(!0), j("");
 			try {
@@ -44540,26 +44583,26 @@ function EC() {
 			}
 		}
 	}
-	let ne = (e) => {
-		(!d || confirm(V("确认已保存上一个节点的凭据？继续将关闭其展示。", "Have you saved the previous node credential? Continuing closes its display."))) && (!e || confirm(V("轮换凭据会断开这个节点并停止其任务，继续？", "Rotating credentials disconnects this node and stops its jobs. Continue?"))) && P("enroll", {
+	let te = (e) => {
+		(!d || confirm(V("确认已保存上一个节点的凭据？继续将关闭其展示。", "Have you saved the previous node credential? Continuing closes its display."))) && (!e || confirm(V("轮换凭据会断开这个节点并停止其任务，继续？", "Rotating credentials disconnects this node and stops its jobs. Continue?"))) && F("enroll", {
 			id: e?.id || l,
 			rotate: !!e
 		}, (e) => {
 			f(e), u("");
 		});
 	};
-	function re() {
+	function ne() {
 		if (!d) return;
 		let e = URL.createObjectURL(new Blob([d.token + "\n"], { type: "text/plain" })), t = document.createElement("a");
 		t.href = e, t.download = d.id + ".token", t.click(), setTimeout(() => URL.revokeObjectURL(e), 1e3);
 	}
-	let F = "";
+	let I = "";
 	try {
 		let e = new URL(p);
 		if (!["ws:", "wss:"].includes(e.protocol) || e.username || e.password || e.pathname !== "/" || e.search || e.hash) throw Error("Invalid gateway origin");
-		F = e.origin;
+		I = e.origin;
 	} catch {}
-	let I = (o?.nodes || []).filter((e) => [
+	let L = (o?.nodes || []).filter((e) => [
 		e.id,
 		e.name,
 		e.os,
@@ -44673,7 +44716,7 @@ function EC() {
 					children: /* @__PURE__ */ (0, B.jsx)(H, {
 						local: !0,
 						icon: Le,
-						onClick: re,
+						onClick: ne,
 						children: V("下载 Token 文件", "Download token file")
 					})
 				}),
@@ -44688,11 +44731,11 @@ function EC() {
 					className: "muted",
 					children: V("该地址必须指向支持 WebSocket 的节点网关；远程访问使用 wss://。", "Use the WebSocket node gateway address; remote connections require wss://.")
 				}),
-				F ? /* @__PURE__ */ (0, B.jsxs)("code", {
+				I ? /* @__PURE__ */ (0, B.jsxs)("code", {
 					className: "code-block",
 					children: [
 						"cranibox-node --server '",
-						F,
+						I,
 						"' --id ",
 						d.id,
 						" --token-file ./",
@@ -44729,7 +44772,7 @@ function EC() {
 						onChange: c,
 						label: V("搜索节点", "Search nodes")
 					}),
-					I.map((e) => /* @__PURE__ */ (0, B.jsx)(Co, {
+					L.map((e) => /* @__PURE__ */ (0, B.jsx)(Co, {
 						icon: vn,
 						title: e.name || e.id,
 						detail: [
@@ -44760,7 +44803,7 @@ function EC() {
 									disabled: M || (E[e.id] ?? e.mesh_group ?? "") === (e.mesh_group ?? ""),
 									onClick: () => {
 										let t = E[e.id] ?? "";
-										t && !/^[A-Za-z0-9_-]{1,64}$/.test(t) ? j(V("设备组只能使用字母、数字、下划线或短横线。", "Device groups use letters, numbers, underscores or hyphens.")) : confirm(V("同组设备上的 Agent 可以相互执行命令。确认修改设备组？", "Agents on devices in the same group can run commands on each other. Change this group?")) && P("group", {
+										t && !/^[A-Za-z0-9_-]{1,64}$/.test(t) ? j(V("设备组只能使用字母、数字、下划线或短横线。", "Device groups use letters, numbers, underscores or hyphens.")) : confirm(V("同组设备上的 Agent 可以相互执行命令。确认修改设备组？", "Agents on devices in the same group can run commands on each other. Change this group?")) && F("group", {
 											id: e.id,
 											group: t
 										});
@@ -44793,25 +44836,25 @@ function EC() {
 									icon: st,
 									disabled: M,
 									label: V("轮换凭据 ", "Rotate credential ") + e.id,
-									onClick: () => ne(e)
+									onClick: () => te(e)
 								}),
 								/* @__PURE__ */ (0, B.jsx)(H, {
 									local: !0,
 									tone: "danger-ghost",
 									disabled: M,
 									onClick: () => {
-										confirm(V("撤销节点凭据并停止其任务？", "Revoke this node credential and stop its jobs?")) && P("revoke", { id: e.id });
+										confirm(V("撤销节点凭据并停止其任务？", "Revoke this node credential and stop its jobs?")) && F("revoke", { id: e.id });
 									},
 									children: V("撤销", "Revoke")
 								})
 							]
 						})
 					}, e.id)),
-					!I.length && /* @__PURE__ */ (0, B.jsx)(xo, { title: s ? V("没有匹配的节点", "No matching nodes") : V("尚未注册节点", "No nodes registered") }),
+					!L.length && /* @__PURE__ */ (0, B.jsx)(xo, { title: s ? V("没有匹配的节点", "No matching nodes") : V("尚未注册节点", "No nodes registered") }),
 					/* @__PURE__ */ (0, B.jsxs)("form", {
 						className: "node-form",
 						onSubmit: (e) => {
-							e.preventDefault(), ne();
+							e.preventDefault(), te();
 						},
 						children: [/* @__PURE__ */ (0, B.jsxs)("label", {
 							className: "field",
@@ -44850,7 +44893,7 @@ function EC() {
 							try {
 								let e = JSON.parse(y);
 								if (!Array.isArray(e) || !e.every((e) => typeof e == "string")) throw Error(V("参数必须是字符串 JSON 数组。", "Arguments must be a JSON array of strings."));
-								P("exec", {
+								F("exec", {
 									id: h,
 									request: {
 										program: _,
@@ -44859,7 +44902,7 @@ function EC() {
 										env: {},
 										timeout_secs: Number(w)
 									}
-								}, (e) => te(e.id));
+								}, (e) => P(e.id));
 							} catch (e) {
 								j(String(e));
 							}
@@ -45037,7 +45080,7 @@ var OC = [
 	{
 		id: "spaces",
 		label: V("虚拟空间", "Virtual spaces"),
-		icon: se
+		icon: oe
 	},
 	{
 		id: "terminal",
@@ -45062,7 +45105,7 @@ var OC = [
 	{
 		id: "agents",
 		label: "Agents",
-		icon: L
+		icon: R
 	},
 	{
 		id: "browser",
@@ -45332,7 +45375,7 @@ function kC() {
 							className: "actions",
 							children: [i.url && /* @__PURE__ */ (0, B.jsx)(H, {
 								local: !0,
-								icon: ne,
+								icon: te,
 								onClick: () => fo(i.url),
 								children: V("打开", "Open")
 							}), /* @__PURE__ */ (0, B.jsx)(H, {
@@ -45465,7 +45508,7 @@ function AC() {
 		href: "#/overview",
 		children: [/* @__PURE__ */ (0, B.jsx)("span", {
 			className: "brand-mark",
-			children: /* @__PURE__ */ (0, B.jsx)(se, {
+			children: /* @__PURE__ */ (0, B.jsx)(oe, {
 				size: 25,
 				strokeWidth: 1.7,
 				"aria-hidden": "true"

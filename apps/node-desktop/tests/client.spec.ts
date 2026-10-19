@@ -2114,7 +2114,9 @@ test('read-only collaboration records use shared native IPC with source identity
   await page.addInitScript(() => {
     const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
     const owner = 'own-device', now = Math.floor(Date.now() / 1000);
+    const sync = { owner, revision: 0, enabled: false, interval_seconds: 60, available_nodes: ['remote-device'], nodes: [] as any[] };
     (window as any).activityRevoked = false;
+    (window as any).activityOffline = false;
     internals.invoke = async (command: string, payload: any) => {
       if (command === 'snapshot') return { settings: null, local: { id: owner, online: true }, status: null, autostart: true, error: null, quit_requested: false };
       if (command === 'direct_peers') {
@@ -2123,10 +2125,18 @@ test('read-only collaboration records use shared native IPC with source identity
         if (action.operation === 'list') return { node_id: owner, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], grants: [] };
         if (action.operation === 'tasks') return { owner, capacity: 128, used: 0, max_attempts: 8, incoming: [], outgoing: [] };
         if (action.operation === 'agent_sessions') return { owner: action.node || owner, observed_at: now, lease_secs: 300, capacity: 64, sessions: [] };
+        if (action.operation === 'activity_sync') {
+          if (action.command.operation === 'configure') {
+            sync.revision++; sync.enabled = !!action.command.nodes.length; sync.interval_seconds = action.command.interval_seconds;
+            sync.nodes = action.command.nodes.map((node: string) => ({ node, connection_valid: true, phase: 'online', record_count: 1 }));
+          }
+          if (action.command.operation === 'pause') { sync.revision++; sync.enabled = false; sync.nodes.forEach(node => { node.phase = 'paused'; }); }
+          return structuredClone(sync);
+        }
         if (action.operation === 'activity') {
           if (action.node && (window as any).activityRevoked) throw Error('只读协作记录授权已撤销');
           const source = action.node || owner;
-          return { version: 1, owner: source, observed_at: now, digest: 'a'.repeat(64), tasks: [], runs: [], messages: [{ direction: 'outgoing', status: 'received', message: { id: 'message-1', sender: source, recipient: 'other-device', text: source + ' 跨设备记录 <img src=x onerror=window.unsafe=true>', created_at: now } }] };
+          return { version: 1, owner: source, observed_at: now, digest: 'a'.repeat(64), tasks: [], runs: [], messages: [{ direction: 'outgoing', status: 'received', message: { id: 'message-1', sender: source, recipient: 'other-device', text: source + ' 跨设备记录 <img src=x onerror=window.unsafe=true>', created_at: now } }], ...(action.node && sync.nodes.length ? { sync: { state: (window as any).activityOffline ? 'offline' : 'online', synced_at: now * 1000 } } : {}) };
         }
       }
       return previous(command, payload);
@@ -2138,6 +2148,21 @@ test('read-only collaboration records use shared native IPC with source identity
   await panel.getByRole('button', { name: '查看协作记录', exact: true }).click();
   await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
   await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  const settings = panel.locator('.project-sync');
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toContainText('消息正文');
+  await settings.getByRole('button', { name: '设置后台同步', exact: true }).click();
+  await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await settings.getByRole('button', { name: '启用后台同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('1 条记录');
+  await page.evaluate(() => { (window as any).activityOffline = true; });
+  await panel.getByRole('button', { name: '刷新协作记录', exact: true }).click();
+  await expect(panel.getByLabel('记录来源 remote-device', { exact: true })).toContainText('离线快照 · 当前状态未经确认');
+  await settings.getByRole('button', { name: '暂停同步', exact: true }).click();
+  await expect(settings.getByLabel('各设备同步状态')).toContainText('已暂停');
+  await settings.getByRole('button', { name: '清空快照并关闭同步', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('已关闭协作同步并删除');
+  await expect(panel.getByLabel('记录来源 remote-device', { exact: true })).not.toContainText('离线快照');
   await panel.locator('.activity-list summary').first().click();
   expect(await panel.locator('img').count()).toBe(0);
   await page.evaluate(() => { (window as any).activityRevoked = true; });
@@ -2149,5 +2174,10 @@ test('read-only collaboration records use shared native IPC with source identity
   const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'activity'));
   expect(calls.some((call: any) => call.payload.command.node === 'remote-device')).toBe(true);
   expect(calls.some((call: any) => call.payload.command.node === null)).toBe(true);
+  const commands = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'activity_sync').map((call: any) => call.payload.command.command));
+  expect(commands.filter((command: any) => command.operation === 'configure')).toEqual([
+    { operation: 'configure', revision: 0, nodes: ['remote-device'], interval_seconds: 60 },
+    { operation: 'configure', revision: 2, nodes: [], interval_seconds: 60 },
+  ]);
   expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain('跨设备记录');
 });

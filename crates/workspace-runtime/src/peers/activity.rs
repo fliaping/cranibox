@@ -188,60 +188,25 @@ pub fn local(path: &Path, configuration: &Config) -> Result<Snapshot> {
 
 impl Store {
     pub async fn activity(&self, node: Option<String>) -> Result<Value> {
-        enum Read {
-            Local(Value),
-            Remote {
-                target: String,
-                route: super::config::Route,
-                binding: String,
-            },
-        }
         let path = self.path.clone();
-        let read = tokio::task::spawn_blocking(move || -> Result<Read> {
+        let (target, local) = tokio::task::spawn_blocking(move || -> Result<_> {
             let _lock = config::lock_credentials(&path)?;
             let configuration = Config::read(&path)?;
             let target = node.unwrap_or_else(|| configuration.node_id.clone());
             ensure!(valid_node_id(&target), "invalid activity target");
             if target == configuration.node_id {
-                return Ok(Read::Local(serde_json::to_value(local(
-                    &path,
-                    &configuration,
-                )?)?));
+                return Ok((
+                    target,
+                    Some(serde_json::to_value(local(&path, &configuration)?)?),
+                ));
             }
-            let binding = messages::binding(&configuration, &target)?;
-            let route = configuration.routes[&target].clone();
-            Ok(Read::Remote {
-                target,
-                route,
-                binding,
-            })
+            Ok((target, None))
         })
         .await??;
-        let (target, route, binding) = match read {
-            Read::Remote {
-                target,
-                route,
-                binding,
-            } => (target, route, binding),
-            Read::Local(local) => return Ok(local),
-        };
-        let response = route
-            .api(&target)?
-            .activity(&format!("/api/v1/nodes/{target}/activity"))
-            .await?;
-        let snapshot: Snapshot = serde_json::from_value(response)?;
-        snapshot.validate(&target)?;
-        let path = self.path.clone();
-        tokio::task::spawn_blocking(move || {
-            let _lock = config::lock_credentials(&path)?;
-            let current = Config::read(&path)?;
-            ensure!(
-                messages::binding(&current, &target)? == binding,
-                "connection or credentials changed; read activity again"
-            );
-            Ok(serde_json::to_value(snapshot)?)
-        })
-        .await?
+        match local {
+            Some(value) => Ok(value),
+            None => self.remote_activity(target, None).await,
+        }
     }
 }
 
