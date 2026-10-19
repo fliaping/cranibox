@@ -273,10 +273,23 @@ mod tests {
             }
             while let Some(message) = ws.next().await {
                 if matches!(message.unwrap(), Message::Text(text) if text == "cr") {
-                    received.send(()).unwrap();
                     ws.send(Message::Text("clipboard,Y3VycmVudA==".into()))
                         .await
                         .unwrap();
+                    // Pong proves the adapter read the preceding clipboard
+                    // response while its viewer queue was still full. Merely
+                    // receiving cr does not establish that ordering: video can
+                    // remain in flight before the response is even written.
+                    ws.send(Message::Ping(b"clipboard-ready".to_vec().into()))
+                        .await
+                        .unwrap();
+                    loop {
+                        if matches!(ws.next().await.unwrap().unwrap(), Message::Pong(data) if data.as_ref() == b"clipboard-ready")
+                        {
+                            break;
+                        }
+                    }
+                    received.send(()).unwrap();
                     break;
                 }
             }
@@ -287,7 +300,8 @@ mod tests {
             .await
             .unwrap();
         ready.await.unwrap();
-        // Do not consume output until the upstream has received our request.
+        // Keep output blocked until the adapter has consumed the response, so
+        // the frame bound measures its queue rather than upstream scheduling.
         stream.send(framed("cr")).unwrap();
         tokio::time::timeout(Duration::from_secs(3), request)
             .await
