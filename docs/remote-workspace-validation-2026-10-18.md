@@ -1634,3 +1634,37 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 另实查 2299b45 的矩阵 **39199888520** 为 **6/7**：Linux Rust 作业 **117890467476** 在 slow_viewer_keeps_upstream_drained_and_clipboard_input_live 失败，报告 superseded video delayed the clipboard by 12 frames，触发 frames < 10 断言。下载原始日志并保留在私有目录。此处实现和测试从 2c95dd4 起没有改动；较新的 a93b863 全矩阵成功不等于该问题已被修复。下一位维护者应复核上游发送、适配器接收和恢复消费的时序，确认是夹具同步还是实际排队问题，不能直接提高阈值或重跑后删除失败记录；已加入交接文档测试稳定性待办。
 
 日常健康复查通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序摘要与 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true；没有升级日常程序或操作全局键鼠/剪贴板。私有证据目录 **/config/validation-artifacts/image-handoff-20261019** 保存带观测时间的 CI 快照、对应运行元数据、失败日志和 final-health.json。交接收尾只改文档，原始日志、辅助脚本与凭据不入 Git。
+
+## 2026-10-19：Selkies 测试同步修正与模型交接
+
+代码提交 **5af2b530ddc3ee8c349a9b3e0053e0c35ab6664a** 基于 973c544，仅修改 selkies.rs 的 cfg(test) 夹具和注释。静态比较生产部分与功能提交 **66edf1115c5bc3d6301cbecb219b5abbb522e016** 完全相同；没有修改输出算法、界面、生成资源、依赖或产品功能。
+
+2299b45 的 Linux CI 原先在剪贴板前计到 12 帧。夹具收到 cr 就通知测试恢复消费，此时响应尚未发送，导致上游仍在传输的视频帧也被计入队列延迟。现在服务端先发送剪贴板和带 clipboard-ready 标记的 WebSocket Ping，等待适配器返回匹配 Pong，再恢复测试消费。消息有序，因此适配器必须在查看器仍阻塞时消费响应；真正停止排空上游仍会触发超时。保留 500 帧负载、frames < 10 断言和原来的三秒期限，没有增加固定等待或放宽限制。此修正针对测试同步，不把既有真实桌面/跨设备待验项宣布完成。
+
+所有构建、运行与 socket 验证继续在 **admin@192.168.217.6:22022** 的 **cranibox-validation**、abc 用户执行；本机仅编辑、静态审阅、摘要核对、传输和 Git。CARGO_HOME=/config/.cargo、CARGO_TARGET_DIR=/config/validation-build/target、CARGO_BUILD_JOBS=2。
+
+| 检查 | 结果 | 命令与范围 |
+| --- | --- | --- |
+| Rust 工作区 | **187 通过、3 默认忽略，39.939 秒** | cargo test --locked --offline --workspace --exclude cranibox-node-desktop；18 个目标 |
+| Selkies 慢接收者用例 | **连续 30/30，37.413 秒** | cargo test --locked --offline -p agent-workspace-runtime --lib peers::desktop::selkies::tests::slow_viewer_keeps_upstream_drained_and_clipboard_input_live -- --exact，串行 30 次 |
+| fmt | **通过，0.983 秒** | cargo fmt --all --check |
+| 工作区 Clippy | **通过，20.537 秒** | cargo clippy --locked --offline --workspace --exclude cranibox-node-desktop --all-targets -- -D warnings |
+
+四份报告的开始/结束关键源码摘要一致，source_unchanged=true；本机/远端逐项匹配，修正文件 SHA-256 为 **d8d9a9860ab248df940a53517df21e184d55eba3e1722a1ca947cfb94b991b82**。首次 fmt 因长 if 的换行失败，耗时 1.056 秒；按 rustfmt 提示换行后通过，原报告和日志保留，未覆盖。当前仅改 Rust 测试，未重复运行已有 143 项 Web、56 项模拟 IPC 及其他未变功能的集成；它们仍绑定 66edf11 及上节说明的等价 Clippy 修正前后边界。
+
+**2026-10-19 06:33:34 UTC** 的 GitHub API 快照确认：981ff86 的只读 Release **39208300414**、GitCode **39208300409** 均 completed/success。66edf11 的产品矩阵 **39207809642** 有 Windows/macOS Rust、Linux/Windows 桌面包与真实 Wayland五项成功，Linux Rust 运行、macOS 桌面包排队；不含本次测试修正，也尚未完整成功。保留当前 run，不重复派发；本次推送后应另外核对包含 5af2b53 的新 headSha 和终态。
+
+六组完整镜像运行 **39208494283** 的来源仍为 **981ff86473547bc84a7623e8be4d153dbc5d82a0**、publish=false。上述快照中成功并实际下载审计的是：
+
+| 当前来源报告 | 结果 | artifact | 报告 SHA-256 |
+| --- | --- | --- | --- |
+| XFCE linux/arm64 | **44/44，63.563 秒** | 12166139955 | c8a7f1af3d168e641acb6ed6f4736232a1863909fe64f6801c5469e632f60b04 |
+| LXQt linux/amd64 | **44/44，67.300 秒** | 12167462140 | 1ec6658371a65164de85f9d1aaffc553e2175073bfcb1f9e98cdb3897face3b6 |
+| LXQt linux/arm64 | **44/44，63.869 秒** | 12166694684 | 400992cf45f6e3dc1b94e46ef1728cb15cb958759a765ae7aa093d2dc3873d98 |
+| KDE linux/arm64 | **44/44，66.051 秒** | 12167705546 | 9a0e735e118205fc0496a9f447dfa9ecae9dd39d4264a295d18ba42663404f4e |
+
+四份报告均核对 revision/expected_revision、platform/expected_platform 和 artifact 的完整来源，44 个检查名不重复且全为 true，passed=true、unready_checks=[]，每份的两个容器与两个卷均 removed=true；作业的仓库登录和公开标签推广均 skipped。KDE amd64 当时正在收尾、XFCE amd64 正在构建。这里只验收四组，不能写成六组通过、当前安装包实机通过或公开默认镜像已兼容；继续原运行并审计其余报告，正式发布与真实拉取仍为 P0。
+
+本轮最终健康检查通过：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID 保持；KDE/Selkies/Xwayland 原进程未重启，owned_processes=[]、test_package_absent=true。没有替换日常程序、操作全局键鼠/剪贴板或留下测试服务。
+
+私有证据 **/config/validation-artifacts/selkies-ordering-20261019** 保留初次 fmt 失败，final/ 保存最终四轮命令、日志、耗时及源码摘要。handoff/ 保存 CI 快照、artifact 原报告、test-audit.json、final-health.json 与 final-source-manifest.json。交接文档集中列出全部原需求、实现边界、测试来源和 P0/P1/P2，供下一模型接手；原始日志、凭据和辅助脚本不入 Git。
