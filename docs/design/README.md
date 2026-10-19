@@ -8,6 +8,8 @@
 |---|---|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 总体设计：目标/非目标、组件图、网络、安全、Agent、模型代理、UI/UX、存储、待决策 |
 | [WORKPLAN.md](./WORKPLAN.md) | 分工：Phase 0 契约、8 条工作流、文件归属、分支/PR 约定、并行时间线 |
+| [CONTRACTS.md](./CONTRACTS.md) | Phase 0 契约 C1–C8 在代码里的位置、实现方和协调者决定 |
+| [OWNERS.md](./OWNERS.md) | 文件归属到文件级，以及 Phase 0 预建的挂载点 |
 | [tasks/](./tasks/) | 每条工作流一份任务书，可以直接交给 Codex、Claude Code 或其他编码 Agent |
 
 ## 任务书一览
