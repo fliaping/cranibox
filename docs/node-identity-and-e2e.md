@@ -6,29 +6,33 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 
 ## 节点身份
 
-- 每个节点拥有一个持久 Ed25519 签名密钥和一个独立的 X25519 Noise 静态密钥。私钥保存在 `peers.json` 同目录的 `node-identity.json`（其他文件名为 `<name>.identity`），Unix 下权限 `0600`；文件只创建一次，损坏时报错而不是重新生成。
+- 每个节点拥有一个持久 Ed25519 签名密钥和一个独立的 X25519 Noise 静态密钥。私钥保存在 `peers.json` 同目录的 `node-identity.json`（其他文件名为 `<name>.identity`），Unix 下权限 `0600`；密钥只生成一次。配置迁移后会原子更新文件中的版本检查点，保留原密钥和创建时间。
 - 公开身份 `PublicIdentity {version, node_id, signing_key, noise_key, signature}` 由签名密钥对 NodeID 与两把公钥的绑定签名，替换任一字段都会验证失败。
 - 新节点的 NodeID 由公钥派生：`node-` + `SHA-256("cranibox-node-id-v1\0" ‖ 公钥)` 前 16 字节的十六进制。它与原随机 `node-<32 hex>` 同形，网关、Web、测试中已有的 NodeID 校验无需改动。
 - 已有节点保留原 NodeID，首次运行时生成密钥并以自签名绑定（`key_derived_id: false`）。其他节点在首次接触时固定（pin）这把公钥。
+- 读取已签名配置时，公钥必须与本机私钥文件一致；私钥缺失、身份不匹配、Noise 公私钥不匹配均报错并保留原文件，不自动生成替代密钥。
 - `cranibox-node peer identity` 显示公钥、指纹（如 `abcd-efgh-ijkl-mnop`）和是否为派生 ID，不显示任何私钥或凭据。
 
 ## 凭据摘要与迁移
 
 - 授权记录只保存 `salt` 与 `credential = SHA-256(salt ‖ token)`，校验使用常量时间比较。新授权使用 16 字节随机盐。
 - 读取旧版（`version: 1`）`peers.json` 时，明文 `token` 会立即在内存中替换为摘要，下一次写入（节点启动时即会写入）后磁盘上不再有明文。
-- 兼容性：迁移得到的授权使用空盐，因此摘要恰好等于既有任务、执行与项目复制账本中已经保存的 `SHA-256(token)` 绑定，旧作业和回执继续可见。想得到加盐摘要，撤销后重新授权即可（会更换令牌）。
+- 兼容性：迁移得到的授权使用空盐，因此摘要等于既有任务、执行与项目复制账本使用的 `SHA-256(token)` 绑定。单元测试验证摘要兼容，隔离节点回归验证旧令牌在迁移后仍可执行命令；尚未逐类验证旧二进制产生的历史账本。想得到加盐摘要，撤销后重新授权即可（会更换令牌）。
 - 调用端保存的令牌文件不变；出站路由仍读取同一 `token_file`。
 
 ## 签名记录
 
 - 写入配置时，目标节点用 Ed25519 私钥签名每条授权（覆盖调用方 NodeID、权限、摘要等全部字段），并把自身 `identity` 写入配置，`version` 升为 2。
 - 版本 2 的配置中，未签名、签名无效或身份字段被删除的授权会使配置读取失败（已有数据保留，不自动修复），从而阻止只改 `peers.json` 就提升权限。
+- 校验以本机私钥文件为身份依据，不能通过换入另一份有效自签名身份和授权绕过。成功保存版本 2 后，私钥文件记录 `minimum_config_version: 2`，拒绝将配置降为版本 1 来跳过签名。
+- 签名覆盖授权记录，不覆盖整个配置的路由、目标公钥固定记录、监听器等字段；版本检查点也不能阻止重放一份较旧但签名有效的版本 2 配置。
 - 签名只能防御“能写 `peers.json` 但拿不到 `node-identity.json`”的篡改；拿到私钥文件的本机攻击者仍可以伪造记录。
 
 ## 兼容性与回滚
 
-- 升级后首次启动会把配置写成版本 2。旧二进制无法读取版本 2（`deny_unknown_fields`），因此**不支持降级**；如需回退，请先备份 `peers.json`。
-- NodeID 不变，已有路由、授权和账本继续生效。
+- 升级前备份 `peers.json` 及已有的 `node-identity.json`，保管好令牌文件与账本。升级后首次启动会把配置写成版本 2；旧二进制因 `deny_unknown_fields` 无法读取新配置或新增检查点的密钥文件，**不支持直接降级**。恢复应使用同一时点、相互匹配的备份，不能只删除密钥文件或修改配置版本。
+- NodeID 与调用端令牌文件保持；配置迁移、重启、旧令牌执行及恢复原密钥已有隔离节点验证。完整历史账本仍按上文范围补验。
+- 迁移先保存签名配置，再保存私钥文件中的版本检查点。中断于首次密钥生成后、配置保存前时，下次仍可用原密钥完成迁移。首版身份文件缺少检查点时按版本 1 读取，在下一次成功配置写入时补齐。两个文件不是一个原子事务；若中断于配置保存后、检查点保存前，降级保护尚未完成，应恢复启动并确认两者均成功保存。
 - `/api/v1/mesh/identity` 的响应格式未改变，旧客户端不受影响。
 
 ## 威胁模型（阶段 1）
@@ -36,14 +40,14 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 | 威胁 | 处理 |
 | --- | --- |
 | 磁盘上的 `peers.json` 泄露 | 只含加盐摘要，无法直接冒用；旧迁移授权为无盐 SHA-256，令牌本身是 256 位随机值，不可暴力破解 |
-| 篡改 `peers.json` 提升权限 | Ed25519 签名校验失败，配置被拒绝 |
-| 身份文件被替换 | 不会被静默覆盖；已固定该密钥的对端会拒绝新密钥 |
+| 篡改 `peers.json` 的授权、替换自签名身份或降为旧版 | 本机私钥锚定、授权签名和已保存的版本检查点拒绝读取；不包含路由等全部配置字段，也不防有效旧签名记录重放 |
+| 私钥丢失、Noise 密钥不一致或身份与配置不符 | 报错并保留原数据，需恢复匹配备份；对端已有公钥固定时也会拒绝替换身份 |
 | 本机私钥泄露 | 不在防护范围内；需要撤销所有授权并重新配对 |
 | 网络窃听/中继查看内容 | 见下方阶段 2 |
 
 ## 端到端加密通道（阶段 2）
 
-节点之间的 mesh API 调用（命令、作业、终端管理、消息、任务、项目目录与文件复制、Computer/Browser/Desktop 的 HTTP 调用、空间目录）都通过一条与传输层无关的加密通道发送。EasyTier、Tailscale、Workspace 网关或任何 TCP 中继只能看到密文和外层路由路径。
+新版直连节点的 mesh API 调用支持与传输层无关的加密通道，覆盖命令、作业、终端管理、消息、任务、项目目录与文件复制、Computer/Browser/Desktop 的 HTTP 调用和空间目录。承载这些加密请求的 VPN 或中继只能看到密文和外层路由路径；旧目标回退、兼容 bearer 请求与旧网关流不受此保证，不能将这段描述当成所有入口已经强制加密。
 
 - **协议**：`Noise_IK_25519_ChaChaPoly_BLAKE2s`，由经过审计的 `snow` crate 实现，不自制密码原语。调用方事先知道目标的 Noise 公钥（来自签名的 `PublicIdentity`），握手消息 1 携带调用方身份、目标颁发的 bearer 凭据和时间戳（±300 秒）。凭据只在加密握手内出现，不再以 `Authorization` 头明文传输。
 - **会话**：每次握手产生新的临时密钥，提供会话级前向保密。会话有效 1 小时、空闲 10 分钟过期，每节点最多 512 个；目标重启或会话失效时返回 410，客户端只重新握手一次（目标未解密，请求未执行）。
@@ -102,11 +106,12 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 
 ## English summary
 
-- Every node has a persistent Ed25519 signing key plus an X25519 Noise key (`node-identity.json`, 0600, never overwritten). New NodeIDs are `node-` + the first 128 bits of SHA-256 over the public key, the same shape as legacy IDs. Legacy random IDs are kept and bound to the key by a self-signature.
+- Every node has persistent Ed25519 and X25519 keys (`node-identity.json`, 0600). New NodeIDs derive from the signing public key; legacy IDs keep their value with a self-signature. Local config reads anchor that identity to the original private key and verify Noise key consistency; missing keys fail without replacement.
 - `peers.json` stores only `SHA-256(salt ‖ token)`. Version 1 plaintext tokens are migrated on read with an empty salt, so the digest equals the `SHA-256(token)` binding existing ledgers already store. Re-grant to get a salted digest.
-- Grants are signed by the target node and the config moves to version 2. Unsigned or tampered grants are rejected. Downgrading to an older binary is not supported, so back up `peers.json` first.
+- Grants are signed by the target node and the config moves to version 2. After saving it, the key file checkpoints its minimum config version without changing keys or creation time. The two files are not one atomic transaction; an interrupted checkpoint needs a successful subsequent update. Back up both config and identity before upgrading; direct downgrade is unsupported.
+- Grant signatures do not protect every config field (including target pins stored in routes) or prevent replay of older valid signed records. Tests cover digest compatibility and real node startup/execution, but not every historical ledger created by an older binary.
 - Not covered: an attacker holding the local private key file.
-- **Phase 2 E2E channel.** Every mesh API call is sealed with Noise IK (`snow`, `Noise_IK_25519_ChaChaPoly_BLAKE2s`), so relays, gateways, EasyTier and Tailscale see only ciphertext.
+- **Phase 2 E2E channel.** Modern direct node calls use Noise IK (`snow`, `Noise_IK_25519_ChaChaPoly_BLAKE2s`), so relays carrying these sealed calls see ciphertext. Legacy fallback, compatible bearer requests and older gateway streams are not covered by that claim.
   - The bearer secret travels inside the handshake.
   - Each session gets fresh ephemeral keys, giving forward secrecy per session.
   - Nonces are explicit, with a 4096-message replay window. Frames are chunked and bound to the request nonce. The grant is re-checked on every call.

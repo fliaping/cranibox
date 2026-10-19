@@ -504,15 +504,46 @@ impl Config {
             grant.migrate();
         }
         value.validate()?;
+        if value.identity.is_some()
+            || value.version >= VERSION
+            || identity::path_for(path).try_exists()?
+        {
+            value.local_identity(path)?;
+        }
         for route in value.routes.values_mut() {
             route.config_path = Some(path.to_path_buf());
         }
         Ok(value)
     }
+    /// The private identity file anchors this node's public key and migration floor.
+    /// Reading a migrated configuration must never create or repair key material.
+    fn local_identity(&self, path: &Path) -> Result<Identity> {
+        let identity = Identity::load(&identity::path_for(path))
+            .context("load original node identity; restore its key file from backup if missing")?;
+        ensure!(
+            identity.node_id() == self.node_id,
+            "node identity file belongs to another NodeID; existing data was preserved"
+        );
+        ensure!(
+            self.version >= identity.minimum_config_version(),
+            "peer configuration downgrade rejected; restore the signed configuration"
+        );
+        ensure!(
+            self.identity
+                .as_ref()
+                .is_none_or(|public| public == identity.public()),
+            "peer configuration identity changed; existing data was preserved"
+        );
+        Ok(identity)
+    }
     /// Sign unsigned grants with the node key and record the public identity. Grants
     /// whose content changed were re-validated by the caller before signing.
-    fn seal(&mut self, path: &Path) -> Result<()> {
-        let identity = Identity::ensure(path, &self.node_id)?;
+    fn seal(&mut self, path: &Path) -> Result<Identity> {
+        let identity = if self.identity.is_some() || self.version >= VERSION {
+            self.local_identity(path)?
+        } else {
+            Identity::ensure(path, &self.node_id)?
+        };
         let public = identity.public().clone();
         if self.identity.as_ref() != Some(&public) {
             ensure!(
@@ -528,12 +559,17 @@ impl Config {
             }
         }
         self.version = VERSION;
-        Ok(())
+        Ok(identity)
     }
     /// Load this node's private identity (creating one for a legacy NodeID).
     pub fn identity(path: &Path) -> Result<Identity> {
+        let _lock = config::lock_credentials(path)?;
         let value = Self::read(path)?;
-        Identity::ensure(path, &value.node_id)
+        if value.identity.is_some() || value.version >= VERSION {
+            value.local_identity(path)
+        } else {
+            Identity::ensure(path, &value.node_id)
+        }
     }
     pub fn update(path: &Path, change: impl FnOnce(&mut Self) -> Result<()>) -> Result<Self> {
         let _lock = config::lock_credentials(path)?;
@@ -547,11 +583,12 @@ impl Config {
         let mut unsigned = value.clone();
         unsigned.version = 1;
         unsigned.validate()?;
-        value.seal(path)?;
+        let mut identity = value.seal(path)?;
         value.validate()?;
         let bytes = serde_json::to_vec_pretty(&value)?;
         ensure!(bytes.len() <= 128 * 1024, "peer configuration too large");
         config::write_private(path, &bytes, true)?;
+        identity.record_config_version(path, VERSION)?;
         Ok(value)
     }
     pub fn public_view(&self) -> serde_json::Value {
@@ -724,5 +761,97 @@ mod tests {
         );
         std::fs::write(&path, &original).unwrap();
         assert!(Config::read(&path).is_ok());
+    }
+    #[test]
+    fn migrated_configuration_requires_its_original_private_key() {
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &config::token());
+        Config::update(&path, |_| Ok(())).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let key_path = identity::path_for(&path);
+        let key = std::fs::read(&key_path).unwrap();
+        std::fs::remove_file(&key_path).unwrap();
+        assert!(Config::read(&path).is_err());
+        assert!(Config::identity(&path).is_err());
+        assert!(Config::update(&path, |_| Ok(())).is_err());
+        assert!(
+            !key_path.exists(),
+            "a missing migrated key must not be replaced"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        std::fs::write(&key_path, &key).unwrap();
+        assert!(
+            Config::read(&path).is_ok(),
+            "restoring the original key recovers the node"
+        );
+    }
+    #[test]
+    fn self_signed_replacement_cannot_reauthorize_the_node() {
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &config::token());
+        let mut forged = Config::update(&path, |_| Ok(())).unwrap();
+        let key_path = identity::path_for(&path);
+        let key = std::fs::read(&key_path).unwrap();
+        // A different key can sign a valid identity for the same legacy NodeID.
+        // Trust must come from the local key file, not the editable configuration.
+        let other = tempfile::tempdir().unwrap();
+        forged.version = 1;
+        forged.identity = None;
+        forged.grants.get_mut("caller").unwrap().permissions.exec = true;
+        forged.seal(&other.path().join("peers.json")).unwrap();
+        forged.validate().unwrap();
+        let bytes = serde_json::to_vec(&forged).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(Config::read(&path).is_err());
+        assert!(Config::identity(&path).is_err());
+        assert!(Config::update(&path, |_| Ok(())).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(std::fs::read(&key_path).unwrap(), key);
+    }
+    #[test]
+    fn migrated_configuration_cannot_bypass_signatures_by_downgrading() {
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &config::token());
+        Config::update(&path, |_| Ok(())).unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        value["version"] = 1.into();
+        value.as_object_mut().unwrap().remove("identity");
+        value["grants"]["caller"]["permissions"]["exec"] = true.into();
+        value["grants"]["caller"]
+            .as_object_mut()
+            .unwrap()
+            .remove("signature");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        assert!(Config::read(&path).is_err());
+        assert!(Config::update(&path, |_| Ok(())).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+    #[test]
+    fn interrupted_legacy_migration_can_reuse_its_key() {
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &config::token());
+        // A crash after key creation and before the configuration save is recoverable.
+        let identity = Identity::ensure(&path, "node-legacy").unwrap();
+        let public = identity.public().clone();
+        // Identity files written by the first identity release had no checkpoint.
+        let key_path = identity::path_for(&path);
+        let mut key: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&key_path).unwrap()).unwrap();
+        key.as_object_mut()
+            .unwrap()
+            .remove("minimum_config_version");
+        std::fs::write(&key_path, serde_json::to_vec(&key).unwrap()).unwrap();
+        assert_eq!(Config::read(&path).unwrap().version, 1);
+        let saved = Config::update(&path, |_| Ok(())).unwrap();
+        assert_eq!(saved.identity.as_ref(), Some(&public));
+        assert_eq!(Config::read(&path).unwrap().version, VERSION);
+        let saved_key: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&key_path).unwrap()).unwrap();
+        assert_eq!(saved_key["minimum_config_version"], VERSION);
+        assert_eq!(saved_key["signing_seed"], key["signing_seed"]);
+        assert_eq!(saved_key["noise_private"], key["noise_private"]);
+        assert_eq!(saved_key["created_at"], key["created_at"]);
     }
 }

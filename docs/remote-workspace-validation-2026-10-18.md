@@ -1736,3 +1736,41 @@ GUI 的独立调用方 node-f43f2d316175487fa6bee6ee0135dca4 读取同容器目�
 本轮功能与交接已推送 **9fd1b2566e923020ac2218695c3aac07ad0d4071**；产品矩阵 **39214820945**、Release **39214820836**、GitCode **39214820926** 均已触发，观测时排队。之后 origin/main 并行合入 **32522b6b2163b3bf20d6e904c86dea04c8b17fbb** 的节点身份 PR，已快进同步，未覆盖其改动。它新增身份密钥、授权摘要/签名及配置 v2 迁移，另修改侧栏副标题和 web.js；上述受测资源摘要只对应 9fd1b25。
 
 32522b6 的产品矩阵 **39214877200**、Release **39214877304** 与 GitCode **39214877324** 观测时排队，未完成。本轮没有升级远端程序或用新代码重写日常配置；新合入的验证由下一位维护者继续，不能用本节旧测试为身份迁移背书。需求表已更新为“持久身份初版合入、尚待验收”，迁移和降级限制见 [节点身份与迁移](node-identity-and-e2e.md)。
+
+## 2026-10-19：节点身份修复、合并后协议回归与最终交接
+
+先在 **79f3e4a5fb60c38ac5af3f3f001410747a34de70** 的生产代码上添加五项回归，得到 **116 通过、4 失败，12.739 秒**。失败分别证明：缺少原私钥仍能读取 v2 配置、替换有效自签名身份可篡改授权、降为 v1 并删除签名可绕过、Noise 公私钥不匹配仍可加载。第五项密钥已生成但旧配置未写入的中断迁移用例通过。另保留最早两项回归的 **115 通过、2 失败** 记录，没有覆盖失败证据。
+
+修复让本机原私钥成为身份依据，读取不再补建丢失的已迁移密钥；验证 X25519 公私钥一致；签名配置成功保存后，在原密钥文件原子记录 minimum_config_version=2，拒绝 v1 降级，保留密钥与创建时间。旧无检查点文件兼容，中断迁移可恢复。两个文件不是同一原子事务；保存配置后、保存检查点前中断，以及有效旧 v2 签名记录重放仍有边界。授权签名不保护整个配置或路由中的目标公钥固定记录，见[身份说明](node-identity-and-e2e.md)。
+
+所有构建、运行与 socket 测试继续使用 **admin@192.168.217.6:22022 / cranibox-validation / abc**。本机只编辑、静态核对、传输与 Git。保留既有日常源码，先将 79f3e4a 归档到独立 /config/validation-sources/identity-79f3e4a，再覆盖本次两个 Rust 文件与一个 Python 回归文件。修复后结果：
+
+| 合并前检查 | 结果 | 范围 |
+| --- | --- | --- |
+| runtime 单元 | **120/120，31.550 秒** | 包含五项新增回归 |
+| Rust 工作区 | **199 通过、3 默认忽略，140.552 秒** | --locked --offline --workspace --exclude cranibox-node-desktop；18 个目标，包含 runtime |
+| fmt / Clippy | **通过，1.031 / 30.999 秒** | 工作区排除 Tauri，all-targets、-D warnings |
+| 四程序构建 | **通过，20.064 秒** | cranibox、cranibox-node、workspace-runtime、workspace-web |
+| 六组协议集成 | **55/55，无跳过，185.969 秒** | 节点、任务、消息、本地/远程 Agent 执行及后台协作记录 |
+
+运行期间 origin/main 并行合入阶段 2/3 和审批 UI，已快进到 **a31164505abc476db04145a4a2480161810f299c**。保留新的授权公钥/严格验证/入站策略字段与路由来源绑定，解决 config.rs、身份文档的冲突；没有以旧版覆盖新实现。另建独立 **/config/validation-sources/identity-a311645**，从精确提交归档后叠加相同修复与新增集成；未把上表旧结果移作合并后结论。
+
+| 合并后最终检查 | 结果 | 命令与范围 |
+| --- | --- | --- |
+| Rust 工作区 | **209 通过、3 默认忽略，75.671 秒** | cargo test --locked --offline --workspace --exclude cranibox-node-desktop；18 个目标，runtime 130 项包含在内 |
+| fmt | **通过，1.418 秒** | cargo fmt --all --check |
+| 工作区 Clippy | **通过，29.843 秒** | cargo clippy --locked --offline --workspace --exclude cranibox-node-desktop --all-targets -- -D warnings |
+| 程序构建 | **通过，72.367 + 27.879 秒** | 四程序，以及另外 cargo build --locked --offline -p agent-workspacectl |
+| 七组协议集成 | **61/61，无跳过，199.355 秒** | python3 -m unittest -v test_node_peers test_device_tasks test_device_messages test_agent_executions test_remote_agent_executions test_background_activity_sync test_node_e2e；明确 WORKSPACE_CTL_BIN 使用新程序 |
+
+合并后首次协议回归为 **60 通过、1 失败，193.958 秒**，新增 test_workspacectl_lists_releases_and_rejects_held_messages 调用共享目标目录里的旧 workspacectl，返回 Unknown command: messages。原四程序构建不包含该工具；补建同版本并明确其路径后完整重跑，61 项全部通过。没有修改产品、断言或超时来消除失败；初次日志单独保留为 integration--merged，最终为 integration--with-current-ctl。
+
+新增集成真实启动 v1 节点，迁移后使用旧令牌执行命令；丢失私钥时 HTTP 返回 503、CLI 失败且不补建密钥，恢复原密钥后可访问；恢复 v1 配置同样拒绝，恢复签名配置并重启后公钥与执行保持。四项 E2E 集成覆盖密文中继、双方公钥固定、严格配对与明文拒绝、变更密钥、篡改/重放/未知会话不执行；WebSocket 加密帧另由 Rust 单元测试覆盖。同容器多个身份不是跨物理设备；没有声称全入口强制加密或外部安全审计。
+
+合并后关键文件开始/结束及本机摘要一致：Cargo.lock **edbf9dc899ca62d181f16ebf22a9e8c8e0f23ff9372b260e6716e9e1fdbd5c8f**；config.rs **abf5bb8a4d46926c45d3eed8c6c60923ccab0beeb551941385e2703bd106b283**；identity.rs **429e22fd6afa05aa5b7e3bb788f423b0a45be9ff5f48e68d33e838efa864540b**；test_node_peers.py **0ae397a9fa37bfbb2465337738362e24e4f59a00566c68ad09ff45d92a3ae84b**。私有证据根目录为 **/config/validation-artifacts/identity-handoff-20261019**，合并后报告在 merged-a311645/，最终环境检查在 final/；凭据、日志和辅助脚本不入 Git。
+
+**2026-10-19 07:55:24 UTC** 最终健康核对通过：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web **PID 538744** 与客户端 **PID 1403228**、程序摘要及 NodeID 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。按本轮夹具前缀扫描 owned_processes=[]、test_package_absent=true，没有升级日常程序或操作全局键鼠/剪贴板。
+
+提交前核对 a311645 的 Release **39217247654** 已 completed/success，产品矩阵 **39217247582** 与 GitCode **39217247378** 仍 queued；这些运行不含本次修复，推送后按新完整 headSha 查询。三项默认忽略未计通过，最新审批 UI/前端全量、Tauri Rust/安装包、旧二进制逐类历史账本、真实模型、跨物理设备与 Windows/macOS 实机未在本轮重验。公开空间镜像仍未发布，完整权威同步与运行中 Agent 接续仍未完成。
+
+[交接入口](implementation-handoff-2026-10-18.md)已精简历次重复记录，集中列出全部用户需求、实现边界、版本化验证、P0/P1/P2、源码位置、远端环境和复现命令；详细历史保留在本文及 Git 历史，供另一个模型继续优化。
