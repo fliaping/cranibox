@@ -20,10 +20,10 @@ use cranibox_contracts::{
     llm::*,
 };
 use serde_json::json;
-use std::{
-    path::{Path as FsPath, PathBuf},
-    sync::Arc,
-};
+#[cfg(unix)]
+use std::path::Path as FsPath;
+use std::{path::PathBuf, sync::Arc};
+#[cfg(unix)]
 use tokio_util::sync::CancellationToken;
 pub mod tools;
 

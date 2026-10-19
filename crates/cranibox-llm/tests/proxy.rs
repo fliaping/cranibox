@@ -229,6 +229,7 @@ async fn loopback_access_matrix_and_private_management() {
             0o600
         );
     }
+    #[cfg(unix)]
     let path = handle.management.clone();
     handle.shutdown().await;
     #[cfg(unix)]
