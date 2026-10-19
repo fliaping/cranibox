@@ -58,9 +58,10 @@ impl Peers {
                     match result {
                         Ok(status) => { current.status=status; current.error=None; current.next_attempt=now()+15; }
                         Err(error) => {
-                            let transient=crate::client::unavailable(&error) || route.local_forward_lock.as_ref().is_some_and(|lease| super::super::local_forward::ensure_running(lease).is_err());
+                            let limited=crate::client::rate_limited(&error);
+                            let transient=limited || crate::client::unavailable(&error) || route.local_forward_lock.as_ref().is_some_and(|lease| super::super::local_forward::ensure_running(lease).is_err());
                             if !transient { current.status="blocked".into(); }
-                            current.error=Some(if transient {"Device unavailable. The node will retry the same message."} else {"Target rejected this request or returned an incompatible receipt. Check access and node versions, then retry."}.into());
+                            current.error=Some(if limited {"Target rate limit reached. The node will retry the same message later."} else if transient {"Device unavailable. The node will retry the same message."} else {"Target rejected this request or returned an incompatible receipt. Check access and node versions, then retry."}.into());
                             current.next_attempt=now()+5*(1u64 << current.attempts.min(6));
                         }
                     }

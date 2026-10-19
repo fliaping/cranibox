@@ -27,6 +27,15 @@ pub const TTL: u64 = 7 * 24 * 3600;
 pub const RATE_PER_MINUTE: usize = 60;
 /// Agent-to-agent messages per peer pair inside LOOP_WINDOW before a human must look.
 pub const LOOP_LIMIT: usize = 12;
+/// A sender exceeded RATE_PER_MINUTE. Targets answer 429 and senders keep the message queued.
+#[derive(Debug)]
+pub struct RateLimited;
+impl std::fmt::Display for RateLimited {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("sender rate limit reached; retry later")
+    }
+}
+impl std::error::Error for RateLimited {}
 pub const LOOP_WINDOW: u64 = 600;
 /// Frame untrusted remote text for an Agent. Closing tags inside the text are defanged
 /// so content cannot end the frame early and pose as instructions.
@@ -273,7 +282,7 @@ impl Store {
             ensure!(mailbox.incoming.len() + mailbox.outgoing.len() < MAX_MESSAGES, "device mailbox is full; archive expired incoming messages or remove outgoing records");
             let at = now();
             let recent = |window: u64, agent: bool| mailbox.incoming.values().filter(|item| item.message.sender == caller && item.received_at + window > at && (!agent || item.message.sender_session.is_some())).count();
-            ensure!(recent(60, false) < RATE_PER_MINUTE, "sender rate limit reached; retry later");
+            if recent(60, false) >= RATE_PER_MINUTE { return Err(RateLimited.into()); }
             let held = if policy == Inbound::Hold {
                 Some("held by inbound policy: a human must release it".to_owned())
             } else if message.sender_session.is_some() && recent(LOOP_WINDOW, true) >= LOOP_LIMIT {
