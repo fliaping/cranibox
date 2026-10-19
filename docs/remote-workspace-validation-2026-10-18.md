@@ -2,7 +2,7 @@
 
 本次按用户要求使用 `admin@192.168.217.6:22022`，在远端 Docker 中启动独立验证容器，不使用本机图形桌面验证客户端。
 
-最新补验见[协作记录后台同步与交接](#2026-10-19协作记录后台同步与交接)；功能、当前测试、版本边界和剩余 P0/P1/P2 集中在[需求与测试状态](implementation-handoff-2026-10-18.md)。以下历史记录各自绑定当时来源，不能代替当前版本验收。
+最新补验见[六组镜像最终审计](#2026-10-19六组镜像最终审计)及[Selkies 测试同步修正](#2026-10-19selkies-测试同步修正与模型交接)；功能、当前测试、版本边界和剩余 P0/P1/P2 集中在[需求与测试状态](implementation-handoff-2026-10-18.md)。以下历史记录各自绑定当时来源，不能代替当前版本验收。
 
 ## 部署
 
@@ -1668,3 +1668,26 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 本轮最终健康检查通过：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID 保持；KDE/Selkies/Xwayland 原进程未重启，owned_processes=[]、test_package_absent=true。没有替换日常程序、操作全局键鼠/剪贴板或留下测试服务。
 
 私有证据 **/config/validation-artifacts/selkies-ordering-20261019** 保留初次 fmt 失败，final/ 保存最终四轮命令、日志、耗时及源码摘要。handoff/ 保存 CI 快照、artifact 原报告、test-audit.json、final-health.json 与 final-source-manifest.json。交接文档集中列出全部原需求、实现边界、测试来源和 P0/P1/P2，供下一模型接手；原始日志、凭据和辅助脚本不入 Git。
+
+## 2026-10-19：六组镜像最终审计
+
+**2026-10-19 06:37:49 UTC**，原运行 **39208494283** 已 completed/success，六个构建作业均成功、push-aliyun 跳过。来源精确为 **981ff86473547bc84a7623e8be4d153dbc5d82a0**，参数 desktop=all、architecture=all、version=latest、publish=false。它包含 66edf11 的生产实现，不包含后续 5af2b53 的 cfg(test) 夹具同步修正。未重跑镜像、未升级日常容器，也未修改公开标签。
+
+六份 artifact 均已实际下载并解析，没有仅凭作业成功推断报告通过：
+
+| 报告 | 检查 / 耗时 | artifact | 报告 SHA-256 |
+| --- | --- | --- | --- |
+| XFCE linux/amd64 | **44/44，65.785 秒** | 12166813629 | 0556d6121cef07f661483bfcbf8eea275424865baf3e0fece490abaa58b0c72e |
+| XFCE linux/arm64 | **44/44，63.563 秒** | 12166139955 | c8a7f1af3d168e641acb6ed6f4736232a1863909fe64f6801c5469e632f60b04 |
+| LXQt linux/amd64 | **44/44，67.300 秒** | 12167462140 | 1ec6658371a65164de85f9d1aaffc553e2175073bfcb1f9e98cdb3897face3b6 |
+| LXQt linux/arm64 | **44/44，63.869 秒** | 12166694684 | 400992cf45f6e3dc1b94e46ef1728cb15cb958759a765ae7aa093d2dc3873d98 |
+| KDE linux/amd64 | **44/44，67.488 秒** | 12167750579 | b482c8ee4b1e0f97bc504aff39012b84661bf07269280f91a4a0142724670fcc |
+| KDE linux/arm64 | **44/44，66.051 秒** | 12167705546 | 9a0e735e118205fc0496a9f447dfa9ecae9dd39d4264a295d18ba42663404f4e |
+
+逐份断言 revision=expected_revision=完整来源、platform=expected_platform=对应架构；44 个检查名唯一且全部 passed=true，报告 passed=true、unready_checks=[]；四项 cleanup 均 removed=true，类型为两个容器和两个卷。artifact 的 workflow_run.head_sha 同样匹配；每个作业的首次启动验收与报告上传均 success，Docker Hub 登录和公开标签推广均 skipped。image-acceptance.json 记录 verified_reports=6、all_six_verified=true，另保存各 image_id。以上为 CI 镜像启动、授权与重启范围，不能替代三平台实机、真实桌面、公开标签发布或 registry 拉取验收。
+
+**2026-10-19 06:40:57 UTC** 另外核对包含测试修正的来源 **4fb6a4148cba1813c9c4af1182333d9b9806e23a**：Release **39210815260**、GitCode **39210815816** 均 completed/success；矩阵 **39210815263** 的真实 Wayland 已成功，Linux/Windows Rust 与桌面包四项运行，macOS 两项排队，尚未整体通过。66edf11 的矩阵 **39207809642** 仍为五项成功、Linux Rust 运行、macOS 桌面包排队。继续核对这些已有运行，无需为文档改动重复派发；后续文档提交不改变其生产和测试源码。
+
+六份最终报告、审计汇总及带观测时间的 CI 原始快照统一保存在 **/config/validation-artifacts/selkies-ordering-20261019/handoff**；本机与远端证据摘要逐项核对。需求表和 P0 已更新为“六组通过，公开发布/真实拉取未完成”，保留前节四组通过时的历史快照。此次收尾只更新交接和验证文档，不增加产品功能测试数量。
+
+提交前再次通过远端健康检查：容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web/客户端 PID、程序摘要与 NodeID 以及 KDE/Selkies/Xwayland 进程均保持，owned_processes=[]、test_package_absent=true。最新 final-health.json 随证据同步保存，未操作全局键鼠或剪贴板。
