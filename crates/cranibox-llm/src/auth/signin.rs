@@ -171,7 +171,7 @@ impl OAuth {
             flows: Default::default(),
         }
     }
-    /// In-process cancellation. The C3 management contract has no cancel operation yet.
+    /// Cancellation shared by in-process callers and the private management API.
     /// An exchange already in progress is allowed to persist its rotating credentials first.
     pub async fn cancel(&self, flow_id: &str) -> Result<(), MgmtError> {
         let flow = self
@@ -622,6 +622,9 @@ impl OAuth {
 }
 #[async_trait::async_trait]
 impl SignIn for OAuth {
+    async fn cancel(&self, flow_id: &str) -> Result<(), MgmtError> {
+        OAuth::cancel(self, flow_id).await
+    }
     async fn start(&self, provider: &str, opts: SignInOpts) -> Result<SignInStart, MgmtError> {
         if opts
             .region

@@ -1,6 +1,162 @@
 use super::*;
+use cranibox_contracts::llm::mgmt::{LlmMgmt, SignInStartReq};
 use cranibox_contracts::vault::StoreError;
+use cranibox_llm::mgmt::Client;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+async fn managed(
+    mock: &Mock,
+    store: Arc<dyn AccountStore>,
+) -> (tempfile::TempDir, cranibox_llm::Handle, Client) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config =
+        cranibox_llm::Config::new("local".into(), dir.path().join("run"), store.clone());
+    config.listen = vec!["127.0.0.1:0".parse().unwrap()];
+    config.sign_in = Some(Arc::new(OAuth::new(
+        "local".into(),
+        store,
+        OAuthConfig::for_loopback(&mock.base).unwrap(),
+    )));
+    let handle = cranibox_llm::spawn(config).await.unwrap();
+    let client = Client::new(&handle.management);
+    (dir, handle, client)
+}
+
+#[tokio::test]
+async fn management_cancel_releases_browser_and_prevents_device_polling() {
+    let mock = Mock::new().await;
+    let store = Arc::new(MemoryAccountStore::default());
+    let (_dir, handle, client) = managed(&mock, store.clone()).await;
+    let (flow, url) = browser(
+        client
+            .signin_start(SignInStartReq {
+                provider: "codex".into(),
+                region: None,
+            })
+            .await
+            .unwrap(),
+    );
+    client.signin_cancel(&flow).await.unwrap();
+    client.signin_cancel(&flow).await.unwrap();
+    listener_closed(&url).await;
+    assert!(matches!(
+        client.signin_complete(&flow, no_input()).await,
+        Err(MgmtError::Invalid(_))
+    ));
+    assert!(matches!(
+        client.signin_cancel("missing").await,
+        Err(MgmtError::NotFound)
+    ));
+    assert!(matches!(
+        client.signin_cancel("../accounts").await,
+        Err(MgmtError::Invalid(_))
+    ));
+    mock.replies("/device", vec![(200, json!({"device_code":"fake-device","user_code":"TEST","verification_uri":"https://example.invalid/device","expires_in":600,"interval":1}))]);
+    let device = client
+        .signin_start(SignInStartReq {
+            provider: "kimi".into(),
+            region: None,
+        })
+        .await
+        .unwrap();
+    let SignInStart::DeviceCode { flow_id, .. } = device else {
+        panic!("device flow")
+    };
+    client.signin_cancel(&flow_id).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(1050)).await;
+    assert!(matches!(
+        client.signin_complete(&flow_id, no_input()).await,
+        Err(MgmtError::Invalid(_))
+    ));
+    assert_eq!(mock.calls().len(), 1);
+    assert!(store.list().is_empty());
+    assert_eq!(
+        reqwest::Client::new()
+            .post(format!(
+                "http://{}/signin/{flow}/cancel",
+                handle.addresses[0]
+            ))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn management_cancel_keeps_completed_signin() {
+    let mock = Mock::new().await;
+    mock.replies("/token", vec![(200, token())]);
+    let store = Arc::new(MemoryAccountStore::default());
+    let (_dir, handle, client) = managed(&mock, store.clone()).await;
+    let (flow, url) = browser(
+        client
+            .signin_start(SignInStartReq {
+                provider: "codex".into(),
+                region: None,
+            })
+            .await
+            .unwrap(),
+    );
+    let account = client
+        .signin_complete(
+            &flow,
+            SignInInput {
+                callback_url: Some(callback(&url, None)),
+                code: None,
+            },
+        )
+        .await
+        .unwrap();
+    client.signin_cancel(&flow).await.unwrap();
+    assert_eq!(
+        client.signin_complete(&flow, no_input()).await.unwrap(),
+        account
+    );
+    assert_eq!(store.list().len(), 1);
+    assert_eq!(mock.calls().len(), 1);
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn management_cancel_keeps_credentials_awaiting_retry() {
+    let mock = Mock::new().await;
+    mock.replies("/token", vec![(200, token())]);
+    let store = Arc::new(FlakyStore::default());
+    let (_dir, handle, client) = managed(&mock, store.clone()).await;
+    let (flow, url) = browser(
+        client
+            .signin_start(SignInStartReq {
+                provider: "codex".into(),
+                region: None,
+            })
+            .await
+            .unwrap(),
+    );
+    store.fail.store(true, Ordering::SeqCst);
+    assert!(matches!(
+        client
+            .signin_complete(
+                &flow,
+                SignInInput {
+                    callback_url: Some(callback(&url, None)),
+                    code: None
+                }
+            )
+            .await,
+        Err(MgmtError::Other(_))
+    ));
+    assert!(matches!(
+        client.signin_cancel(&flow).await,
+        Err(MgmtError::Invalid(_))
+    ));
+    let account = client.signin_complete(&flow, no_input()).await.unwrap();
+    assert!(store.get_secret(&account.id).is_ok());
+    assert_eq!(mock.calls().len(), 1);
+    handle.shutdown().await;
+}
 
 #[derive(Default)]
 struct FlakyStore {
