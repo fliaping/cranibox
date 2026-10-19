@@ -270,6 +270,16 @@ impl IrohNode {
         Ok(conn)
     }
 
+    /// Path of the pooled connection to `id`, if one is open.
+    pub async fn pool_path(&self, id: &EndpointId) -> Option<cranibox_contracts::net::PathInfo> {
+        self.pool
+            .lock()
+            .await
+            .get(id)
+            .filter(|p| p.conn.close_reason().is_none())
+            .map(|p| crate::path::info(&p.conn))
+    }
+
     /// Close connections of peers that are no longer paired.
     pub async fn drop_peer(&self, id: &EndpointId) {
         if let Some(pooled) = self.pool.lock().await.remove(id) {

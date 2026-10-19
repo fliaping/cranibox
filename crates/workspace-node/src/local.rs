@@ -22,6 +22,7 @@ pub struct LocalNode {
     peer: Mutex<Option<peer::Running>>,
     desktop_service: crate::desktop_service::Service,
     network: crate::network::Service,
+    iroh: Mutex<Option<peer::transport_iroh::Service>>,
     messages: crate::messages::Service,
     supervisor: crate::supervisor::Service,
     task_worker: crate::task_worker::Service,
@@ -68,6 +69,12 @@ impl LocalNode {
         let messages = crate::messages::Service::start(path.clone(), stop.clone());
         let network =
             crate::network::Service::start(path.clone(), peer.network_endpoint(), stop.clone());
+        let iroh = peer::transport_iroh::Service::start(
+            path.clone(),
+            peer.network_endpoint(),
+            stop.clone(),
+        )
+        .await;
         Ok(Self {
             id: config.node_id,
             path,
@@ -76,6 +83,7 @@ impl LocalNode {
             slots,
             desktop_service,
             network,
+            iroh: Mutex::new(Some(iroh)),
             messages,
             supervisor,
             task_worker,
@@ -129,6 +137,10 @@ impl LocalNode {
         command: crate::desktop_service::Command,
     ) -> Result<Value> {
         self.desktop_service.manage(command).await
+    }
+    /// iroh network and pairing back end (App API `pair/*`), if iroh is running.
+    pub async fn iroh(&self) -> Option<peer::transport_iroh::Handle> {
+        self.iroh.lock().await.as_ref().and_then(|s| s.handle())
     }
     pub async fn manage_network(&self, command: crate::network::Command) -> Result<Value> {
         self.network.manage(command).await
@@ -202,7 +214,13 @@ impl LocalNode {
     }
     pub async fn shutdown(&self) -> Result<()> {
         self.stop.cancel();
+        let iroh = self.iroh.lock().await.take();
         tokio::join!(
+            async {
+                if let Some(iroh) = iroh {
+                    iroh.shutdown().await;
+                }
+            },
             self.network.shutdown(),
             self.desktop_service.shutdown(),
             self.messages.shutdown(),

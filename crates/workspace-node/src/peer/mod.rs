@@ -4,6 +4,7 @@ pub mod config;
 pub(crate) mod hook;
 pub(crate) mod secure_ws;
 mod server;
+pub mod transport_iroh;
 pub(crate) use server::start_with_catalog;
 pub(crate) use server::{NetworkEndpoint, NetworkListener};
 pub use server::{Running, start};
@@ -206,6 +207,11 @@ pub enum Command {
     },
     /// Keep this node's configured peer, desktop and network services running without a Workspace.
     Serve,
+    /// Pair devices with a one-time link or QR code (iroh network).
+    Pair {
+        #[command(subcommand)]
+        action: transport_iroh::PairCommand,
+    },
     /// CLI/MCP calls go to the configured target; never automatically retry through the gateway.
     Call {
         #[arg(long)]
@@ -848,6 +854,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             client::print(Store::new(path).manage(command).await?);
         }
         Command::Serve => serve(&path).await?,
+        Command::Pair { action } => transport_iroh::run(path.clone(), action).await?,
         Command::Call { node, action } => call(&path, &node, action).await?,
     }
     Ok(())
@@ -906,9 +913,16 @@ async fn serve(path: &Path) -> Result<()> {
                 running.network_endpoint(),
                 stop.clone(),
             );
+            let iroh = transport_iroh::Service::start(
+                path.into(),
+                running.network_endpoint(),
+                stop.clone(),
+            )
+            .await;
             let result = running.wait().await;
             stop.cancel();
             tokio::join!(
+                iroh.shutdown(),
                 network.shutdown(),
                 desktop_service.shutdown(),
                 messages.shutdown(),
