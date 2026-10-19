@@ -1,4 +1,5 @@
 //! Shared outbound routes for the node CLI, Web and Tauri.
+pub mod activity;
 pub mod agent_sessions;
 mod agent_snapshots;
 pub mod browser;
@@ -30,6 +31,9 @@ use std::path::{Path, PathBuf};
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     List,
+    Activity {
+        node: Option<String>,
+    },
     Messages {
         command: messages::Command,
     },
@@ -359,6 +363,7 @@ impl Store {
     pub async fn manage(&self, command: Command) -> Result<Value> {
         match command {
             Command::List => self.list(),
+            Command::Activity { node } => self.activity(node).await,
             Command::AgentSync { command } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || {
@@ -490,8 +495,9 @@ impl Store {
                             || permissions.computer
                             || permissions.browser
                             || permissions.messages
+                            || permissions.activity
                             || permissions.spaces,
-                        "choose command, terminal, project, desktop, computer, browser, message and/or space catalog access"
+                        "choose command, terminal, project, desktop, computer, browser, message, activity and/or space catalog access"
                     );
                     let token = crate::config::token();
                     let value = Config::update(&path, |value| {

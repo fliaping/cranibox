@@ -27,6 +27,11 @@ use tokio_util::sync::CancellationToken;
 pub enum Command {
     /// Create or show this device's persistent direct identity, without secrets.
     Identity,
+    /// Read active tasks, messages and collaborations; remote nodes require a separate activity grant.
+    Activity {
+        #[arg(long)]
+        node: Option<String>,
+    },
     /// Durable device text messages. Receiving a message never runs a command.
     Messages {
         #[command(subcommand)]
@@ -97,6 +102,9 @@ pub enum Command {
         browser: bool,
         #[arg(long)]
         messages: bool,
+        /// Read all active task/message/collaboration content, including other senders. No writes.
+        #[arg(long)]
+        activity: bool,
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
@@ -362,6 +370,11 @@ pub enum Sessions {
 
 pub async fn run(path: PathBuf, command: Command) -> Result<()> {
     match command {
+        Command::Activity { node } => client::print(
+            agent_workspace_runtime::peers::Store::new(path)
+                .activity(node)
+                .await?,
+        ),
         Command::Identity => client::print(Config::update(&path, |_| Ok(()))?.public_view()),
         Command::Tasks { command } => {
             let command =
@@ -524,6 +537,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             computer,
             browser,
             messages,
+            activity,
             spaces,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
@@ -534,8 +548,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                     || computer
                     || browser
                     || messages
+                    || activity
                     || spaces,
-                "choose --exec, --terminals, --projects, --desktop, --computer, --browser, --messages and/or --spaces"
+                "choose --exec, --terminals, --projects, --desktop, --computer, --browser, --messages, --activity and/or --spaces"
             );
             let token = secrets::token();
             let value = Config::update(&path, |value| {
@@ -571,6 +586,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                             computer,
                             browser,
                             messages,
+                            activity,
                             spaces,
                         },
                     },

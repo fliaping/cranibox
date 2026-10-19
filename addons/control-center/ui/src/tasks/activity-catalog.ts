@@ -1,0 +1,17 @@
+export type ActivityTask = { direction: 'incoming' | 'outgoing'; task: { id: string; sender: string; recipient: string; title: string; description: string; created_at: number }; current: { dispatch: string; state: string; progress: string | null; result: string | null; revision: number; updated_at: number; questions?: { id: string; text: string; answer: string | null }[] }; cancel_requested: boolean };
+export type ActivityMessage = { direction: 'incoming' | 'outgoing'; message: { id: string; sender: string; recipient: string; text: string; created_at: number }; status: string };
+export type ActivityRun = { scope: { id: string; owner: string; name: string; goal: string }; members: string[]; state: string; revision: number; created_at: number; result: string | null };
+export type Activity = { version: 1; owner: string; observed_at: number; digest: string; tasks: ActivityTask[]; messages: ActivityMessage[]; runs: ActivityRun[] };
+
+/** The Rust host validates the full protocol and digest; also reject an unexpected UI envelope. */
+export function activityCatalog(value: unknown, owner: string, error: string): Activity {
+  const item = value as Activity | null;
+  if (!item || item.version !== 1 || item.owner !== owner || !Number.isSafeInteger(item.observed_at) || item.observed_at <= 0 || item.observed_at > 253402300799 || typeof item.digest !== 'string' || !/^[a-f0-9]{64}$/.test(item.digest) || !Array.isArray(item.tasks) || item.tasks.length > 128 || !Array.isArray(item.messages) || item.messages.length > 256 || !Array.isArray(item.runs) || item.runs.length > 32) throw new Error(error);
+  const seen = new Set<string>();
+  const unique = (kind: string, id: unknown) => { const key = kind + ':' + id; if (typeof id !== 'string' || !id || seen.has(key)) return false; seen.add(key); return true; };
+  const direction = (value: string, sender: string, recipient: string) => value === 'incoming' ? recipient === owner : value === 'outgoing' && sender === owner;
+  if (item.tasks.some(row => !row?.task || !row.current || !unique('task', row.task.id) || !direction(row.direction, row.task.sender, row.task.recipient) || typeof row.task.title !== 'string' || typeof row.task.description !== 'string' || !Number.isSafeInteger(row.task.created_at) || typeof row.current.state !== 'string' || row.current.progress != null && typeof row.current.progress !== 'string' || row.current.result != null && typeof row.current.result !== 'string' || row.current.questions != null && (!Array.isArray(row.current.questions) || row.current.questions.some(question => !question || typeof question.text !== 'string' || question.answer != null && typeof question.answer !== 'string')))) throw new Error(error);
+  if (item.messages.some(row => !row?.message || !unique('message', row.message.id) || !direction(row.direction, row.message.sender, row.message.recipient) || typeof row.message.text !== 'string' || !Number.isSafeInteger(row.message.created_at) || typeof row.status !== 'string')) throw new Error(error);
+  if (item.runs.some(row => !row?.scope || !unique('run', row.scope.id) || row.scope.owner !== owner || typeof row.scope.name !== 'string' || typeof row.scope.goal !== 'string' || !Array.isArray(row.members) || row.members.some(member => typeof member !== 'string') || typeof row.state !== 'string' || !Number.isSafeInteger(row.created_at) || row.result != null && typeof row.result !== 'string')) throw new Error(error);
+  return item;
+}

@@ -1125,7 +1125,7 @@ test('shared incoming access uses native IPC with explicit terminal permission',
   await dialog.getByRole('button', { name: '已保存，关闭', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls.filter((c: any) => c.command === 'direct_peers' && c.payload.command.operation === 'grant'));
-  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, spaces: false } } } }]);
+  expect(calls).toEqual([{ command: 'direct_peers', payload: { command: { operation: 'grant', node: 'another-desktop', permissions: { exec: false, terminals: true, projects: false, desktop: false, computer: false, browser: false, messages: false, activity: false, spaces: false } } } }]);
   page.once('dialog', dialog => dialog.accept());
   await panel.getByRole('button', { name: '撤销授权 another-desktop', exact: true }).click();
   await expect(panel.getByLabel('已授权设备', { exact: true })).toContainText('尚未授权其他设备');
@@ -1953,4 +1953,46 @@ test('native dependency delegations use shared controls and keep dependency IDs 
   const card = page.getByRole('article', { name: '任务 测试项目', exact: true }); await expect(card).toContainText('此任务尚未发出'); await expect(card.getByRole('button', { name: '取消等待任务', exact: true })).toBeVisible();
   const calls = await page.evaluate(() => (window as any).calls); const create = calls.find((call: any) => call.command === 'direct_peers' && call.payload.command.command?.operation === 'create').payload.command.command;
   expect(create).toMatchObject({ run_id: '11111111-1111-4111-8111-111111111111', depends_on: ['22222222-2222-4222-8222-222222222222'] }); expect(calls.some((call: any) => call.command === 'configure' || call.command === 'terminal_open')).toBe(false);
+});
+
+test('read-only collaboration records use shared native IPC with source identity and revocation', async ({ page }) => {
+  await page.addInitScript(() => {
+    const internals = (window as any).__TAURI_INTERNALS__, previous = internals.invoke;
+    const owner = 'own-device', now = Math.floor(Date.now() / 1000);
+    (window as any).activityRevoked = false;
+    internals.invoke = async (command: string, payload: any) => {
+      if (command === 'snapshot') return { settings: null, local: { id: owner, online: true }, status: null, autostart: true, error: null, quit_requested: false };
+      if (command === 'direct_peers') {
+        (window as any).calls.push(structuredClone({ command, payload }));
+        const action = payload.command;
+        if (action.operation === 'list') return { node_id: owner, routes: [{ node: 'remote-device', url: 'https://peer.example', allow_private_http: false }], grants: [] };
+        if (action.operation === 'tasks') return { owner, capacity: 128, used: 0, max_attempts: 8, incoming: [], outgoing: [] };
+        if (action.operation === 'agent_sessions') return { owner: action.node || owner, observed_at: now, lease_secs: 300, capacity: 64, sessions: [] };
+        if (action.operation === 'activity') {
+          if (action.node && (window as any).activityRevoked) throw Error('只读协作记录授权已撤销');
+          const source = action.node || owner;
+          return { version: 1, owner: source, observed_at: now, digest: 'a'.repeat(64), tasks: [], runs: [], messages: [{ direction: 'outgoing', status: 'received', message: { id: 'message-1', sender: source, recipient: 'other-device', text: source + ' 跨设备记录 <img src=x onerror=window.unsafe=true>', created_at: now } }] };
+        }
+      }
+      return previous(command, payload);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
+  const panel = page.getByRole('region', { name: '跨设备协作记录', exact: true });
+  await panel.getByRole('button', { name: '查看协作记录', exact: true }).click();
+  await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
+  await expect(panel.locator('.activity-list article')).toHaveCount(2);
+  await panel.locator('.activity-list summary').first().click();
+  expect(await panel.locator('img').count()).toBe(0);
+  await page.evaluate(() => { (window as any).activityRevoked = true; });
+  await panel.getByRole('button', { name: '刷新协作记录', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('授权已撤销');
+  await expect(panel.locator('.activity-list article')).toHaveCount(1);
+  await page.setViewportSize({ width: 375, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const calls = await page.evaluate(() => (window as any).calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'activity'));
+  expect(calls.some((call: any) => call.payload.command.node === 'remote-device')).toBe(true);
+  expect(calls.some((call: any) => call.payload.command.node === null)).toBe(true);
+  expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain('跨设备记录');
 });

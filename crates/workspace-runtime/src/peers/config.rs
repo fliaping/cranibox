@@ -29,6 +29,9 @@ pub struct Permissions {
     pub browser: bool,
     #[serde(default)]
     pub messages: bool,
+    /// Read this node's active task, message and collaboration content, including other senders.
+    #[serde(default)]
+    pub activity: bool,
     #[serde(default)]
     pub spaces: bool,
 }
@@ -233,6 +236,7 @@ impl Config {
                     || grant.permissions.computer
                     || grant.permissions.browser
                     || grant.permissions.messages
+                    || grant.permissions.activity
                     || grant.permissions.spaces,
                 "grant has no capabilities"
             );
@@ -362,6 +366,7 @@ mod tests {
                 && !legacy.computer
                 && !legacy.browser
                 && !legacy.messages
+                && !legacy.activity
                 && !legacy.spaces,
             "old grants must not acquire new capabilities"
         );
@@ -375,6 +380,9 @@ mod tests {
             },
         );
         assert!(value.validate().is_err());
+        value.grants.get_mut("caller").unwrap().permissions.activity = true;
+        assert!(value.validate().is_ok());
+        value.grants.get_mut("caller").unwrap().permissions.activity = false;
         value.grants.get_mut("caller").unwrap().permissions.exec = true;
         assert!(value.validate().is_ok());
         assert!(!value.public_view().to_string().contains(&token));

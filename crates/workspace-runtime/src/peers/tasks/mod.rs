@@ -54,7 +54,7 @@ pub struct Task {
     pub expires_at: u64,
 }
 impl Task {
-    fn validate(&self) -> Result<()> {
+    pub(super) fn validate(&self) -> Result<()> {
         identifier(self.id)?;
         if let Some(session) = self.target_session {
             identifier(session)?;
@@ -155,7 +155,7 @@ impl Receipt {
         self.updated_at = now();
         Ok(())
     }
-    fn validate(&self, task: &Task) -> Result<()> {
+    pub(super) fn validate(&self, task: &Task) -> Result<()> {
         identifier(self.dispatch)?;
         ensure!(
             self.task == task.id

@@ -2,7 +2,9 @@
 
 整理日期：2026-10-19。本文是下一位维护者的接手入口；需求状态、当前测试和待办集中在这里，历次成功、失败与诊断保留在[远端验证记录](remote-workspace-validation-2026-10-18.md)。日期沿用原文件名，不表示内容仅到 10 月 18 日。
 
-最新补齐公开 Agent 目录的节点后台同步与离线快照，Web/Tauri 共用按设备启用、暂停和状态界面。页面关闭后继续读取，节点重启恢复；离线历史记录明确标注且不能作为有效 Agent 发起定向操作。它沿用已有消息授权，并与项目同步共用四个后台请求名额；任务、消息与协作状态的完整跨节点同步仍未实现。详细操作和数据边界见[Agent 会话文档](agent-sessions.md#关闭页面后的同步与离线快照)。
+最新补齐 Web/Tauri 共用的[跨设备协作记录](federated-activity.md)：展开后按明确选择的来源只读汇总任务、问题/回复、结果、消息和协作 Run，保留各节点权威与身份，不需要选主。新增独立 activity 授权，默认关闭，明确包含其他发送方正文；原有消息授权不自动扩大。来源失败、撤权或连接改变后清除该来源旧内容，迟到响应不恢复记录。它是在线只读视图，尚未实现账本复制、离线写入、冲突合并或后台协作记录缓存。
+
+此前已补齐公开 Agent 目录的节点后台同步与离线快照，Web/Tauri 共用按设备启用、暂停和状态界面。页面关闭后继续读取，节点重启恢复；离线历史记录明确标注且不能作为有效 Agent 发起定向操作。它沿用已有消息授权，并与项目同步共用四个后台请求名额。详细操作和数据边界见[Agent 会话文档](agent-sessions.md#关闭页面后的同步与离线快照)。
 
 收尾增加镜像发布前启动验收和默认只验证模式，检查器回归 14/14。远端完整 XFCE 镜像与 GitHub 新工作流分别通过启动验收 43/43；后者绑定 b76aaba，运行 39173924368 已成功。84454e6 的 Linux .deb/AppImage 另通过正常 KDE 会话中的托盘、窗口关闭、单实例、退出确认及 GIO 自启动项验收，仍使用隔离 XDG。没有发布或替换公开镜像标签；默认公开镜像不兼容、Windows/macOS 实机及完整同步等未完成项继续保留，不能将交接整理解释为所有原始需求已完成。
 
@@ -48,6 +50,7 @@
 | 多 Agent 通信与任务 | 持久消息、线程回复、确认、离线投递、任务委托/领取/进度/问题/回复/结果/合作取消，CLI/MCP 与共享界面 | 不能由普通消息自动启动进程；同一容器中的独立身份验证不等于多台物理设备验收 |
 | Agent 会话与后台执行 | 主动登记/续期、汇总授权会话、后台目录同步与离线标签、定向委托；Codex/Claude Code 非交互适配、启动检查、持久输出与停止；可选独立执行 MCP | 离线登记不代表当前状态，不能据此选择执行 Agent；模型调用与 CLI 登录未实测；不支持运行中追加交互输入、模型检查点恢复或进程迁移 |
 | 多设备协作与自动接单 | 持久协作 Run、任务汇总、统一停止、核对归档、最多八项前置任务；接收端可明确启用按可信发送方和固定目录的后台 worker | 默认关闭；不是通用复杂编排平台；人核对模式与显式自动提案模式分开，退出码不直接等于任务成功 |
+| 跨设备协作记录统一视图 | Web/Tauri 共用按来源的任务/当前报告/问答/结果、消息与 Run 列表；独立 activity 只读授权；CLI、搜索、类型筛选、分页及受限并发刷新 | 默认折叠，最多选择 16 个来源；包含其他发送方正文，授权时明确告知。没有离线缓存或复制，失败清除旧内容；同一任务的不同来源报告不合成全局状态，无新增 MCP 工具 |
 | 各节点 Agent 共享 Computer Use | 独立 computer 授权、目标配置的回环桥接、直连 API、短期输入控制权、持久停止、独立目标绑定 MCP；Web/Tauri 共用配置与停止界面 | 复用现有 bridge，不安装跨平台驱动；只走直连。12 项后端专项使用动作夹具；a8a97f5 .deb 另通过真实 KDE 截图、输入、MCP、重启保留停止，AppImage 通过 GUI 节点宿主及真实 MCP 截图；管理面板完整停止/恢复 IPC 的两包验收仍绑定 3c1a38d。多物理设备、模型调用及 Windows/macOS 提供者待验收 |
 | 各节点 Agent 共享 Browser Use | 独立 browser 授权、目标回环 Chromium CDP、鉴权 WebSocket、单远程控制者、跨重启保留停止；调用方经临时回环代理运行固定版本官方 MCP，Web/Tauri 共用管理 | 真实 Linux Chromium 的打开页面、快照、填表、提交、PNG 与停止通过；只走直连。授权覆盖共享浏览器全部标签页和会话；无自动安装/启动、域名隔离或旧网关转发。Windows/macOS、跨物理设备及真实模型待验收 |
 | agent-desktop-bridge 是否可删除 | 现有桥接继续保留，并作为 Computer Use 的明确配置提供者；VNC 是桌面传输通道 | cua-driver 替代方案仍需独立核对接口、平台和权限，当前不能删除桥接 |
@@ -56,7 +59,21 @@
 
 ## 测试情况与可信范围
 
-### 当前：公开 Agent 目录后台同步（2026-10-19）
+### 当前：跨设备协作记录（2026-10-19）
+
+本轮实现与协议见[跨设备协作记录](federated-activity.md)。构建、运行和浏览器验证均在指定远端容器、abc 用户进行；没有升级日常程序、接管桌面输入或将模拟 IPC 记成实机验收。下列历史章节仍绑定各自产品提交。
+
+Rust 工作区最终为 **185 通过、4 忽略，20 个测试目标**；原生 desktop,custom-protocol 传输专项 **4/4**；Web 全量 **134/134，3.8 分钟**；Tauri 界面全量 **51/51，3.5 分钟**。两端 TypeScript/Vite、工作区与原生 debug 构建、fmt、工作区及原生 all-targets Clippy -D warnings、actionlint 均通过。已有 Vite 大包与依赖 use client 提示保留，没有新增依赖或放宽检查。四个默认忽略项仍是传输测量、两项真实 EasyTier 与 GIO 启动器，本轮未显式重跑，不计通过。
+
+后端联合回归最终 **34/34 通过，无跳过，287.849 秒**：新协作记录 6、任务 12、消息 11、协作 Run 5。首次联合回归有一项在批量准备 132 条消息时发生既有 8 秒 HTTP 超时；结束并行构建后串行全量通过，没有延长超时，仍未进行性能根因修复或耐久性验收。
+
+新增后端六项覆盖独立 activity 授权、第三方消息可见范围、只读不可投递、CLI/Web/直连一致、任务问答/结果、摘要与 Run 修订、归档、撤权、损坏数据保留、伪造来源/内容、凭据轮换/移除后的迟到响应及超过通用 1 MiB 上限的读取。真实节点仍位于同一容器，不是三物理设备；界面采用可控响应，原生端模拟 IPC。
+
+27 份产品源码、测试、工作流及生成资源与远端已测试快照的 SHA-256 一致，另保存五个 Rust 程序摘要。协作记录在 375/768/1440 像素、明暗主题下检查无横向溢出，来源选择行至少 44 像素；保留 375/1440 元素截图。最终容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 1403228、程序摘要及原 NodeID 保持，KDE/Selkies 未重启，无测试进程或安装包残留。私有证据位于 /config/validation-artifacts/federated-activity-20261019，不随源码提交。
+
+失败历史与最终回归汇总见[验证记录的最新章节](remote-workspace-validation-2026-10-18.md)。本轮没有新增 MCP 工具、离线缓存、完整复制或运行进程迁移，也没有重新验收新功能的 Linux 安装包真实窗口、系统登录、Windows/macOS GUI 和模型调用。下一位维护者先按 P0/P1 的真实日用流程继续；需要扩展同步时先确定范围与冲突规则，保留独立只读授权。
+
+### 上一轮：公开 Agent 目录后台同步（2026-10-19）
 
 本轮运行、构建和浏览器测试仍全部位于 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户，日常 Web、客户端与 KDE/Selkies 未升级或重启。同步是接收节点主动读取公开登记，默认关闭；Web 与 Tauri 共用组件，配置属于入口所在节点。没有改变消息账本读取权限或引入中心节点。
 
@@ -292,16 +309,16 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | P0 | 发布兼容的公开产品镜像并验收 | 默认公开标签仍缺少空间协议标记，无法新建空间。新工作流的 b76aaba 只验证运行 39173924368 已成功，amd64 启动 43/43；下一步正式发布并完成真实拉取核对，补验 arm64 运行；保留各版本边界，不删除协议保护 |
 | P1 | 维护者真实三设备流程 | Mac 委托 Linux/Windows Agent，关页面后继续，换入口回复和核对结果，覆盖断网、休眠、重启，不靠同容器替身或手改账本 |
 | P1 | Tailscale 系统安装/登录与 EasyTier 多设备 | 干净的三平台主机验证方案确认、管理员授权、取消/失败恢复、系统服务、Tailnet 互访与目标授权；不能以夹具代替系统安装 |
-| P1 | 完整统一视图与同步协议 | 项目和公开 Agent 目录已有按来源的后台只读快照；仍需定义任务/消息/协作状态的复制范围、权威、版本、删除及冲突。其他入口看到同一授权范围，离线变更有处理规则，撤权有效；不能把已有 messages 投递权限直接扩为读取全设备账本 |
+| P1 | 完整统一视图与同步协议 | 项目和公开 Agent 目录已有后台只读快照；任务/消息/Run 新增独立 activity 授权的在线来源视图。继续定义完整复制的权威、版本、删除、冲突及撤权规则，明确是否需要后台只读缓存；不能把摘要当签名或时钟、来源报告当全局状态，也不能扩大旧 messages 权限 |
 | P1 | 设备信任与能力提供者 | 公钥配对、签名身份、轮换/撤销；Computer Use、Browser Use 在多物理设备与 Windows/macOS 验收，完善依赖引导。cua-driver 是否替换现有桥接需独立评估 |
 | P2 | Agent 会话接续与运行交互 | 实测具体 CLI 登录和模型调用；检查点、项目文件/上下文一致性、目标启动及源端停止有明确状态。当前不支持移动原进程或向运行中 Agent 追加交互输入 |
-| P2 | 交互、规模与测试稳定性 | 按日常流程检查长清单和错误恢复，评估大量设备/文件；若 Wayland 认证或 KDE 输入超时重现，定位原故障，不以放宽超时或重跑通过代替修复 |
+| P2 | 交互、规模与测试稳定性 | 按日常流程检查长清单和错误恢复，评估大量设备/文件；定位协作记录大数据准备在并行负载下的 8 秒 HTTP 超时。若 Wayland 认证或 KDE 输入超时重现，也应定位原故障，不以放宽超时或重跑通过代替修复 |
 
 暂不需要为节点身份等同引入选主。当前数据由所属节点持有，界面连接任一运行入口；若要复制协作协调状态，先定义故障与冲突模型，再决定一致性协议。
 
 ## 接手与复现
 
-先读本文与[验证记录](remote-workspace-validation-2026-10-18.md)，再看[分布式设计](distributed-agent-workspace-design.md)、[组网设计](decentralized-node-network-design.md)、[节点直连](direct-node-peers.md)和[设备网络](device-networks.md)。功能细节见[客户端](node-desktop-and-device-mesh.md)、[桌面](remote-desktops.md)、[Computer Use](computer-use.md)、[Browser Use](browser-use.md)、[虚拟空间](virtual-spaces.md)、[项目目录/复制](project-session-catalog.md)、[消息](device-messages.md)、[任务](device-tasks.md)、[会话](agent-sessions.md)与[后台执行](agent-executions.md)。设计文档包含尚未实现的提案，以本文状态与源码为准。
+先读本文与[验证记录](remote-workspace-validation-2026-10-18.md)，再看[分布式设计](distributed-agent-workspace-design.md)、[组网设计](decentralized-node-network-design.md)、[节点直连](direct-node-peers.md)和[设备网络](device-networks.md)。功能细节见[客户端](node-desktop-and-device-mesh.md)、[桌面](remote-desktops.md)、[Computer Use](computer-use.md)、[Browser Use](browser-use.md)、[虚拟空间](virtual-spaces.md)、[项目目录/复制](project-session-catalog.md)、[消息](device-messages.md)、[任务](device-tasks.md)、[协作记录](federated-activity.md)、[会话](agent-sessions.md)与[后台执行](agent-executions.md)。设计文档包含尚未实现的提案，以本文状态与源码为准。
 
 ### 源码入口
 
@@ -312,6 +329,7 @@ Linux 日志确认 Web Playwright 126/126、客户端 Playwright 48/48；真实 
 | crates/workspace-runtime/src/peers、projects | 连接、目标授权客户端、消息/任务/项目账本、文件复制与后台同步配置 |
 | crates/workspace-node/src/{local.rs,peer,network,spaces,supervisor.rs,task_worker.rs,project_sync.rs} | 节点宿主、直连服务、网络/空间、进程、自动接单与后台目录调度 |
 | crates/workspace-runtime/src/peers/{project_sync.rs,agent_snapshots.rs}；addons/control-center/ui/src/projects/ProjectSync.tsx | 项目/Agent 两套独立同步策略、凭据绑定只读快照与两端共用的配置/状态界面；专项 tests/test_background_agent_sync.py |
+| crates/workspace-runtime/src/peers/activity.rs；crates/workspace-node/src/peer/server/activity.rs；addons/control-center/ui/src/tasks/FederatedActivity.tsx | 只读协作记录协议、目标独立授权与请求后连接复查、Web/Tauri 来源视图；专项 tests/test_federated_activity.py |
 | crates/workspace-node/src/network/tailscale_setup.rs、install-tailscale*.sh | Tailscale 十分钟一次性方案、后台状态记录、平台安装/启动；不会自动登录或重放未完成安装 |
 | crates/workspace-web | 登录/CSRF、Web API、终端/桌面和空间应用转发 |
 | crates/workspace-runtime/src/peers/desktop/{selkies.rs,selkies/output.rs}；addons/control-center/ui/src/desktop/{openDesktop.ts,SelkiesViewer.ts} | Selkies WebSocket 适配、有界画面合并、受限输入、首包协议选择、JPEG 解码与键鼠；真实桌面回归为 tests/test_desktop_real_selkies.py |
@@ -364,6 +382,7 @@ cargo test --locked -p cranibox-node-desktop --features desktop,custom-protocol 
 cargo clippy --locked -p cranibox-node-desktop --features desktop,custom-protocol --all-targets -- -D warnings
 python3 -m unittest test_remote_desktops test_desktop_relay test_desktop_service -v
 python3 -m unittest test_background_agent_sync test_background_project_sync test_project_catalog_sync test_device_tasks test_task_worker_mcp -v
+python3 -m unittest test_federated_activity test_device_tasks test_device_messages test_collaboration_runs -v
 npm test --prefix apps/node-desktop
 npm test --prefix addons/control-center/ui
 npm test --prefix addons/control-center/ui -- tests/desktops.spec.ts --workers=1
@@ -377,4 +396,4 @@ Web 的 npm run build 只生成 ui/dist；scripts/build-control-center-ui.cjs �
 DISPLAY=:1 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/config/.XDG CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium CRANIBOX_TEST_REAL_SELKIES=127.0.0.1:8082 CRANIBOX_TEST_SELKIES_CLIPBOARD=1 python3 -m unittest test_desktop_real_selkies -v
 ~~~
 
-Browser Use 的 test_browser_real_chromium 需 CRANIBOX_TEST_REAL_BROWSER=1 与 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，使用临时 profile/随机端口，不访问日常 9222。Computer Use 为 test_computer_use；更多条件见对应功能文档。下一位模型从 P0 的正常桌面、另一物理设备及跨平台流程开始；同提交 Linux 包的隔离 KDE 验收已完成，保留已有日志和版本界限，勿重复已经撤回的诊断方案。
+Browser Use 的 test_browser_real_chromium 需 CRANIBOX_TEST_REAL_BROWSER=1 与 CRANIBOX_TEST_CHROMIUM=/usr/bin/chromium，使用临时 profile/随机端口，不访问日常 9222。Computer Use 为 test_computer_use；更多条件见对应功能文档。下一位模型先核对最新产品 CI，再从 P0 的正常桌面、另一物理设备及跨平台流程开始；历史 Linux 包验收分别绑定文内提交，最新协作记录尚无安装包真实窗口验收。保留已有日志和版本界限，勿重复已经撤回的诊断方案。
