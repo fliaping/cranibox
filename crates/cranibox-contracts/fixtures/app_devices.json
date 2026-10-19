@@ -1,0 +1,100 @@
+[
+  {
+    "node_id": "node-1f2e3d4c5b6a79880716253443526170",
+    "name": "MacBook Pro",
+    "kind": "laptop",
+    "online": true,
+    "path": "direct",
+    "rtt_ms": null,
+    "badges": [
+      "this"
+    ],
+    "guest": false,
+    "caps": {
+      "exec": true,
+      "terminals": true,
+      "projects": true,
+      "desktop": true,
+      "computer": true,
+      "browser": true,
+      "messages": true,
+      "activity": true,
+      "spaces": true,
+      "llm": true,
+      "vault": true
+    }
+  },
+  {
+    "node_id": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+    "name": "Home server",
+    "kind": "server",
+    "online": true,
+    "path": "relay",
+    "rtt_ms": 38,
+    "badges": [
+      "hub"
+    ],
+    "guest": false,
+    "caps": {
+      "exec": true,
+      "terminals": true,
+      "projects": true,
+      "desktop": true,
+      "computer": true,
+      "browser": true,
+      "messages": true,
+      "activity": true,
+      "spaces": true,
+      "llm": true,
+      "vault": true
+    }
+  },
+  {
+    "node_id": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+    "name": "Studio",
+    "kind": "desktop",
+    "online": false,
+    "path": "unknown",
+    "rtt_ms": null,
+    "badges": [
+      "claude"
+    ],
+    "guest": false,
+    "caps": {
+      "exec": true,
+      "terminals": true,
+      "projects": true,
+      "desktop": true,
+      "computer": true,
+      "browser": true,
+      "messages": true,
+      "activity": true,
+      "spaces": true,
+      "llm": true,
+      "vault": true
+    }
+  },
+  {
+    "node_id": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+    "name": "Alex's laptop",
+    "kind": "laptop",
+    "online": true,
+    "path": "direct",
+    "rtt_ms": 3,
+    "badges": [],
+    "guest": true,
+    "caps": {
+      "exec": false,
+      "terminals": false,
+      "projects": false,
+      "desktop": false,
+      "computer": false,
+      "browser": false,
+      "messages": true,
+      "activity": false,
+      "spaces": false,
+      "llm": false,
+      "vault": false
+    }
+  }
+]

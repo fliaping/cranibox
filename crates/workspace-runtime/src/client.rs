@@ -34,6 +34,17 @@ impl std::fmt::Display for HttpError {
 }
 impl std::error::Error for HttpError {}
 
+/// Status and message of a non-2xx answer from the target, if that is the error.
+pub(crate) fn http_status(error: &anyhow::Error) -> Option<(u16, String)> {
+    error
+        .downcast_ref::<HttpError>()
+        .map(|e| (e.status, e.message.clone()))
+}
+pub(crate) fn timed_out(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<reqwest::Error>()
+        .is_some_and(reqwest::Error::is_timeout)
+}
 pub(crate) fn not_found(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<HttpError>()
@@ -111,6 +122,7 @@ impl Api {
             url: options.url.clone(),
             allow_insecure: options.allow_insecure,
             local_forward_lock: None,
+            iroh: None,
         }];
         Ok(Self {
             options,

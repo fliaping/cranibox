@@ -1,0 +1,44 @@
+[
+  {
+    "id": "deepseek-harness",
+    "installed": true,
+    "managed": true,
+    "model": "deepseek/deepseek-chat",
+    "recommended": true
+  },
+  {
+    "id": "codex",
+    "installed": true,
+    "managed": true,
+    "model": "codex/gpt-5-codex",
+    "recommended": false
+  },
+  {
+    "id": "claude-code",
+    "installed": true,
+    "managed": false,
+    "model": null,
+    "recommended": false
+  },
+  {
+    "id": "pi",
+    "installed": false,
+    "managed": false,
+    "model": null,
+    "recommended": false
+  },
+  {
+    "id": "hermes",
+    "installed": false,
+    "managed": false,
+    "model": null,
+    "recommended": false
+  },
+  {
+    "id": "openclaw",
+    "installed": false,
+    "managed": false,
+    "model": null,
+    "recommended": false
+  }
+]

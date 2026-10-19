@@ -1,0 +1,12 @@
+{
+  "mode": "hub",
+  "hub_online": true,
+  "models_available": 5,
+  "issues": [
+    {
+      "code": "needs_sign_in",
+      "message": "Kimi sign-in expired",
+      "account_id": "acc-kimi-1"
+    }
+  ]
+}

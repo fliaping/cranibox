@@ -684,6 +684,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         messages,
                         activity,
                         spaces,
+                        // Granted by owner-device pairing (WS1/WS6), not by this CLI.
+                        llm: false,
+                        vault: false,
                     },
                 );
                 grant.require_verified = !allow_unverified;

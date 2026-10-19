@@ -10,6 +10,7 @@ anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 agent-workspace-runtime = { path = "../workspace-runtime", default-features = false, features = ["client"] }
 agent-workspace-pty = { path = "../workspace-pty", default-features = false }
+cranibox-contracts = { path = "../cranibox-contracts" }
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"

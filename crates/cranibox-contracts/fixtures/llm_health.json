@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "hub": true,
+  "accounts": [
+    {
+      "id": "acc-deepseek-1",
+      "provider": "deepseek",
+      "enabled_here": true
+    },
+    {
+      "id": "acc-codex-1",
+      "provider": "codex",
+      "enabled_here": false
+    }
+  ],
+  "models_etag": "W/\"m-42\""
+}

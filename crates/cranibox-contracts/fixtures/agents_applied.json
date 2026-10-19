@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "path": "/home/user/.codex/config.toml",
+      "keys": [
+        "model_provider",
+        "model_providers.cranibox"
+      ],
+      "before_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "after_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "path": "/home/user/.pi/agent/models.json",
+      "keys": [
+        "providers.cranibox"
+      ],
+      "before_hash": null,
+      "after_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ]
+}

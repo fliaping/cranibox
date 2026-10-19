@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/workspace-runtime", "crates/workspacectl", "crates/workspace-services", "crates/workspace-web", "crates/cranibox", "crates/workspace-node", "crates/workspace-pty", "apps/node-desktop/src-tauri"]
+members = ["crates/cranibox-contracts", "crates/cranibox-net", "crates/cranibox-llm", "crates/cranibox-agents", "crates/workspace-runtime", "crates/workspacectl", "crates/workspace-services", "crates/workspace-web", "crates/cranibox", "crates/workspace-node", "crates/workspace-pty", "apps/node-desktop/src-tauri"]
 resolver = "2"
 
 [profile.release]

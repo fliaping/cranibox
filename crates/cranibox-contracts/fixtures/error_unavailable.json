@@ -1,0 +1,50 @@
+[
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "hub_offline",
+      "message": "fixture",
+      "node": null
+    }
+  },
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "claude_node_offline",
+      "message": "fixture",
+      "node": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b"
+    }
+  },
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "account_disabled_here",
+      "message": "fixture",
+      "node": null
+    }
+  },
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "home_offline",
+      "message": "fixture",
+      "node": null
+    }
+  },
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "all_accounts_exhausted",
+      "message": "fixture",
+      "node": null
+    }
+  },
+  {
+    "error": {
+      "type": "cranibox_unavailable",
+      "code": "needs_sign_in",
+      "message": "fixture",
+      "node": null
+    }
+  }
+]

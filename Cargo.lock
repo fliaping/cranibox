@@ -66,6 +66,7 @@ dependencies = [
  "base64 0.22.1",
  "chacha20poly1305",
  "clap",
+ "cranibox-contracts",
  "data-encoding",
  "ed25519-dalek",
  "fs2",
@@ -981,6 +982,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "cranibox-agents"
+version = "0.1.0"
+dependencies = [
+ "cranibox-contracts",
+]
+
+[[package]]
+name = "cranibox-contracts"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "cranibox-contracts",
+ "futures-core",
+ "http",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml 0.8.2",
+]
+
+[[package]]
+name = "cranibox-llm"
+version = "0.1.0"
+dependencies = [
+ "cranibox-contracts",
+]
+
+[[package]]
+name = "cranibox-net"
+version = "0.1.0"
+dependencies = [
+ "cranibox-contracts",
+]
+
+[[package]]
 name = "cranibox-node"
 version = "0.1.0"
 dependencies = [
@@ -990,6 +1028,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "clap",
+ "cranibox-contracts",
  "fs2",
  "futures-util",
  "libc",

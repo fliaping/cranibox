@@ -77,6 +77,8 @@ Phase 0 只合入一个 PR：`ws0/contracts`，内容如下。
 
 ### 契约清单
 
+> Phase 0 已落地：代码见 `crates/cranibox-contracts`，位置、实现方和协调者决定见 [CONTRACTS.md](./CONTRACTS.md)，文件归属见 [OWNERS.md](./OWNERS.md)。fixtures 在 `crates/cranibox-contracts/fixtures/`。
+
 #### C1 名册与身份（`cranibox_contracts::roster`）
 ```rust
 pub type NodeId = String;                 // "node-<32hex>"

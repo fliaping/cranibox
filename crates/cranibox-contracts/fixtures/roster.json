@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "owner_pub": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "epoch": 3,
+  "members": [
+    {
+      "node_id": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "signing_key": "1111111111111111111111111111111111111111111111111111111111111111",
+      "x25519_pub": "2222222222222222222222222222222222222222222222222222222222222222",
+      "role": "hub",
+      "priority": 0,
+      "is_claude_node": false,
+      "name": "Home server",
+      "added_at": 1792368000
+    },
+    {
+      "node_id": "node-1f2e3d4c5b6a79880716253443526170",
+      "signing_key": "3333333333333333333333333333333333333333333333333333333333333333",
+      "x25519_pub": "4444444444444444444444444444444444444444444444444444444444444444",
+      "role": "node",
+      "priority": 10,
+      "is_claude_node": false,
+      "name": "MacBook Pro",
+      "added_at": 1792368600
+    },
+    {
+      "node_id": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+      "signing_key": "5555555555555555555555555555555555555555555555555555555555555555",
+      "x25519_pub": "6666666666666666666666666666666666666666666666666666666666666666",
+      "role": "node",
+      "priority": 20,
+      "is_claude_node": true,
+      "name": "Studio",
+      "added_at": 1792369200
+    }
+  ],
+  "sig": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+}

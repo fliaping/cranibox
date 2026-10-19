@@ -34,11 +34,13 @@ mod copies;
 mod desktop;
 mod e2e;
 mod executions;
+mod llm;
 mod messages;
 use crate::peer::secure_ws::SecureSocket;
 mod projects;
 mod spaces;
 mod tasks;
+mod vault;
 
 type Failure = (StatusCode, Json<Value>);
 fn failure(status: StatusCode, message: &str) -> Failure {
@@ -73,7 +75,7 @@ impl Job {
     }
 }
 #[derive(Clone)]
-struct App {
+pub(crate) struct App {
     path: PathBuf,
     node: String,
     engine: Engine,
@@ -129,6 +131,19 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
         != Some(&app.node)
     {
         return failure(StatusCode::CONFLICT, "expected target node ID required").into_response();
+    }
+    if let Some(authenticated) = request
+        .extensions_mut()
+        .remove::<cranibox_contracts::net::Authenticated>()
+    {
+        // Inserted in-process by a transport that authenticated the peer key itself
+        // (iroh TLS, C2). Remote clients cannot set request extensions.
+        let Some(caller) = authenticated_caller(&app, &authenticated) else {
+            return failure(StatusCode::UNAUTHORIZED, "peer identity not authorized")
+                .into_response();
+        };
+        request.extensions_mut().insert(caller);
+        return next.run(request).await;
     }
     if let Some(e2e::Sealed(caller)) = request.extensions_mut().remove::<e2e::Sealed>() {
         // Decrypted by the end-to-end channel, which already re-checked the grant.
@@ -196,6 +211,27 @@ async fn auth(State(app): State<App>, mut request: Request, next: Next) -> Respo
     }
     request.extensions_mut().insert(Caller { node, grant });
     next.run(request).await
+}
+/// Grant for a transport-authenticated peer: same NodeID, the transport's key
+/// equals the key pinned at pairing, and pairing verification is satisfied.
+fn authenticated_caller(
+    app: &App,
+    authenticated: &cranibox_contracts::net::Authenticated,
+) -> Option<Caller> {
+    let endpoint = authenticated.endpoint_id?;
+    let configuration = Config::read(&app.path)
+        .ok()
+        .filter(|c| c.node_id == app.node)?;
+    let grant = configuration.grants.get(&authenticated.node_id)?;
+    let pinned = grant.peer.as_ref()?;
+    let key = agent_workspace_runtime::peers::identity::hex(&endpoint);
+    if !config::matches(&pinned.identity.signing_key, &key) || !grant.usable() {
+        return None;
+    }
+    Some(Caller {
+        node: authenticated.node_id.clone(),
+        grant: grant.clone(),
+    })
 }
 fn check_target(app: &App, node: &str) -> Result<(), Failure> {
     if node != app.node {
@@ -548,6 +584,12 @@ impl Running {
         let app = self.app.clone();
         async move { computer::owner(&app, command).await }
     }
+    /// Mesh router for an additional transport (iroh, WS1). Identity discovery
+    /// stays limited to provider networks.
+    #[allow(dead_code)] // Phase 0 mount point; WS1's transport_iroh.rs calls it.
+    pub(crate) fn mesh_router(&self) -> Router {
+        mesh_router(self.app.clone(), false)
+    }
     pub(crate) fn network_endpoint(&self) -> NetworkEndpoint {
         NetworkEndpoint(self.app.clone())
     }
@@ -750,16 +792,11 @@ async fn network_identity(State(app): State<App>, headers: HeaderMap) -> Respons
     }
     Json(json!({"version":1,"node_id":app.node})).into_response()
 }
-fn transport(
-    app: &App,
-    tcp: tokio::net::TcpListener,
-    configuration: Listener,
-    network_discovery: bool,
-) -> Transport {
-    let mut app = app.clone();
-    app.connections = app.stop.child_token();
-    let address = tcp.local_addr().expect("bound TCP listener address");
-    eprintln!("Direct node {} listening on {}", app.node, address);
+/// The complete `/api/v1/mesh/*` router of this node. Every transport serves
+/// exactly this router: the direct HTTP listener below, and iroh (WS1) via
+/// [`Running::mesh_router`]. Transports that authenticate the peer themselves
+/// insert `cranibox_contracts::net::Authenticated` before calling it.
+pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
     let router = Router::new()
         .route("/nodes", get(nodes))
         .route("/nodes/{node}/exec", post(execute))
@@ -798,6 +835,15 @@ fn transport(
                 agent_workspace_runtime::projects::copy::MAX_WIRE,
             )),
         )
+        // Phase 0 mount points (C2); WS6 implements llm.rs and vault.rs.
+        .nest(
+            cranibox_contracts::net::routes::LLM_MOUNT,
+            llm::routes(app.clone()),
+        )
+        .nest(
+            cranibox_contracts::net::routes::VAULT_MOUNT,
+            vault::routes(app.clone()),
+        )
         .route_layer(middleware::from_fn_with_state(app.clone(), auth));
     let api: Router = Router::new()
         .nest("/api/v1/mesh", router)
@@ -824,7 +870,19 @@ fn transport(
     if network_discovery {
         public = public.route("/api/v1/mesh/identity", get(network_identity));
     }
-    let router = api.merge(sealed).merge(public.with_state(app.clone()));
+    api.merge(sealed).merge(public.with_state(app))
+}
+fn transport(
+    app: &App,
+    tcp: tokio::net::TcpListener,
+    configuration: Listener,
+    network_discovery: bool,
+) -> Transport {
+    let mut app = app.clone();
+    app.connections = app.stop.child_token();
+    let address = tcp.local_addr().expect("bound TCP listener address");
+    eprintln!("Direct node {} listening on {}", app.node, address);
+    let router = mesh_router(app.clone(), network_discovery);
     let service_stop = app.connections.clone();
     let task = tokio::spawn(async move {
         let result = axum::serve(tcp, router)
@@ -880,5 +938,151 @@ async fn monitor(app: App) {
     {
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
+    }
+}
+
+#[cfg(test)]
+mod mesh_tests {
+    use super::*;
+    use agent_workspace_runtime::peers::{
+        config::{Grant, Permissions, Pinned},
+        identity::{self, Identity},
+    };
+    use cranibox_contracts::net::{Authenticated, TransportKind};
+    use tower::ServiceExt;
+
+    struct Fixture {
+        _root: tempfile::TempDir,
+        running: Running,
+        target: String,
+        caller: String,
+        caller_key: [u8; 32],
+    }
+    async fn fixture(permissions: Permissions, verified: bool) -> Fixture {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("node").join("peers.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let other = root.path().join("caller").join("peers.json");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        let caller = Identity::create_new(&other).unwrap().public().clone();
+        let caller_key = identity::unhex::<32>(&caller.signing_key).unwrap();
+        let node = caller.node_id.clone();
+        Config::update(&path, |c| {
+            let mut grant = Grant::issue(&config::token(), permissions);
+            let mut pinned = Pinned::new(caller.clone());
+            pinned.verified = verified;
+            grant.peer = Some(pinned);
+            c.grants.insert(node.clone(), grant);
+            Ok(())
+        })
+        .unwrap();
+        let running = start_with_catalog(
+            path.clone(),
+            Engine::new(root.path().join("home")),
+            Arc::new(Semaphore::new(1)),
+            CancellationToken::new(),
+            agent_workspace_runtime::projects::Store::new(
+                path.with_file_name("node-projects.json"),
+            ),
+        )
+        .await
+        .unwrap();
+        let target = running.app.node.clone();
+        Fixture {
+            _root: root,
+            running,
+            target,
+            caller: node,
+            caller_key,
+        }
+    }
+    async fn call(f: &Fixture, path: &str, authenticated: Option<Authenticated>) -> StatusCode {
+        let mut request = axum::http::Request::get(path)
+            .header("x-cranibox-target", &f.target)
+            .body(Body::empty())
+            .unwrap();
+        if let Some(authenticated) = authenticated {
+            request.extensions_mut().insert(authenticated);
+        }
+        f.running
+            .mesh_router()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status()
+    }
+    fn iroh(node: &str, key: [u8; 32]) -> Option<Authenticated> {
+        Some(Authenticated {
+            node_id: node.into(),
+            endpoint_id: Some(key),
+            transport: TransportKind::Iroh,
+            e2e: true,
+        })
+    }
+
+    #[tokio::test]
+    async fn llm_and_vault_mounts_are_placeholders_behind_auth() {
+        let f = fixture(
+            Permissions {
+                llm: true,
+                ..Permissions::default()
+            },
+            true,
+        )
+        .await;
+        let llm = format!("/api/v1/mesh/nodes/{}/llm/health", f.target);
+        let chat = format!("/api/v1/mesh/nodes/{}/llm/v1/chat/completions", f.target);
+        let vault = format!("/api/v1/mesh/nodes/{}/vault/pull", f.target);
+        let auth = || iroh(&f.caller, f.caller_key);
+        assert_eq!(call(&f, &llm, auth()).await, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(call(&f, &chat, auth()).await, StatusCode::NOT_IMPLEMENTED);
+        // Granted llm only: vault is forbidden.
+        assert_eq!(call(&f, &vault, auth()).await, StatusCode::FORBIDDEN);
+        // Existing routes see the same caller.
+        let nodes = call(&f, "/api/v1/mesh/nodes", auth()).await;
+        assert_eq!(nodes, StatusCode::OK);
+        // Wrong key, unknown node, missing key, or no credential at all: rejected.
+        assert_eq!(
+            call(&f, &llm, iroh(&f.caller, [7; 32])).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            call(
+                &f,
+                &llm,
+                iroh("node-3d4e5f60718293a4b5c6d7e8f90a1b2c", f.caller_key)
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+        let mut keyless = auth().unwrap();
+        keyless.endpoint_id = None;
+        assert_eq!(
+            call(&f, &llm, Some(keyless)).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(call(&f, &llm, None).await, StatusCode::UNAUTHORIZED);
+        // Another target node in the path is not served here.
+        let elsewhere = "/api/v1/mesh/nodes/node-3d4e5f60718293a4b5c6d7e8f90a1b2c/llm/health";
+        assert_eq!(call(&f, elsewhere, auth()).await, StatusCode::NOT_FOUND);
+        f.running.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn unverified_pairing_is_refused_on_authenticated_transports() {
+        let f = fixture(
+            Permissions {
+                vault: true,
+                ..Permissions::default()
+            },
+            false,
+        )
+        .await;
+        let vault = format!("/api/v1/mesh/nodes/{}/vault/lease", f.target);
+        assert_eq!(
+            call(&f, &vault, iroh(&f.caller, f.caller_key)).await,
+            StatusCode::UNAUTHORIZED
+        );
+        f.running.shutdown().await.unwrap();
     }
 }

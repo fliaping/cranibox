@@ -849,8 +849,12 @@ pub fn router(state: State) -> Router {
             "/api/terminal/ws",
             axum::routing::get(crate::terminal::upgrade),
         )
+        // Phase 0 mount points: App API (WS7) stays behind the browser guard.
+        .merge(crate::app_api::router())
         .fallback(any(handle))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
+        // The embedded iroh relay (WS1) authenticates peers itself, outside the guard.
+        .merge(crate::relay::router())
         .with_state(state)
 }
 async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> Response {

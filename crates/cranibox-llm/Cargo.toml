@@ -1,0 +1,10 @@
+[package]
+name = "cranibox-llm"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.89"
+description = "Cranibox loopback model subscription proxy (WS2, WS3, WS4, WS6). Phase 0 skeleton."
+
+[dependencies]
+cranibox-contracts = { path = "../cranibox-contracts" }
