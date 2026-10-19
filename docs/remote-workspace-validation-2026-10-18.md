@@ -1364,3 +1364,9 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 最终容器 running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 1403228、程序摘要与 NodeID node-82bf96c6f15d4f00923656f7877b8609 保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 仍在运行，无测试预览、节点、MCP 进程或测试安装包残留。日常程序没有升级。
 
 私有证据 /config/validation-artifacts/federated-activity-20261019 保存各轮 backend 日志、Rust/原生测试和构建/Clippy 日志、两端界面日志、web-first-failure trace、四份截图、source-binaries.json 和 final-health.json。配置、令牌、截图、正文和原始日志不提交。后续接手应按本轮产品提交核对 CI 与安装包，不以旧 87f20ee 的成功矩阵代替。
+
+### 本轮提交与 CI 交接
+
+产品提交 **41b8ca6487e32837b25315e5c12bd06e54763c67** 已推送 origin/main；提交前全部 **33 份文件**与远端 SHA-256 一致，final-source-manifest.json 包含产品、测试、工作流、生成资源和六份文档。之后 CI 补记仅改文档。
+
+2026-10-19 **01:43:21 UTC** 核对相同完整 headSha：矩阵 **39186579637 in_progress**，三平台 Rust、三平台 Tauri 及 Sway/wayvnc 七项均运行中，**尚未通过**；Release **39186579662 completed/success**（README 链接和脚本检查，不代表安装包完成或公开镜像发布）；GitCode **39186579640 completed/success**。三项创建时间均为 2026-10-19T01:42:32Z。私有 ci-handoff.json 保存当时完整作业/步骤；下一位维护者继续核对矩阵终态与同提交安装包，再按交接入口 P0/P1/P2 继续。
