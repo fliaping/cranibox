@@ -246,9 +246,6 @@ class NodeE2eTests(unittest.TestCase):
         self.assertIn('handshake rejected', failed.stderr)
 
 
-if __name__ == '__main__':
-    unittest.main()
-
     def test_explicit_opt_out_allows_unverified_callers_and_conflicts_with_strict(self):
         self.cli(self.b, 'revoke', '--node', self.caller)
         both = self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.root / 'both.token', '--exec',
@@ -262,3 +259,7 @@ if __name__ == '__main__':
         # Compatibility: plaintext bearer still works only on an explicit opt-out grant.
         self.assertEqual(self.bearer(), 200)
         self.assertFalse(next(g for g in self.views()[1]['grants'] if g['node'] == self.caller)['peer']['verified'])
+
+
+if __name__ == '__main__':
+    unittest.main()
