@@ -20,6 +20,7 @@ mod projects;
 pub mod space_catalog;
 pub mod tasks;
 pub mod terminal;
+pub mod transport;
 
 use self::config::{Config, Grant, Permissions, Route};
 use crate::{

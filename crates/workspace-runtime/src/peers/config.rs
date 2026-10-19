@@ -6,6 +6,7 @@ use crate::{
     protocol::valid_node_id,
 };
 use anyhow::{Context, Result, ensure};
+pub use cranibox_contracts::net::IrohAddr;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -36,6 +37,14 @@ pub struct Permissions {
     pub activity: bool,
     #[serde(default)]
     pub spaces: bool,
+    /// Use this node's model proxy over mesh `/llm/*` (C2). Also requires roster
+    /// membership. Omitted when false so grants signed before it keep their bytes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub llm: bool,
+    /// Sync encrypted subscription records over mesh `/vault/*` (C7). Also requires
+    /// roster membership. Omitted when false so existing signatures stay valid.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub vault: bool,
 }
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -228,6 +237,9 @@ pub struct Endpoint {
     pub allow_insecure: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_forward_lock: Option<PathBuf>,
+    /// iroh address of the target (C2). Set by WS1; `url` remains the HTTP path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iroh: Option<IrohAddr>,
 }
 impl Endpoint {
     pub(crate) fn validate(&self) -> Result<()> {
@@ -282,6 +294,7 @@ impl Route {
             url: self.url.clone(),
             allow_insecure: self.allow_insecure,
             local_forward_lock: self.local_forward_lock.clone(),
+            iroh: None,
         }];
         endpoints.extend(self.alternatives.clone());
         endpoints
@@ -445,7 +458,9 @@ impl Config {
                     || grant.permissions.browser
                     || grant.permissions.messages
                     || grant.permissions.activity
-                    || grant.permissions.spaces,
+                    || grant.permissions.spaces
+                    || grant.permissions.llm
+                    || grant.permissions.vault,
                 "grant has no capabilities"
             );
         }
@@ -662,7 +677,9 @@ mod tests {
                 && !legacy.browser
                 && !legacy.messages
                 && !legacy.activity
-                && !legacy.spaces,
+                && !legacy.spaces
+                && !legacy.llm
+                && !legacy.vault,
             "old grants must not acquire new capabilities"
         );
         let mut value = Config::new();
@@ -818,6 +835,96 @@ mod tests {
             Config::read(&path).is_ok(),
             "restoring the original key recovers the node"
         );
+    }
+    #[test]
+    fn llm_vault_and_iroh_fields_round_trip_in_v2_without_changing_old_signatures() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        let token = config::token();
+        let issued = Grant::issue(
+            &token,
+            Permissions {
+                exec: true,
+                ..Permissions::default()
+            },
+        );
+        let saved = Config::update(&path, |c| {
+            c.grants.insert("caller".into(), issued.clone());
+            Ok(())
+        })
+        .unwrap();
+        // New fields stay out of the signed bytes while false.
+        let before: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let permissions = &before["grants"]["caller"]["permissions"];
+        assert!(permissions.get("llm").is_none() && permissions.get("vault").is_none());
+        let signature = saved.grants["caller"].signature.clone().unwrap();
+        let reread = Config::update(&path, |_| Ok(())).unwrap();
+        assert_eq!(reread.grants["caller"].signature.as_ref(), Some(&signature));
+        // Setting them persists, re-signs and reads back.
+        let iroh = IrohAddr {
+            endpoint_id: "1".repeat(64),
+            relay_url: Some("https://hub.example.com/relay".into()),
+            direct: vec!["203.0.113.10:41641".into()],
+        };
+        let route_token = root.path().join("route.token");
+        std::fs::write(&route_token, "secret").unwrap();
+        let updated = Config::update(&path, |c| {
+            let grant = c.grants.get_mut("caller").unwrap();
+            grant.permissions.llm = true;
+            grant.permissions.vault = true;
+            c.routes.insert(
+                "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9".into(),
+                Route {
+                    url: "https://a.example.com/".into(),
+                    token_file: route_token.clone(),
+                    allow_insecure: false,
+                    local_forward_lock: None,
+                    alternatives: vec![Endpoint {
+                        url: "https://b.example.com/".into(),
+                        allow_insecure: false,
+                        local_forward_lock: None,
+                        iroh: Some(iroh.clone()),
+                    }],
+                    target_identity: None,
+                    config_path: None,
+                },
+            );
+            Ok(())
+        })
+        .unwrap();
+        assert_ne!(
+            updated.grants["caller"].signature.as_ref(),
+            Some(&signature)
+        );
+        let read = Config::read(&path).unwrap();
+        assert_eq!(read.version, VERSION);
+        let grant = &read.grants["caller"];
+        assert!(grant.permissions.llm && grant.permissions.vault && grant.permissions.exec);
+        let route = &read.routes["node-0a1b2c3d4e5f60718293a4b5c6d7e8f9"];
+        assert_eq!(route.alternatives[0].iroh.as_ref(), Some(&iroh));
+        assert!(route.endpoints()[0].iroh.is_none());
+        let file: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(file["grants"]["caller"]["permissions"]["llm"], true);
+        assert!(
+            file["routes"]["node-0a1b2c3d4e5f60718293a4b5c6d7e8f9"]
+                .get("iroh")
+                .is_none()
+        );
+        // A grant with only the new capabilities is still a valid grant.
+        let mut only_llm = Config::new();
+        only_llm.grants.insert(
+            "caller".into(),
+            Grant::issue(
+                &token,
+                Permissions {
+                    llm: true,
+                    ..Permissions::default()
+                },
+            ),
+        );
+        assert!(only_llm.validate().is_ok());
     }
     #[test]
     fn self_signed_replacement_cannot_reauthorize_the_node() {

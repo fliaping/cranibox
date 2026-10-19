@@ -1,8 +1,10 @@
 mod actions;
+mod app_api;
 mod applications;
 mod desktop;
 mod metrics;
 mod projects;
+mod relay;
 mod remote;
 mod server;
 mod terminal;
