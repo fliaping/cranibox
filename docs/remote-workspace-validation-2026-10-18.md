@@ -1555,7 +1555,7 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 
 私有证据 **/config/validation-artifacts/space-setup-lifecycle-20261019** 保存各轮命令、耗时、日志、源码摘要、六份截图和 final-health.json；最终待提交源码、测试、生成资源及文档与远端快照逐项核对，清单为 final-source-manifest.json。配置、凭据、截图、原始日志与辅助脚本不入 Git。
 
-## 2026-10-19：当前产品完整 XFCE 镜像与最终交接
+## 2026-10-19：2299b45 产品完整 XFCE 镜像与交接
 
 产品来源固定为 **2299b4559846eb1019a2b9e5faa6ba3b17f7e0bd**，已在 origin/main。收尾仅整理文档，没有修改 Rust/React、生成资源、依赖或测试，也没有重跑已经通过的 187 项 Rust、140 项 Web、55 项模拟 IPC 检查。源码 git archive 的本机与远端 SHA-256 均为 **60668e0850e61acff937694bf20813ccee6f7bc993c5295764f743a42be3c925**。
 
@@ -1570,3 +1570,23 @@ Web 新两项包含在 140 项内，覆盖过期后重新核对、一次事件�
 最终健康核对通过：cranibox-validation running/healthy、privileged=false、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID **538744**、客户端 PID **1403228**、原程序 SHA-256 与 NodeID 均保持；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。owned_processes=[]、test_package_absent=true，没有安装测试包、操作全局键鼠/剪贴板或留下所属测试服务。
 
 私有证据 **/config/validation-artifacts/image-head-2299b45-20261019** 保存源码归档、源码展开目录、build.log、build.json、build-metadata.json、startup.log、startup.json、startup-summary.json、public-metadata.json、ci-snapshot-044646.json、final-health.json 与 evidence-audit.json。最终复核来源/平台/镜像/检查器摘要、44 项检查及四项清理，并实际确认容器/卷已不存在、builder 已停止；证据文件 SHA-256 保存在 audit 中。功能需求、测试边界、后续优先级和复现入口集中在[交接文档](implementation-handoff-2026-10-18.md)；本轮精简其首页，保留历史结果与版本限制，便于下一位模型继续。原始证据与辅助脚本不入 Git。
+
+## 2026-10-19：虚拟空间镜像恢复与接手整理
+
+基于 **1e063a62721326de35f3cf29b1ba498a537db7db**，为失败、中断或已归档空间添加修改镜像并重试的 Web/Tauri 共用入口，CLI resume 同时支持可选 --image 与 --pull-policy。已有容器必须先归档；引擎检查失败不会误当容器不存在。修改保持 UUID、NodeID、凭据和数据卷，不迁移应用数据，也不自动重建正在使用的容器。错误保留草稿，取消恢复焦点，成功聚焦空间卡片；同步锁与客户端连续点击保护继续生效。
+
+验证仍只在指定远端 admin@192.168.217.6:22022 的 cranibox-validation、abc 用户执行；本机仅编辑、静态审阅、传输与 Git。Rust 工作区 **187 通过、3 默认忽略，77.239 秒**；空间后端 **11/11，无跳过，17.684 秒**；最终 Web 空间专项 **9/9，17.942 秒**。后端是实际 Rust 服务与 Docker 命令夹具；前端新场景使用可控 API，不能计作真实 Docker、多设备桌面或 Windows/macOS 系统安装。详细命令和边界统一见[当前测试](implementation-handoff-2026-10-18.md#测试情况与可信范围)。
+
+初始 Web 全量 **140 通过、1 失败，302.110 秒**，启动早于重新编译结束，旧内嵌页面没有新按钮；重建后的第二轮 **140 通过、1 失败，264.520 秒**，隐式标签纳入选项文本，精确标签定位失败。修正为显式 ID 关联，没有调整断言、超时或测试次数。两轮失败日志、trace 均单独保留。第二轮结束前同步了修正源码，原报告的结束时源码摘要不能证明旧页面来源；最终测试新增开始/结束源码摘要、开始时程序和生成资源摘要，并核对 source_unchanged=true。
+
+最终两端 TypeScript/Vite 构建通过，耗时 **14.048 / 11.918 秒**；在最终 Web 资源之后重新构建四个 Rust 程序，**11.179 秒**。fmt **1.699 秒**、原生 desktop,custom-protocol all-targets Clippy -D warnings **12.293 秒** 均通过，其后只改 React 标签和样式，Rust 源码未变。已知 use client 与大包提示保留；Web 生成资源取回仓库。没有因此重复运行未变化的 Rust 测试或系统安装。
+
+布局检查覆盖 375/768/1440、明暗主题、reduced-motion、无横向溢出和表单控件至少 44 像素；六份完整页面截图在私有 layout 目录。人工审阅 375 亮色与 1440 暗色，内容、错误、表单和按钮可读，顶栏未遮挡正文；不代表手机实机。私有证据 **/config/validation-artifacts/space-image-recovery-20261019** 保存各轮命令、耗时、日志、摘要、失败 trace 和截图，不提交凭据、原始证据或辅助脚本。完整镜像验证仍分别绑定旧 2299b45/8566f59，不能沿用为本轮镜像恢复修改的镜像验收；默认公开镜像、三平台实机与完整同步等未完成项仍按交接文档继续。
+
+最终完整 Web 回归 **141/141，236.540 秒，退出 0**；报告 web-all-verified.json 的开始/结束八项源码摘要一致，最终 Web 资源与四个程序摘要在启动前记录。空间专项九项包含在此全量内，不重复累计；没有修改断言或放宽期限。
+
+随后 Tauri 界面全量 **56/56，72.301 秒，退出 0**，开始/结束源码一致。新增归档空间更换镜像与策略、通过 IPC 恢复原身份及焦点的回归；使用模拟 IPC，macOS 平台字段是夹具，不能当作真实 macOS GUI、Docker 或系统安装验收。
+
+最终健康检查保持日常 Web PID **538744**、客户端 PID **1403228**、程序摘要和 NodeID；plasmashell 484、kwin_wayland 475、Selkies 306、Xwayland 488 未重启。容器 running/healthy、privileged=false、无宿主 Docker socket，3080/3031 匿名 401、认证 200，owned_processes=[]、test_package_absent=true。没有升级日常程序或操作全局键鼠/剪贴板。私有 final-health.json 与 final-source-manifest.json 分别保存环境和源码/资源/报告核对，原始失败证据保留。
+
+产品提交 **a93b863346d6557b824e274611cc46bb904a897f** 已推送 origin/main。**2026-10-19 05:25 UTC** 实查该完整来源：三平台矩阵 **39204312609**、Release **39204312601**、GitCode **39204312589** 已触发，均 queued。旧 2299b45 矩阵 **39199888520** 三个平台桌面包成功、其余四项 queued，同来源双架构镜像 **39200391726** 为 pending；55fbe2a 矩阵 **39196468666** 六项成功、Linux Rust in_progress。未把排队或旧来源成功记为当前产品通过，也未重复触发、发布镜像或替换日常程序。下一位模型继续核对这些已有运行的 headSha、终态和产物。
