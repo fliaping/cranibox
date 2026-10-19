@@ -199,6 +199,12 @@ class BackgroundAgentSyncTests(unittest.TestCase):
         observed = {'active': 0, 'peak': 0, 'started': 0}
         class Handler(http.server.BaseHTTPRequestHandler):
             def answer(self, projects=False):
+                if self.path.endswith('/api/v1/mesh/keys'):
+                    # Pose as an older target without end-to-end keys so only pulls are counted.
+                    self.send_response(404)
+                    self.send_header('Content-Length', '0')
+                    self.end_headers()
+                    return
                 if projects:
                     self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 node = self.headers['X-Cranibox-Target']

@@ -195,8 +195,16 @@ class ActivityTests(unittest.TestCase):
 
     def test_bounded_read_supports_records_larger_than_the_generic_api_limit(self):
         self.enable('--messages', '--activity')
-        for _ in range(132):
-            self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', self.envelope(text='x'*8192))[0], 200)
+        # Spread across senders: each sender is limited to 60 messages per minute.
+        senders = [(self.caller, self.token)]
+        for index in range(2):
+            node, token_path = f'bulk-sender-{index}', self.h.root/f'bulk-sender-{index}.token'
+            self.cli('grant', '--allow-unverified', '--node', node, '--messages', '--output-token', token_path)
+            senders.append((node, token_path.read_text().strip()))
+        for index in range(132):
+            sender, token = senders[index % len(senders)]
+            self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', self.envelope(sender, text='x'*8192),
+                                         {'Authorization': 'Bearer '+token})[0], 200)
         snapshot = self.snapshot()
         self.assertEqual(len(snapshot['messages']), 132)
         self.assertGreater(len(json.dumps(snapshot)), 1024*1024)
