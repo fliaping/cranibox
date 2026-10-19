@@ -16,6 +16,7 @@ import unittest
 from urllib.parse import urlsplit
 
 import test_node_peers as peers
+from test_node_e2e import RecordingProxy
 from test_cranibox_terminal import Socket
 from workspace_web_harness import NODE, sockets_allowed, until
 
@@ -132,6 +133,46 @@ class BrowserUseTests(unittest.TestCase):
                            {'Authorization': f'Bearer {self.token}', 'X-Cranibox-Target': self.target, **headers})
         self.addCleanup(ws.close)
         return ws
+
+    def proxy_session(self, tamper=False):
+        """Route the caller through a recording relay and open the process-scoped CDP proxy."""
+        self.enable(); self.start()
+        relay = RecordingProxy(self.port, tamper_streams=tamper); self.addCleanup(relay.close)
+        self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{relay.port}', '--credential-file', self.token_path)
+        log = (self.root / 'proxy.log').open('wb'); self.logs.append(log)
+        process = subprocess.Popen([str(NODE), '--config', str(self.a), 'peer', 'call', '--node', self.target, 'browser-proxy'], stdout=subprocess.PIPE, stderr=log, text=True)
+        self.processes.append(process); self.addCleanup(process.stdout.close)
+        self.assertTrue(select.select([process.stdout], [], [], 10)[0], 'proxy failed to publish endpoint')
+        url = urlsplit(json.loads(process.stdout.readline())['websocket'])
+        ws = BrowserSocket(url.port, url.path); self.addCleanup(ws.close); self.assertEqual(ws.status, 101)
+        return relay, ws
+
+    def test_peer_stream_frames_are_end_to_end_encrypted_across_a_relay(self):
+        relay, ws = self.proxy_session()
+        marker = 'WS_E2E_SECRET_' + os.urandom(8).hex()
+        ws.send({'id': 7, 'method': 'Runtime.evaluate', 'params': {'expression': marker}})
+        reply = json.loads(ws.recv()[1])
+        self.assertEqual((reply['id'], reply['result']['method']), (7, 'Runtime.evaluate'))
+        self.assertEqual(self.commands[-1]['params']['expression'], marker, 'the target browser got the plaintext command')
+        with relay.lock:
+            seen = bytes(relay.seen)
+        self.assertIn(b'x-cranibox-e2e-auth', seen.lower(), 'the stream was opened with a session proof')
+        self.assertIn(b'101 Switching Protocols', seen)
+        self.assertNotIn(marker.encode(), seen, 'WebSocket payloads must not cross the relay in plaintext')
+        self.assertNotIn(b'Runtime.evaluate', seen)
+        self.assertNotIn(self.token.encode(), seen)
+
+    def test_tampered_stream_frame_closes_the_stream_without_delivering_it(self):
+        relay, ws = self.proxy_session(tamper=True)
+        ws.send({'id': 9, 'method': 'Browser.getVersion'})
+        until(lambda: self.commands)
+        try:
+            opcode, data = ws.recv()
+        except (OSError, ValueError):
+            opcode, data = None, b''
+        self.assertEqual(relay.tampered, 1)
+        self.assertNotEqual(opcode, 1, f'a modified frame must never be delivered: {data!r}')
+        self.assertNotIn(b'Browser.getVersion', data or b'')
 
     def test_legacy_grants_and_disabled_provider(self):
         self.configure(); self.start()

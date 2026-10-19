@@ -74,6 +74,7 @@ pub(super) async fn upgrade(
     State(app): State<App>,
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
+    secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, Failure> {
     check_target(&app, &node)?;
@@ -106,6 +107,7 @@ pub(super) async fn upgrade(
         endpoint
             .into_client_request()
             .map_err(|_| failure(StatusCode::BAD_GATEWAY, "Invalid CDP endpoint"))?,
+        None,
     )
     .await
     .map_err(|_| {
@@ -122,10 +124,14 @@ pub(super) async fn upgrade(
         ));
     }
     Ok(ws
-        .max_message_size(browser::MAX_MESSAGE)
-        .max_frame_size(browser::MAX_MESSAGE)
+        .max_message_size(browser::MAX_MESSAGE + crate::peer::secure_ws::MARGIN)
+        .max_frame_size(browser::MAX_MESSAGE + crate::peer::secure_ws::MARGIN)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
+            let socket = crate::peer::secure_ws::SecureSocket::new(
+                socket,
+                secret.as_ref().map(|Extension(s)| s),
+            );
             let _ = crate::peer::browser_proxy::relay(socket, upstream, check).await;
         }))
 }

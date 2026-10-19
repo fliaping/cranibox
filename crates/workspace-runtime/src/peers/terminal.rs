@@ -79,16 +79,20 @@ impl Terminal {
             .terminal(node, session, cols, rows, takeover)
             .await
     }
-    pub(crate) async fn connect_request(request: Request<()>) -> Result<Self> {
+    pub(crate) async fn connect_request(
+        request: Request<()>,
+        cipher: Option<crate::peers::e2e::stream::Cipher>,
+    ) -> Result<Self> {
         // No Origin, proxy, or redirect: credentials go only to this configured origin.
         let config = WebSocketConfig::default()
-            .max_message_size(Some(MAX_FRAME))
-            .max_frame_size(Some(MAX_FRAME));
-        let (mut socket, _) = tokio::time::timeout(
+            .max_message_size(Some(MAX_FRAME + crate::peers::e2e::stream::OVERHEAD))
+            .max_frame_size(Some(MAX_FRAME + crate::peers::e2e::stream::OVERHEAD));
+        let (socket, _) = tokio::time::timeout(
             Duration::from_secs(15),
             connect_async_with_config(request, Some(config), true),
         )
         .await??;
+        let mut socket = crate::peers::e2e::socket::SecureSocket::new(socket, cipher);
         let (input, mut incoming) = mpsc::channel::<Input>(32);
         let (output, events) = mpsc::channel(32);
         let task = tokio::spawn(async move {

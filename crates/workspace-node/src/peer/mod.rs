@@ -1,6 +1,7 @@
 //! Opt-in target-authorized direct transport, independent of the Workspace gateway.
 mod browser_proxy;
 pub mod config;
+pub(crate) mod secure_ws;
 mod server;
 pub(crate) use server::start_with_catalog;
 pub(crate) use server::{NetworkEndpoint, NetworkListener};

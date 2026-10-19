@@ -6,10 +6,7 @@ use agent_workspace_runtime::peers::{
 use anyhow::{Context, Result, ensure};
 use axum::{
     Router,
-    extract::{
-        State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
-    },
+    extract::{State, WebSocketUpgrade, ws::Message},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
@@ -52,12 +49,13 @@ async fn upgrade(State(app): State<App>, headers: HeaderMap, ws: WebSocketUpgrad
     ws.max_message_size(browser::MAX_MESSAGE)
         .max_frame_size(browser::MAX_MESSAGE)
         .on_upgrade(move |socket| async move {
+            let socket = crate::peer::secure_ws::SecureSocket::plain(socket);
             let _ = relay(socket, upstream, move || !app.stop.is_cancelled()).await;
         })
 }
 
 pub(crate) async fn relay(
-    mut local: WebSocket,
+    mut local: crate::peer::secure_ws::SecureSocket,
     mut upstream: Socket,
     valid: impl Fn() -> bool + Send + Sync,
 ) -> Result<()> {

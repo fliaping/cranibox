@@ -53,6 +53,7 @@ pub(super) async fn upgrade(
     State(app): State<App>,
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
+    secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
 ) -> Result<Response<Body>, Failure> {
     check_target(&app, &node)?;
@@ -65,7 +66,9 @@ pub(super) async fn upgrade(
     let mut desktop = open(&app, Some(caller), true)
         .await
         .map_err(|e| failure(StatusCode::CONFLICT, &e.to_string()))?;
-    Ok(ws.max_message_size(MAX_CHUNK).max_frame_size(MAX_CHUNK).on_upgrade(move |mut socket| async move {
+    let margin = crate::peer::secure_ws::MARGIN;
+    Ok(ws.max_message_size(MAX_CHUNK + margin).max_frame_size(MAX_CHUNK + margin).on_upgrade(move |socket| async move {
+        let mut socket = crate::peer::secure_ws::SecureSocket::new(socket, secret.as_ref().map(|Extension(s)| s));
         let run: Result<()> = async {
             loop {
                 tokio::select! {

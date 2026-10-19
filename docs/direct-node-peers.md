@@ -8,7 +8,7 @@
 
 `cranibox-node peer identity` 创建并显示本机持久 NodeID。配置保存在节点 `settings.json` 同目录的 `peers.json`；所有命令支持 `--config /path/to/settings.json` 选择隔离目录，即使该 settings 文件不存在也可以使用 `peer`。NodeID 与 IP、主机名无关，删除配置会丢失身份和授权。
 
-每个节点首次运行时生成持久 Ed25519 签名密钥和独立的 X25519 Noise 密钥（私钥保存在 `peers.json` 旁的 `node-identity.json`，`0600`，不会被覆盖或导出）。新节点的 NodeID 由公钥派生（`node-` + 公钥哈希前 128 位，与旧格式同形），已有随机 NodeID 保持不变并由同一密钥自签名绑定。`peer identity` 显示公钥指纹。`peers.json` 只保存 bearer 凭据的加盐 SHA-256 摘要，授权记录由目标节点签名；手工改写权限或去掉签名会被拒绝。远端请求用目标颁发的 256 位凭据授权；新版节点之间所有 mesh 调用自动走 Noise IK 端到端加密通道，凭据只在加密握手内传输，并在首次连接时互相固定公钥。两端 `peer identity` 显示相同的 12 位配对码，核对后执行 `peer verify --node NODE --code CODE`；`peer grant --require-verified` 要求核对完成且拒绝明文请求。终端/桌面 WebSocket 的数据帧目前仍只受传输层保护。身份、迁移和威胁模型详见[节点身份与端到端加密](node-identity-and-e2e.md)。
+每个节点首次运行时生成持久 Ed25519 签名密钥和独立的 X25519 Noise 密钥（私钥保存在 `peers.json` 旁的 `node-identity.json`，`0600`，不会被覆盖或导出）。新节点的 NodeID 由公钥派生（`node-` + 公钥哈希前 128 位，与旧格式同形），已有随机 NodeID 保持不变并由同一密钥自签名绑定。`peer identity` 显示公钥指纹。`peers.json` 只保存 bearer 凭据的加盐 SHA-256 摘要，授权记录由目标节点签名；手工改写权限或去掉签名会被拒绝。远端请求用目标颁发的 256 位凭据授权；新版节点之间所有 mesh 调用自动走 Noise IK 端到端加密通道，凭据只在加密握手内传输，并在首次连接时互相固定公钥。两端 `peer identity` 显示相同的 12 位配对码，核对后执行 `peer verify --node NODE --code CODE`；`peer grant --require-verified` 要求核对完成且拒绝明文请求。终端、桌面与浏览器 WebSocket 的数据帧也逐帧端到端加密。身份、迁移和威胁模型详见[节点身份与端到端加密](node-identity-and-e2e.md)。
 
 新设备的网关注册默认使用持久 NodeID；显式保存的 `settings.id`/`--id` 继续兼容。旧注册可在 Web“远程节点”或 `cranibox runtime migrate-identity` 中显式迁移到同一设备的 NodeID，保留 Token、设备组、项目和 Shell 关联，原 ID 作为兼容别名保留。运行中的网关任务会阻止实际迁移。网关与直连共用同一节点进程中的 Shell；两边的项目目录仍是独立来源，身份迁移不会自动合并目录或复制项目文件。详见[迁移旧网关身份](project-session-catalog.md#迁移旧网关身份)。
 
@@ -208,6 +208,6 @@ HTTP 提交可带 UUID `Idempotency-Key`。同一凭据、同一规范化请求�
 
 本轮真实 Web/节点测试还覆盖中继停止后创建与接回直连 Shell、环境变量和进程号保持、改名、尺寸调整、撤销附着及后台 Shell 保留；既有本地和中继终端回归继续通过。浏览器测试覆盖 Web 适配器及模拟 Tauri IPC 下的共享终端、输入、最小化、关闭和重新附着。容器缺少 Tauri 的 Linux 系统开发依赖，尚未完成桌面原生构建和三平台实际运行验证，IPC 模拟不能替代这些验证。
 
-阶段 B 已实现 EasyTier 托管、多入口与短期邀请，及系统 Tailscale 登录、按设备查找节点和保存目标授权，见[设备网络](device-networks.md)。共享项目目录、明确启用的后台目录增量同步、旧网关身份显式迁移、离线只读快照、本机/直连节点间经确认的分块工作文件复制，以及[持久设备消息与独立 MCP](device-messages.md)也已实现。新连接支持显式多路径选路；公钥身份、配对码核对与端到端加密已实现（见[节点身份与端到端加密](node-identity-and-e2e.md)），仍需 WebSocket 数据帧端到端加密、全网目录自动分发及既有连接无缝迁移。本机后台执行、会话寻址、Task/Dispatch 和默认关闭的自动接单已有明确入口，运行会话接续见[交付设计](distributed-agent-workspace-design.md)。
+阶段 B 已实现 EasyTier 托管、多入口与短期邀请，及系统 Tailscale 登录、按设备查找节点和保存目标授权，见[设备网络](device-networks.md)。共享项目目录、明确启用的后台目录增量同步、旧网关身份显式迁移、离线只读快照、本机/直连节点间经确认的分块工作文件复制，以及[持久设备消息与独立 MCP](device-messages.md)也已实现。新连接支持显式多路径选路；公钥身份、配对码核对与端到端加密已实现（见[节点身份与端到端加密](node-identity-and-e2e.md)），WebSocket 数据帧也已逐帧加密；仍需全网目录自动分发及既有连接无缝迁移。本机后台执行、会话寻址、Task/Dispatch 和默认关闭的自动接单已有明确入口，运行会话接续见[交付设计](distributed-agent-workspace-design.md)。
 
 空间管理节点还可单独授予 --spaces，只共享基本空间目录，不授予 Docker 操作、空间登录凭据或空间节点访问。Web/Tauri 会在“虚拟空间”中汇总已连接节点的授权目录；CLI 使用 peer call --node NODE spaces。详见[跨设备空间目录](virtual-spaces.md#跨设备空间目录)。

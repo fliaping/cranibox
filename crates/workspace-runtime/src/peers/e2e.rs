@@ -19,6 +19,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
+pub mod socket;
+pub mod stream;
+
 const TAG: usize = 16;
 /// Plaintext bytes per Noise transport message (Noise caps a message at 65535 bytes).
 const CHUNK: usize = 65_000;
@@ -232,8 +235,9 @@ impl ServerSession {
         self.send = start.checked_add(count).context("nonce space exhausted")?;
         seal(&self.transport, start, &plaintext)
     }
-    /// Verify a WebSocket upgrade proof bound to this session and request path.
-    pub fn open_stream_proof(&mut self, proof: &str, path: &str) -> Result<()> {
+    /// Verify a WebSocket upgrade proof bound to this session and request path, and
+    /// return the stream secret that encrypts the WebSocket's data frames.
+    pub fn open_stream_proof(&mut self, proof: &str, path: &str) -> Result<stream::Secret> {
         let frame = decode_hex(proof)?;
         let (start, count) = frame_nonces(&frame)?;
         ensure!(count == 1, "invalid stream proof");
@@ -243,9 +247,10 @@ impl ServerSession {
             claim.path == path && claim.at.abs_diff(now()) <= SKEW,
             "stream proof does not match this request"
         );
+        let secret = stream::Secret::from_hex(&claim.secret)?;
         self.admit(start, 1)?;
         self.used = Instant::now();
-        Ok(())
+        Ok(secret)
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -253,6 +258,8 @@ impl ServerSession {
 struct StreamClaim {
     path: String,
     at: u64,
+    /// Fresh per-stream secret for WebSocket frame encryption (see `stream`).
+    secret: String,
 }
 
 /// Responder-side session table, bounded and expiring.
@@ -432,14 +439,17 @@ impl ClientSession {
         let status = u16::from_be_bytes(plaintext[8..10].try_into()?);
         Ok((status, plaintext[10..].to_vec()))
     }
-    /// Proof that a WebSocket upgrade comes from this session's caller.
-    pub fn stream_proof(&self, path: &str) -> Result<String> {
+    /// Proof that a WebSocket upgrade comes from this session's caller, carrying a
+    /// fresh secret that encrypts the stream's data frames end to end.
+    pub fn stream_proof(&self, path: &str) -> Result<(String, stream::Secret)> {
+        let secret = stream::Secret::random();
         let claim = serde_json::to_vec(&StreamClaim {
             path: path.to_owned(),
             at: now(),
+            secret: secret.to_hex(),
         })?;
         let start = self.reserve(1);
-        Ok(hex(&seal(&self.transport, start, &claim)?))
+        Ok((hex(&seal(&self.transport, start, &claim)?), secret))
     }
 }
 fn decode_hex(value: &str) -> Result<Vec<u8>> {
@@ -586,18 +596,27 @@ mod tests {
         let (a, b, _root) = pair();
         let mut sessions = Sessions::default();
         let (client, id) = session(&a, &b, &mut sessions);
-        let proof = client
-            .stream_proof("/api/v1/mesh/nodes/x/desktop/ws")
-            .unwrap();
+        let path = "/api/v1/mesh/nodes/x/desktop/ws";
+        let (proof, secret) = client.stream_proof(path).unwrap();
+        assert!(
+            !proof.contains(&secret.to_hex()),
+            "the secret travels encrypted"
+        );
         let server = sessions.get(&id).unwrap();
         assert!(
             server
                 .open_stream_proof(&proof, "/api/v1/mesh/nodes/x/terminal/ws")
                 .is_err()
         );
-        server
-            .open_stream_proof(&proof, "/api/v1/mesh/nodes/x/desktop/ws")
-            .unwrap();
+        let received = server.open_stream_proof(&proof, path).unwrap();
+        // Both ends derive the same frame keys from the secret.
+        let mut caller = stream::Cipher::caller(&secret, path);
+        let mut target = stream::Cipher::target(&received, path);
+        let frame = caller.seal(&stream::Data::Text("hi".into())).unwrap();
+        assert_eq!(
+            target.open(&frame).unwrap(),
+            stream::Data::Text("hi".into())
+        );
         assert!(
             server
                 .open_stream_proof(&proof, "/api/v1/mesh/nodes/x/desktop/ws")

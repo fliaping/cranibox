@@ -262,17 +262,27 @@ pub(super) async fn call(
 }
 
 /// Authorize a WebSocket upgrade with a session-bound proof instead of a bearer secret.
-pub(super) fn stream_caller(app: &App, header: &str, path: &str) -> Option<Caller> {
+pub(super) fn stream_caller(
+    app: &App,
+    header: &str,
+    path: &str,
+) -> Option<(Caller, crate::peer::secure_ws::StreamSecret)> {
     let (id, proof) = header.split_once('.')?;
-    let (identity, credential) = {
+    let (identity, credential, secret) = {
         let mut sessions = app.sessions.lock().ok()?;
         let session = sessions.get(id)?;
-        session.open_stream_proof(proof, path).ok()?;
-        (session.caller.clone(), session.credential.clone())
+        let secret = session.open_stream_proof(proof, path).ok()?;
+        (session.caller.clone(), session.credential.clone(), secret)
     };
     let grant = current(app, &identity, &credential).filter(Grant::usable)?;
-    Some(Caller {
-        node: identity.node_id,
-        grant,
-    })
+    Some((
+        Caller {
+            node: identity.node_id,
+            grant,
+        },
+        crate::peer::secure_ws::StreamSecret {
+            secret,
+            path: path.to_owned(),
+        },
+    ))
 }

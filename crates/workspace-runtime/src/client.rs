@@ -305,7 +305,7 @@ impl Api {
         &self,
         endpoint: &crate::peers::config::Endpoint,
         path: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<(String, crate::peers::e2e::stream::Cipher)>> {
         let Some(e2e) = &self.e2e else {
             return Ok(None);
         };
@@ -313,10 +313,10 @@ impl Api {
             return Ok(None);
         };
         let session = self.session(e2e, &target, endpoint).await?;
-        Ok(Some(format!(
-            "{}.{}",
-            session.id,
-            session.stream_proof(path)?
+        let (proof, secret) = session.stream_proof(path)?;
+        Ok(Some((
+            format!("{}.{proof}", session.id),
+            crate::peers::e2e::stream::Cipher::caller(&secret, path),
         )))
     }
     async fn sealed(
@@ -504,14 +504,15 @@ impl Api {
             .append_pair("rows", &rows.to_string())
             .append_pair("takeover", &takeover.to_string());
         let mut request = url.as_str().into_client_request()?;
-        self.authorize_stream(&mut request, endpoint, url.path())
+        let cipher = self
+            .authorize_stream(&mut request, endpoint, url.path())
             .await?;
         if let Some(target) = &self.target {
             request
                 .headers_mut()
                 .insert("x-cranibox-target", target.parse()?);
         }
-        crate::peers::terminal::Terminal::connect_request(request).await
+        crate::peers::terminal::Terminal::connect_request(request, cipher).await
     }
     /// Use a bound direct target, or a gateway with authenticated caller identity.
     pub async fn desktop(&self, node: &str) -> Result<crate::peers::desktop::Stream> {
@@ -529,14 +530,15 @@ impl Api {
         let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
         url.set_path(&format!("{prefix}/nodes/{node}/desktop/ws"));
         let mut request = url.as_str().into_client_request()?;
-        self.authorize_stream(&mut request, endpoint, url.path())
+        let cipher = self
+            .authorize_stream(&mut request, endpoint, url.path())
             .await?;
         if let Some(target) = &self.target {
             request
                 .headers_mut()
                 .insert("x-cranibox-target", target.parse()?);
         }
-        crate::peers::desktop::Stream::connect_request(request).await
+        crate::peers::desktop::Stream::connect_request(request, cipher).await
     }
     /// Browser CDP is only available on an explicitly bound direct target.
     pub async fn browser(&self, node: &str) -> Result<crate::peers::browser::Socket> {
@@ -552,12 +554,13 @@ impl Api {
             .map_err(|_| anyhow::anyhow!("invalid browser URL"))?;
         url.set_path(&format!("/api/v1/mesh/nodes/{node}/browser/ws"));
         let mut request = url.as_str().into_client_request()?;
-        self.authorize_stream(&mut request, endpoint, url.path())
+        let cipher = self
+            .authorize_stream(&mut request, endpoint, url.path())
             .await?;
         request
             .headers_mut()
             .insert("x-cranibox-target", node.parse()?);
-        crate::peers::browser::connect(request).await
+        crate::peers::browser::connect(request, cipher).await
     }
     /// Session-bound proof for end-to-end targets (the bearer secret stays off the wire),
     /// or the bearer secret for gateways and older targets.
@@ -566,18 +569,19 @@ impl Api {
         request: &mut tokio_tungstenite::tungstenite::handshake::client::Request,
         endpoint: &crate::peers::config::Endpoint,
         path: &str,
-    ) -> Result<()> {
-        if let Some(proof) = self.stream_auth(endpoint, path).await? {
+    ) -> Result<Option<crate::peers::e2e::stream::Cipher>> {
+        if let Some((proof, cipher)) = self.stream_auth(endpoint, path).await? {
             request
                 .headers_mut()
                 .insert(crate::peers::e2e::STREAM_AUTH_HEADER, proof.parse()?);
+            Ok(Some(cipher))
         } else {
             request.headers_mut().insert(
                 "authorization",
                 format!("Bearer {}", self.token(endpoint)?).parse()?,
             );
+            Ok(None)
         }
-        Ok(())
     }
     async fn request(
         &self,

@@ -17,8 +17,11 @@ from workspace_web_harness import NODE, free_port, sockets_allowed, until
 class RecordingProxy:
     """A relay that forwards TCP bytes and records everything it sees, like a gateway would."""
 
-    def __init__(self, upstream):
+    def __init__(self, upstream, tamper_streams=False):
         self.upstream = upstream
+        # Flip one bit of the first target-to-caller chunk after a WebSocket upgrade.
+        self.tamper_streams = tamper_streams
+        self.tampered = 0
         self.seen = bytearray()
         self.lock = threading.Lock()
         self.server = socket.socket()
@@ -36,15 +39,31 @@ class RecordingProxy:
             except OSError:
                 return
             upstream = socket.create_connection(('127.0.0.1', self.upstream))
-            for a, b in ((client, upstream), (upstream, client)):
-                threading.Thread(target=self.pipe, args=(a, b), daemon=True).start()
+            for a, b, back in ((client, upstream, False), (upstream, client, True)):
+                threading.Thread(target=self.pipe, args=(a, b, back), daemon=True).start()
 
-    def pipe(self, source, sink):
+    def pipe(self, source, sink, back=False):
+        upgraded = False
         try:
             while data := source.recv(65536):
                 with self.lock:
                     self.seen += data
-                sink.sendall(data)
+                if back and not upgraded and data.startswith(b'HTTP/1.1 101'):
+                    upgraded = True
+                    head, _, rest = data.partition(b'\r\n\r\n')
+                    sink.sendall(head + b'\r\n\r\n')
+                    data = rest
+                # Only data frames (FIN + binary) are end-to-end protected; control frames
+                # such as heartbeat pongs are not, so leave those intact.
+                if back and upgraded and self.tamper_streams and not self.tampered and data[:1] == b'\x82' and len(data) > 24:
+                    # Flip the first payload byte of that frame (a coalesced chunk may
+                    # carry further frames after it).
+                    code = data[1] & 127
+                    at = 2 + (2 if code == 126 else 8 if code == 127 else 0)
+                    data = data[:at] + bytes([data[at] ^ 1]) + data[at + 1:]
+                    self.tampered += 1
+                if data:
+                    sink.sendall(data)
         except OSError:
             pass
         finally:

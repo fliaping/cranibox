@@ -64,12 +64,12 @@ async fn rendezvous_binds_target_ticket_and_generation_and_releases_cancelled_re
         request
     };
     assert!(
-        Stream::connect_request(request(&other_token, &ticket))
+        Stream::connect_request(request(&other_token, &ticket), None)
             .await
             .is_err()
     );
     assert!(
-        Stream::connect_request(request(&target_token, "wrong-ticket"))
+        Stream::connect_request(request(&target_token, "wrong-ticket"), None)
             .await
             .is_err()
     );
@@ -77,7 +77,7 @@ async fn rendezvous_binds_target_ticket_and_generation_and_releases_cancelled_re
     browser
         .headers_mut()
         .insert("origin", "http://localhost".parse().unwrap());
-    assert!(Stream::connect_request(browser).await.is_err());
+    assert!(Stream::connect_request(browser, None).await.is_err());
     gateway
         .app
         .inner
@@ -88,7 +88,7 @@ async fn rendezvous_binds_target_ticket_and_generation_and_releases_cancelled_re
         .unwrap()
         .generation = "next".into();
     assert!(
-        Stream::connect_request(request(&target_token, &ticket))
+        Stream::connect_request(request(&target_token, &ticket), None)
             .await
             .is_err()
     );
@@ -101,11 +101,11 @@ async fn rendezvous_binds_target_ticket_and_generation_and_releases_cancelled_re
         .get_mut("target")
         .unwrap()
         .generation = "first".into();
-    let mut target = Stream::connect_request(request(&target_token, &ticket))
+    let mut target = Stream::connect_request(request(&target_token, &ticket), None)
         .await
         .unwrap();
     assert!(
-        Stream::connect_request(request(&target_token, &ticket))
+        Stream::connect_request(request(&target_token, &ticket), None)
             .await
             .is_err()
     );

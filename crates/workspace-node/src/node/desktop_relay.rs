@@ -22,7 +22,7 @@ pub(super) async fn run(
     request
         .headers_mut()
         .insert("x-cranibox-desktop-ticket", ticket.parse()?);
-    let mut relay = Stream::connect_request(request).await?;
+    let mut relay = Stream::connect_request(request, None).await?;
     loop {
         tokio::select! {
             output = desktop.output.recv() => match output {
