@@ -111,3 +111,72 @@ pub(super) async fn connect(path: &Path) -> Result<NamedPipeClient, MgmtError> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::windows::io::AsRawHandle;
+
+    #[tokio::test]
+    async fn management_pipe_rejects_duplicate_server_and_has_protected_owner_acl() {
+        use windows_sys::Win32::{
+            Foundation::LocalFree,
+            Security::{
+                Authorization::{
+                    ConvertSecurityDescriptorToStringSecurityDescriptorW, GetSecurityInfo,
+                    SE_KERNEL_OBJECT,
+                },
+                DACL_SECURITY_INFORMATION,
+            },
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("management");
+        let listener = Listener::bind(&path).await.unwrap();
+        assert!(Listener::bind(&path).await.is_err());
+        let mut descriptor = std::ptr::null_mut();
+        // SAFETY: live pipe handle and valid output pointer. The allocated descriptor
+        // and its textual conversion are released with LocalFree before asserting.
+        let status = unsafe {
+            GetSecurityInfo(
+                listener.inner.as_raw_handle(),
+                SE_KERNEL_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut descriptor,
+            )
+        };
+        assert_eq!(status, 0);
+        let mut sddl = std::ptr::null_mut();
+        let converted = unsafe {
+            ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor,
+                1,
+                DACL_SECURITY_INFORMATION,
+                &mut sddl,
+                std::ptr::null_mut(),
+            )
+        };
+        unsafe {
+            LocalFree(descriptor);
+        }
+        assert_ne!(converted, 0);
+        let text = unsafe {
+            let mut len = 0;
+            while *sddl.add(len) != 0 {
+                len += 1;
+            }
+            let text = String::from_utf16_lossy(std::slice::from_raw_parts(sddl, len));
+            LocalFree(sddl as _);
+            text
+        };
+        assert!(text.starts_with("D:P"), "DACL must be protected: {text}");
+        assert_eq!(text.matches("(A;").count(), 1, "only one allow ACE: {text}");
+        assert!(
+            text.ends_with(";;;OW)"),
+            "only the owner is granted access: {text}"
+        );
+    }
+}

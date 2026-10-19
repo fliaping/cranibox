@@ -309,3 +309,88 @@ no_list = true
 quirks = ["minimax_plan"]
 key_hint = "套餐使用 sk-cp-；备用域名，请先测试连接"
 anthropic = "https://api.minimax.cn/anthropic"
+
+# P2 endpoints checked against provider documentation on 2026-10-19.
+# Detailed references and limitations: tests/providers/ENDPOINTS.md.
+[[preset]]
+id = "stepfun"
+label = "阶跃星辰（国内）"
+region = ["cn"]
+default_wire = "messages"
+models = ["step-3.5-flash"]
+no_list = false
+quirks = ["messages_bearer"]
+key_hint = "使用阶跃开放平台 API key"
+chat = "https://api.stepfun.com/v1"
+anthropic = "https://api.stepfun.com"
+
+[[preset]]
+id = "stepfun-global"
+label = "阶跃星辰（国际）"
+region = ["global"]
+default_wire = "messages"
+models = ["step-3.5-flash"]
+no_list = false
+quirks = ["messages_bearer"]
+key_hint = "使用阶跃开放平台 API key；国际 API 入口"
+chat = "https://api.stepfun.ai/v1"
+anthropic = "https://api.stepfun.ai"
+
+[[preset]]
+id = "mimo"
+label = "小米 MiMo 按量"
+region = ["cn", "global"]
+default_wire = "messages"
+models = ["mimo-v2.5"]
+no_list = true
+quirks = ["mimo_api_key"]
+key_hint = "使用 MiMo 开放平台按量 API key；套餐请选择 Token Plan"
+chat = "https://api.xiaomimimo.com/v1"
+anthropic = "https://api.xiaomimimo.com/anthropic"
+
+[[preset]]
+id = "mimo-token"
+label = "小米 MiMo Token Plan"
+region = ["cn", "global"]
+default_wire = "messages"
+models = ["mimo-v2.5"]
+no_list = true
+quirks = ["mimo_api_key"]
+key_hint = "使用 MiMo Token Plan 专属 key，勿与按量 key 混用"
+chat = "https://token-plan-api.mimo.mi.com/v1"
+anthropic = "https://token-plan-api.mimo.mi.com"
+
+[[preset]]
+id = "qianfan"
+label = "百度千帆"
+region = ["cn"]
+default_wire = "chat"
+models = ["ernie-5.0-thinking-latest"]
+no_list = true
+quirks = []
+key_hint = "使用千帆控制台 API key，无需填写旧版 access_token"
+chat = "https://qianfan.baidubce.com/v2"
+
+[[preset]]
+id = "hunyuan"
+label = "腾讯混元（原 API）"
+region = ["cn"]
+default_wire = "messages"
+models = ["hunyuan-turbos-latest"]
+no_list = true
+quirks = []
+key_hint = "使用混元控制台 API key；新模型请选择腾讯 TokenHub"
+chat = "https://api.hunyuan.cloud.tencent.com/v1"
+anthropic = "https://api.hunyuan.cloud.tencent.com/anthropic"
+
+[[preset]]
+id = "tencent-tokenhub"
+label = "腾讯 TokenHub"
+region = ["cn"]
+default_wire = "messages"
+models = ["hy3"]
+no_list = true
+quirks = []
+key_hint = "使用 TokenHub 独立开通的 API key，不与原混元入口混用"
+chat = "https://tokenhub.tencentcloudmaas.com/v1"
+anthropic = "https://tokenhub.tencentcloudmaas.com"

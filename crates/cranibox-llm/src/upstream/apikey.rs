@@ -171,6 +171,29 @@ pub fn endpoints(cx: &UpstreamCx, credential: &Credential) -> BTreeMap<Wire, Str
         })
         .unwrap_or_default()
 }
+fn authenticate(
+    request: reqwest::RequestBuilder,
+    preset: Option<&Preset>,
+    wire: Wire,
+    token: &str,
+) -> reqwest::RequestBuilder {
+    let request = if preset.is_some_and(|p| p.quirks.iter().any(|q| q == "mimo_api_key")) {
+        request.header("api-key", token)
+    } else if wire == Wire::Messages
+        && preset.is_some_and(|p| p.quirks.iter().any(|q| q == "messages_bearer"))
+    {
+        request.bearer_auth(token)
+    } else if wire == Wire::Messages {
+        request.header("x-api-key", token)
+    } else {
+        request.bearer_auth(token)
+    };
+    if wire == Wire::Messages {
+        request.header("anthropic-version", "2023-06-01")
+    } else {
+        request
+    }
+}
 pub struct ApiKey;
 impl ApiKey {
     pub async fn send_count(
@@ -222,13 +245,12 @@ impl ApiKey {
             let mut request = client()
                 .post(endpoint(&selected, req.wire, count)?)
                 .json(&body);
-            request = if req.wire == Wire::Messages {
-                request
-                    .header("x-api-key", &credential.access_token)
-                    .header("anthropic-version", "2023-06-01")
-            } else {
-                request.bearer_auth(&credential.access_token)
-            };
+            request = authenticate(
+                request,
+                cx.preset.as_ref(),
+                req.wire,
+                &credential.access_token,
+            );
             if cx
                 .preset
                 .as_ref()
@@ -338,13 +360,7 @@ impl Upstream for ApiKey {
         };
         crate::catalog::validate_url(&url).map_err(|_| UpstreamError::Unsupported)?;
         let request = client().get(url);
-        let request = if wire == Wire::Messages {
-            request
-                .header("x-api-key", &credential.access_token)
-                .header("anthropic-version", "2023-06-01")
-        } else {
-            request.bearer_auth(&credential.access_token)
-        };
+        let request = authenticate(request, preset, wire, &credential.access_token);
         let discovered = async {
             let response = request
                 .send()

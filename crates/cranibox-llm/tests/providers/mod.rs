@@ -22,6 +22,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+mod lifecycle;
 #[derive(Clone)]
 struct Recorded {
     path: String,
@@ -174,11 +175,21 @@ async fn every_api_key_preset_uses_exact_endpoint_and_native_auth() {
                 "{} {wire:?}",
                 preset.id
             );
-            if wire == Wire::Messages {
+            if preset.quirks.iter().any(|q| q == "mimo_api_key") {
+                assert_eq!(call.headers["api-key"], "fake-key");
+                assert!(!call.headers.contains_key("authorization"));
+                assert!(!call.headers.contains_key("x-api-key"));
+            } else if wire == Wire::Messages && preset.quirks.iter().any(|q| q == "messages_bearer")
+            {
+                assert_eq!(call.headers["authorization"], "Bearer fake-key");
+                assert!(!call.headers.contains_key("x-api-key"));
+            } else if wire == Wire::Messages {
                 assert_eq!(call.headers["x-api-key"], "fake-key");
-                assert_eq!(call.headers["anthropic-version"], "2023-06-01");
             } else {
                 assert_eq!(call.headers["authorization"], "Bearer fake-key");
+            }
+            if wire == Wire::Messages {
+                assert_eq!(call.headers["anthropic-version"], "2023-06-01");
             }
         }
     }

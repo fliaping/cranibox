@@ -105,7 +105,44 @@ struct Flow {
     complete: Option<AccountSummary>,
     credential: Option<Credential>,
     account: Option<AccountSummary>,
+    failure: Option<&'static str>,
     stop: tokio_util::sync::CancellationToken,
+}
+impl Flow {
+    fn fail(&mut self, message: &'static str) {
+        self.failure = Some(message);
+        self.expires = 0;
+        self.state.clear();
+        self.verifier.clear();
+        self.code = None;
+        self.device = None;
+        self.credential = None;
+        self.stop.cancel();
+    }
+    fn callback(&mut self, query: &HashMap<String, String>) -> Result<(), MgmtError> {
+        if self.expires <= now() || query.get("state") != Some(&self.state) {
+            return Err(MgmtError::Invalid("invalid or expired callback".into()));
+        }
+        if self.code.is_some() || self.credential.is_some() || self.complete.is_some() {
+            return Err(MgmtError::Invalid("callback already received".into()));
+        }
+        if query.contains_key("error") {
+            self.fail("授权未完成，请重新登录");
+            return Err(MgmtError::Invalid("授权未完成，请重新登录".into()));
+        }
+        let code = query
+            .get("code")
+            .filter(|code| !code.is_empty())
+            .ok_or_else(|| MgmtError::Invalid("callback code missing".into()))?;
+        self.code = Some(code.clone());
+        self.stop.cancel();
+        Ok(())
+    }
+}
+impl Drop for Flow {
+    fn drop(&mut self) {
+        self.stop.cancel();
+    }
 }
 pub fn summary(provider: &str, node: &str, label: Option<String>) -> AccountSummary {
     AccountSummary {
@@ -133,6 +170,26 @@ impl OAuth {
             config,
             flows: Default::default(),
         }
+    }
+    /// In-process cancellation. The C3 management contract has no cancel operation yet.
+    /// An exchange already in progress is allowed to persist its rotating credentials first.
+    pub async fn cancel(&self, flow_id: &str) -> Result<(), MgmtError> {
+        let flow = self
+            .flows
+            .lock()
+            .await
+            .get(flow_id)
+            .cloned()
+            .ok_or(MgmtError::NotFound)?;
+        let mut flow = flow.lock().await;
+        if flow.complete.is_some() {
+            return Ok(());
+        }
+        if flow.credential.is_some() {
+            return Err(MgmtError::Invalid("登录凭据待保存，请重试完成登录".into()));
+        }
+        flow.fail("登录已取消，请重试");
+        Ok(())
     }
     async fn device(&self, provider: &str, opts: SignInOpts) -> Result<SignInStart, MgmtError> {
         let (url, client) = match provider {
@@ -205,6 +262,7 @@ impl OAuth {
                 complete: None,
                 credential: None,
                 account: None,
+                failure: None,
                 stop: tokio_util::sync::CancellationToken::new(),
             },
         )
@@ -218,7 +276,15 @@ impl OAuth {
     }
     async fn insert(&self, id: String, flow: Flow) -> Result<(), MgmtError> {
         let mut flows = self.flows.lock().await;
-        flows.retain(|_, f| f.try_lock().map_or(true, |f| f.expires > now()));
+        flows.retain(|_, f| {
+            f.try_lock().map_or(true, |mut f| {
+                if f.expires > now() || f.credential.is_some() {
+                    return true;
+                }
+                f.fail("登录已过期，请重试");
+                false
+            })
+        });
         if flows.len() >= 32 {
             return Err(MgmtError::Invalid("too many pending sign-ins".into()));
         }
@@ -298,6 +364,7 @@ impl OAuth {
                 complete: None,
                 credential: None,
                 account: None,
+                failure: None,
                 stop: tokio_util::sync::CancellationToken::new(),
             },
         )
@@ -305,6 +372,9 @@ impl OAuth {
         if let Some(listener) = listener {
             let flow = self.flows.lock().await.get(&id).expect("inserted").clone();
             let stop = flow.lock().await.stop.clone();
+            // The listener must not keep the flow alive after the owner is dropped.
+            let flow = Arc::downgrade(&flow);
+            let expiry = flow.clone();
             let router = axum::Router::new().route(
                 "/auth/callback",
                 axum::routing::get(
@@ -313,18 +383,16 @@ impl OAuth {
                     >| {
                         let flow = flow.clone();
                         async move {
+                            let Some(flow) = flow.upgrade() else {
+                                return (axum::http::StatusCode::GONE, "Login no longer active");
+                            };
                             let mut flow = flow.lock().await;
-                            if flow.expires <= now()
-                                || query.get("state") != Some(&flow.state)
-                                || query.get("code").is_none_or(|c| c.is_empty())
-                                || flow.code.is_some()
-                            {
+                            if flow.callback(&query).is_err() {
                                 return (
                                     axum::http::StatusCode::BAD_REQUEST,
                                     "Invalid or expired callback",
                                 );
                             }
-                            flow.code = query.get("code").cloned();
                             (
                                 axum::http::StatusCode::OK,
                                 "Login received. Return to Cranibox.",
@@ -333,8 +401,34 @@ impl OAuth {
                     },
                 ),
             );
+            let router = router.layer(axum::middleware::from_fn(
+                |request, next: axum::middleware::Next| async move {
+                    let mut response = next.run(request).await;
+                    response
+                        .headers_mut()
+                        .insert("cache-control", "no-store".parse().unwrap());
+                    response
+                        .headers_mut()
+                        .insert("referrer-policy", "no-referrer".parse().unwrap());
+                    response
+                },
+            ));
             tokio::spawn(async move {
-                let _=axum::serve(listener,router).with_graceful_shutdown(async move{tokio::select!{_=stop.cancelled()=>{},_=tokio::time::sleep(Duration::from_secs(600))=>{}}}).await;
+                let _ = axum::serve(listener, router)
+                    .with_graceful_shutdown(async move {
+                        tokio::select! {
+                            _ = stop.cancelled() => {},
+                            _ = tokio::time::sleep(Duration::from_secs(600)) => {
+                                if let Some(flow) = expiry.upgrade() {
+                                    let mut flow = flow.lock().await;
+                                    if flow.complete.is_none() && flow.credential.is_none() {
+                                        flow.fail("登录已过期，请重试");
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .await;
             });
             Ok(SignInStart::Browser {
                 flow_id: id,
@@ -359,7 +453,11 @@ impl OAuth {
         if let Some(account) = &flow.complete {
             return Ok(account.clone());
         }
-        if flow.expires <= now() {
+        if let Some(message) = flow.failure {
+            return Err(MgmtError::Invalid(message.into()));
+        }
+        if flow.expires <= now() && flow.credential.is_none() {
+            flow.fail("登录已过期，请重试");
             return Err(MgmtError::Invalid("登录已过期，请重试".into()));
         }
         if let Some(callback) = input.callback_url {
@@ -371,16 +469,7 @@ impl OAuth {
                 return Err(MgmtError::Invalid("callback origin/path mismatch".into()));
             }
             let pairs: HashMap<_, _> = url.query_pairs().into_owned().collect();
-            if pairs.get("state") != Some(&flow.state) {
-                return Err(MgmtError::Invalid("callback state mismatch".into()));
-            }
-            flow.code = Some(
-                pairs
-                    .get("code")
-                    .filter(|c| !c.is_empty())
-                    .ok_or_else(|| MgmtError::Invalid("callback code missing".into()))?
-                    .clone(),
-            );
+            flow.callback(&pairs)?;
         }
         if input.code.is_some() {
             return Err(MgmtError::Invalid(
@@ -476,7 +565,7 @@ impl OAuth {
                     | "token_revoked"
                     | "refresh_token_reused",
                 ) => {
-                    flow.expires = 0;
+                    flow.fail("授权已失效，请重新登录");
                     return Err(UpstreamError::Auth.into());
                 }
                 Some(_) => return Err(apikey::status_error(status, None, Some(&value)).into()),
