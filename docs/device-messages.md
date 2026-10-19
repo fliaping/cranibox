@@ -164,6 +164,8 @@ cranibox-node peer messages hook-config --harness codex    # 保存为 ~/.codex/
 cranibox-node peer messages hook-config --harness claude --wake-on-stop   # 额外配置 Stop
 ```
 
+生成的命令按平台引用路径：macOS/Linux 使用 POSIX 单引号（Claude Code 走 `sh -c`，Codex 走 `$SHELL -lc`）；Windows 上 Claude Code 使用 exec 形式（`command` 为程序路径，参数放在 `args`，不经 Git Bash/PowerShell 解析），Codex 使用 `cmd.exe /C` 的双引号写法。cmd 在引号内仍会展开 `%`，因此路径含 `%` 时 Codex 配置会直接报错，需改用不含 `%` 的路径。
+
 **回退。** 未配置 hook 时行为不变，Agent 通过 MCP `device_messages` 工具读取收件箱。Codex app-server 未接入：Codex hooks 已覆盖投递，app-server 需要另行托管会话，暂不实现。
 
 **所有者提醒。** 托盘菜单第一项显示“N 条消息待批准，打开审批”，点击打开窗口；Linux 上图标旁同时显示“N 待批准”（appindicator 不支持提示文字），macOS/Windows 的提示文字也包含该数量。审批仍在控制中心、桌面窗口或 CLI 中完成。
