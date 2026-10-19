@@ -1289,3 +1289,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 最终容器 running/healthy、privileged=false、无宿主 Docker socket，3080/3031 均匿名 401、认证 200。日常 Web PID 538744、原生客户端 PID 1403228、程序摘要及 node-82bf96c6f15d4f00923656f7877b8609 身份保持；KDE/Selkies 未重启，未操作桌面输入或剪贴板，无预览/MCP 进程或测试安装包残留。日常程序没有升级。
 
 私有证据 /config/validation-artifacts/agent-catalog-sync-20261019：integration-second.log、build-checks.log、final-assets-checks.{json,log}、client-full.log、web-final.log、首次失败日志及 web-second-failure/web-full-failure trace、source-binaries.json、final-health.json 与 375/1440 截图。配置、令牌、截图、原始正文与辅助脚本不提交。Windows/macOS 实机、三物理设备同步、系统登录、完整账本复制、公开兼容镜像发布及实际 Agent 接续仍按交接入口的 P0/P1/P2 继续。
+
+### 本轮提交与 CI 交接
+
+产品提交 87f20ee3ceea0e0de65161f62e19d4cb28427c81 已推送 origin/main。完整 headSha 核对的 Rust/Tauri/Wayland 矩阵 39178636288 交接时为 in_progress，**尚未记作通过**；Release 39178636180 与 Sync to GitCode 39178636169 均 completed/success。GitHub 创建时间为 2026-10-18T23:57:30Z、23:57:29Z、23:57:29Z。ci-handoff.json 保存当时作业和步骤；后续只补文档，不改变测试过的产品代码。下一位维护者核对矩阵终态，再使用该提交的安装包做原生验收；默认公开空间镜像仍未发布。
