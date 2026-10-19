@@ -1,6 +1,7 @@
 //! Opt-in target-authorized direct transport, independent of the Workspace gateway.
 mod browser_proxy;
 pub mod config;
+pub(crate) mod hook;
 pub(crate) mod secure_ws;
 mod server;
 pub(crate) use server::start_with_catalog;
@@ -50,6 +51,9 @@ pub enum Command {
         #[arg(long)]
         command: Option<String>,
     },
+    /// Running Codex and Claude Code sessions on this device, found passively from their
+    /// transcript files (repo, branch, activity). Local only; nothing is registered.
+    DiscoverSessions,
     /// Configure background public Agent directory pulls; separate from project sync.
     AgentSync {
         #[arg(long)]
@@ -114,10 +118,16 @@ pub enum Command {
         /// Read only the virtual-space directory. Does not grant Docker or space credentials.
         #[arg(long)]
         spaces: bool,
-        /// Strict mode: accept only end-to-end sessions from the pinned key, and refuse every
-        /// capability until both owners compared the pairing code (peer verify).
-        #[arg(long)]
+        /// Strict mode (the default): accept only end-to-end sessions from the pinned key and
+        /// refuse every capability until the owner compared the pairing code (peer verify).
+        /// Kept for scripts written before it became the default.
+        #[arg(long, conflicts_with = "allow_unverified")]
         require_verified: bool,
+        /// Less safe opt-out: allow the caller before its pairing code is verified, and allow
+        /// plaintext bearer requests (older nodes, gateways). A key pinned on first use is
+        /// still enforced once seen.
+        #[arg(long)]
+        allow_unverified: bool,
         /// Agent-to-agent content from this caller: hold (default, human approval queue),
         /// accept, or refuse.
         #[arg(long, value_enum, default_value = "hold")]
@@ -237,6 +247,11 @@ pub enum Paths {
         url: String,
     },
 }
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum Harness {
+    Claude,
+    Codex,
+}
 #[derive(Debug, Subcommand)]
 pub enum Messages {
     /// Owner approval queue: messages held by inbound policy or the Agent loop guard.
@@ -258,6 +273,18 @@ pub enum Messages {
     },
     /// MCP stdio server for this device's mailbox; no Workspace relay required.
     Mcp,
+    /// Claude Code / Codex hook: reads the hook event JSON on stdin and injects released,
+    /// unread messages addressed to that session as untrusted context. Never fails the turn.
+    Hook,
+    /// Print hook configuration that runs `messages hook` for Claude Code or Codex.
+    HookConfig {
+        #[arg(long, value_enum)]
+        harness: Harness,
+        /// Also continue a session that is stopping when a message is waiting. The message
+        /// then arrives as the next prompt of an unattended turn; off by default.
+        #[arg(long)]
+        wake_on_stop: bool,
+    },
     Send {
         /// Reuse this UUID when retrying an ambiguous local submission.
         #[arg(long = "message-id")]
@@ -432,6 +459,17 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 &path, command,
             )?);
         }
+        Command::DiscoverSessions => {
+            use agent_workspace_runtime::peers::discovery;
+            let home = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .context("HOME is not set")?;
+            let sessions = discovery::discover(
+                &discovery::Roots::from_env(&home),
+                std::time::SystemTime::now(),
+            );
+            client::print(json!({"sessions": sessions}));
+        }
         Command::AgentSync { command } => {
             let command =
                 serde_json::from_str(command.as_deref().unwrap_or(r#"{"operation":"status"}"#))?;
@@ -484,6 +522,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
         Command::Messages { action } => {
             use agent_workspace_runtime::peers::{Store, messages::Command as Message};
             let store = Store::new(path.clone());
+            if matches!(action, Messages::Hook) {
+                return crate::peer::hook::run(&store).await;
+            }
             if matches!(action, Messages::Mcp) {
                 Config::read(&path)?;
                 let stop = CancellationToken::new();
@@ -494,7 +535,9 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 return result;
             }
             let command = match action {
-                Messages::Mcp => unreachable!("handled MCP"),
+                Messages::Mcp | Messages::Hook | Messages::HookConfig { .. } => {
+                    unreachable!("handled above")
+                }
                 Messages::List { session } => Message::List { session },
                 Messages::Send {
                     message_id,
@@ -591,7 +634,8 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             messages,
             activity,
             spaces,
-            require_verified,
+            require_verified: _,
+            allow_unverified,
             inbound,
         } => {
             ensure!(valid_node_id(&node), "invalid caller node ID");
@@ -642,7 +686,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                         spaces,
                     },
                 );
-                grant.require_verified = require_verified;
+                grant.require_verified = !allow_unverified;
                 grant.inbound = inbound.into();
                 value.grants.insert(node, grant);
                 Ok(())

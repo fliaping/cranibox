@@ -78,7 +78,7 @@ class ComputerUseTests(unittest.TestCase):
     def enable(self):
         self.cli(self.b, 'revoke', '--node', self.caller)
         self.token_path.unlink()
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--computer', '--desktop')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--computer', '--desktop')
         self.token = self.token_path.read_text().strip()
         self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{self.port}', '--credential-file', self.token_path)
         self.configure()
@@ -137,7 +137,7 @@ class ComputerUseTests(unittest.TestCase):
         self.acquire(); self.cli(self.b, 'revoke', '--node', self.caller)
         self.assertEqual(self.request('status')[0], 401)
         token = self.root / 'other.token'
-        self.cli(self.b, 'grant', '--node', 'other-node', '--output-token', token, '--computer')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', 'other-node', '--output-token', token, '--computer')
         self.token = token.read_text().strip()
         until(lambda: self.request('status')[1]['result']['control_busy'] is False)
         self.acquire()
@@ -146,7 +146,7 @@ class ComputerUseTests(unittest.TestCase):
         self.enable(); self.start()
         lease = self.acquire()
         token = self.root / 'other.token'
-        self.cli(self.b, 'grant', '--node', 'other-node', '--output-token', token, '--computer')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', 'other-node', '--output-token', token, '--computer')
         self.token = token.read_text().strip()
         for operation in ('renew', 'release'):
             self.assertEqual(self.request(operation, lease=lease)[0], 409)

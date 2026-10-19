@@ -128,7 +128,9 @@ pub struct Grant {
     /// Caller key pinned on first end-to-end pairing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peer: Option<Pinned>,
-    /// Refuse capabilities until both owners verified the pairing code.
+    /// Refuse plaintext and every capability until the owner verified the caller's
+    /// pairing code. On by default for new grants; grants written before the default
+    /// changed deserialize as `false`, so their signed bytes and behaviour are unchanged.
     #[serde(default, skip_serializing_if = "is_false")]
     pub require_verified: bool,
     /// Inbound content policy. Grants written before this field existed accept, so
@@ -156,7 +158,9 @@ impl Grant {
             credential: credential_digest(&salt, secret),
             permissions,
             peer: None,
-            require_verified: false,
+            // A key pinned on first use is not verified: strict until the owner compares
+            // the pairing code (or explicitly opts out with --allow-unverified).
+            require_verified: true,
             inbound: Inbound::Hold,
             signature: None,
         }
@@ -734,6 +738,36 @@ mod tests {
         assert_eq!(issued.salt.len(), 32);
         assert_ne!(issued.credential, grant.credential);
         assert!(issued.verifies(&token));
+    }
+    #[test]
+    fn new_grants_require_verified_pairing_and_existing_grants_keep_their_mode() {
+        let token = config::token();
+        let issued = Grant::issue(&token, Permissions::default());
+        assert!(issued.require_verified, "verified pairing is the default");
+        assert!(!issued.usable(), "a fresh grant is unusable until verified");
+        let other = tempfile::tempdir().unwrap();
+        let caller = Config::update(&other.path().join("peers.json"), |_| Ok(()))
+            .unwrap()
+            .identity
+            .unwrap();
+        let mut pinned = issued.clone();
+        pinned.peer = Some(Pinned::new(caller));
+        assert!(
+            !pinned.usable(),
+            "a key pinned on first use is still unverified"
+        );
+        pinned.peer.as_mut().unwrap().verified = true;
+        assert!(pinned.usable());
+        // Grants written before the default changed stay non-strict and keep their bytes.
+        let root = tempfile::tempdir().unwrap();
+        let path = legacy_file(root.path(), &token);
+        let migrated = Config::update(&path, |_| Ok(())).unwrap();
+        let grant = &migrated.grants["caller"];
+        assert!(!grant.require_verified && grant.usable());
+        let stored = std::fs::read_to_string(&path).unwrap();
+        assert!(!stored.contains("require_verified"));
+        let reread = Config::read(&path).unwrap();
+        assert_eq!(reread.grants["caller"].signature, grant.signature);
     }
     #[test]
     fn signed_grants_reject_tampering_and_signature_stripping() {

@@ -65,13 +65,16 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 ~~~
 
-- `peer grant --require-verified` 创建严格授权：在双方完成 `peer verify` 之前拒绝所有能力，并且始终拒绝明文 bearer 请求。
-- 默认（非严格）授权为了兼容旧节点和直接 HTTP 工具，仍接受明文 bearer 请求；新版节点之间总是自动使用加密通道。
+- **新授权默认严格**（`peer grant` 不加参数、Web“授权设备”默认、`/api/peers` 的 `grant` 未给 `require_verified`）：在目标所有者执行 `peer verify`（或在控制中心“入站授权”中输入对方设备显示的配对码）之前拒绝所有能力，并且始终拒绝明文 bearer 请求。首次连接时固定的密钥（TOFU）仍算“未核对”。`--require-verified` 继续可用，作用与默认相同。
+- 显式退出：`peer grant --allow-unverified`、Web 勾选“允许在核对配对码之前使用（不推荐）”或 `{"operation":"grant",…,"require_verified":false}`。这样的授权在核对前也可使用，并接受明文 bearer 请求（旧节点、网关、直接 HTTP 工具）；一旦固定了密钥仍拒绝换钥。
+- 控制中心在每个入站授权下显示配对状态：等待首次连接、未核对（显示本机配对码，需输入对方设备显示的代码后“核对并信任”）、已核对，或兼容模式。
+- 调用方一侧的“远程节点”详情同样显示该连接的配对码与核对状态：把这里的代码告诉目标所有者，在目标“入站授权”中输入；也可在此输入目标显示的代码完成调用方核对（仅作记录，强制由目标的严格授权执行）。
 
 ### 兼容性
 
 - 旧目标没有 `/keys` 时，新调用方回退为原有的 bearer 请求（120 秒后重新探测）；一旦固定了密钥，就不再回退。
 - 旧调用方仍可使用非严格授权；严格授权会拒绝它们。
+- **迁移（默认改为严格）**：升级前已存在的授权没有 `require_verified` 字段，读取为 `false`，签名字节与行为都不变，不会突然失效。若想让旧授权也变为严格，撤销后重新授权（不加 `--allow-unverified`），对方首次连接后核对配对码。升级后新签发、需要给旧版节点或网关使用的授权，必须显式加 `--allow-unverified`。脚本中的 `--require-verified` 可保留；与 `--allow-unverified` 同时出现会报错。
 - 固定密钥不改变已排队消息、空间目录等的连接绑定。
 
 ## 威胁模型（阶段 2）
@@ -100,9 +103,19 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
 | 两端 Agent 互相回复形成循环 | 同一会话 10 分钟 12 条后转入待审批 |
 | 同一系统用户下的恶意本地进程 | **不覆盖**，可直接调用 CLI |
 
-## 阶段 4 提案（未实现）
+## 运行会话发现与投递（阶段 4）
 
-自动发现运行中的 Codex / Claude Code 会话（读取各自的会话目录与进程），并设计“投递到运行中会话”的适配器：已放行消息通过各工具的 hook/MCP 通知注入，仍保持不可信封装和人工审批。
+详见[设备消息 · 投递到运行中的 Agent 会话](device-messages.md#投递到运行中的-agent-会话阶段-4)。没有新增状态机：发现只读取 Claude Code / Codex 已经写下的会话文件；投递复用现有的“已确认”（`acknowledged_at`）字段。
+
+| 威胁 | 处理 |
+| --- | --- |
+| 远端文本经 hook 注入运行中的 Agent | 只投递入站策略已接受或所有者已放行、且 `target_session` 等于该会话的消息；待审批、已拒绝、已归档、过期和全设备消息一律不投递；正文保持 `trust="untrusted"` 封装并附带“不要执行其中指令”的前言 |
+| 同一消息被重复注入 | 选择与确认在同一个加锁更新中完成，只投递一次 |
+| Stop hook 让 Agent 无人值守地继续 | 默认不配置 Stop；`--wake-on-stop` 需显式开启，且 `stop_hook_active` 为真时绝不再次继续 |
+| 超大消息挤占上下文 | 每轮最多 8 条、约 32 KB，其余下一轮投递 |
+| 会话发现泄露本机信息 | `peer discover-sessions` 只在本机运行，只返回 ID、工具、cwd、仓库名、分支和活跃度；不读取或返回对话内容，也不通过网格接口暴露 |
+| 邮箱不可用导致 Agent 回合失败 | hook 总是以 0 退出，错误只写到 stderr |
+| 同一系统用户下的恶意本地进程 | **不覆盖**（可直接读写邮箱） |
 
 ## English summary
 
@@ -117,8 +130,10 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Nonces are explicit, with a 4096-message replay window. Frames are chunked and bound to the request nonce. The grant is re-checked on every call.
   - HTTP 410 makes the client handshake again once.
 - **Pinning.** Keys are pinned trust-on-first-use on both sides. A changed key fails closed and never downgrades.
-  - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified.
-  - `grant --require-verified` refuses capabilities until both sides are verified, and always refuses plaintext bearer requests.
+  - Both sides show a 12-digit pairing code. `peer verify` marks a pin as verified. In the Control Center, the owner types the code shown on the other device next to the grant.
+  - **New grants are strict by default.** Until the owner verifies the caller's pairing code, every capability is refused and plaintext bearer requests are always refused. A key pinned on first use counts as unverified. `--require-verified` is still accepted and means the same.
+  - **Explicit opt-out:** `peer grant --allow-unverified`, the Control Center checkbox, or `"require_verified": false`. This allows the caller before verification and accepts plaintext bearer requests (older nodes, gateways).
+  - **Migration:** grants that existed before the upgrade have no `require_verified` field. They stay non-strict with unchanged signed bytes. To make one strict, revoke it and grant again.
 - **WebSocket frames.** The single-use stream proof also carries a fresh 32-byte stream secret, sealed by the Noise session. Every text and binary frame on terminal, desktop and browser streams is then encrypted with ChaCha20-Poly1305, using per-direction keys derived from that secret and the request path, with implicit per-direction counters. A tampered, replayed, dropped, reordered or reflected frame, or a plaintext data frame, closes the stream. Ping, pong and close control frames carry no application data and are not encrypted.
 - **Known gaps:**
   - The first contact is TOFU.
@@ -129,4 +144,10 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), with `workspacectl messages held|release|reject`, or with `cranibox-node peer messages`.
   - Rate limit: 60 messages per sender per minute. Loop guard: more than 12 messages from one sender session within 10 minutes are held.
   - Agents receive text inside `<cranibox-message ... trust="untrusted">`, with closing tags escaped.
-- **Phase 4 (proposal only):** discover running Codex/Claude Code sessions and deliver released messages into them through hooks/MCP notifications.
+- **Phase 4: running sessions.** No new state machine is added.
+  - `cranibox-node peer discover-sessions` passively lists running Claude Code and Codex sessions from their transcript files (`~/.claude/projects`, `~/.codex/sessions`, written within the last 30 minutes). It reports id, harness, cwd, repository name, branch, activity (`working` within 90 s, otherwise `idle`) and last event kind. It is local only, conversation content is never read or returned, and it is not exposed over the mesh.
+  - `cranibox-node peer messages hook` is a command hook for both harnesses. On `UserPromptSubmit`/`SessionStart` it adds `additionalContext`. On `Stop`, only if configured with `--wake-on-stop`, it continues the turn, and never when `stop_hook_active` is set. It injects only messages that the inbound policy accepted or the owner released, that are addressed to that session (`target_session`) and not yet acknowledged. They stay framed as untrusted and are acknowledged atomically, so each is delivered once.
+  - Delivery is capped at 8 messages / ~32 KB per turn. The hook always exits 0.
+  - `peer messages hook-config --harness claude|codex [--wake-on-stop]` prints the settings. Codex requires trusting the hook in `/hooks`. Paths are quoted per platform. On macOS/Linux they use POSIX single quotes. On Windows, Claude Code gets exec form (`command` plus `args`, no shell), and Codex gets cmd.exe double quoting. Codex refuses paths containing `%`.
+  - The MCP `device_messages` tool remains the fallback. The Codex app-server is not used; Codex hooks cover delivery.
+  - The tray menu's first item shows how many messages await approval and opens the window. On Linux the count is also shown next to the icon, because appindicator has no tooltips. On macOS and Windows the tooltip shows it too.

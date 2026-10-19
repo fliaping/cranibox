@@ -8,6 +8,7 @@ pub mod computer;
 pub mod config;
 mod copies;
 pub mod desktop;
+pub mod discovery;
 pub mod e2e;
 pub mod executions;
 pub mod identity;
@@ -132,6 +133,10 @@ pub enum Command {
         /// Inbound content policy; new grants hold for a human unless set.
         #[serde(default)]
         inbound: Option<config::Inbound>,
+        /// Require a verified pairing code before any capability or plaintext request
+        /// (default true). `false` is an explicit, less safe opt-out.
+        #[serde(default)]
+        require_verified: Option<bool>,
     },
     Revoke {
         node: String,
@@ -555,6 +560,7 @@ impl Store {
                 node,
                 permissions,
                 inbound,
+                require_verified,
             } => {
                 let path = self.path.clone();
                 tokio::task::spawn_blocking(move || {
@@ -584,6 +590,9 @@ impl Store {
                                 let mut grant = Grant::issue(&token, permissions);
                                 if let Some(inbound) = inbound {
                                     grant.inbound = inbound;
+                                }
+                                if let Some(required) = require_verified {
+                                    grant.require_verified = required;
                                 }
                                 grant
                             });
@@ -717,6 +726,7 @@ mod tests {
             assert!(
                 store
                     .manage(Command::Grant {
+                        require_verified: None,
                         node: node.into(),
                         inbound: None,
                         permissions: Permissions::default(),
@@ -728,6 +738,7 @@ mod tests {
         assert!(
             store
                 .manage(Command::Grant {
+                    require_verified: None,
                     node: identity["node_id"].as_str().unwrap().into(),
                     inbound: None,
                     permissions: Permissions {
@@ -741,6 +752,7 @@ mod tests {
         );
         let issued = store
             .manage(Command::Grant {
+                require_verified: None,
                 node: "caller".into(),
                 inbound: None,
                 permissions: Permissions {
@@ -759,6 +771,7 @@ mod tests {
         assert!(
             store
                 .manage(Command::Grant {
+                    require_verified: None,
                     node: "caller".into(),
                     inbound: None,
                     permissions: Permissions {
@@ -791,6 +804,7 @@ mod tests {
         );
         let rotated = store
             .manage(Command::Grant {
+                require_verified: None,
                 node: "caller".into(),
                 inbound: None,
                 permissions: Permissions {

@@ -151,7 +151,7 @@ if 'fixture-wait' in prompt: time.sleep(60)
     def test_native_cli_accepts_bounded_handoff_file_and_inert_review(self):
         _, project, _, receiver, target, _, port, _, root = self.copy_fixture()
         credential = self.h.root / 'native-handoff.token'
-        receiver('grant', '--node', self.target, '--output-token', credential, '--exec', '--projects')
+        receiver('grant', '--allow-unverified', '--node', self.target, '--output-token', credential, '--exec', '--projects')
         receiver('copy-root', '--path', root)
         self.cli('connect', '--node', target, '--url', f'http://127.0.0.1:{port}', '--credential-file', credential)
         context = self.h.root / 'handoff.json'

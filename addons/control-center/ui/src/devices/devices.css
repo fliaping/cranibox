@@ -85,3 +85,10 @@
 .direct-paths .direct-error { margin-bottom: 0; }
 @media(max-width:580px) { .direct-paths li { align-items: flex-start; flex-direction: column; gap: 10px; } .direct-paths li > .direct-actions { align-self: flex-end; } }
 @media(max-width:580px) { .direct-access, .direct-token-dialog { padding: 16px; } }
+.direct-pairing { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.direct-pairing > span { display: inline-flex; align-items: center; gap: 6px; }
+.direct-pairing code { user-select: all; color: var(--direct-text); font-variant-numeric: tabular-nums; }
+.direct-pairing label { display: inline-flex; align-items: center; gap: 6px; }
+.direct-pairing input { width: 15ch; }
+.direct-pairing-pending { color: var(--danger, #e87888); }
+.direct-pairing-verified { color: var(--accent); }

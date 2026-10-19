@@ -30,7 +30,7 @@ class ActivityTests(unittest.TestCase):
     def enable(self, *permissions):
         path = self.h.root / (str(uuid.uuid4()) + '.token')
         self.cli('revoke', '--node', self.caller)
-        self.cli('grant', '--node', self.caller, '--output-token', path, *permissions)
+        self.cli('grant', '--allow-unverified', '--node', self.caller, '--output-token', path, *permissions)
         self.token = path.read_text().strip()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
 
@@ -51,7 +51,7 @@ class ActivityTests(unittest.TestCase):
         result = subprocess.run([str(NODE), '--config', str(other_settings), 'peer', 'identity'], capture_output=True, text=True, check=True, timeout=10)
         other = json.loads(result.stdout)['node_id']
         token_path = self.h.root/'third.token'
-        self.cli('grant', '--node', other, '--messages', '--output-token', token_path)
+        self.cli('grant', '--allow-unverified', '--node', other, '--messages', '--output-token', token_path)
         other_token = token_path.read_text().strip()
         message = self.envelope(other)
         self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', message, {'Authorization':'Bearer '+other_token})[0], 200)
@@ -195,8 +195,16 @@ class ActivityTests(unittest.TestCase):
 
     def test_bounded_read_supports_records_larger_than_the_generic_api_limit(self):
         self.enable('--messages', '--activity')
-        for _ in range(132):
-            self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', self.envelope(text='x'*8192))[0], 200)
+        # Spread across senders: each sender is limited to 60 messages per minute.
+        senders = [(self.caller, self.token)]
+        for index in range(2):
+            node, token_path = f'bulk-sender-{index}', self.h.root/f'bulk-sender-{index}.token'
+            self.cli('grant', '--allow-unverified', '--node', node, '--messages', '--output-token', token_path)
+            senders.append((node, token_path.read_text().strip()))
+        for index in range(132):
+            sender, token = senders[index % len(senders)]
+            self.assertEqual(self.direct('POST', f'/api/v1/mesh/nodes/{self.target}/messages', self.envelope(sender, text='x'*8192),
+                                         {'Authorization': 'Bearer '+token})[0], 200)
         snapshot = self.snapshot()
         self.assertEqual(len(snapshot['messages']), 132)
         self.assertGreater(len(json.dumps(snapshot)), 1024*1024)

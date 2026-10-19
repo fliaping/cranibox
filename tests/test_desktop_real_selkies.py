@@ -38,7 +38,7 @@ class RealSelkiesTests(unittest.TestCase):
         code, identity = h.post('/api/peers', {'operation': 'identity'})
         self.assertEqual(code, 200)
         cli('desktop', '--protocol', 'selkies', '--address', os.environ['CRANIBOX_TEST_REAL_SELKIES'])
-        cli('grant', '--node', identity['node_id'], '--desktop', '--output-token', str(h.root / 'desktop.token'))
+        cli('grant', '--allow-unverified', '--node', identity['node_id'], '--desktop', '--output-token', str(h.root / 'desktop.token'))
         clipboard = os.environ.get('CRANIBOX_TEST_SELKIES_CLIPBOARD') == '1'
         if clipboard:
             for tool in ('wl-copy', 'wl-paste'):

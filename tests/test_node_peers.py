@@ -70,7 +70,7 @@ class PeerTests(unittest.TestCase):
         self.caller = self.cli(self.a, 'identity')['node_id']
         self.target = self.cli(self.b, 'identity')['node_id']
         self.token_path = self.root / 'b-to-a.token'
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--exec', '--terminals')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--exec', '--terminals')
         self.token = self.token_path.read_text().strip()
         self.port = free_port()
         self.cli(self.b, 'listen', '--address', f'127.0.0.1:{self.port}')
@@ -181,7 +181,7 @@ class PeerTests(unittest.TestCase):
         original = self.execute('print("private")')[1]['id']
         for name, flag, denied in [('exec-only','--exec','terminal/sessions'), ('terminal-only','--terminals','exec')]:
             token_file = self.root / f'{name}.token'
-            self.cli(self.b, 'grant', '--node', name, '--output-token', token_file, flag)
+            self.cli(self.b, 'grant', '--allow-unverified', '--node', name, '--output-token', token_file, flag)
             headers = {'Authorization':'Bearer ' + token_file.read_text().strip()}
             payload = {'operation':'list'} if flag == '--exec' else {'program':'true'}
             self.assertEqual(self.http('POST', f'/nodes/{self.target}/{denied}', payload, headers)[0], 403)
@@ -190,13 +190,13 @@ class PeerTests(unittest.TestCase):
         self.assertEqual(self.cli(self.b, 'listen', '--address', '0.0.0.0:9999', check=False).returncode, 1)
         self.assertNotEqual(self.cli(self.a, 'connect', '--node', self.target, '--url','http://10.0.0.1:9000', '--credential-file',self.token_path,check=False).returncode,0)
         same_file = self.root / 'new/peers.json'
-        self.assertNotEqual(self.cli(same_file.with_name('settings.json'), 'grant', '--node', self.caller, '--output-token', same_file, '--exec', check=False).returncode, 0)
+        self.assertNotEqual(self.cli(same_file.with_name('settings.json'), 'grant', '--allow-unverified', '--node', self.caller, '--output-token', same_file, '--exec', check=False).returncode, 0)
         self.assertFalse(same_file.exists())
 
     def test_node_owned_projects_cli_mcp_and_listener_restart(self):
         self.cli(self.b, 'revoke', '--node', self.caller)
         token_file = self.root / 'catalog.token'
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', token_file, '--projects', '--terminals')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', token_file, '--projects', '--terminals')
         self.token = token_file.read_text().strip()
         self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{self.port}', '--credential-file', token_file)
         process = self.start()
@@ -241,7 +241,7 @@ class PeerTests(unittest.TestCase):
         endpoint = f'/nodes/{self.target}/projects'
         self.assertEqual(self.http('POST', endpoint, {'operation':'list'})[0], 403)
         token_file = self.root / 'projects-only.token'
-        self.cli(self.b, 'grant', '--node', 'catalog-only', '--output-token', token_file, '--projects')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', 'catalog-only', '--output-token', token_file, '--projects')
         headers = {'Authorization':'Bearer ' + token_file.read_text().strip()}
         status, catalog = self.http('POST', endpoint, {'operation':'register', 'name':'Catalog only', 'node':self.target, 'path':str(self.root)}, headers)
         self.assertEqual(status, 200, catalog)
@@ -297,7 +297,7 @@ class PeerTests(unittest.TestCase):
         ws.close()
         until(lambda: not Path(f'/proc/{pid}/stat').exists() or Path(f'/proc/{pid}/stat').read_text().split(') ')[1][0] == 'Z')
         replacement = self.root / 'replacement.token'
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', replacement, '--exec', '--terminals')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', replacement, '--exec', '--terminals')
         self.token = replacement.read_text().strip()
         self.assertEqual(self.http('GET', '/jobs/' + job)[0], 404)
         again = self.open(session)

@@ -110,7 +110,7 @@ class BrowserUseTests(unittest.TestCase):
 
     def enable(self):
         self.cli(self.b, 'revoke', '--node', self.caller); self.token_path.unlink()
-        self.cli(self.b, 'grant', '--node', self.caller, '--output-token', self.token_path, '--browser')
+        self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--browser')
         self.token = self.token_path.read_text().strip()
         self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{self.port}', '--credential-file', self.token_path)
         self.configure()
