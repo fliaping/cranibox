@@ -97,9 +97,8 @@ pub async fn run_managed_at(
 ) -> Result<()> {
     settings.validate()?;
     let local = Arc::new(crate::local::LocalNode::start(peer_path).await?);
-    if std::env::var("CRANIBOX_APP_MOCK").as_deref() != Ok("1") {
-        local.models().await?;
-    }
+    // Gateway enrollment must also work without the optional model listener.
+    // The App and mesh model routes initialize it when first used.
     let result = connect_managed(settings, control, local.clone()).await;
     let shutdown = local.shutdown().await;
     result.and(shutdown)

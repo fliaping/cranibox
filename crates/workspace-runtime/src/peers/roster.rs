@@ -147,7 +147,6 @@ impl RosterStore {
             .path
             .with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
         crate::config::write_private(&temp, &serde_json::to_vec_pretty(&roster)?, false)?;
-        fs::File::open(&temp)?.sync_all()?;
         fs::rename(&temp, &self.path)?;
         #[cfg(unix)]
         fs::File::open(self.path.parent().unwrap())?.sync_all()?;
@@ -211,7 +210,6 @@ impl OwnerKey {
                     fs::create_dir_all(parent)?;
                 }
                 crate::config::write_private(path, &seed, false)?;
-                fs::File::open(path)?.sync_all()?;
                 seed.to_vec()
             }
             Err(e) => return Err(e.into()),

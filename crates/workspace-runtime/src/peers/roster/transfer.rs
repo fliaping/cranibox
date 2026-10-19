@@ -91,7 +91,6 @@ impl OwnerKey {
                     fs::create_dir_all(parent)?;
                 }
                 crate::config::write_private(path, seed, false)?;
-                fs::File::open(path)?.sync_all()?;
                 #[cfg(unix)]
                 fs::File::open(path.parent().context("owner key directory")?)?.sync_all()?;
             }

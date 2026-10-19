@@ -91,6 +91,8 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 
 ## 架构
 
+Cranibox 新里程碑的目标规格与逐项完成情况见[设计文档](docs/design/README.md)及[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)。
+
 <p align="center">
   <a href="images/architecture.zh.svg"><img src="images/architecture.zh.png" width="900" alt="Agent Workspace 架构图"></a>
   <br><sub>点击图片查看可缩放的 SVG 版本</sub>
