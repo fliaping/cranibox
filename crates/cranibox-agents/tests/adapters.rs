@@ -207,13 +207,30 @@ fn all_six_configuration_goldens_and_drift_preserve_user_values() {
             .unwrap();
         let mut snapshot = BTreeMap::new();
         for file in &applied.files {
-            let text = fs::read_to_string(&file.path).unwrap();
+            let mut text = fs::read_to_string(&file.path).unwrap();
+            if adapter.id() == AgentId::Codex
+                && file.path.extension().and_then(|value| value.to_str()) == Some("toml")
+            {
+                // Validate the native path, then normalize only that value for
+                // the shared golden (Windows TOML may use literal backslashes).
+                let mut config = text.parse::<toml_edit::DocumentMut>().unwrap();
+                assert_eq!(
+                    config["model_catalog_json"].as_str(),
+                    env.home
+                        .join(".codex")
+                        .join("cranibox-models.json")
+                        .to_str()
+                );
+                config["model_catalog_json"] =
+                    toml_edit::value("$HOME/.codex/cranibox-models.json");
+                text = config.to_string();
+            }
             snapshot.insert(
                 file.path
                     .strip_prefix(&env.home)
                     .unwrap()
                     .to_string_lossy()
-                    .into_owned(),
+                    .replace('\\', "/"),
                 text.replace(env.home.to_str().unwrap(), "$HOME"),
             );
         }
@@ -227,7 +244,7 @@ fn all_six_configuration_goldens_and_drift_preserve_user_values() {
         }
         assert_eq!(
             rendered,
-            fs::read_to_string(golden).unwrap(),
+            fs::read_to_string(golden).unwrap().replace("\r\n", "\n"),
             "{}",
             adapter.id().as_str()
         );

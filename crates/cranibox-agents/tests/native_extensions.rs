@@ -84,15 +84,16 @@ fn native_hook_waits_for_human_and_rejects_replay_expiry_and_withdrawal() {
         return;
     }
     let root = tempfile::tempdir().unwrap();
-    let env = environment(root.path().join("home"), root.path().join("data"));
+    let env = environment(
+        root.path().join("home with spaces#%"),
+        root.path().join("data"),
+    );
     approvals::install(&env, AgentId::Pi).unwrap();
     let bridge = env.home.join(".pi/agent/cranibox-approval.mjs");
-    let code = format!(
-        "import {{request}} from {}; console.log(await request('pi','bash','echo approved'));",
-        serde_json::to_string(&bridge).unwrap()
-    );
+    let code = "import {pathToFileURL} from 'node:url'; const {request}=await import(pathToFileURL(process.argv[1]).href); console.log(await request('pi','bash','echo approved'));";
     let mut child = Command::new("node")
-        .args(["--input-type=module", "-e", &code])
+        .args(["--input-type=module", "-e", code])
+        .arg(&bridge)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -119,12 +120,10 @@ fn native_hook_waits_for_human_and_rejects_replay_expiry_and_withdrawal() {
     fs::write(env.data.join(format!("agents/approvals/{id}.json")), format!(r#"{{"id":"{id}","agent":"pi","tool":"bash","detail":"expired","created_at":1,"expires_at":2}}"#)).unwrap();
     assert!(approvals::pending(&env, "local").unwrap().is_empty());
     assert!(approvals::decide(&env, &format!("agent:{id}"), ApprovalAction::AllowOnce).is_err());
-    let code = format!(
-        "import {{request}} from {}; const controller=new AbortController(); setTimeout(()=>controller.abort(),50); console.log(await request('pi','bash','cancelled',controller.signal));",
-        serde_json::to_string(&bridge).unwrap()
-    );
+    let code = "import {pathToFileURL} from 'node:url'; const {request}=await import(pathToFileURL(process.argv[1]).href); const controller=new AbortController(); setTimeout(()=>controller.abort(),50); console.log(await request('pi','bash','cancelled',controller.signal));";
     let output = Command::new("node")
-        .args(["--input-type=module", "-e", &code])
+        .args(["--input-type=module", "-e", code])
+        .arg(&bridge)
         .output()
         .unwrap();
     assert!(output.status.success());
