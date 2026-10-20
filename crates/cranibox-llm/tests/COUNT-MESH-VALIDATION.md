@@ -1,6 +1,6 @@
 # WS2 / WS6 计数集成验收
 
-日期：2026-10-19。CONTRACT-REQUEST：请 WS0 / WS6 评审跨工作流的 RemoteRouter、Coordinated 和 node mesh 入口补丁；共享接口由 PR #23 单独评审，代理核心实现见 PR #24，WS5/6/7 基线为 PR #22 的 `3c33f35`。这些依赖完成评审后再合并。
+日期：2026-10-19；集成评审更新：2026-10-20。共享接口 PR #23 已合并；代理核心见 PR #24，WS5/6/7 见 PR #22。本分支已合入 main、#24 的 `964a0cf` 与 #22 的 `7ac8c99`，包括 Windows 节点栈、配置快照、测试端口隔离和身份重连修复。RemoteRouter、Coordinated、mesh 的 501 透传及 C8 错误映射已完成代码审查；依赖须先合入 main，再核验本 PR 的独立差异及最终头 CI。
 
 ## 行为
 
@@ -27,7 +27,7 @@
 | cargo test --workspace --locked | **484 通过，0 失败，8 个显式忽略项** |
 | 三节点回归（修复前 / 后） | 修复前预期失败：503 != 501；修复后通过 |
 
-本次代码提交为 `2841e22`，之后的合并和提交只更新验收文档。日志：`count-mesh-final-fmt.log`、`count-mesh-final-clippy.log`、`count-mesh-final-tests.log`、`count-mesh-before.log`、`count-mesh-after.log`，均保存在上述远端源码目录。
+初次计数补丁为 `2841e22`。上表为初次交付的历史验证；2026-10-20 的集成源码另存于 `/config/validation-sources/count-mesh-merge-20261020`，最终结果须核验该头 CI，不把旧结果视为新头通过。历史日志：`count-mesh-final-fmt.log`、`count-mesh-final-clippy.log`、`count-mesh-final-tests.log`、`count-mesh-before.log`、`count-mesh-after.log`，均保存在上述初次验收源码目录。
 
 8 个忽略项为已有显式测试入口：负载测量、延迟基准、公网 n0 relay、两项真实 EasyTier 测试、netns coordinator / worker fixture，以及 gio 桌面启动器。它们没有作为本次通过项计算，也未宣称已验收。
 
@@ -36,6 +36,6 @@ GitHub 跨平台 CI 随提交触发，状态以 PR 当前检查为准；本报�
 
 ## 仍需人工验收
 
-- WS0 / WS6 审阅本请求，按依赖顺序集成 #23、#24、#22 和本补丁；不能用联合测试通过代替接口评审。
+- #23 接口及本请求代码已审阅；#24、#22 与本补丁按依赖集成，最终跨平台检查通过后合并。
 - 真实设备配对、重启、网络切换和真实厂商登录由协调者验收；不读取或自动导入现有真实凭据。
 - Claude 真实订阅 / cch 验证按用户要求后置。
