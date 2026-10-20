@@ -11,7 +11,7 @@ services:
       CUSTOM_USER: ${AGENT_WORKSPACE_USER:-agent}
       PASSWORD: ${AGENT_WORKSPACE_PASSWORD:?run scripts/remote-up.sh to create .env.remote}
       AGENT_WORKSPACE_BOOTSTRAP: remote
-      AGENT_WORKSPACE_AGENT: ${AGENT_WORKSPACE_AGENT:-codex}
+      AGENT_WORKSPACE_AGENT: ${AGENT_WORKSPACE_AGENT:-deepseek-harness}
       CODE_SERVER_BIND: 0.0.0.0:8443
       CODE_SERVER_AUTH: password
       CODE_SERVER_CERT: "true"

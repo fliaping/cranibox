@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 pub struct LocalNode {
     pub id: String,
+    app: tokio::sync::OnceCell<Arc<crate::app::Service>>,
     path: PathBuf,
     catalog: Store,
     pub(crate) engine: Engine,
@@ -27,7 +28,7 @@ pub struct LocalNode {
     supervisor: crate::supervisor::Service,
     task_worker: crate::task_worker::Service,
     project_sync: crate::project_sync::Service,
-    _lock: std::fs::File,
+    identity_lock: Mutex<Option<std::fs::File>>,
 }
 impl LocalNode {
     pub async fn start(path: PathBuf) -> Result<Self> {
@@ -77,6 +78,7 @@ impl LocalNode {
         )
         .await;
         Ok(Self {
+            app: tokio::sync::OnceCell::new(),
             id: config.node_id,
             path,
             catalog,
@@ -91,8 +93,31 @@ impl LocalNode {
             project_sync,
             stop,
             peer: Mutex::new(Some(peer)),
-            _lock: lock,
+            identity_lock: Mutex::new(Some(lock)),
         })
+    }
+    pub async fn app(self: &Arc<Self>) -> Result<Arc<crate::app::Service>> {
+        self.app
+            .get_or_try_init(|| async {
+                Ok(Arc::new(crate::app::Service::new(
+                    Arc::downgrade(self),
+                    self.models().await?,
+                )))
+            })
+            .await
+            .cloned()
+    }
+    pub fn config_path(&self) -> &std::path::Path {
+        &self.path
+    }
+    pub async fn models(&self) -> Result<Arc<crate::models::Models>> {
+        self.peer
+            .lock()
+            .await
+            .as_ref()
+            .context("local node is stopping")?
+            .models()
+            .await
     }
     pub async fn manage_peers(
         &self,
@@ -235,6 +260,12 @@ impl LocalNode {
             Ok(())
         };
         self.engine.shutdown().await;
+        // Ownership ends after shutdown, even when callers retain an Arc or
+        // a concurrently spawned child briefly inherits the file descriptor.
+        if let Some(lock) = self.identity_lock.lock().await.take() {
+            fs2::FileExt::unlock(&lock)
+                .context("release the stopped local node's identity lock")?;
+        }
         result
     }
     pub async fn desktop(&self) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
@@ -452,8 +483,8 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        drop(local);
         let reopened = LocalNode::start(path).await.unwrap();
+        drop(local);
         assert_eq!(reopened.id, identity);
         assert_eq!(reopened.projects(Command::List {}).await.unwrap(), saved);
         assert!(

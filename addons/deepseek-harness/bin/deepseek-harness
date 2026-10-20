@@ -32,7 +32,6 @@ case "${1:-}" in
     ;;
   headless)
     shift
-    cd "$DSH_WORKSPACE"
     exec "$DSH_BIN" --profile headless "${patch_args[@]}" "$@"
     ;;
   *)

@@ -15,26 +15,28 @@ if [[ ! -f "$ENV_FILE" ]]; then
   agent="${AGENT_WORKSPACE_AGENT:-}"
   if [[ -z "$agent" && -t 0 ]]; then
     echo "Choose one ready-to-use Agent:"
-    echo "  1) Codex (recommended)"
+    echo "  1) DeepSeek Harness (recommended)"
     echo "  2) Claude Code"
     echo "  3) Hermes Agent"
-    echo "  4) DeepSeek Harness"
+    echo "  4) Codex"
     echo "  5) OpenClaw"
-    echo "  6) None"
+    echo "  6) Pi"
+    echo "  7) None"
     read -r -p "Agent [1]: " choice
     case "${choice:-1}" in
-      1) agent=codex ;;
+      1) agent=deepseek-harness ;;
       2) agent=claude-code ;;
       3) agent=hermes ;;
-      4) agent=deepseek-harness ;;
+      4) agent=codex ;;
       5) agent=openclaw ;;
-      6) agent=none ;;
+      6) agent=pi ;;
+      7) agent=none ;;
       *) echo "Invalid Agent choice" >&2; exit 1 ;;
     esac
   fi
-  agent="${agent:-codex}"
+  agent="${agent:-deepseek-harness}"
   case "$agent" in
-    codex|claude-code|hermes|deepseek-harness|openclaw|none) ;;
+    codex|claude-code|pi|hermes|deepseek-harness|openclaw|none) ;;
     *) echo "Unsupported AGENT_WORKSPACE_AGENT: $agent" >&2; exit 1 ;;
   esac
 
@@ -71,8 +73,9 @@ echo "ssh -N -L ${desktop_port:-3001}:127.0.0.1:${desktop_port:-3001} -L ${code_
 echo "First boot installs the remote foundation; follow progress with:"
 echo "docker logs -f agent-workspace"
 echo "Then open code-server; Agent Workspace Control Center starts the first-use guide."
-case "${selected_agent:-codex}" in
+case "${selected_agent:-deepseek-harness}" in
   codex) echo "Then open a terminal in /config/Workspace and run: codex" ;;
+  pi) echo "Then open a terminal in /config/Workspace and run: pi" ;;
   claude-code) echo "Then open a terminal in /config/Workspace and run: claude" ;;
   hermes) echo "Then open a terminal in /config/Workspace and run: hermes setup --portal" ;;
   deepseek-harness) echo "Then open the authenticated code-server path: /proxy/3080/" ;;

@@ -247,6 +247,43 @@ pub fn discover(roots: &Roots, now: SystemTime) -> Vec<Discovered> {
     found.extend(files.drain(..).filter_map(|(p, m)| claude(&p, m, now)));
     transcripts(&roots.codex.join("sessions"), 3, &mut files, cutoff);
     found.extend(files.drain(..).filter_map(|(p, m)| codex(&p, m, now)));
+    // Adapter-owned session roots include DSH, Pi, Hermes and OpenClaw.
+    // Keep the richer legacy metadata for Codex and Claude transcripts.
+    let home = roots
+        .claude
+        .parent()
+        .unwrap_or_else(|| Path::new("/nonexistent"));
+    let adapter_roots = cranibox_contracts::agents::Roots {
+        home: home.to_path_buf(),
+        extra: vec![],
+    };
+    for adapter in cranibox_agents::registry() {
+        if matches!(
+            adapter.id(),
+            cranibox_contracts::agents::AgentId::Codex
+                | cranibox_contracts::agents::AgentId::ClaudeCode
+        ) {
+            continue;
+        }
+        for session in adapter.sessions(&adapter_roots) {
+            let Some(active) = session.updated_at else {
+                continue;
+            };
+            let modified = UNIX_EPOCH + Duration::from_secs(active);
+            if modified < cutoff {
+                continue;
+            }
+            found.push(finish(
+                session.id,
+                adapter.id().as_str(),
+                session.cwd.map(|p| p.to_string_lossy().into_owned()),
+                None,
+                None,
+                modified,
+                now,
+            ));
+        }
+    }
     found.sort_by(|a, b| b.last_active.cmp(&a.last_active).then(a.id.cmp(&b.id)));
     // One entry per session (Claude can split a session across files).
     let mut seen = std::collections::BTreeSet::new();

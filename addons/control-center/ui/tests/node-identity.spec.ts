@@ -95,10 +95,18 @@ test('a floating terminal reconnects to its original Shell after the device iden
     await page.getByRole('button', { name: 'Migrate identity preview-node', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Migrate node identity', exact: true });
     await dialog.getByLabel('Target NodeID', { exact: true }).fill(target);
+    // The dialog closes before the old transport disconnects. Wait for this
+    // Shell's new attachment so input cannot race with the identity reconnect.
+    const reattached = page.waitForResponse(response => {
+      if (!response.url().endsWith('/api/terminal/ticket') || response.request().method() !== 'POST') return false;
+      const body = response.request().postDataJSON();
+      return response.ok() && body.node === target && body.session_id === session;
+    });
     await dialog.getByRole('button', { name: 'Migrate identity', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect(page.getByRole('button', { name: 'Migrate identity ' + target, exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
+    await reattached;
     await expect(pane.locator('.status')).toContainText('Connected');
     await pane.locator('.terminal-screen').click();
     await page.keyboard.type('printf "%s%s" AFTER_ "$IDENTITY_BROWSER"');
@@ -110,6 +118,7 @@ test('a floating terminal reconnects to its original Shell after the device iden
     await expect(floating.locator('.terminal-panel.beside .status')).toContainText('Connected');
     await floating.getByRole('button', { name: 'Close terminal window', exact: true }).click();
     await page.goto('/#/projects');
+    await page.locator('.projects-list').getByRole('button', { name: /Identity project/ }).click();
     await expect(page.locator('.projects-location')).toContainText('Preview Linux node');
     await expect(page.locator('.projects-sessions')).toContainText('Identity Shell');
     const migrated = await api(page, '/api/projects', { operation: 'list' });

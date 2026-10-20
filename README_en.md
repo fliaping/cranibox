@@ -264,7 +264,7 @@ docker run -d --name agent-workspace \
   -e SELKIES_CONGESTION_CONTROL=false \
   -e SELKIES_ENABLE_RESIZE=true \
   -e AGENT_WORKSPACE_BOOTSTRAP=remote \
-  -e AGENT_WORKSPACE_AGENT=codex \
+  -e AGENT_WORKSPACE_AGENT=deepseek-harness \
   -p 3001:3001 -p 8443:8443 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-xfce
@@ -332,7 +332,7 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 | `START_DOCKER` | `false` | Enable Docker inside container (requires `--privileged`) |
 | `USE_CHINA_MIRROR` | `false` | Switch to China mirrors at runtime |
 | `AGENT_WORKSPACE_BOOTSTRAP` | unset | `remote` (or `foundation` / `base`) installs code-server, Control Center, and desktop integration on first boot; `remote-up.sh` sets `remote` |
-| `AGENT_WORKSPACE_AGENT` | `none` (`codex` with `remote-up.sh`) | First-boot Agent: `codex`, `claude-code`, `hermes`, `deepseek-harness`, `openclaw`, or `none`; only used when `AGENT_WORKSPACE_BOOTSTRAP` is set |
+| `AGENT_WORKSPACE_AGENT` | `deepseek-harness` | First-boot Agent: `codex`, `claude-code`, `pi`, `hermes`, `deepseek-harness`, `openclaw`, or `none`; only used when `AGENT_WORKSPACE_BOOTSTRAP` is set |
 | `CODE_SERVER_BIND` / `CODE_SERVER_AUTH` / `CODE_SERVER_CERT` | `0.0.0.0:8443` / `password` / `true` | code-server listen address, authentication, and self-signed certificate; the password defaults to `PASSWORD` |
 | `SSH_PASSWORD` | unset | Set to enable SSH service (container port 22), value is abc user password; the compose files do not publish it, add e.g. `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |

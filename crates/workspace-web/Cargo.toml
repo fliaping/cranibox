@@ -10,6 +10,7 @@ name = "workspace-web"
 path = "src/main.rs"
 
 [dependencies]
+cranibox-agents = { path = "../cranibox-agents" }
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 clap = { version = "4", features = ["derive", "env"] }

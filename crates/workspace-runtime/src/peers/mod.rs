@@ -17,6 +17,7 @@ pub mod messages;
 mod paths;
 pub mod project_sync;
 mod projects;
+pub mod roster;
 pub mod space_catalog;
 pub mod tasks;
 pub mod terminal;

@@ -70,8 +70,24 @@ impl Launch {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Adapter {
+    DeepseekHarness,
     Codex,
     ClaudeCode,
+    Pi,
+    Hermes,
+    Openclaw,
+}
+impl Adapter {
+    pub fn id(self) -> cranibox_agents::AgentId {
+        match self {
+            Self::DeepseekHarness => cranibox_agents::AgentId::DeepseekHarness,
+            Self::Codex => cranibox_agents::AgentId::Codex,
+            Self::ClaudeCode => cranibox_agents::AgentId::ClaudeCode,
+            Self::Pi => cranibox_agents::AgentId::Pi,
+            Self::Hermes => cranibox_agents::AgentId::Hermes,
+            Self::Openclaw => cranibox_agents::AgentId::Openclaw,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -95,38 +111,42 @@ impl AgentLaunch {
             !self.prompt.trim().is_empty(),
             "task instructions are required"
         );
-        let (harness, program, args) = match (self.adapter, self.access) {
-            (Adapter::Codex, Access::ReadOnly | Access::WorkspaceWrite) => (
-                "codex",
-                "codex",
-                vec![
-                    "--ask-for-approval",
-                    "never",
-                    "exec",
-                    "--sandbox",
+        use cranibox_agents::{AgentId, HeadlessTask};
+        let id = self.adapter.id();
+        let adapter = cranibox_agents::adapter(id).context("unknown Agent")?;
+        let mut plan = adapter.headless(&HeadlessTask {
+            prompt: self.prompt.clone(),
+            cwd: self.cwd.clone(),
+            session_id: None,
+            json: false,
+        })?;
+        // Preserve the explicit access boundaries of the existing execution API.
+        match (id, self.access) {
+            (AgentId::Codex, Access::ReadOnly | Access::WorkspaceWrite) => {
+                plan.args = vec![
+                    "--ask-for-approval".into(),
+                    "never".into(),
+                    "exec".into(),
+                    "--sandbox".into(),
                     if self.access == Access::ReadOnly {
                         "read-only"
                     } else {
                         "workspace-write"
-                    },
-                    "--color",
-                    "never",
-                    "-",
-                ],
-            ),
-            (Adapter::ClaudeCode, Access::ReadOnly | Access::EditFiles) => {
+                    }
+                    .into(),
+                    "--color".into(),
+                    "never".into(),
+                    "-".into(),
+                ];
+            }
+            (AgentId::ClaudeCode, Access::ReadOnly | Access::EditFiles) => {
                 let tools = if self.access == Access::ReadOnly {
                     "Read,Glob,Grep"
                 } else {
                     "Read,Glob,Grep,Edit,Write"
                 };
-                (
-                    "claude-code",
-                    "claude",
-                    vec![
-                        "--print",
-                        "--output-format",
-                        "text",
+                plan.args.extend(
+                    [
                         "--permission-mode",
                         "dontAsk",
                         "--tools",
@@ -138,18 +158,24 @@ impl AgentLaunch {
                         "--strict-mcp-config",
                         "--mcp-config",
                         r#"{"mcpServers":{}}"#,
-                    ],
-                )
+                    ]
+                    .into_iter()
+                    .map(String::from),
+                );
             }
+            (
+                AgentId::DeepseekHarness | AgentId::Pi | AgentId::Hermes | AgentId::Openclaw,
+                Access::WorkspaceWrite,
+            ) => {}
             _ => anyhow::bail!("access mode is not supported by this Agent"),
-        };
+        }
         let launch = Launch {
             name: self.name,
-            harness: harness.into(),
-            program: program.into(),
-            args: args.into_iter().map(String::from).collect(),
+            harness: id.as_str().into(),
+            program: plan.program,
+            args: plan.args,
             cwd: self.cwd,
-            stdin: Some(self.prompt),
+            stdin: plan.stdin,
         };
         launch.validate()?;
         Ok(launch)

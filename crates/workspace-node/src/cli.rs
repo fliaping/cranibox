@@ -29,6 +29,12 @@ struct Args {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    // The command tree contains large async states. Keep it off the native
+    // entry thread's stack (particularly the smaller Windows main stack).
+    Box::pin(run_from(std::env::args().collect())).await
+}
+
+pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     if agent_workspace_runtime::peers::tasks::worker::maybe_serve(
         &std::env::args().collect::<Vec<_>>(),
     )
@@ -36,9 +42,12 @@ pub async fn run() -> anyhow::Result<()> {
     {
         return Ok(());
     }
-    let args = Args::parse();
+    let args = Args::parse_from(args);
     let peer_path = crate::peer::config::path_for(&args.config);
     let command = match args.command {
+        Some(agent::Command::AppMcp { data, service }) => {
+            return crate::app_mcp::run(peer_path, data, &service).await;
+        }
         Some(agent::Command::Space { command }) => {
             let result = crate::spaces::Store::new(peer_path)
                 .manage(command, false)
@@ -61,7 +70,7 @@ pub async fn run() -> anyhow::Result<()> {
             return Ok(());
         }
         Some(agent::Command::Peer { command }) => {
-            return crate::peer::run(peer_path, command).await;
+            return Box::pin(crate::peer::run(peer_path, command)).await;
         }
         command => command,
     };
@@ -90,7 +99,7 @@ pub async fn run() -> anyhow::Result<()> {
             agent_workspace_runtime::shutdown_signal().await;
             signal.cancel();
         });
-        node::run_managed_at(settings, control, peer_path).await
+        Box::pin(node::run_managed_at(settings, control, peer_path)).await
     }
 }
 

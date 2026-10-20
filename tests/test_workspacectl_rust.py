@@ -116,7 +116,10 @@ class ControlTests(unittest.TestCase):
         self.assertIn("workspacectl 0.1.0", self.cli("--version").stdout)
         value = self.payload("status")
         self.assertEqual(value["schema_version"], 1)
-        self.assertEqual(len(value["agents"]), 5)
+        self.assertEqual([row["id"] for row in value["agents"]],
+                         ["deepseek-harness", "codex", "claude-code", "pi", "hermes", "openclaw"])
+        self.assertEqual([row["id"] for row in value["agents"] if row["selected"]],
+                         ["deepseek-harness"])
 
     def test_runtime_installer_falls_back_from_incomplete_cached_source(self):
         (self.root / "source/scripts").mkdir(parents=True)
@@ -173,10 +176,10 @@ class ControlTests(unittest.TestCase):
         broken = self.write("mock-bin/claude", "not a valid executable")
         broken.chmod(0o755)
         self.python("codex", "print('codex 1.2.3')")
-        agents = self.payload("agents")
-        self.assertEqual(agents[0]["version"], "codex 1.2.3")
-        self.assertEqual(agents[1]["installed"], True)
-        self.assertTrue(agents[1]["version"])
+        agents = {row["id"]: row for row in self.payload("agents")}
+        self.assertEqual(agents["codex"]["version"], "codex 1.2.3")
+        self.assertEqual(agents["claude-code"]["installed"], True)
+        self.assertTrue(agents["claude-code"]["version"])
 
     def test_versions_merge_cache_and_invalidate_changed_binary(self):
         counter = self.root / "count"
@@ -199,7 +202,7 @@ class ControlTests(unittest.TestCase):
         started = time.monotonic()
         agents = self.payload("agents")
         self.assertLess(time.monotonic() - started, 8)
-        self.assertEqual(agents[0]["version"], "command timed out")
+        self.assertEqual(next(row for row in agents if row["id"] == "codex")["version"], "command timed out")
         pid = int(pidfile.read_text())
         stat = Path(f"/proc/{pid}/stat")
         self.assertTrue(not stat.exists() or stat.read_text().split()[2] == "Z", "probe descendant survived timeout")
@@ -224,13 +227,30 @@ class ControlTests(unittest.TestCase):
         self.python("deepseek-harness", "print('ready')")
         self.shell("systemctl", "echo ActiveState=inactive")
         self.write(".local/share/agent-workspace/deepseek-mcp.json", '{"servers":{"existing":{"url":"https://example.test/mcp","transport":"streamable-http"}}}')
+        native = "# Native approval and app MCP remain independent\n- insert:\n  - id: cranibox-native-approval\n    name: dsh-user-approval\n  - id: cranibox-mcp-devices\n    name: mcp-client\n"
+        overlay = self.write(".dsh/agent-workspace-mcp.cordis.yml", native)
         self.cli("mcp", "add", "demo", "--transport", "stdio", "--command-line", 'tool "argument with spaces" --json', "--agents", "deepseek-harness")
         registry = json.loads((self.root / ".local/share/agent-workspace/deepseek-mcp.json").read_text())
         self.assertEqual(registry["servers"]["demo"]["args"], ["argument with spaces", "--json"])
         self.assertIn("existing", registry["servers"])
         self.assertIn(hashlib.sha256(b"demo").hexdigest()[:12], (self.root / ".dsh/agent-workspace-mcp.cordis.yml").read_text())
+        self.assertTrue(overlay.read_text().startswith(native))
         self.cli("mcp", "remove", "demo", "--agents", "deepseek-harness")
         self.assertNotIn("demo", json.loads((self.root / ".local/share/agent-workspace/deepseek-mcp.json").read_text())["servers"])
+        self.assertTrue(overlay.read_text().startswith(native))
+
+    def test_pi_mcp_removal_preserves_other_server_and_user_settings(self):
+        self.python("pi", "print('ready')")
+        settings = self.write(".pi/agent/settings.json", '{"theme":"user-theme"}\n')
+        for name in ["first", "second"]:
+            self.cli("mcp", "add", name, "--transport", "stdio", "--command-line", 'tool "argument with spaces"', "--agents", "pi")
+        path = self.root / ".pi/agent/mcp.json"
+        self.assertEqual(json.loads(path.read_text())["mcpServers"]["first"]["args"], ["argument with spaces"])
+        self.cli("mcp", "remove", "first", "--agents", "pi")
+        self.assertEqual(list(json.loads(path.read_text())["mcpServers"]), ["second"])
+        self.assertEqual(json.loads(settings.read_text()), {"theme": "user-theme"})
+        self.cli("mcp", "remove", "second", "--agents", "pi")
+        self.assertFalse(path.exists())
 
     def test_locale_is_idempotent_and_preserves_config(self):
         config = self.write(".config/code-server/config.yaml", "password: '$secret'\nlocale: zh-cn\n")

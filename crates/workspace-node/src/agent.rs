@@ -5,6 +5,13 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Cranibox MCP services; this command never starts another node service.
+    AppMcp {
+        #[arg(long)]
+        data: std::path::PathBuf,
+        #[arg(long, value_parser = ["devices", "computer", "browser"])]
+        service: String,
+    },
     /// Create and manage isolated container workspaces on this device.
     Space {
         #[command(subcommand)]
@@ -42,7 +49,7 @@ pub enum Command {
 pub async fn run(settings: Settings, command: Command) -> Result<()> {
     let api = settings.api()?;
     match command {
-        Command::Peer { .. } | Command::Space { .. } => {
+        Command::Peer { .. } | Command::Space { .. } | Command::AppMcp { .. } => {
             anyhow::bail!("device commands use their local configuration")
         }
         Command::Nodes => client::print(api.get("/api/v1/nodes").await?),

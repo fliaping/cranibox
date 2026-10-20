@@ -620,7 +620,7 @@ class WorkspaceManager:
 
     def install_agent_capabilities(self, agents: list[str]) -> None:
         if not agents:
-            agents = ["codex"]
+            agents = ["deepseek-harness"]
         agents = [agent for agent in agents if agent != "--non-interactive"]
         for agent in agents:
             self.install_agent_capability(agent)

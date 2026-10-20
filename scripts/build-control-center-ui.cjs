@@ -20,7 +20,7 @@ for (const language of ['en', 'zh-cn']) {
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n' +
     // xterm's DOM renderer generates styles for cell geometry and ANSI colors.
     // Its public API cannot apply a nonce; only styles allow inline content.
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; frame-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
     '<meta name="color-scheme" content="dark light"><title>Cranibox · Agent Workspace</title>\n' +
     '<link rel="icon" href="data:,"><link rel="stylesheet" href="/web.css">\n' +
     '<script nonce="__WORKSPACE_NONCE__">try{document.documentElement.dataset.theme=localStorage.getItem("workspace.theme")==="light"?"light":"dark"}catch{}</script>\n' +

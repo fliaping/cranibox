@@ -91,6 +91,8 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 
 ## 架构
 
+Cranibox 新里程碑的目标规格与逐项完成情况见[设计文档](docs/design/README.md)及[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)。
+
 <p align="center">
   <a href="images/architecture.zh.svg"><img src="images/architecture.zh.png" width="900" alt="Agent Workspace 架构图"></a>
   <br><sub>点击图片查看可缩放的 SVG 版本</sub>
@@ -257,7 +259,7 @@ docker run -d --name agent-workspace \
   -e SELKIES_CONGESTION_CONTROL=false \
   -e SELKIES_ENABLE_RESIZE=true \
   -e AGENT_WORKSPACE_BOOTSTRAP=remote \
-  -e AGENT_WORKSPACE_AGENT=codex \
+  -e AGENT_WORKSPACE_AGENT=deepseek-harness \
   -p 3001:3001 -p 8443:8443 \
   -v ~/agent-workspace-data:/config \
   xuping/agent-workspace:ubuntu-xfce
@@ -322,7 +324,7 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `START_DOCKER` | `false` | 启用容器内 Docker（需 `--privileged`） |
 | `USE_CHINA_MIRROR` | `false` | 运行时切换国内镜像源 |
 | `AGENT_WORKSPACE_BOOTSTRAP` | 不设置 | 设为 `remote`（或 `foundation` / `base`）时，首次启动自动安装 code-server、Control Center 和桌面集成；`remote-up.sh` 会设置为 `remote` |
-| `AGENT_WORKSPACE_AGENT` | `none`（`remote-up.sh` 默认 `codex`） | 首次引导时安装 `codex`、`claude-code`、`hermes`、`deepseek-harness`、`openclaw` 或 `none`；仅在设置 `AGENT_WORKSPACE_BOOTSTRAP` 时生效 |
+| `AGENT_WORKSPACE_AGENT` | `deepseek-harness` | 首次引导时安装 `codex`、`claude-code`、`pi`、`hermes`、`deepseek-harness`、`openclaw` 或 `none`；仅在设置 `AGENT_WORKSPACE_BOOTSTRAP` 时生效 |
 | `CODE_SERVER_BIND` / `CODE_SERVER_AUTH` / `CODE_SERVER_CERT` | `0.0.0.0:8443` / `password` / `true` | code-server 监听地址、认证方式和自签名证书；密码默认取 `PASSWORD` |
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（容器端口 22），值为 abc 用户密码；compose 文件默认不映射该端口，需要时添加如 `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |

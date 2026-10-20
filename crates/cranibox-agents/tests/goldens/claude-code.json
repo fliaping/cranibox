@@ -1,0 +1,3 @@
+{
+  ".claude/settings.json": "{\n  \"env\": {\n    \"ANTHROPIC_AUTH_TOKEN\": \"cbx-claude-code\",\n    \"ANTHROPIC_BASE_URL\": \"http://127.0.0.1:3424\",\n    \"ANTHROPIC_DEFAULT_HAIKU_MODEL\": \"test/model\",\n    \"ANTHROPIC_DEFAULT_OPUS_MODEL\": \"test/model\",\n    \"ANTHROPIC_DEFAULT_SONNET_MODEL\": \"test/model\",\n    \"ANTHROPIC_SMALL_FAST_MODEL\": \"test/model\",\n    \"CLAUDE_CODE_SUBAGENT_MODEL\": \"test/model\"\n  },\n  \"model\": \"test/model\"\n}\n"
+}

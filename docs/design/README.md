@@ -10,6 +10,8 @@
 | [WORKPLAN.md](./WORKPLAN.md) | 分工：Phase 0 契约、8 条工作流、文件归属、分支/PR 约定、并行时间线 |
 | [CONTRACTS.md](./CONTRACTS.md) | Phase 0 契约 C1–C8 在代码里的位置、实现方和协调者决定 |
 | [OWNERS.md](./OWNERS.md) | 文件归属到文件级，以及 Phase 0 预建的挂载点 |
+| [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md) | 2026-10-19 逐工作流实现、验证边界、缺口与下一步优先级 |
+| [HANDOFF.md](./HANDOFF.md) | 当前集成状态及接手规则 |
 | [tasks/](./tasks/) | 每条工作流一份任务书，可以直接交给 Codex、Claude Code 或其他编码 Agent |
 
 ## 任务书一览
@@ -25,7 +27,6 @@
 | [tasks/06-multi-node-vault.md](./tasks/06-multi-node-vault.md) | WS6 名册 / vault / 租约 / 兜底 | 7 |
 | [tasks/07-ui-ux.md](./tasks/07-ui-ux.md) | WS7 个人 Agent 式 UI + App API | 5 |
 
-## 必须先做
-1. 等 #13、#14 合入 main。
-2. 协调者执行 Phase 0（[tasks/00](./tasks/00-contracts-integration.md)），把契约合进 main。
-3. 各工作流从 main 切 `wsN/…` 分支并行开工。
+## 实施状态
+
+#13/#14 与 Phase 0（#16）已合并；WS1（#17）已合并。后续交付和未完成项以 [实现核对](./IMPLEMENTATION-STATUS.md) 和 [交接](./HANDOFF.md) 为准。上方设计与任务书保留目标规格，不能视作全部已验收。新工作从最新 main 切 `wsN/…` 分支。

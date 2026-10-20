@@ -27,6 +27,7 @@ async fn main() -> Result<()> {
         }
     };
     match mode.as_str() {
+        "node" => cranibox_node::cli::run_from(args).await?,
         "serve" => agent_workspace_web::run(args, true).await?,
         "ctl" => std::process::exit(agent_workspacectl::run(args[1..].to_vec()).await?),
         "service" => std::process::exit(agent_workspace_services::run(args[1..].to_vec())?),

@@ -2,7 +2,7 @@
 set -u
 
 target="${AGENT_WORKSPACE_BOOTSTRAP:-}"
-agent="${AGENT_WORKSPACE_AGENT:-none}"
+agent="${AGENT_WORKSPACE_AGENT:-deepseek-harness}"
 state_dir="/config/.local/state/agent-workspace"
 marker="${state_dir}/bootstrap-${target}.complete"
 agent_marker="${state_dir}/agent-${agent}.complete"
@@ -76,7 +76,7 @@ fi
 
 case "$agent" in
   none) ;;
-  codex|claude-code|hermes|deepseek-harness|openclaw)
+  codex|claude-code|pi|hermes|deepseek-harness|openclaw)
     if [[ ! -f "$agent_marker" ]]; then
       until run_manager install agents "$agent"; do
         echo "[workspace-bootstrap] ${agent} install failed; retrying in 30 seconds"

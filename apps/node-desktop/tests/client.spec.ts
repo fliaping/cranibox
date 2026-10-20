@@ -18,7 +18,7 @@ test('native runtime setup reviews a fresh plan through shared IPC and does not 
       return structuredClone(catalog);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
   const section = page.getByRole('region', { name: '虚拟空间', exact: true });
   await section.getByRole('button', { name: '新建空间', exact: true }).click();
@@ -73,7 +73,7 @@ for (const platform of ['windows', 'macos']) test('native ' + platform + ' deskt
       return previous(command, payload);
     };
   }, platform);
-  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const guide = page.getByRole('region', { name: '桌面共享准备向导', exact: true });
   const official = guide.getByRole('link').first();
   await official.click(); await expect(guide.getByRole('alert')).toHaveText('System browser unavailable');
@@ -114,7 +114,7 @@ test('Computer Use bridge and local emergency controls use the shared native IPC
       return structuredClone(catalog);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: 'Agent 桌面操作', exact: true });
   await panel.getByLabel('本机桥接地址', { exact: true }).fill('127.0.0.1:8765');
   await panel.getByRole('button', { name: '保存桌面桥接', exact: true }).click();
@@ -148,7 +148,7 @@ test('Browser Use sharing and local emergency controls use the shared native IPC
       return structuredClone(catalog);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.locator('summary').filter({ hasText: 'Agent 浏览器操作' }).click();
   const panel = page.getByRole('region', { name: 'Agent 浏览器操作', exact: true });
   await panel.getByLabel('本机 Chromium CDP 地址', { exact: true }).fill('127.0.0.1:9222');
@@ -182,7 +182,7 @@ test('native Tailscale setup uses the reviewed plan through IPC and survives nav
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备网络', exact: true }).click();
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await ts.getByRole('link', { name: '打开官方下载页面', exact: true }).click();
@@ -218,7 +218,7 @@ test('native background catalog sync configures and pauses the shared Rust node 
       return structuredClone(state);
     };
   });
-  await page.goto('/'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '项目与会话', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '项目与会话', exact: true }).click();
   const panel = page.locator('.project-sync'); await panel.locator(':scope > summary').click();
   await panel.getByRole('button', { name: '设置后台同步', exact: true }).click();
   await panel.getByRole('checkbox', { name: 'trusted-device', exact: true }).check();
@@ -256,7 +256,7 @@ test('native automatic workers use the reviewed local policy through shared Rust
       return previous(command, payload);
     };
   });
-  await page.goto('/'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.locator('.automatic-worker'); await panel.locator(':scope > summary').click();
   await panel.getByRole('button', { name: '配置自动接单', exact: true }).click();
   await panel.getByRole('checkbox', { name: '确认保存后启用自动接单', exact: true }).check();
@@ -300,7 +300,7 @@ test('resumable snapshots share progress and explicit review through native IPC'
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '项目与会话', exact: true }).click();
   const panel = page.getByRole('region', { name: '项目文件复制', exact: true });
   await panel.getByRole('button', { name: '复制项目到设备', exact: true }).click();
@@ -333,7 +333,7 @@ test('native space desktop and editor launch through Rust IPC and recover from b
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
   const space = page.getByRole('article', { name: '应用空间', exact: true });
   await space.getByRole('button', { name: '桌面', exact: true }).click();
@@ -358,7 +358,7 @@ test('native device paths use shared controls and the local Rust IPC adapter', a
       return structuredClone(catalog);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备网络', exact: true }).click();
   const panel = page.getByRole('region', { name: '设备连接路径', exact: true });
   await panel.getByRole('button', { name: '添加路径', exact: true }).click();
@@ -409,7 +409,7 @@ test('native background launches use IPC and remain after leaving the page: ' + 
       return previous(command, payload);
     };
   }, { targetDevice });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.locator('.managed-runs');
@@ -425,7 +425,7 @@ test('native background launches use IPC and remain after leaving the page: ' + 
   await expect(panel.locator('.managed-run-review')).toContainText(targetDevice);
   await panel.getByRole('button', { name: '确认启动', exact: true }).click();
   await expect(panel.locator('.managed-run-card')).toContainText('进程运行中');
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   await panel.locator(':scope > summary').click();
   if (targetDevice !== 'own-device') await panel.getByRole('combobox', { name: '后台执行设备', exact: true }).selectOption(targetDevice);
@@ -463,7 +463,7 @@ test('native virtual spaces show authorized remote directories without granting 
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '虚拟空间', exact: true }).click();
   const panel = page.getByRole('region', { name: '其他设备的虚拟空间', exact: true });
@@ -521,7 +521,7 @@ test('native project handoffs use reviewed Rust IPC and recover the same continu
       return previous(command, payload);
     };
   }, { id });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '项目与会话', exact: true }).click();
   const panel = page.getByRole('region', { name: '项目文件复制', exact: true });
@@ -536,7 +536,7 @@ test('native project handoffs use reviewed Rust IPC and recover the same continu
   expect(await page.evaluate(() => (window as any).calls.some((c: any) => c.payload?.command?.operation === 'copy_agent_start'))).toBe(false);
   await continuation.getByRole('button', { name: '确认在目标启动', exact: true }).click();
   await expect(continuation.getByLabel('接续 stdout', { exact: true })).toHaveText('原生接续结果');
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '项目与会话', exact: true }).click();
   await openHistory();
   await continuation.getByRole('button', { name: '查找已有接续任务', exact: true }).click();
@@ -567,7 +567,7 @@ test('local project copies work in both directions without a relay or self conne
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '项目与会话', exact: true }).click();
   await expect(page.getByRole('heading', { name: '跨设备项目', exact: true })).toBeVisible();
   const panel = page.getByRole('region', { name: '项目文件复制', exact: true });
@@ -612,7 +612,7 @@ test('reviewed project copies use shared native IPC and require explicit approva
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '项目与会话', exact: true }).click();
   await expect(page.getByRole('heading', { name: '待复制项目', exact: true })).toBeVisible();
   const panel = page.getByRole('region', { name: '项目文件复制', exact: true });
@@ -647,7 +647,7 @@ test('archived spaces can change image and retry through native IPC without a re
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
   const card = page.getByRole('article', { name: '保留数据的空间', exact: true });
   await card.getByRole('button', { name: '修改镜像', exact: true }).click();
@@ -684,7 +684,7 @@ test('virtual spaces use shared native IPC and open their enrolled terminal with
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '虚拟空间', exact: true }).click();
   const section = page.getByRole('region', { name: '虚拟空间', exact: true });
   await section.getByRole('button', { name: '新建空间', exact: true }).click();
@@ -721,7 +721,7 @@ test('the shared incoming listener controls use native IPC without a relay', asy
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const listener = page.locator('.direct-listener');
   await listener.getByRole('button', { name: '配置监听', exact: true }).click();
   await expect(listener.getByLabel('监听地址', { exact: true })).toHaveValue('127.0.0.1:9020');
@@ -739,6 +739,7 @@ test('the shared incoming listener controls use native IPC without a relay', asy
 test.beforeEach(async ({ page }) => {
   page.on('pageerror', error => console.error('Client script error:', error.stack));
   await page.addInitScript(() => {
+    localStorage.setItem('cranibox.onboarded', '1');
     const settings = { server: 'wss://workspace.example.com', id: 'laptop', name: '我的笔记本', token_file: '/private/node.token', allow_insecure: false };
     const catalog = { revision: 1, projects: [{ id: 'project-1', name: '跨设备项目', replicas: [{ id: 'replica-1', node: 'desktop', path: '/home/me/cranibox', sessions: [] as { id: string; terminal_id: string }[] }] }] };
     const shell = { id: '11111111-1111-4111-8111-111111111111', name: '开发 Shell', cwd: '/home/me/cranibox', status: 'running' };
@@ -749,6 +750,9 @@ test.beforeEach(async ({ page }) => {
       unregisterCallback: (id: number) => callbacks.delete(id),
       invoke: async (command: string, payload?: any) => {
       (window as any).calls.push({ command, payload: command === 'terminal_open' ? { options: payload.options } : payload });
+      if (command === 'app_call') return payload.path === '/status' ? { state: 'local', hub: null, sources: [], pending_approvals: 0 } : [];
+      if (command === 'app_status') return { state: 'local', text_key: 'status.local', hub: null, models_available: 0, approvals_pending: 0 };
+      if (['app_devices', 'app_approvals', 'app_agents', 'app_models'].includes(command)) return [];
       if (command === 'snapshot') return { settings, status: { state: 'connected', message: null }, autostart: true, error: null, quit_requested: false };
       if (command === 'peers') return { nodes: [{ id: 'laptop', name: '我的笔记本', online: true, os: 'macos', mesh_group: 'personal', terminal_sessions: false }, { id: 'desktop', name: '开发主机', online: true, os: 'linux', mesh_group: 'personal', terminal_sessions: true }] };
       if (command === 'mcp_config') {
@@ -792,7 +796,7 @@ test('device networking uses native IPC and continues after the view closes', as
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: '设备组网', exact: true });
   await expect(panel).toContainText('网页关闭后后台继续连接');
   const et = panel.getByRole('article', { name: 'EasyTier', exact: true });
@@ -827,7 +831,7 @@ test('continuous Tailscale discovery is saved through native IPC and restored af
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: 'Tailscale 持续发现', exact: true });
   await panel.getByLabel('节点监听端口', { exact: true }).fill('1234, 4321');
   await panel.getByRole('button', { name: '启用持续发现', exact: true }).click();
@@ -857,7 +861,7 @@ test('Tailscale discovery and authorized connection use native IPC without a gat
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await ts.getByRole('button', { name: '查找节点', exact: true }).click();
   const form = ts.getByRole('form', { name: '接入 Tailscale 节点', exact: true });
@@ -891,7 +895,7 @@ test('network invitations join through native IPC without browser requests or st
   });
   const externalRequests: string[] = [];
   page.on('request', request => { if (request.url().startsWith('https://workspace.example.com')) externalRequests.push(request.url()); });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const et = page.getByRole('article', { name: 'EasyTier', exact: true });
   await expect(et).toContainText('若连接中断，在原设备使用相同地址和邀请重试');
   await et.getByLabel('Workspace 地址', { exact: true }).fill('https://workspace.example.com');
@@ -908,7 +912,7 @@ test('network invitations join through native IPC without browser requests or st
 test('shared project view links shells and opens their original device', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '项目与会话', exact: true }).click();
   await expect(page.getByRole('heading', { name: '跨设备项目', exact: true })).toBeVisible();
   await expect(page.locator('.projects-location')).toContainText('开发主机');
@@ -955,7 +959,7 @@ test('the shared native project view uses direct catalogs and terminals without 
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '项目与会话', exact: true }).click();
   await expect(page.getByRole('heading', { name: '无需网关的项目', exact: true })).toBeVisible();
   await expect(page.locator('.projects-sources')).toContainText('1/1 已读取');
@@ -999,11 +1003,11 @@ test('this device manages its projects, Shell and autostart without configuring 
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await expect(page.getByRole('region', { name: '这台设备', exact: true })).toContainText('own-device');
   await expect(page.getByRole('region', { name: '节点连接状态' })).toContainText('本机服务运行中');
-  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '连接设置', exact: true }).click();
-  await expect(page.getByLabel('节点 ID', { exact: true })).toHaveValue('own-device');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '本机设置', exact: true }).click();
+  await expect(page.getByLabel('节点 ID', { exact: true })).toHaveCount(0);
   await page.getByRole('checkbox', { name: /登录系统后自动启动/ }).check();
   await expect(page.getByRole('checkbox', { name: /登录系统后自动启动/ })).toBeChecked();
   await page.getByRole('button', { name: '项目与会话', exact: true }).click();
@@ -1053,7 +1057,7 @@ test('native project snapshots stay read-only and refresh after the owner reconn
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '项目与会话', exact: true }).click();
   await expect(page.locator('.projects-snapshot')).toContainText('上次同步：');
   await expect(page.getByRole('button', { name: '移除目录记录', exact: true })).toBeDisabled();
@@ -1079,16 +1083,15 @@ test('migrated gateway identities still mark this device and preserve its saved 
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const device = page.locator('.devices li').filter({ hasText: 'node-persistent' });
   await expect(device.locator('.tag')).toHaveText('本机');
-  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '连接设置', exact: true }).click();
-  await expect(page.getByLabel('节点 ID', { exact: true })).toHaveValue('legacy-laptop');
-  await expect(page.getByLabel('节点 ID', { exact: true }).locator('..')).toContainText('node-persistent');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '本机设置', exact: true }).click();
+  await expect(page.getByLabel('节点 ID', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'configure'))).toBe(false);
 });
 test('gateway devices open in the app and reconnect to the same Shell', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await expect(page.getByRole('button', { name: '打开 我的笔记本 的终端', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '打开 开发主机 的终端', exact: true }).click();
   const floating = page.locator('#floating-terminal');
@@ -1115,7 +1118,7 @@ test('gateway devices open in the app and reconnect to the same Shell', async ({
   expect(calls.some((c: any) => c.command === 'open_terminal' || c.command === 'terminal_sessions' && ['create', 'end'].includes(c.payload.command.operation))).toBe(false);
 });
 test('devices, MCP and reconnect preserve the service', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await expect(page.getByRole('heading', { name: '我的笔记本' })).toBeVisible();
   await expect(page.getByText('开发主机')).toBeVisible();
   await page.getByRole('button', { name: '重新连接', exact: true }).click();
@@ -1127,7 +1130,7 @@ test('devices, MCP and reconnect preserve the service', async ({ page }) => {
   expect(calls).toContain('reconnect'); expect(calls).toContain('hide_window'); expect(calls).not.toContain('quit');
 });
 test('Agent execution MCP is opt-in, clears stale config and fits small screens', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: 'Agent 接入', exact: true }).click();
   const option = page.getByRole('checkbox', { name: '添加 Agent 后台运行工具' });
   const config = page.getByRole('textbox', { name: 'MCP 配置' });
@@ -1163,7 +1166,7 @@ test('Agent execution MCP is opt-in, clears stale config and fits small screens'
   expect(calls.some((call: any) => call.command === 'direct_peers' && call.payload.command.operation === 'executions')).toBe(false);
 });
 test('quitting requires confirmation and cancel keeps the service', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '退出客户端', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -1173,19 +1176,14 @@ test('quitting requires confirmation and cancel keeps the service', async ({ pag
   await page.getByRole('button', { name: '退出并结束会话', exact: true }).click();
   expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'quit'))).toBe(true);
 });
-test('narrow layout and credential saving', async ({ page }) => {
+test('local settings stay read only and fit a narrow layout', async ({ page }) => {
   await page.setViewportSize({ width: 440, height: 780 });
-  await page.goto('/');
-  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '连接设置', exact: true }).click();
-  await page.getByLabel('节点 Token', { exact: true }).fill('a'.repeat(64));
-  await page.getByRole('button', { name: '保存并连接', exact: true }).click();
-  await expect(page.getByText('设置已保存，后台节点正在连接。')).toBeVisible();
-  await page.getByRole('button', { name: '连接设置', exact: true }).click();
-  await expect(page.getByLabel('节点 Token', { exact: true })).toHaveValue('');
+  await page.goto('/#/app/advanced');
+  await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '本机设置', exact: true }).click();
+  await expect(page.getByLabel('节点 Token', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存并连接', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.setViewportSize({ width: 880, height: 720 });
-  await page.getByRole('button', { name: '设备网络', exact: true }).click();
-  await page.screenshot({ path: '/tmp/cranibox-node-desktop-preview.png', fullPage: true });
+  expect(await page.evaluate(() => (window as any).calls.some((call: any) => call.command === 'configure'))).toBe(false);
 });
 
 test('direct devices work through IPC without a configured Workspace relay', async ({ page }) => {
@@ -1204,7 +1202,7 @@ test('direct devices work through IPC without a configured Workspace relay', asy
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: '直连设备', exact: true });
   await expect(panel.locator('.direct-identity')).toContainText('desktop-direct-id');
   await panel.getByRole('button', { name: '检查连接', exact: true }).click();
@@ -1236,7 +1234,7 @@ test('shared incoming access uses native IPC with explicit terminal permission',
       return structuredClone(catalog);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: '入站授权', exact: true });
   await expect(panel).toContainText('127.0.0.1:9140');
   await panel.getByRole('button', { name: '授权设备', exact: true }).click();
@@ -1285,7 +1283,7 @@ test('direct terminal shares the floating UI and detaches without ending its She
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const panel = page.getByRole('region', { name: '直连设备', exact: true });
   await expect(panel.getByRole('button', { name: '打开终端', exact: true })).toBeDisabled();
   await panel.getByRole('button', { name: '检查连接', exact: true }).click();
@@ -1336,7 +1334,7 @@ test('relay desktop devices share one list with direct routes and expose actiona
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
   const target = section.getByRole('button').filter({ hasText: '测试工作站' });
@@ -1375,7 +1373,7 @@ test('leaving a pending native desktop releases the attachment when IPC finishes
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   await page.getByRole('button', { name: '连接桌面', exact: true }).click();
   await expect.poll(() => page.evaluate(() => typeof (window as any).completeDesktop)).toBe('function');
@@ -1462,7 +1460,7 @@ test('the native Selkies channel decodes fragmented JPEG frames and batches past
       return previous(command, payload);
     };
   }, images);
-  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
   await section.getByRole('button', { name: '连接桌面', exact: true }).click();
   await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('已连接');
@@ -1577,7 +1575,7 @@ for (const source of ['node', 'decoder']) test('native desktop failures retain t
       return previous(command, payload);
     };
   }, source);
-  await page.goto('/'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
   await section.getByRole('button', { name: '连接桌面', exact: true }).click();
   await expect(section.locator('canvas.selkies-screen')).toHaveCount(1);
@@ -1648,7 +1646,7 @@ test('the native desktop channel completes RFB, acknowledges frames and releases
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '跨设备桌面', exact: true });
   await section.getByRole('button', { name: '连接桌面', exact: true }).click();
@@ -1685,7 +1683,7 @@ test('existing desktop discovery reviews and enables sharing through native IPC'
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const discovery = page.getByRole('region', { name: '已有桌面服务', exact: true });
   await discovery.getByRole('button', { name: '检测已有服务', exact: true }).click();
@@ -1722,7 +1720,7 @@ test('native VNC installation reviews a fresh plan after interrupted work withou
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '本机 VNC 服务', exact: true });
   await expect(section.getByRole('alert')).toContainText('不会自动重复安装');
@@ -1753,7 +1751,7 @@ for (const wayland of [false, true]) test('managed desktop service uses native I
       return previous(command, payload);
     };
   }, wayland);
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   const section = page.getByRole('region', { name: '本机 VNC 服务', exact: true });
   await section.getByRole('button', { name: '启动并共享桌面', exact: true }).click();
@@ -1801,7 +1799,7 @@ test('native task cards review, recover and report a bound Agent run through Rus
       return structuredClone({ ...detail, stdout: run.stdout_offset ? { text: '', next_offset: detail.stdout.next_offset } : detail.stdout });
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.getByRole('region', { name: '协作任务', exact: true });
@@ -1814,7 +1812,7 @@ test('native task cards review, recover and report a bound Agent run through Rus
   await panel.getByRole('button', { name: '确认领取并启动', exact: true }).click();
   await expect(panel.getByLabel('任务输出 stdout')).toContainText('本机任务输出🙂');
   await expect(panel.getByRole('button', { name: '提交已核对的结果', exact: true })).toBeDisabled();
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   await panel.getByRole('button', { name: /^发给本机/ }).click();
   await expect(panel.getByLabel('任务输出 stdout')).toContainText('本机任务输出🙂');
@@ -1857,7 +1855,7 @@ test('collaboration tasks share IPC and retain explicit reports without relay se
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.getByRole('region', { name: '协作任务', exact: true });
@@ -1873,7 +1871,7 @@ test('collaboration tasks share IPC and retain explicit reports without relay se
   await panel.getByLabel('任务说明与完成条件', { exact: true }).fill('检查更新日志并报告三项发现。');
   await panel.getByRole('button', { name: '保存并委托', exact: true }).click();
   await expect(panel.locator('.message-status')).toHaveText('本机排队');
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   await expect(panel.getByRole('heading', { name: '检查发布', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 900 });
@@ -1913,7 +1911,7 @@ test('Agent background sync and offline reports use shared native IPC without re
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const agents = page.getByRole('region', { name: '所有设备的 Agent', exact: true });
@@ -1924,7 +1922,7 @@ test('Agent background sync and offline reports use shared native IPC without re
   await settings.getByRole('checkbox', { name: 'remote-device', exact: true }).check();
   await settings.getByRole('button', { name: '启用后台同步', exact: true }).click();
   await expect(settings).toContainText('后台同步已启用');
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   await settings.locator(':scope > summary').click();
   await expect(settings).toContainText('后台同步已启用');
@@ -1965,7 +1963,7 @@ test('device messages use shared IPC without a relay and persist after leaving t
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '设备消息', exact: true }).click();
   const panel = page.getByRole('region', { name: '设备消息', exact: true });
   await expect(panel.locator('.message-text')).toHaveText('另一台设备的 Agent 留言。');
@@ -1977,7 +1975,7 @@ test('device messages use shared IPC without a relay and persist after leaving t
   await panel.getByLabel('消息内容', { exact: true }).fill('已在本机接收，稍后处理。');
   await panel.getByRole('button', { name: '保存并发送', exact: true }).click();
   await expect(panel.locator('.message-status')).toHaveText('本机排队');
-  await page.getByRole('button', { name: '连接设置', exact: true }).click();
+  await page.getByRole('button', { name: '本机设置', exact: true }).click();
   await page.getByRole('button', { name: '设备消息', exact: true }).click();
   await panel.getByRole('button', { name: /^发件箱/ }).click();
   await expect(panel.locator('.message-text')).toHaveText('已在本机接收，稍后处理。');
@@ -2017,7 +2015,7 @@ test('task questions use native IPC and retain queued replies after navigation',
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   const nav = page.getByRole('navigation', { name: '客户端页面' });
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.getByRole('region', { name: '协作任务', exact: true });
@@ -2025,7 +2023,7 @@ test('task questions use native IPC and retain queued replies after navigation',
   await panel.getByRole('textbox', { name: '回复执行方', exact: true }).fill('检查发布分支，完成后先报告测试证据。');
   await panel.getByRole('button', { name: '保存并回复', exact: true }).click();
   await expect(panel.locator('.task-answer-pending')).toContainText('回复已在本机排队');
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click();
   await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   await expect(panel.locator('.task-answer-pending')).toContainText('检查发布分支');
   await expect(panel.getByRole('textbox', { name: '回复执行方', exact: true })).toHaveCount(0);
@@ -2066,10 +2064,10 @@ test('native collaboration runs retain their goal and use the same revision-fenc
       return previous(command, payload);
     };
   });
-  await page.goto('/'); const nav = page.getByRole('navigation', { name: '客户端页面' }); await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  await page.goto('/#/app/advanced'); const nav = page.getByRole('navigation', { name: '客户端页面' }); await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.getByRole('region', { name: '多设备协作', exact: true }); await panel.getByRole('button', { name: '新建协作', exact: true }).click();
   await panel.getByLabel('协作名称', { exact: true }).fill('跨设备发布检查'); await panel.getByLabel('共同目标与完成条件', { exact: true }).fill('逐台检查并汇总证据。'); await panel.getByRole('checkbox', { name: 'remote-device', exact: true }).check(); await panel.getByRole('button', { name: '创建协作', exact: true }).click();
-  await nav.getByRole('button', { name: '连接设置', exact: true }).click(); await nav.getByRole('button', { name: '协作任务', exact: true }).click();
+  await nav.getByRole('button', { name: '本机设置', exact: true }).click(); await nav.getByRole('button', { name: '协作任务', exact: true }).click();
   const card = panel.getByRole('article', { name: '协作 跨设备发布检查', exact: true }); await expect(card).toContainText('逐台检查并汇总证据。'); await card.getByRole('button', { name: '核对并结束协作', exact: true }).click(); await card.getByLabel('核对后的协作总结', { exact: true }).fill('没有派发任务，已核对并结束。'); await card.getByRole('button', { name: '确认结束协作', exact: true }).click(); await expect(card).toContainText('已结束');
   for (const width of [375, 1440]) { await page.setViewportSize({ width, height: 1000 }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); }
   const calls = await page.evaluate(() => (window as any).calls); const updates = calls.filter((call: any) => call.command === 'direct_peers' && call.payload.command.command?.operation === 'collaboration').map((call: any) => call.payload.command.command.command);
@@ -2101,7 +2099,7 @@ test('native dependency delegations use shared controls and keep dependency IDs 
       return previous(command, payload);
     };
   });
-  await page.goto('/'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
+  await page.goto('/#/app/advanced'); await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
   await page.getByRole('article', { name: '协作 编译后测试', exact: true }).getByRole('button', { name: '添加委托', exact: true }).click();
   const form = page.getByRole('form', { name: '委托新任务', exact: true }); await form.getByText('前置任务（可选）', { exact: true }).click(); await form.getByRole('checkbox', { name: '等待 编译项目 (remote-device)', exact: true }).check();
   await form.getByRole('combobox', { name: '执行设备', exact: true }).selectOption('remote-device'); await form.getByRole('textbox', { name: '任务标题', exact: true }).fill('测试项目'); await form.getByRole('textbox', { name: '任务说明与完成条件', exact: true }).fill('核对编译完成后的版本并测试。'); await form.getByRole('button', { name: '保存并等待前置任务', exact: true }).click();
@@ -2142,7 +2140,7 @@ test('read-only collaboration records use shared native IPC with source identity
       return previous(command, payload);
     };
   });
-  await page.goto('/');
+  await page.goto('/#/app/advanced');
   await page.getByRole('navigation', { name: '客户端页面' }).getByRole('button', { name: '协作任务', exact: true }).click();
   const panel = page.getByRole('region', { name: '跨设备协作记录', exact: true });
   await panel.getByRole('button', { name: '查看协作记录', exact: true }).click();

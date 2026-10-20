@@ -1,4 +1,6 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+mod app_api;
+mod approvals;
 mod desktops;
 mod terminals;
 
@@ -14,7 +16,7 @@ use std::sync::{
 };
 use tauri::{
     Manager, State,
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
 };
 #[cfg(not(target_os = "linux"))]
@@ -473,8 +475,9 @@ fn main() -> anyhow::Result<()> {
         quitting: AtomicBool::new(false),
     });
     let setup_state = state.clone();
-    let app =
-        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)));
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)));
     #[cfg(not(target_os = "linux"))]
     let app = app.plugin(
         tauri_plugin_autostart::Builder::new()
@@ -487,6 +490,19 @@ fn main() -> anyhow::Result<()> {
         .manage(Arc::new(desktops::Desktops::default()))
         .invoke_handler(tauri::generate_handler![
             space_application,
+            app_api::app_call,
+            app_api::app_status,
+            app_api::app_devices,
+            app_api::app_pair_invite,
+            app_api::app_pair_accept,
+            app_api::app_pair_confirm,
+            app_api::app_approvals,
+            app_api::app_approval_decide,
+            app_api::app_agents,
+            app_api::app_agent_update,
+            app_api::app_models,
+            app_api::app_events,
+            app_api::app_open_external,
             snapshot,
             set_autostart,
             configure,
@@ -515,6 +531,7 @@ fn main() -> anyhow::Result<()> {
             dismiss_quit
         ])
         .setup(move |app| {
+            approvals::setup(app.handle())?;
             let open = MenuItem::with_id(app, "open", "打开 Cranibox Node", true, None::<&str>)?;
             let held_item = MenuItem::with_id(
                 app,
@@ -523,6 +540,8 @@ fn main() -> anyhow::Result<()> {
                 true,
                 None::<&str>,
             )?;
+            let status_item = MenuItem::with_id(app, "status", "正在启动 / Starting", false, None::<&str>)?;
+            let pause_screen = MenuItem::with_id(app, "pause-screen", "暂停共享屏幕 / Pause screen sharing", true, None::<&str>)?;
             let reconnect = MenuItem::with_id(
                 app,
                 "reconnect",
@@ -531,7 +550,8 @@ fn main() -> anyhow::Result<()> {
                 None::<&str>,
             )?;
             let exit = MenuItem::with_id(app, "quit", "退出并结束本机 Shell…", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&held_item, &open, &reconnect, &exit])?;
+            let decisions = Submenu::with_id(app, "decisions", "处理审批 / Decide requests", false)?;
+            let menu = Menu::with_items(app, &[&status_item, &held_item, &decisions, &open, &pause_screen, &reconnect, &exit])?;
             TrayIconBuilder::with_id("node")
                 .icon(tauri::image::Image::from_bytes(include_bytes!(
                     "../icons/32x32.png"
@@ -539,12 +559,22 @@ fn main() -> anyhow::Result<()> {
                 .tooltip("Cranibox Node — 正在启动")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" | "held" => show(app),
+                    "open" => show(app),
+                    "held" => approvals::inbox(app),
                     "reconnect" => {
                         let state = app.state::<Arc<AppState>>().inner().clone();
                         tauri::async_runtime::spawn(async move {
                             let mut service = state.service.lock().await;
                             let _ = resume(&mut service);
+                        });
+                    }
+                    "pause-screen" => {
+                        let state = app.state::<Arc<AppState>>().inner().clone();
+                        tauri::async_runtime::spawn(async move {
+                            let local = state.service.lock().await.local.clone();
+                            if let Some(local) = local {
+                                let _ = local.manage_peers(agent_workspace_runtime::peers::Command::ComputerOwner { command: agent_workspace_runtime::peers::computer::OwnerCommand::EmergencyStop {} }).await;
+                            }
                         });
                     }
                     "quit" => {
@@ -553,7 +583,12 @@ fn main() -> anyhow::Result<()> {
                             .store(true, Ordering::Relaxed);
                         show(app);
                     }
-                    _ => {}
+                    id => {
+                        if let Some((decision, request)) = id.strip_prefix("approval:").and_then(|v| v.split_once(':'))
+                            && matches!(decision, "allow_once" | "deny") {
+                            approvals::decide(app, request.to_owned(), decision.to_owned());
+                        }
+                    }
                 })
                 .build(app)?;
             let path = settings::default_path();
@@ -569,7 +604,12 @@ fn main() -> anyhow::Result<()> {
                 ))
                 .await
                 {
-                    Ok(local) => service.local = Some(Arc::new(local)),
+                    Ok(local) => {
+                        if let Err(error) = local.models().await {
+                            service.error = Some(format!("{error:#}"));
+                        }
+                        service.local = Some(Arc::new(local));
+                    }
                     Err(error) => service.error = Some(format!("{error:#}")),
                 }
                 match initial {
@@ -591,6 +631,8 @@ fn main() -> anyhow::Result<()> {
             let status_state = setup_state.clone();
             let held_menu = held_item.clone();
             tauri::async_runtime::spawn(async move {
+                let mut seen = std::collections::BTreeSet::new();
+                let mut previous_cards = Value::Null;
                 loop {
                     let status = {
                         let service = status_state.service.lock().await;
@@ -607,10 +649,13 @@ fn main() -> anyhow::Result<()> {
                                 .into(),
                             )
                     };
-                    let held = cranibox_node_desktop::notify::held(
-                        cranibox_node::peer::config::path_for(&settings::default_path()),
-                    )
-                    .await;
+                    let local = status_state.service.lock().await.local.clone();
+                    let cards = cranibox_node::app::dispatch(local, "GET", "/approvals", Value::Null).await.ok();
+                    let held = cards.as_ref().and_then(Value::as_array).map_or(0, |v| v.len() as u64);
+                    if let Some(cards) = cards && cards != previous_cards
+                        && approvals::refresh(&handle, &decisions, cards.as_array().map_or(&[], Vec::as_slice), &mut seen).is_ok() {
+                        previous_cards = cards;
+                    }
                     if let Some(tray) = handle.tray_by_id("node") {
                         let _ = tray.set_tooltip(Some(cranibox_node_desktop::notify::tooltip(
                             &status, held,
@@ -618,6 +663,7 @@ fn main() -> anyhow::Result<()> {
                         // Linux tray hosts ignore tooltips; show the count next to the icon.
                         let _ = tray.set_title(cranibox_node_desktop::notify::title(held));
                     }
+                    let _ = status_item.set_text(&status);
                     let _ = held_menu.set_text(cranibox_node_desktop::notify::menu_label(held));
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }

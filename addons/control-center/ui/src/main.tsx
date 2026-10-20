@@ -16,6 +16,8 @@ import { WebTerminalEnvironment } from './terminal/WebTerminalEnvironment';
 import { Nodes } from './pages/Nodes';
 import { Performance } from './pages/Performance';
 import './style.css';
+import { PersonalApp } from './personal/PersonalApp';
+import { httpApi } from './personal/api';
 import './terminal/terminal.css';
 import './terminal/window.css';
 import { openUrl,t,useWorkspace,WorkspaceProvider } from './workspace';
@@ -84,4 +86,16 @@ function LinkBrand() { return <a className="brand" href="#/overview"><span class
 // Keep bookmarks from the previous control center working.
 const legacy = location.hash.slice(1);
 if (nav.some(item => item.id === legacy)) history.replaceState(null, '', '#/' + legacy);
-createRoot(document.getElementById('root')!).render(<HashRouter><TerminalWindowProvider><WorkspaceProvider><WebTerminalEnvironment><App /></WebTerminalEnvironment></WorkspaceProvider></TerminalWindowProvider></HashRouter>);
+const personalApi = httpApi(window.workspaceWeb.csrf);
+function PersonalShell() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    if (location.pathname === '/app/advanced') navigate('/overview', { replace: true });
+  }, [location.pathname, navigate]);
+  // HashRouter commits navigation in a transition. Wait for its location before
+  // mounting the legacy routes, whose fallback would redirect the previous URL.
+  const personalRoute = location.pathname === '/' || location.pathname.startsWith('/app/');
+  return <PersonalApp api={personalApi} language={window.workspaceWeb.language} advanced={personalRoute ? null : <App />} onNavigate={navigate} />;
+}
+createRoot(document.getElementById('root')!).render(<HashRouter><TerminalWindowProvider><WorkspaceProvider><WebTerminalEnvironment><PersonalShell /></WebTerminalEnvironment></WorkspaceProvider></TerminalWindowProvider></HashRouter>);

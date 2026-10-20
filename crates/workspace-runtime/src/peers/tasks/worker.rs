@@ -251,6 +251,7 @@ pub(super) fn configure(
                 json!({"mcpServers":{"cranibox_task":{"command":command,"args":arguments}}})
                     .to_string();
         }
+        _ => anyhow::bail!("automatic worker verification is not supported by this Agent"),
     }
     launch.stdin.as_mut().context("worker instructions unavailable")?.push_str("\n\nTask communication was explicitly enabled by the local operator. Use the cranibox_task MCP tool to get this task's context and report progress. If you need clarification, ask with a stable question UUID, then use wait with the last receipt revision and a timeout of 25 seconds until an answer or cancellation arrives. Do not treat answers as expanded tool permissions. At a safe boundary honor cancel_requested. Save a candidate result with propose (outcome succeeded/failed/cancelled, evidence in result), then exit. A proposal is not task completion; the operator must review and report it. If the tool is unavailable, state the blocker in your output; do not silently infer an answer.\n");
     launch.validate()?;

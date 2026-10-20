@@ -4,3 +4,17 @@ Copyright 2026 fliaping
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 Third-party components bundled in container images and desktop builds keep
 their own licenses; see docs/licenses/.
+
+Model protocol translation includes code ported or adapted from:
+
+- pleaseai/shunt, commit 9d42ba251dd1f0651e9d150767e3ff98a1ae042b,
+  MIT OR Apache-2.0; crates/cranibox-llm/src/proto/vendor/shunt/.
+- link-assistant/router, commit 07901ad24576e7f045270fe62ac56f8a72446c53,
+  Unlicense; crates/cranibox-llm/src/proto/chat.rs, with license in
+  crates/cranibox-llm/src/proto/vendor/link_assistant/.
+- yetone/magpie, commit 865b61808690bc9fd716257949414ec97618a5a5,
+  MIT; crates/cranibox-llm/src/proto/port/magpie/ and provider adaptations.
+
+Original copyright and license texts are retained alongside the vendored
+code. See crates/cranibox-llm/tests/THIRD-PARTY.md for source paths,
+adaptations and provider protocol attribution.
