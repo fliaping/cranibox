@@ -317,12 +317,32 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
         response.json::<Value>().await.unwrap()["choices"][0]["message"]["content"],
         "Noise round trip"
     );
+    // The Hub's capability edits also advance the enablement version. Observe
+    // those edits before enabling B, so background anti-entropy cannot replace
+    // B's enablement with a newer Hub record on slower platforms.
+    exchange(&a.vault, a.router.transport.as_ref(), c.vault.node())
+        .await
+        .unwrap();
+    exchange(&a.vault, a.router.transport.as_ref(), b.vault.node())
+        .await
+        .unwrap();
+    assert_eq!(
+        b.vault.enablement("noise-account").unwrap(),
+        a.vault.enablement("noise-account").unwrap()
+    );
     let mut account = b.vault.get("noise-account").unwrap();
     account.enabled_on.push(b.vault.node().into());
     b.vault.put(account, None).unwrap();
     exchange(&b.vault, b.router.transport.as_ref(), c.vault.node())
         .await
         .unwrap();
+    assert!(
+        c.vault
+            .get("noise-account")
+            .unwrap()
+            .enabled_on
+            .contains(&b.vault.node().to_owned())
+    );
     assert_eq!(
         b.vault.get_secret("noise-account").unwrap().expose(),
         secret.expose()
