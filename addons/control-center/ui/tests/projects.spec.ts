@@ -36,6 +36,7 @@ test('project shells reopen in place, share existing sessions and survive page r
   await expect(pane.locator('.xterm-accessibility')).toContainText('PROJECT_READY_OK');
   await page.getByRole('button', { name: 'Close terminal window', exact: true }).click();
   await page.reload();
+  await page.locator('.projects-list').getByRole('button', { name: /Cross-device project/ }).click();
   await expect(page.locator('.projects-sessions')).toContainText('Project shell');
   await page.locator('.projects-sessions').getByRole('button', { name: 'Open', exact: true }).click();
   await expect(pane.locator('.status')).toContainText('Connected');

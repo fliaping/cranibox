@@ -66,6 +66,7 @@ test('Web host uses one stable identity for device, project and restored termina
   await page.getByRole('button', { name: 'Save directory', exact: true }).click();
   await page.getByLabel('Link existing session', { exact: true }).selectOption(shell.id);
   await page.getByRole('button', { name: 'Link', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Unlink ' + shell.name, exact: true })).toBeVisible();
   const projects = await api(page, '/api/projects', { operation: 'list' });
   const project = projects.projects.find((p: any) => p.name === 'Workspace host project');
   expect(project.replicas[0].node).toBe(host);

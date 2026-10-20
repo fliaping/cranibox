@@ -43,7 +43,9 @@ fn claude_hook_preserves_user_hooks_and_returns_native_decision() {
             .spawn()
             .unwrap();
         child.stdin.take().unwrap().write_all(br#"{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hello"}}"#).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // Cold Node startup can exceed ten seconds on Windows CI. Keep the
+        // human-decision wait separate from this bounded process startup wait.
+        let deadline = Instant::now() + Duration::from_secs(30);
         let card = loop {
             if let Some(card) = approvals::pending(&env, "local")
                 .unwrap()
@@ -52,6 +54,10 @@ fn claude_hook_preserves_user_hooks_and_returns_native_decision() {
             {
                 break card;
             }
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "Claude hook exited before publishing approval"
+            );
             assert!(
                 Instant::now() < deadline,
                 "Claude hook did not publish approval"
@@ -97,12 +103,16 @@ fn native_hook_waits_for_human_and_rejects_replay_expiry_and_withdrawal() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    let end = Instant::now() + Duration::from_secs(10);
+    let end = Instant::now() + Duration::from_secs(30);
     let card = loop {
         let cards = approvals::pending(&env, "local").unwrap();
         if let Some(card) = cards.into_iter().next() {
             break card;
         }
+        assert!(
+            child.try_wait().unwrap().is_none(),
+            "native hook exited before publishing approval"
+        );
         assert!(Instant::now() < end, "native hook did not publish approval");
         std::thread::sleep(Duration::from_millis(20));
     };

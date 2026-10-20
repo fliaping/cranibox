@@ -106,7 +106,9 @@ class Harness:
         # Model routing is exercised by the Rust three-node integration test;
         # skip the fixed model listener on this simulated gateway client.
         self.node_env = {"CRANIBOX_APP_MOCK": "1", **(node_env or {})}
-        self.web_env = web_env or {}
+        # Multiple Web hosts also share this network. Their model listeners must
+        # be disabled just like the simulated remote nodes above.
+        self.web_env = {"CRANIBOX_APP_MOCK": "1", **(web_env or {})}
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-operations-')
         self.root = Path(self.temp.name)
         self.streams = []
