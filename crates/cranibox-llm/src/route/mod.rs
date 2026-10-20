@@ -19,4 +19,13 @@ pub trait Router: Send + Sync {
         provider: &str,
         request: CanonicalRequest,
     ) -> Result<UpstreamResponse, UpstreamError>;
+    /// Forward the count operation to the peer count endpoint, never to generation.
+    async fn forward_count_tokens(
+        &self,
+        _node: &str,
+        _provider: &str,
+        _request: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        Err(UpstreamError::Unsupported)
+    }
 }

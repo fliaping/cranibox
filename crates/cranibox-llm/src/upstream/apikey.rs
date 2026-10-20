@@ -313,6 +313,13 @@ impl ApiKey {
 }
 #[async_trait::async_trait]
 impl Upstream for ApiKey {
+    async fn count_tokens(
+        &self,
+        cx: &UpstreamCx,
+        req: CanonicalRequest,
+    ) -> Result<UpstreamResponse, UpstreamError> {
+        self.send_count(cx, req).await
+    }
     fn provider(&self) -> &'static str {
         "apikey"
     }
