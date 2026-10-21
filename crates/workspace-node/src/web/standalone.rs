@@ -108,7 +108,7 @@ pub fn access_token(peers: &Path) -> Result<String> {
         }
     }
     let token = agent_workspace_runtime::config::token();
-    agent_workspace_runtime::config::write_private(&path, token.as_bytes(), false)
+    agent_workspace_runtime::config::write_private(&path, token.as_bytes(), true)
         .with_context(|| format!("write {}", path.display()))?;
     Ok(token)
 }
@@ -164,7 +164,7 @@ pub async fn run(
     agent_workspace_runtime::config::write_private(
         &peers.with_file_name("ui.address"),
         address.to_string().as_bytes(),
-        false,
+        true,
     )?;
     // Service logs are often world-readable; print the secret link only to a terminal.
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {

@@ -5,11 +5,22 @@ edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.89"
 
+[features]
+# The Docker workspace image adds the container console, service manager and
+# runtime gateway. Device builds (`--no-default-features`) are the node alone.
+default = ["workspace"]
+workspace = [
+    "dep:agent-workspacectl",
+    "dep:agent-workspace-services",
+    "dep:agent-workspace-web",
+    "agent-workspace-runtime/server",
+]
+
 [dependencies]
 cranibox-node = { path = "../workspace-node" }
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-agent-workspacectl = { path = "../workspacectl" }
-agent-workspace-services = { path = "../workspace-services" }
-agent-workspace-runtime = { path = "../workspace-runtime" }
-agent-workspace-web = { path = "../workspace-web" }
+agent-workspacectl = { path = "../workspacectl", optional = true }
+agent-workspace-services = { path = "../workspace-services", optional = true }
+agent-workspace-runtime = { path = "../workspace-runtime", default-features = false, features = ["client"] }
+agent-workspace-web = { path = "../workspace-web", optional = true }

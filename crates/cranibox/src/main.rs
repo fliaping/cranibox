@@ -1,4 +1,6 @@
-use anyhow::{Result, bail};
+//! One program per device: `cranibox` runs this device's node and its web interface.
+//! The Docker workspace build adds the container console, services and gateway.
+use anyhow::Result;
 
 #[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
@@ -11,32 +13,42 @@ async fn main() -> Result<()> {
         .and_then(|s| s.to_str())
         .unwrap_or("cranibox")
         .to_owned();
-    let mode = match name.as_str() {
-        "workspacectl" => "ctl".to_owned(),
-        "workspace-services" | "systemctl" => "service".to_owned(),
-        "workspace-runtime" => "runtime".to_owned(),
-        "workspace-web" => "serve".to_owned(),
-        _ => {
-            if args.get(1).is_some_and(|s| s.starts_with("__")) {
-                "service".to_owned()
-            } else if args.len() > 1 {
-                args.remove(1)
-            } else {
-                "help".to_owned()
+    #[cfg(feature = "workspace")]
+    {
+        let mode = match name.as_str() {
+            "workspacectl" => Some("ctl".to_owned()),
+            "workspace-services" | "systemctl" => Some("service".to_owned()),
+            "workspace-runtime" => Some("runtime".to_owned()),
+            "workspace-web" => Some("serve".to_owned()),
+            "cranibox-node" => None,
+            _ if args.get(1).is_some_and(|s| s.starts_with("__")) => Some("service".to_owned()),
+            _ if args
+                .get(1)
+                .is_some_and(|s| matches!(s.as_str(), "serve" | "ctl" | "service" | "runtime")) =>
+            {
+                Some(args.remove(1))
             }
+            _ => None,
+        };
+        match mode.as_deref() {
+            Some("serve") => return agent_workspace_web::run(args, true).await,
+            Some("ctl") => std::process::exit(agent_workspacectl::run(args[1..].to_vec()).await?),
+            Some("service") => {
+                std::process::exit(agent_workspace_services::run(args[1..].to_vec())?)
+            }
+            Some("runtime") => return agent_workspace_runtime::cli::run(args).await,
+            _ => {}
         }
-    };
-    match mode.as_str() {
-        "node" => cranibox_node::cli::run_from(args).await?,
-        "serve" => agent_workspace_web::run(args, true).await?,
-        "ctl" => std::process::exit(agent_workspacectl::run(args[1..].to_vec()).await?),
-        "service" => std::process::exit(agent_workspace_services::run(args[1..].to_vec())?),
-        "runtime" => agent_workspace_runtime::cli::run(args).await?,
-        "-V" | "--version" => println!("cranibox {}", env!("CARGO_PKG_VERSION")),
-        "help" | "-h" | "--help" => println!(
-            "Cranibox server\nUsage: cranibox serve [options]\n       cranibox ctl <command>\n       cranibox service --user <command>\n       cranibox runtime <command>\nRemote machines use the separate cranibox-node application."
-        ),
-        _ => bail!("unknown command: {mode}; use cranibox --help"),
     }
-    Ok(())
+    // `cranibox node …` is the long form; every other command belongs to the node.
+    if name != "cranibox-node" && args.get(1).is_some_and(|s| s == "node") {
+        args.remove(1);
+    }
+    match args.get(1).map(String::as_str) {
+        Some("-V" | "--version") => {
+            println!("cranibox {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        _ => cranibox_node::cli::run_from(args).await,
+    }
 }
