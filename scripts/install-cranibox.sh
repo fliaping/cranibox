@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install one server artifact; cranibox-node is distributed separately.
+# Install the Workspace server build of cranibox (the device CLI is the same program).
 set -euo pipefail
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_root="${AGENT_WORKSPACE_CONFIG_ROOT:-/config}"

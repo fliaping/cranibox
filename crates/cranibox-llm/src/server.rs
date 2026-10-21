@@ -83,8 +83,21 @@ pub async fn spawn(config: crate::Config) -> anyhow::Result<Handle> {
     );
     let mut listeners = Vec::new();
     for address in &config.listen {
-        listeners.push(TcpListener::bind(address).await?);
+        match TcpListener::bind(address).await {
+            Ok(listener) => listeners.push(listener),
+            // Hosts and containers without IPv6 have no ::1; IPv4 loopback still serves.
+            Err(error)
+                if address.is_ipv6()
+                    && matches!(
+                        error.kind(),
+                        std::io::ErrorKind::AddrNotAvailable | std::io::ErrorKind::Unsupported
+                    ) => {}
+            Err(error) => {
+                return Err(anyhow::Error::new(error).context(format!("listen on {address}")));
+            }
+        }
     }
+    anyhow::ensure!(!listeners.is_empty(), "no loopback address is available");
     let management = config.run_dir.join(LLM_MGMT_SOCKET);
     let mgmt_listener = crate::mgmt::Listener::bind(&management).await?;
     let engine = Engine::new(config);

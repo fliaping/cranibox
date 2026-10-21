@@ -19,7 +19,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY apps/node-desktop/src-tauri/ ./apps/node-desktop/src-tauri/
 COPY addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css ./addons/control-center/
-RUN cargo build --release --locked -p cranibox && cargo build --release --locked -p cranibox-node
+RUN cargo build --release --locked -p cranibox
 
 # Follow official Webtop updates; builds must pull to refresh this moving tag.
 # Selkies and PulseAudio startup scripts are inherited from the official image.
@@ -136,7 +136,9 @@ COPY --chmod=0755 s6-rc.d/ /etc/s6-overlay/s6-rc.d/
 COPY --chmod=0644 nginx/cranibox-applications.conf /usr/local/share/agent-workspace/cranibox-applications.conf
 RUN cat /usr/local/share/agent-workspace/cranibox-applications.conf >> /defaults/default.conf
 EXPOSE 3002
-COPY --chmod=0755 --from=workspace-rust-builder /build/target/release/cranibox /build/target/release/cranibox-node /usr/local/lib/agent-workspace/
+COPY --chmod=0755 --from=workspace-rust-builder /build/target/release/cranibox /usr/local/lib/agent-workspace/
+# One program: the node CLI is the same binary under its historical name.
+RUN ln -sf cranibox /usr/local/lib/agent-workspace/cranibox-node
 COPY --chmod=0755 --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
 # Startup tasks are native s6-rc oneshots; they leave no sleep process behind.
 RUN mkdir -p /usr/local/lib/agent-workspace \

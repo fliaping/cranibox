@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         args.remove(1);
     }
     match args.get(1).map(String::as_str) {
-        Some("-V" | "--version") => {
+        Some("-V" | "--version") if name != "cranibox-node" => {
             println!("cranibox {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }

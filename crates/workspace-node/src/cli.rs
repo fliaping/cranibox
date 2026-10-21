@@ -1,5 +1,3 @@
-// Every device runs the same way: node core plus its own interface. A saved legacy
-// gateway connection is kept alongside, never required.
 use crate::{
     agent,
     settings::{self, Settings},
@@ -47,17 +45,22 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     let args = Args::parse_from(args);
     let peer_path = crate::peer::config::path_for(&args.config);
     // Every device runs the same way: node core plus its own interface. A saved legacy
-    // gateway connection is kept alongside, never required.
+    // gateway connection is kept alongside, never required; `peer serve` keeps its
+    // meaning of running without any Workspace.
     let service = match &args.command {
-        None
-        | Some(agent::Command::Peer {
+        None => Some((None, Vec::new(), true)),
+        Some(agent::Command::Peer {
             command: crate::peer::Command::Serve,
-        }) => Some((None, Vec::new())),
-        Some(agent::Command::Serve { listen, allow_host }) => Some((*listen, allow_host.clone())),
+        }) => Some((None, Vec::new(), false)),
+        Some(agent::Command::Serve { listen, allow_host }) => {
+            Some((*listen, allow_host.clone(), true))
+        }
         _ => None,
     };
-    if let Some((listen, allow_hosts)) = service {
-        let gateway = if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
+    if let Some((listen, allow_hosts, with_gateway)) = service {
+        let gateway = if !with_gateway {
+            None
+        } else if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
             Some(Settings {
                 server: args
                     .server

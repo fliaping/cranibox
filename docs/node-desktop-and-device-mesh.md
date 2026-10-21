@@ -1,41 +1,56 @@
-# 托盘客户端与 Agent 设备组网
+# 客户端形态与 Agent 设备组网
 
-cranibox-node-desktop 是独立的 Windows/macOS/Linux 节点应用。Rust 节点引擎负责本机项目、任务和原生 PTY，Tauri 2 提供系统托盘、窗口和登录自启动，React 提供操作界面。应用启动后即可管理本机项目和 Shell，Workspace 网关是可选连接。客户端不包含 herdr。服务端保持浏览器访问方式。
+每台设备运行同一个节点内核，没有中心节点：所有设备对等，经 iroh 配对或 EasyTier/Tailscale 直连互访。内核提供两种形态，功能与界面完全一致，只在系统集成上不同：
 
-无界面的 cranibox-node 仍独立发布，适合服务器或已有进程管理器。两个客户端复用节点引擎；同一持久 NodeID 配置目录只允许一个常驻节点进程，即使没有启用直连监听也会加锁，避免多个进程分别持有同一设备的 Shell。同一凭据文件也只允许一个网关连接进程。需要在同一主机模拟独立设备时，为各进程指定不同的 --config 目录。
+| 形态 | 适用 | 界面 |
+| --- | --- | --- |
+| 图形版 Cranibox（Tauri） | 有桌面的 macOS/Windows/Linux | 应用窗口；托盘、登录自启动、系统通知、原生权限 |
+| 命令行版 `cranibox` | 服务器、无桌面、已有进程管理器 | 同一网页界面，经 `127.0.0.1` 的 HTTP 访问 |
 
-本文说明现有版本。直连与目标本地授权见[配置与边界](direct-node-peers.md)，Web/Tauri 现已共用 [VNC/noVNC 桌面查看器及服务管理](remote-desktops.md)和[虚拟空间创建向导](virtual-spaces.md)。Linux/X11 支持托管 x11vnc，兼容 wlroots 的 Wayland 会话支持托管 wayvnc；两者支持异常重启及节点重启恢复。Windows、macOS 和其他 Wayland 会话可接入已有本机 VNC 服务，这些环境的自动安装与进程托管仍待实现。现已提供 [EasyTier 托管组网、发现、短期邀请及授权连接，以及系统 Tailscale 状态和登录](device-networks.md)，并支持显式多路径的新连接选路；公钥配对、全网目录分发和既有连接无缝迁移仍按[对等节点组网设计](decentralized-node-network-design.md)推进。
+图形版启动时在随机回环端口运行内核自带的网页服务，窗口直接打开它；不再有单独的 IPC 界面。Docker 工作区镜像在此基础上增加容器控制台、服务管理和旧网关（`cranibox serve`），用于虚拟空间。同一持久 NodeID 配置目录只允许一个常驻节点进程，同一凭据文件也只允许一个网关连接进程。需要在同一主机模拟独立设备时，为各进程指定不同的 --config 目录。
 
-Web/Tauri 已共用“项目与会话”页面，支持工作副本目录和持久 Shell 的关联、创建与找回、授权来源的目录增量同步和明确启用的后台同步，见[使用与边界](project-session-catalog.md)。“设备消息”提供持久收发箱、线程回复、明确收件确认，以及不依赖网关的 Agent MCP，见[设备消息](device-messages.md)。直连与网关设备的终端都使用共用 React 浮动窗口，Tauri 通过本机 Rust IPC 附着，无需打开系统浏览器。“协作任务”支持持久委托、明确领取、进度与结果回传，以及默认关闭的接收端自动接单，见[使用与边界](device-tasks.md)。本机 Agent 可主动登记公开状态，按会话 UUID 定向委托，见[Agent 会话](agent-sessions.md)。节点已提供[明确启动的本机后台执行及 Codex/Claude Code 非交互适配](agent-executions.md)，关闭页面后可继续运行和找回输出；实机环境见[验证清单](client-validation.md)。真正运行会话迁移仍见[多设备项目与 Agent 工作空间](distributed-agent-workspace-design.md)。
+本文说明现有版本。直连与目标本地授权见[配置与边界](direct-node-peers.md)，[VNC/noVNC 桌面查看器及服务管理](remote-desktops.md)和[虚拟空间创建向导](virtual-spaces.md)。Linux/X11 支持托管 x11vnc，兼容 wlroots 的 Wayland 会话支持托管 wayvnc；Windows、macOS 和其他 Wayland 会话可接入已有本机 VNC 服务。组网见 [iroh 配对](iroh-network.md)与 [EasyTier/Tailscale](device-networks.md)。
 
-## 浏览器与 Tauri 共用界面
+“项目与会话”“设备消息”“协作任务”“Agent 会话”和后台执行的说明分别见 [项目与会话](project-session-catalog.md)、[设备消息](device-messages.md)、[协作任务](device-tasks.md)、[Agent 会话](agent-sessions.md)和[后台执行](agent-executions.md)；实机环境见[验证清单](client-validation.md)。
 
-采用一套 React 业务组件和 Rust 核心，分别构建浏览器资源与 Tauri 应用。浏览器通过 HTTP/WebSocket/SSE 访问运行中的 Rust 服务；Tauri 通过 IPC/事件调用本机 Rust 核心。托盘、自启动和系统权限由桌面接入层处理。Tauri 的 invoke 需要宿主环境，不能作为普通浏览器的后端；浏览器构建需要独立的网络适配器。
+## 一套界面
 
-目前项目与会话、设备消息、协作任务、直连设备、入站授权、EasyTier/Tailscale 管理、浮动终端、VNC 查看器和虚拟空间已共用组件；其余页面尚未完全统一。已接入授权来源可同步项目目录，但设备、项目、Agent 和任务的全网统一视图与自动分发仍按分布式设计分阶段实现。浏览器操作设备时，以后端所在设备为接入端，不会因此获得浏览器所在电脑的本地系统能力。
-
-Tauri 的前端配置要求提供静态 Web 资源，React/Vite SPA 符合这一方式，参见 [Tauri 官方前端配置](https://v2.tauri.app/start/frontend/)。
+浏览器、图形版窗口和 Docker 工作区都加载同一份 React 资源，经同一组 HTTP/WebSocket/SSE 接口（`cranibox_node::web`）访问本机内核：App API `/api/v1/app/*`、`/api/peers`、`/api/network`、`/api/desktop/*`、`/api/terminal/*`、`/api/spaces`。页面配置里的 `edition`（`node` 或 `workspace`）决定是否显示容器专用控制台；`shell: true` 表示运行在图形版窗口中，可调用 `POST /api/shell` 的原生操作（自启动、打开外链、隐藏窗口、退出、生成 MCP 配置）。浏览器操作设备时，以内核所在设备为接入端，不会因此获得浏览器所在电脑的本地系统能力。
 
 ## 安装和连接
 
-在 GitHub Actions 的 **Cranibox server and independent node client** 工作流中，选择成功的运行，从 Artifacts 下载：
+打 `v*` 标签时，安装包和命令行程序会发布到 GitHub Release；平时可在 **Cranibox server and independent node client** 工作流的成功运行中下载 Artifacts：
 
-| Artifact | 安装内容 |
+| Artifact | 内容 |
 | --- | --- |
-| cranibox-node-desktop-windows-latest | Windows NSIS 安装程序 |
-| cranibox-node-desktop-macos-latest | macOS DMG，内含应用 |
-| cranibox-node-desktop-ubuntu-latest | Linux AppImage、deb |
-| cranibox-node-{os} | 原有无界面客户端，一个可执行文件 |
+| cranibox-desktop-macos-latest | macOS DMG（Apple Silicon） |
+| cranibox-desktop-windows-latest | Windows NSIS 安装程序 |
+| cranibox-desktop-ubuntu-latest | Linux AppImage、deb |
+| cranibox-cli-{os} | 命令行版 `cranibox`，一个可执行文件 |
 
-选择与目标 OS 和 CPU 一致的产物；当前矩阵使用 GitHub 对应平台默认 runner 的 CPU，不是所有架构的通用包。Linux 的托盘依赖桌面环境支持 AppIndicator；无桌面的机器使用 CLI 客户端。
+Linux 的托盘依赖桌面环境支持 AppIndicator；无桌面的机器使用命令行版。
 
-1. 安装并打开 Cranibox Node。「设备网络」显示“这台设备”的持久 NodeID，可直接打开本机终端；「项目与会话」可注册本机目录和关联 Shell。
-2. 需要随登录启动时，在「连接设置」勾选「登录系统后自动启动」，该选项独立保存，无需配置中继。
-3. 需要连接 Workspace 网关时，在 Workspace 网页的「远程节点」注册设备并保存节点 Token，再在客户端填写服务端地址、网关节点 ID 和 Token。公网填写 wss://workspace.example.com，地址不带路径，点击「保存并连接」。
-4. 关闭窗口后仍在托盘运行。托盘菜单可打开窗口、重新连接网关或主动退出。
-5. 在 Workspace 将可信设备加入同一设备组，例如 personal；各设备客户端的「设备网络」显示可访问的网关设备。直连连接和入站授权可独立配置，不依赖网关。
+### 图形版
 
-登录自启动属于当前用户，会在用户登录后启动，不是登录前的系统守护服务。账户权限决定远程命令的权限。安装包目前未配置发布者签名和 macOS 公证。
+1. 安装并打开 Cranibox，窗口即本机界面；关闭窗口后仍在托盘运行，托盘可打开窗口、处理审批、暂停屏幕共享或退出。
+2. 在“这台设备 → 设置”开启登录自启动。登录自启动属于当前用户，不是登录前的系统守护服务。
+3. 用“添加设备”生成或打开配对链接，两台设备核对配对码后互相授权。
+
+安装包目前未配置发布者签名和 macOS 公证，首次打开需在 Finder 中右键选择“打开”。
+
+### 命令行版
+
+~~~bash
+cranibox                  # 运行本机节点和网页界面（默认 127.0.0.1:7377）
+cranibox ui-url           # 打印登录链接（含访问令牌）
+cranibox peer pair invite # 生成一次性配对链接
+~~~
+
+- 界面只监听回环地址。首次运行生成访问令牌 `ui.token`（0600，与 `peers.json` 同目录）；打开 `ui-url` 输出的链接后换成 HttpOnly 会话 cookie，令牌不会留在地址栏。远程服务器用 SSH 隧道访问：`ssh -L 7377:127.0.0.1:7377 server`。
+- 默认端口被占用且未指定 `--listen` 时自动改用空闲端口，实际地址写入 `ui.address`，`ui-url` 会读取它。经可信反向代理访问时用 `--allow-host` 放行代理的 Host。
+- 交互终端里启动时直接打印登录链接；作为服务运行时日志只记录地址，不记录令牌。
+- `cranibox-node`、`cranibox peer serve` 和 `cranibox serve`（非容器构建）是同一服务的兼容入口；已保存的旧 Workspace 网关连接会同时保持。
+- 远程命令的权限等于运行节点的账户；不要用 root 运行。
 
 ### Linux AppImage 与 FUSE
 
