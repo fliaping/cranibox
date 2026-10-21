@@ -24,7 +24,9 @@ pub async fn manage(state: &State, body: Value) -> Result<Value> {
                 .as_ref()
                 .is_some_and(|local| replica.node.as_deref() == Some(&local.id))
         {
-            let catalog = crate::terminal::manage(state, json!({"operation":"list"})).await?;
+            let catalog =
+                cranibox_node::web::terminal::manage(&state.services, json!({"operation":"list"}))
+                    .await?;
             anyhow::ensure!(
                 catalog["sessions"]
                     .as_array()

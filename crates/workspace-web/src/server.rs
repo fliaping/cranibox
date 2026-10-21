@@ -4,7 +4,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{
     Json, Router,
     body::to_bytes,
-    extract::{Request, State as ExtractState},
+    extract::{Query, Request, State as ExtractState, WebSocketUpgrade},
     http::{HeaderMap, HeaderValue, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -268,6 +268,28 @@ impl Session {
         }
     }
 }
+/// Workspace browser sessions as seen by the shared device routes.
+struct WebSessions(Arc<Mutex<HashMap<String, SessionRef>>>);
+#[async_trait::async_trait]
+impl cranibox_node::web::SessionStore for WebSessions {
+    async fn session(&self, headers: &HeaderMap) -> Option<String> {
+        let cookie = headers.get("cookie")?.to_str().ok()?;
+        let id = cookie
+            .split(';')
+            .map(str::trim)
+            .find_map(|s| s.strip_prefix("aw_session="))?;
+        let session = self.0.lock().await.get(id).cloned()?;
+        session.lock().await.seen = Instant::now();
+        Some(id.to_owned())
+    }
+    async fn csrf(&self, session: &str) -> Option<String> {
+        let session = self.0.lock().await.get(session).cloned()?;
+        Some(session.lock().await.csrf.clone())
+    }
+    async fn alive(&self, session: &str) -> bool {
+        self.0.lock().await.contains_key(session)
+    }
+}
 #[derive(Default)]
 struct Snapshot {
     value: Option<Value>,
@@ -289,8 +311,8 @@ pub struct State {
     hosts: HashSet<String>,
     origins: HashSet<String>,
     pub(crate) closing: watch::Sender<bool>,
-    pub(crate) terminals: crate::terminal::Hub,
-    pub(crate) desktops: crate::desktop::Hub,
+    /// Device routes shared with the CLI node and desktop window.
+    pub(crate) services: cranibox_node::web::Services,
     pub(crate) applications: cranibox_node::spaces::applications::Hub,
     history: Arc<Mutex<Journal>>,
     metrics: Arc<Mutex<crate::metrics::Metrics>>,
@@ -330,11 +352,17 @@ impl State {
             );
         }
         let (closing, _) = watch::channel(false);
+        let sessions: Arc<Mutex<HashMap<String, SessionRef>>> = Arc::default();
+        let services = cranibox_node::web::Services::new(
+            None,
+            root.join(".config/cranibox-node/peers.json"),
+            Arc::new(WebSessions(sessions.clone())),
+            closing.subscribe(),
+        );
         Ok(Self {
             gateway: None,
             local: None,
-            terminals: crate::terminal::Hub::new(root.clone()),
-            desktops: crate::desktop::Hub::default(),
+            services,
             applications: Default::default(),
             remote_client: reqwest::Client::builder()
                 .no_proxy()
@@ -347,13 +375,31 @@ impl State {
             root,
             command,
             config,
-            sessions: Arc::default(),
+            sessions,
             snapshot: Arc::default(),
             remote_refresh: Arc::default(),
             hosts,
             origins,
             closing,
         })
+    }
+    /// Route device operations to the started node and, if enrolled, the legacy gateway.
+    pub fn attach_node(&mut self) {
+        let mut services = cranibox_node::web::Services::new(
+            None,
+            self.root.join(".config/cranibox-node/peers.json"),
+            Arc::new(WebSessions(self.sessions.clone())),
+            self.closing.subscribe(),
+        )
+        .with_relay(Arc::new(crate::gateway_relay::GatewayRelay {
+            gateway: self.gateway.clone(),
+            runtime_url: self.config.runtime_url.clone(),
+            root: self.root.clone(),
+        }));
+        if let Some(local) = &self.local {
+            services.set_local(local.clone());
+        }
+        self.services = services;
     }
     pub(crate) async fn session(&self, headers: &HeaderMap) -> Option<SessionRef> {
         let cookie = headers.get("cookie")?.to_str().ok()?;
@@ -841,21 +887,34 @@ async fn guard(ExtractState(state): ExtractState<State>, request: Request, next:
 }
 pub fn router(state: State) -> Router {
     Router::new()
-        .route(
-            "/api/desktop/ws",
-            axum::routing::get(crate::desktop::upgrade),
-        )
-        .route(
-            "/api/terminal/ws",
-            axum::routing::get(crate::terminal::upgrade),
-        )
-        // Phase 0 mount points: App API (WS7) stays behind the browser guard.
-        .merge(crate::app_api::router())
+        .route("/api/desktop/ws", axum::routing::get(desktop_ws))
+        .route("/api/terminal/ws", axum::routing::get(terminal_ws))
+        // App API (WS7) stays behind the browser guard.
+        .route("/api/v1/app/{*rest}", any(app_api))
         .fallback(any(handle))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
         // The embedded iroh relay (WS1) authenticates peers itself, outside the guard.
         .merge(crate::relay::router())
         .with_state(state)
+}
+async fn app_api(ExtractState(state): ExtractState<State>, request: Request) -> Response {
+    cranibox_node::web::app_api::handle(state.services, request).await
+}
+async fn desktop_ws(
+    ExtractState(state): ExtractState<State>,
+    headers: HeaderMap,
+    Query(query): Query<cranibox_node::web::desktop::Connection>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    cranibox_node::web::desktop::upgrade(state.services, headers, query, ws).await
+}
+async fn terminal_ws(
+    ExtractState(state): ExtractState<State>,
+    headers: HeaderMap,
+    Query(query): Query<cranibox_node::web::terminal::Connection>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    cranibox_node::web::terminal::upgrade(state.services, headers, query, ws).await
 }
 async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> Response {
     let path = request.uri().path().to_owned();
@@ -864,73 +923,7 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     // Enrollment authenticates only with a short-lived invitation. Keep all other network
     // operations behind the normal browser session, CSRF and origin checks.
     if path == "/api/network/bootstrap" {
-        if method != "POST" {
-            return error(StatusCode::METHOD_NOT_ALLOWED, "POST required");
-        }
-        if request.uri().query().is_some() {
-            return error(
-                StatusCode::BAD_REQUEST,
-                "Do not put invitation credentials in the URL",
-            );
-        }
-        if header(&headers, "content-type") != "application/json" {
-            return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
-        }
-        let authorization = header(&headers, "authorization");
-        let Some(token) = authorization.strip_prefix("Bearer ").filter(|token| {
-            token.len() == 68
-                && token.starts_with("cbi_")
-                && token[4..].bytes().all(|c| c.is_ascii_hexdigit())
-        }) else {
-            return error(
-                StatusCode::UNAUTHORIZED,
-                "Invitation is invalid, expired or already used",
-            );
-        };
-        let bytes =
-            match tokio::time::timeout(Duration::from_secs(5), to_bytes(request.into_body(), 128))
-                .await
-            {
-                Ok(Ok(bytes)) => bytes,
-                Ok(Err(_)) => return error(StatusCode::PAYLOAD_TOO_LARGE, "Request too large"),
-                Err(_) => return error(StatusCode::REQUEST_TIMEOUT, "Request timed out"),
-            };
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct Redemption {
-            recovery: Option<String>,
-        }
-        let redemption = match serde_json::from_slice::<Redemption>(&bytes) {
-            Ok(value)
-                if value.recovery.as_ref().is_none_or(|recovery| {
-                    recovery.len() == 64 && recovery.bytes().all(|c| c.is_ascii_hexdigit())
-                }) =>
-            {
-                value
-            }
-            _ => {
-                return error(
-                    StatusCode::BAD_REQUEST,
-                    "Use an empty object or a 64 character recovery secret",
-                );
-            }
-        };
-        return match &state.local {
-            Some(local) => match local
-                .redeem_network_invitation(token.into(), redemption.recovery)
-                .await
-            {
-                Ok(value) => Json(value).into_response(),
-                Err(_) => error(
-                    StatusCode::UNAUTHORIZED,
-                    "Invitation is invalid, expired or already used",
-                ),
-            },
-            None => error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "Local device service unavailable",
-            ),
-        };
+        return cranibox_node::web::bootstrap(&state.services, request).await;
     }
     if method == "GET" {
         match path.as_str() {
@@ -938,14 +931,14 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
             "/web.js" => {
                 return (
                     [("content-type", "text/javascript; charset=utf-8")],
-                    include_str!("../../../addons/control-center/web.js"),
+                    cranibox_node::web::WEB_JS,
                 )
                     .into_response();
             }
             "/web.css" => {
                 return (
                     [("content-type", "text/css; charset=utf-8")],
-                    include_str!("../../../addons/control-center/web.css"),
+                    cranibox_node::web::WEB_CSS,
                 )
                     .into_response();
             }
@@ -964,16 +957,8 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                     .and_then(|v| v["locale"]["current"].as_str().map(str::to_owned))
                     .unwrap_or_else(|| state.locale().into());
                 let s = session.lock().await;
-                let template = if locale == "zh-cn" {
-                    include_str!("../../../addons/control-center/index.zh-cn.html")
-                } else {
-                    include_str!("../../../addons/control-center/index.en.html")
-                };
-                let config = json!({"csrf":s.csrf,"workspaceUrl":state.config.workspace_url,"desktopUrl":state.config.desktop_url,"language":locale,"cursor":s.seq});
-                let page = template.replace("__WORKSPACE_NONCE__", &token()).replace(
-                    "__WORKSPACE_CONFIG__",
-                    &config.to_string().replace('<', "\\u003c"),
-                );
+                let config = json!({"csrf":s.csrf,"workspaceUrl":state.config.workspace_url,"desktopUrl":state.config.desktop_url,"language":locale,"cursor":s.seq,"edition":"workspace","node":state.local.as_ref().map(|l| l.id.clone())});
+                let page = cranibox_node::web::page(&locale, &config);
                 let mut response =
                     ([("content-type", "text/html; charset=utf-8")], page).into_response();
                 let secure = state.config.public_url.starts_with("https:")
@@ -1019,12 +1004,7 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     if header(&headers, "content-type") != "application/json" {
         return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
     }
-    let body_limit = match path.as_str() {
-        // Agent input allows 16 KiB after decoding. JSON escaping can expand it sixfold.
-        "/api/peers" => 128 * 1024,
-        "/api/network" => 32768,
-        _ => 16384,
-    };
+    let body_limit = cranibox_node::web::Services::limit(&path).unwrap_or(16384);
     let bytes = match tokio::time::timeout(
         Duration::from_secs(10),
         to_bytes(request.into_body(), body_limit),
@@ -1042,65 +1022,18 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     if !body.is_object() {
         return error(StatusCode::BAD_REQUEST, "Object required");
     }
+    if cranibox_node::web::Services::limit(&path).is_some() {
+        let session_id = session.lock().await.id.clone();
+        return match state.services.api(&session_id, &path, body).await {
+            Some(Ok(value)) => Json(value).into_response(),
+            Some(Err(e)) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            None => error(StatusCode::NOT_FOUND, "Not found"),
+        };
+    }
     match path.as_str() {
-        "/api/network" => {
-            let result = match serde_json::from_value(body) {
-                Ok(command) => match &state.local {
-                    Some(local) => local.manage_network(command).await,
-                    None => Err(anyhow::anyhow!("Local device service unavailable")),
-                },
-                Err(error) => Err(error.into()),
-            };
-            match result {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
-            }
-        }
-        "/api/desktop/service" => {
-            let result = match serde_json::from_value(body) {
-                Ok(command) => match &state.local {
-                    Some(local) => local.manage_desktop_service(command).await,
-                    None => Err(anyhow::anyhow!("Local device service unavailable")),
-                },
-                Err(error) => Err(error.into()),
-            };
-            match result {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
-            }
-        }
         "/api/spaces/application" => {
             let owner = session.lock().await.id.clone();
             match crate::applications::issue(&state, owner, body).await {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
-            }
-        }
-        "/api/spaces" => {
-            let store = cranibox_node::spaces::Store::new(
-                state.root.join(".config/cranibox-node/peers.json"),
-            );
-            let result = match serde_json::from_value(body) {
-                Ok(command) => store.manage(command, true).await,
-                Err(error) => Err(error.into()),
-            };
-            match result {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
-            }
-        }
-        "/api/peers" => {
-            let store = agent_workspace_runtime::peers::Store::new(
-                state.root.join(".config/cranibox-node/peers.json"),
-            );
-            let result = match serde_json::from_value(body) {
-                Ok(command) => match &state.local {
-                    Some(local) => local.manage_peers(command).await,
-                    None => store.manage(command).await,
-                },
-                Err(error) => Err(error.into()),
-            };
-            match result {
                 Ok(value) => Json(value).into_response(),
                 Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
             }
@@ -1110,31 +1043,6 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
             Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
         },
         "/api/events" => events(state, session).await,
-        "/api/desktop/ticket" => {
-            let session_id = session.lock().await.id.clone();
-            match state.desktops.issue(&state, session_id, body).await {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, e),
-            }
-        }
-        "/api/desktop/cancel" => {
-            let session_id = session.lock().await.id.clone();
-            match state.desktops.cancel(&session_id, body).await {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, e),
-            }
-        }
-        "/api/terminal/ticket" => {
-            let id = session.lock().await.id.clone();
-            match state.terminals.issue(id, body).await {
-                Ok(value) => Json(value).into_response(),
-                Err(e) => error(StatusCode::BAD_REQUEST, e),
-            }
-        }
-        "/api/terminal/sessions" => match crate::terminal::manage(&state, body).await {
-            Ok(value) => Json(value).into_response(),
-            Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
-        },
         "/api/history/list" => {
             let records: Vec<_> = state
                 .history

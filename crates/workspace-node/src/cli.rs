@@ -1,5 +1,5 @@
 use crate::{
-    agent, node,
+    agent,
     settings::{self, Settings},
 };
 use clap::Parser;
@@ -44,7 +44,53 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     }
     let args = Args::parse_from(args);
     let peer_path = crate::peer::config::path_for(&args.config);
+    // Every device runs the same way: node core plus its own interface. A saved legacy
+    // gateway connection is kept alongside, never required.
+    let default_listen = || {
+        crate::web::standalone::DEFAULT_LISTEN
+            .parse::<std::net::SocketAddr>()
+            .expect("default listen address")
+    };
+    let service = match &args.command {
+        None
+        | Some(agent::Command::Peer {
+            command: crate::peer::Command::Serve,
+        }) => Some((default_listen(), Vec::new())),
+        Some(agent::Command::Serve { listen, allow_host }) => Some((*listen, allow_host.clone())),
+        _ => None,
+    };
+    if let Some((listen, allow_hosts)) = service {
+        let gateway = if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
+            Some(Settings {
+                server: args
+                    .server
+                    .ok_or_else(|| anyhow::anyhow!("--server required"))?,
+                id: args.id.ok_or_else(|| anyhow::anyhow!("--id required"))?,
+                token_file: args
+                    .token_file
+                    .ok_or_else(|| anyhow::anyhow!("--token-file required"))?,
+                name: args.name,
+                allow_insecure: args.allow_insecure,
+            })
+        } else if args.config.exists() {
+            Some(Settings::read(&args.config)?)
+        } else {
+            None
+        };
+        return Box::pin(crate::web::standalone::run(
+            peer_path,
+            listen,
+            allow_hosts,
+            gateway,
+        ))
+        .await;
+    }
     let command = match args.command {
+        Some(agent::Command::UiUrl { listen }) => {
+            let token = crate::web::standalone::access_token(&peer_path)?;
+            println!("{}", crate::web::standalone::sign_in_url(listen, &token));
+            return Ok(());
+        }
         Some(agent::Command::AppMcp { data, service }) => {
             return crate::app_mcp::run(peer_path, data, &service).await;
         }
@@ -90,17 +136,8 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         Settings::read(&args.config)?
     };
     settings.validate()?;
-    if let Some(command) = command {
-        agent::run(settings, command).await
-    } else {
-        let control = node::Control::default();
-        let signal = control.stop.clone();
-        tokio::spawn(async move {
-            agent_workspace_runtime::shutdown_signal().await;
-            signal.cancel();
-        });
-        Box::pin(node::run_managed_at(settings, control, peer_path)).await
-    }
+    let command = command.expect("the device service is handled above");
+    agent::run(settings, command).await
 }
 
 #[cfg(test)]

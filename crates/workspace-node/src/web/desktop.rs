@@ -1,15 +1,11 @@
 //! Session-bound, one-use browser tickets. Node credentials never reach JavaScript.
-use crate::server::State;
+use super::{Services, error};
 use agent_workspace_runtime::{
-    peers::{
-        Store,
-        desktop::{Event, MAX_CHUNK, Stream},
-    },
+    peers::desktop::{Event, MAX_CHUNK, Stream},
     protocol::valid_node_id,
 };
 use axum::{
-    Json,
-    extract::{Query, State as ExtractState, WebSocketUpgrade, ws::Message},
+    extract::{WebSocketUpgrade, ws::Message},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -64,7 +60,7 @@ impl Hub {
     }
     pub(crate) async fn issue(
         &self,
-        state: &State,
+        services: &Services,
         session: String,
         body: Value,
     ) -> anyhow::Result<Value> {
@@ -79,31 +75,19 @@ impl Hub {
             "too many desktop requests"
         );
         let desktop = if options.local {
-            anyhow::ensure!(
-                state
-                    .local
-                    .as_ref()
-                    .is_some_and(|node| node.id == options.node),
-                "local node identity mismatch"
-            );
-            state.local.as_ref().unwrap().desktop().await?
+            let local = services.local()?;
+            anyhow::ensure!(local.id == options.node, "local node identity mismatch");
+            local.desktop().await?
         } else if options.relay {
-            if let Some(gateway) = &state.gateway {
-                gateway.desktop(&options.node).await?
-            } else {
-                agent_workspace_runtime::client::Api::new(
-                    agent_workspace_runtime::client::ApiOptions {
-                        url: state.config.runtime_url.clone(),
-                        token_file: None,
-                        credentials: state.root.join(".config/agent-workspace/runtime.json"),
-                        allow_insecure: false,
-                    },
-                )?
+            services
+                .relay
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("This device has no relay to that desktop"))?
                 .desktop(&options.node)
                 .await?
-            }
         } else {
-            store(state)
+            services
+                .peer_store()
                 .route(&options.node)?
                 .api(&options.node)?
                 .desktop(&options.node)
@@ -123,7 +107,7 @@ impl Hub {
         );
         let tickets = self.tickets.clone();
         let expired = ticket.clone();
-        let owner = state.clone();
+        let owner = services.clone();
         tokio::spawn(async move {
             let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
             let mut check = tokio::time::interval(Duration::from_secs(1));
@@ -131,7 +115,7 @@ impl Hub {
                 check.tick().await;
                 if tokio::time::Instant::now() >= deadline
                     || *owner.closing.borrow()
-                    || !owner.has_session(&session).await
+                    || !owner.sessions.alive(&session).await
                     || !tickets.lock().await.contains_key(&expired)
                 {
                     break;
@@ -142,49 +126,44 @@ impl Hub {
         Ok(json!({"ticket":ticket}))
     }
 }
-fn store(state: &State) -> Store {
-    Store::new(state.root.join(".config/cranibox-node/peers.json"))
-}
+
 #[derive(Deserialize)]
-pub(crate) struct Connection {
+pub struct Connection {
     ticket: String,
 }
-fn error(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
-}
-pub(crate) async fn upgrade(
-    ExtractState(state): ExtractState<State>,
+
+/// `GET /api/desktop/ws?ticket=…`. The host's guard has already checked Host and Origin.
+pub async fn upgrade(
+    services: Services,
     headers: HeaderMap,
-    Query(query): Query<Connection>,
+    query: Connection,
     ws: WebSocketUpgrade,
 ) -> Response {
     if !headers.contains_key("origin") {
         return error(StatusCode::FORBIDDEN, "Origin required");
     }
-    let Some(session) = state.session(&headers).await else {
+    let Some(session) = services.sessions.session(&headers).await else {
         return error(StatusCode::UNAUTHORIZED, "Session expired");
     };
-    let session_id = session.lock().await.id.clone();
     let ticket = {
-        let mut tickets = state.desktops.tickets.lock().await;
+        let mut tickets = services.desktops.tickets.lock().await;
         if !tickets
             .get(&query.ticket)
-            .is_some_and(|t| t.session == session_id && t.expires > Instant::now())
+            .is_some_and(|t| t.session == session && t.expires > Instant::now())
         {
             return error(StatusCode::UNAUTHORIZED, "Desktop ticket expired");
         }
         tickets.remove(&query.ticket).unwrap()
     };
     let mut desktop = ticket.desktop;
-    let mut closing = state.closing.subscribe();
+    let mut closing = services.closing.clone();
     ws.max_message_size(MAX_CHUNK).max_frame_size(MAX_CHUNK).on_upgrade(move |mut socket| async move {
-        let _session = session;
         let run: anyhow::Result<()> = async {
             let mut check = tokio::time::interval(Duration::from_secs(1));
             loop {
                 tokio::select! {
                     _ = closing.changed() => break,
-                    _ = check.tick() => { if *closing.borrow() || !state.has_session(&session_id).await { break; } }
+                    _ = check.tick() => { if *closing.borrow() || !services.sessions.alive(&session).await { break; } }
                     message = socket.recv() => match message {
                         Some(Ok(Message::Binary(bytes))) => desktop.send(bytes.to_vec())?,
                         Some(Ok(Message::Ping(data))) => { tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Pong(data))).await??; }

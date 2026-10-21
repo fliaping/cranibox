@@ -1,49 +1,34 @@
-use crate::server::State;
-use agent_workspace_pty::{
-    Event, Session,
-    herdr::{Engine as SessionEngine, Manage},
-};
-use agent_workspace_runtime::{
-    peers::{Store, terminal as direct},
-    protocol::Wire,
-    server::RemoteTerminal,
-};
+//! Browser terminals: this device's shells, paired devices, or an optional relay.
+use super::{RelayTerminal, Services, error};
+use agent_workspace_runtime::peers::terminal::{self as direct, Event, Input};
 use axum::{
-    Json,
     extract::{
-        Query, State as ExtractState, WebSocketUpgrade,
+        WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use base64::{Engine, engine::general_purpose::STANDARD};
 use futures_util::SinkExt;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::sync::{Mutex, Semaphore, watch};
 
 #[derive(Clone)]
-pub struct Hub {
+pub(crate) struct Hub {
     tickets: Arc<Mutex<HashMap<String, Ticket>>>,
     slots: Arc<Semaphore>,
-    engine: SessionEngine,
 }
-impl Hub {
-    pub(crate) fn engine(&self) -> SessionEngine {
-        self.engine.clone()
-    }
-    pub fn new(root: PathBuf) -> Self {
+impl Default for Hub {
+    fn default() -> Self {
         Self {
             tickets: Arc::default(),
             slots: Arc::new(Semaphore::new(8)),
-            engine: SessionEngine::new(root.clone(), root.join(".local/state/cranibox/terminal")),
         }
     }
 }
@@ -69,7 +54,7 @@ struct Options {
     takeover: bool,
 }
 impl Hub {
-    pub async fn issue(&self, session: String, body: Value) -> anyhow::Result<Value> {
+    pub(crate) async fn issue(&self, session: String, body: Value) -> anyhow::Result<Value> {
         let options: Options = serde_json::from_value(body)?;
         agent_workspace_pty::validate_size(options.cols, options.rows)?;
         anyhow::ensure!(
@@ -102,44 +87,44 @@ impl Hub {
         Ok(json!({"ticket":token}))
     }
 }
+
 #[derive(Deserialize)]
 pub struct Connection {
     ticket: String,
 }
+
+/// `GET /api/terminal/ws?ticket=…`. Native/no-Origin upgrades are rejected.
 pub async fn upgrade(
-    ExtractState(state): ExtractState<State>,
+    services: Services,
     headers: HeaderMap,
-    Query(query): Query<Connection>,
+    query: Connection,
     ws: WebSocketUpgrade,
 ) -> Response {
-    // guard validates allowed Host and Origin before this handler. Native/no-Origin upgrades are rejected.
     if !headers.contains_key("origin") {
-        return failure(StatusCode::FORBIDDEN, "Origin required");
+        return error(StatusCode::FORBIDDEN, "Origin required");
     }
-    let Some(session) = state.session(&headers).await else {
-        return failure(StatusCode::UNAUTHORIZED, "Session expired");
+    let Some(session) = services.sessions.session(&headers).await else {
+        return error(StatusCode::UNAUTHORIZED, "Session expired");
     };
-    let session_id = session.lock().await.id.clone();
     let ticket = {
-        let mut tickets = state.terminals.tickets.lock().await;
+        let mut tickets = services.terminals.tickets.lock().await;
         let valid = tickets
             .get(&query.ticket)
-            .is_some_and(|t| t.session == session_id && t.expires > Instant::now());
+            .is_some_and(|t| t.session == session && t.expires > Instant::now());
         if !valid {
-            return failure(StatusCode::UNAUTHORIZED, "Terminal ticket expired");
+            return error(StatusCode::UNAUTHORIZED, "Terminal ticket expired");
         }
         tickets.remove(&query.ticket).unwrap()
     };
-    let Ok(permit) = state.terminals.slots.clone().try_acquire_owned() else {
-        return failure(StatusCode::TOO_MANY_REQUESTS, "Maximum eight terminals");
+    let Ok(permit) = services.terminals.slots.clone().try_acquire_owned() else {
+        return error(StatusCode::TOO_MANY_REQUESTS, "Maximum eight terminals");
     };
-    let closing = state.closing.subscribe();
+    let closing = services.closing.clone();
     ws.max_message_size(16 * 1024)
         .max_frame_size(16 * 1024)
         .on_upgrade(move |socket| async move {
-            let _session = session;
             let _permit = permit;
-            match open(&state, ticket.options).await {
+            match open(&services, ticket.options).await {
                 Ok(terminal) => run(socket, terminal, closing).await,
                 Err(error) => {
                     let mut socket = socket;
@@ -155,28 +140,23 @@ pub async fn upgrade(
         })
         .into_response()
 }
-fn failure(status: StatusCode, message: &str) -> Response {
-    (status, Json(json!({"error":message}))).into_response()
-}
+
 enum Terminal {
-    Local(Session),
-    Remote(RemoteTerminal),
+    Local(crate::local::Terminal),
     Direct(direct::Terminal),
+    Relay(Box<dyn RelayTerminal>),
 }
-fn peer_store(state: &State) -> Store {
-    Store::new(state.root.join(".config/cranibox-node/peers.json"))
-}
-async fn open(state: &State, options: Options) -> anyhow::Result<Terminal> {
-    let local = state
+async fn open(services: &Services, options: Options) -> anyhow::Result<Terminal> {
+    let own = services
         .local
         .as_ref()
         .is_some_and(|local| options.node.as_deref() == Some(&local.id));
-    anyhow::ensure!(!options.local || local, "local node identity changed");
-    if let Some(node) = options.node.filter(|_| options.direct || !local) {
+    anyhow::ensure!(!options.local || own, "local node identity changed");
+    if let Some(node) = options.node.filter(|_| options.direct || !own) {
         if options.direct {
             return Ok(Terminal::Direct(
                 direct::Terminal::connect(
-                    peer_store(state).route(&node)?,
+                    services.peer_store().route(&node)?,
                     &node,
                     &options.session_id,
                     options.cols,
@@ -186,11 +166,12 @@ async fn open(state: &State, options: Options) -> anyhow::Result<Terminal> {
                 .await?,
             ));
         }
-        let gateway = state.gateway.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Remote terminals require the unified Cranibox server")
-        })?;
-        return Ok(Terminal::Remote(
-            gateway
+        let relay = services
+            .relay
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Pair this device to open its terminal"))?;
+        return Ok(Terminal::Relay(
+            relay
                 .terminal(
                     &node,
                     options.cols,
@@ -201,53 +182,34 @@ async fn open(state: &State, options: Options) -> anyhow::Result<Terminal> {
                 .await?,
         ));
     }
-    let pty = state
-        .terminals
-        .engine
-        .attach(
-            &options.session_id,
-            options.cols,
-            options.rows,
-            options.takeover,
-        )
-        .await?;
-    Ok(Terminal::Local(pty))
+    Ok(Terminal::Local(
+        services
+            .local()?
+            .attach(
+                &options.session_id,
+                options.cols,
+                options.rows,
+                options.takeover,
+            )
+            .await?,
+    ))
 }
-type Input = direct::Input;
 impl Terminal {
     fn input(&self, message: Input) -> anyhow::Result<()> {
-        message.validate()?;
-        match (self, message) {
-            (Self::Direct(remote), message) => remote.send(message),
-            (Self::Local(pty), Input::Input { data }) => pty.write(data.into_bytes()),
-            (Self::Local(pty), Input::Resize { cols, rows }) => pty.resize(cols, rows),
-            (Self::Remote(remote), Input::Input { data }) => remote.send(Wire::TerminalInput {
-                id: remote.id.clone(),
-                data: STANDARD.encode(data),
-            }),
-            (Self::Remote(remote), Input::Resize { cols, rows }) => {
-                agent_workspace_pty::validate_size(cols, rows)?;
-                remote.send(Wire::TerminalResize {
-                    id: remote.id.clone(),
-                    cols,
-                    rows,
-                })
+        match self {
+            Self::Local(local) => local.send(message),
+            Self::Direct(remote) => remote.send(message),
+            Self::Relay(remote) => {
+                message.validate()?;
+                remote.send(message)
             }
         }
     }
     async fn output(&mut self) -> Option<Event> {
         match self {
-            Self::Local(pty) => pty.output.recv().await,
-            Self::Direct(remote) => match remote.output.recv().await? {
-                direct::Event::Output(data) => Some(Event::Output(data)),
-                direct::Event::Exit(code) => Some(Event::Exit(code)),
-                direct::Event::Error(_) => None,
-            },
-            Self::Remote(remote) => match remote.output.recv().await? {
-                Wire::TerminalOutput { data, .. } => STANDARD.decode(data).ok().map(Event::Output),
-                Wire::TerminalExit { code, .. } => Some(Event::Exit(code)),
-                _ => None,
-            },
+            Self::Local(local) => local.output.recv().await,
+            Self::Direct(remote) => remote.output.recv().await,
+            Self::Relay(remote) => remote.output().await,
         }
     }
 }
@@ -285,7 +247,7 @@ async fn run(mut socket: WebSocket, mut terminal: Terminal, mut closing: watch::
                 let message = match event {
                     Some(Event::Output(data)) => Message::Binary(data.into()),
                     Some(Event::Exit(code)) => { let _ = tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(json!({"type":"attachment_closed","client_exit_code":code}).to_string().into()))).await; break; },
-                    None => break,
+                    Some(Event::Error(_)) | None => break,
                 };
                 activity = Instant::now();
                 if !matches!(tokio::time::timeout(Duration::from_secs(5), socket.send(message)).await, Ok(Ok(()))) { break; }
@@ -305,7 +267,7 @@ fn uuid_is_valid(id: &str) -> bool {
             }
         })
 }
-pub async fn manage(state: &State, mut body: Value) -> anyhow::Result<Value> {
+pub async fn manage(services: &Services, mut body: Value) -> anyhow::Result<Value> {
     let object = body
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("session command must be an object"))?;
@@ -324,19 +286,23 @@ pub async fn manage(state: &State, mut body: Value) -> anyhow::Result<Value> {
         !direct || matches!(&node, Some(Value::String(_))),
         "direct terminal requires a node"
     );
-    let own_node = state
+    let own = services
         .local
         .as_ref()
         .is_some_and(|local| node.as_ref().and_then(Value::as_str) == Some(&local.id));
-    anyhow::ensure!(
-        !local || (own_node && !direct),
-        "local node identity changed"
-    );
-    let request: Manage = serde_json::from_value(body.clone())?;
+    anyhow::ensure!(!local || (own && !direct), "local node identity changed");
     match node {
-        None | Some(Value::Null) => state.terminals.engine.manage(request).await,
-        Some(Value::String(_)) if own_node && !direct => {
-            state.terminals.engine.manage(request).await
+        None | Some(Value::Null) => {
+            services
+                .local()?
+                .sessions(serde_json::from_value(body)?)
+                .await
+        }
+        Some(Value::String(_)) if own && !direct => {
+            services
+                .local()?
+                .sessions(serde_json::from_value(body)?)
+                .await
         }
         Some(Value::String(node)) => {
             anyhow::ensure!(
@@ -344,17 +310,18 @@ pub async fn manage(state: &State, mut body: Value) -> anyhow::Result<Value> {
                 "invalid node"
             );
             if direct {
-                return peer_store(state)
+                return services
+                    .peer_store()
                     .manage(agent_workspace_runtime::peers::Command::Sessions {
                         node,
                         command: body,
                     })
                     .await;
             }
-            state
-                .gateway
+            services
+                .relay
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("remote sessions require the unified server"))?
+                .ok_or_else(|| anyhow::anyhow!("Pair this device to manage its sessions"))?
                 .terminal_manage(&node, body)
                 .await
         }

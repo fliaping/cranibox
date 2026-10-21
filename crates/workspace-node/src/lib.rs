@@ -16,3 +16,4 @@ pub mod models;
 
 pub mod app;
 pub mod app_mcp;
+pub mod web;

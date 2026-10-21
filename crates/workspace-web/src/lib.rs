@@ -1,13 +1,11 @@
 mod actions;
-mod app_api;
 mod applications;
-mod desktop;
+mod gateway_relay;
 mod metrics;
 mod projects;
 mod relay;
 mod remote;
 mod server;
-mod terminal;
 
 use anyhow::Result;
 use clap::Parser;
@@ -69,7 +67,10 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
     state.local = Some(std::sync::Arc::new(
         cranibox_node::local::LocalNode::start_with(
             args.config_root.join(".config/cranibox-node/peers.json"),
-            agent_workspace_pty::engine::Engine::Herdr(state.terminals.engine()),
+            agent_workspace_pty::engine::Engine::Herdr(agent_workspace_pty::herdr::Engine::new(
+                args.config_root.clone(),
+                args.config_root.join(".local/state/cranibox/terminal"),
+            )),
             agent_workspace_runtime::projects::Store::new(
                 args.config_root
                     .join(".config/agent-workspace/projects.json"),
@@ -107,6 +108,7 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
             )?,
         );
     }
+    state.attach_node();
     let listener = tokio::net::TcpListener::bind((args.host, config.port)).await?;
     println!(
         "Agent Workspace Web (Rust): http://{}",

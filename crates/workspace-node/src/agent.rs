@@ -45,11 +45,28 @@ pub enum Command {
     },
     /// MCP stdio server using this device's own credentials.
     Mcp,
+    /// Run this device and serve its interface on loopback (the default command).
+    Serve {
+        #[arg(long, default_value = crate::web::standalone::DEFAULT_LISTEN)]
+        listen: std::net::SocketAddr,
+        /// Also accept this Host (host[:port]) from a trusted reverse proxy.
+        #[arg(long = "allow-host")]
+        allow_host: Vec<String>,
+    },
+    /// Print the sign-in link of this device's interface.
+    UiUrl {
+        #[arg(long, default_value = crate::web::standalone::DEFAULT_LISTEN)]
+        listen: std::net::SocketAddr,
+    },
 }
 pub async fn run(settings: Settings, command: Command) -> Result<()> {
     let api = settings.api()?;
     match command {
-        Command::Peer { .. } | Command::Space { .. } | Command::AppMcp { .. } => {
+        Command::Peer { .. }
+        | Command::Space { .. }
+        | Command::AppMcp { .. }
+        | Command::Serve { .. }
+        | Command::UiUrl { .. } => {
             anyhow::bail!("device commands use their local configuration")
         }
         Command::Nodes => client::print(api.get("/api/v1/nodes").await?),
