@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "exec": true,
+    "terminals": true,
+    "projects": true,
+    "desktop": true,
+    "computer": false,
+    "browser": true,
+    "messages": true,
+    "activity": true,
+    "spaces": true,
+    "llm": true,
+    "vault": true
+  }
+}

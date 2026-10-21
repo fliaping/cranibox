@@ -14,17 +14,57 @@ fn lease_default() -> u64 {
     60
 }
 
+pub mod cua;
+
+/// Which local program serves Computer Use.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderKind {
+    /// The loopback `agent-desktop-bridge` HTTP protocol (`POST /v1/action`).
+    #[default]
+    Http,
+    /// cua-driver over MCP stdio (macOS, Linux X11, Windows).
+    Cua,
+}
+impl ProviderKind {
+    fn is_http(&self) -> bool {
+        *self == Self::Http
+    }
+}
+/// Configurations written before `kind` existed are HTTP bridges and keep their bytes.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Provider {
-    pub address: SocketAddr,
+    #[serde(default, skip_serializing_if = "ProviderKind::is_http")]
+    pub kind: ProviderKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub address: Option<SocketAddr>,
 }
 impl Provider {
+    pub fn http(address: SocketAddr) -> Self {
+        Self {
+            kind: ProviderKind::Http,
+            address: Some(address),
+        }
+    }
+    pub fn cua() -> Self {
+        Self {
+            kind: ProviderKind::Cua,
+            address: None,
+        }
+    }
     pub fn validate(&self) -> Result<()> {
-        ensure!(
-            self.address.ip().is_loopback() && self.address.port() != 0,
-            "Computer Use provider must use a loopback address and a nonzero port"
-        );
+        match (self.kind, self.address) {
+            (ProviderKind::Http, Some(address)) => ensure!(
+                address.ip().is_loopback() && address.port() != 0,
+                "Computer Use provider must use a loopback address and a nonzero port"
+            ),
+            (ProviderKind::Http, None) => anyhow::bail!("Computer Use bridge address is required"),
+            (ProviderKind::Cua, address) => ensure!(
+                address.is_none(),
+                "the cua-driver provider has no network address"
+            ),
+        }
         Ok(())
     }
 }
@@ -315,10 +355,21 @@ impl Action {
 /// No proxy, redirects or retry: an ambiguous input must never be replayed.
 pub async fn bridge(provider: &Provider, payload: Value, session: &str) -> Result<Value> {
     provider.validate()?;
+    if provider.kind == ProviderKind::Cua {
+        let action = payload["action"].clone();
+        let value = cua::driver().call(payload).await?;
+        if action == "screenshot" || action == "zoom" {
+            validate_image(&value)?;
+        }
+        return Ok(value);
+    }
+    let address = provider
+        .address
+        .context("Computer Use bridge address is required")?;
     let response: Result<Value> = async {
         let mut response = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10)).build()?
-            .post(format!("http://{}/v1/action", provider.address))
+            .post(format!("http://{address}/v1/action"))
             .header("X-Agent-Session", session).json(&payload).send().await?;
         let status = response.status();
         ensure!(status.is_success(), if status.as_u16() == 423 { "Computer Use is paused; resume on the target device" } else { "Computer Use provider rejected the action" });
@@ -472,12 +523,33 @@ mod tests {
             .is_err()
         );
         assert!(
-            Provider {
-                address: "192.0.2.1:8765".parse().unwrap()
-            }
-            .validate()
-            .is_err()
+            Provider::http("192.0.2.1:8765".parse().unwrap())
+                .validate()
+                .is_err()
         );
         assert!(validate_image(&json!({"data":STANDARD.encode(b"not-png")})).is_err());
+    }
+    #[test]
+    fn provider_kind_defaults_to_the_http_bridge_and_keeps_old_bytes() {
+        let old = json!({"address":"127.0.0.1:8765"});
+        let provider: Provider = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(provider, Provider::http("127.0.0.1:8765".parse().unwrap()));
+        assert_eq!(serde_json::to_value(&provider).unwrap(), old);
+        let cua: Provider = serde_json::from_value(json!({"kind":"cua"})).unwrap();
+        assert_eq!(cua, Provider::cua());
+        cua.validate().unwrap();
+        assert_eq!(serde_json::to_value(&cua).unwrap(), json!({"kind":"cua"}));
+        for invalid in [
+            json!({"kind":"cua","address":"127.0.0.1:8765"}),
+            json!({"kind":"http"}),
+        ] {
+            assert!(
+                serde_json::from_value::<Provider>(invalid)
+                    .unwrap()
+                    .validate()
+                    .is_err()
+            );
+        }
+        assert!(serde_json::from_value::<Provider>(json!({"kind":"other"})).is_err());
     }
 }

@@ -27,6 +27,11 @@ pub mod routes {
     pub const MODELS_PREFIX: &str = "/api/v1/app/models";
     pub const AGENTS: &str = "/api/v1/app/agents";
     pub const AGENT: &str = "/api/v1/app/agents/{id}";
+    pub const CAPABILITIES: &str = "/api/v1/app/capabilities";
+    /// `POST`, body optional; answers the updated [`super::CapabilityItem`] (or [`super::InstallPlan`]).
+    pub const CAPABILITY_ACTION: &str = "/api/v1/app/capabilities/{id}/{action}";
+    /// `GET` / `PUT` [`super::DeviceGrant`].
+    pub const DEVICE_GRANT: &str = "/api/v1/app/devices/{node}/grant";
     /// SSE stream of [`super::AppEvent`].
     pub const EVENTS: &str = "/api/v1/app/events";
 }
@@ -259,4 +264,122 @@ pub trait AppApi: Send + Sync {
     async fn update_agent(&self, id: AgentId, req: AgentUpdate) -> Result<AgentInfo, AppError>;
     /// Models available to the agent model pickers (proxy of mgmt `GET /models`).
     async fn models(&self) -> Result<Vec<ModelEntry>, AppError>;
+}
+
+/// Platform of the device serving `GET /api/v1/app/capabilities`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Platform {
+    Macos,
+    Linux,
+    Windows,
+}
+
+/// A local capability this device can share with paired devices.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityId {
+    Terminal,
+    Desktop,
+    Computer,
+    Browser,
+}
+
+/// Owner action on a capability: `POST /api/v1/app/capabilities/{id}/{action}`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityAction {
+    /// Review an installation; answers [`InstallPlan`].
+    InstallPlan,
+    /// Run a reviewed plan once; body [`InstallReq`].
+    Install,
+    Start,
+    Stop,
+    /// Share the detected provider with paired devices.
+    Enable,
+    Disable,
+    RequestPermissions,
+    OpenSettings,
+    Refresh,
+}
+
+/// The local program that provides a capability.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CapabilityProvider {
+    /// `pty`, `screen_sharing`, `x11vnc`, `wayvnc`, `vnc`, `cua`, `http`, `chrome`, …
+    pub kind: String,
+    pub installed: bool,
+    pub running: bool,
+    pub version: Option<String>,
+    pub detail: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionId {
+    ScreenRecording,
+    Accessibility,
+}
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionState {
+    Granted,
+    Denied,
+    Unknown,
+    NotRequired,
+}
+/// Operating-system permission held by the provider (macOS TCC).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapabilityPermission {
+    pub id: PermissionId,
+    pub state: PermissionState,
+}
+
+/// Whether paired devices may reach the provider (still subject to each grant).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CapabilitySharing {
+    pub enabled: bool,
+    /// Loopback provider address, when the provider has one.
+    pub address: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CapabilityItem {
+    pub id: CapabilityId,
+    pub provider: CapabilityProvider,
+    pub permissions: Vec<CapabilityPermission>,
+    pub sharing: CapabilitySharing,
+    /// Actions that apply in the current state.
+    pub actions: Vec<CapabilityAction>,
+    pub error: Option<String>,
+}
+
+/// `GET /api/v1/app/capabilities`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Capabilities {
+    pub platform: Platform,
+    pub items: Vec<CapabilityItem>,
+}
+
+/// Answer of the `install_plan` action. The plan runs at most once, before `expires_at`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct InstallPlan {
+    pub plan_id: String,
+    /// Exact shell commands that `install` runs.
+    pub commands: Vec<String>,
+    /// Source of the installer, for review.
+    pub url: Option<String>,
+    /// Unix seconds.
+    pub expires_at: u64,
+}
+/// Body of the `install` action.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct InstallReq {
+    pub plan_id: String,
+}
+
+/// `GET`/`PUT /api/v1/app/devices/{node}/grant`: what that paired device may do here.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DeviceGrant {
+    pub permissions: DeviceCaps,
 }

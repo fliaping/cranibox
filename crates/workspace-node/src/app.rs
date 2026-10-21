@@ -1,4 +1,5 @@
 //! One App API implementation shared by the browser and native IPC.
+mod capabilities;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
 use cranibox_contracts::{
@@ -20,6 +21,8 @@ pub struct Service {
     agent_updates: tokio::sync::Mutex<()>,
     /// First time each inviter-side pairing flow was seen, for stable approval cards.
     pair_seen: std::sync::Mutex<BTreeMap<String, u64>>,
+    /// Local capability providers, created on first use.
+    capabilities: std::sync::OnceLock<capabilities::Service>,
 }
 pub fn error(status: u16, code: &str, message: impl Into<String>) -> AppError {
     AppError {
@@ -38,6 +41,7 @@ impl Service {
             models,
             agent_updates: tokio::sync::Mutex::new(()),
             pair_seen: Default::default(),
+            capabilities: Default::default(),
         }
     }
     fn local(&self) -> Result<Arc<LocalNode>, AppError> {
@@ -111,6 +115,40 @@ impl Service {
                 MgmtError::Invalid(message) => error(400, "invalid", message),
                 _ => unavailable(e),
             })
+    }
+    fn capability_service(&self, local: &LocalNode) -> &capabilities::Service {
+        self.capabilities
+            .get_or_init(|| capabilities::Service::new(local.config_path()))
+    }
+    /// `GET /capabilities`.
+    pub async fn capabilities(&self) -> Result<Capabilities, AppError> {
+        let local = self.local()?;
+        self.capability_service(&local).list(local.as_ref()).await
+    }
+    /// `POST /capabilities/{id}/{action}`.
+    pub async fn capability_action(
+        &self,
+        id: CapabilityId,
+        action: CapabilityAction,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        let local = self.local()?;
+        self.capability_service(&local)
+            .act(local.as_ref(), id, action, body)
+            .await
+    }
+    /// `GET /devices/{node}/grant`.
+    pub fn device_grant(&self, node: &str) -> Result<DeviceGrant, AppError> {
+        read_grant(self.local()?.config_path(), node)
+    }
+    /// `PUT /devices/{node}/grant`. Re-signed by [`Config::update`].
+    pub fn set_device_grant(
+        &self,
+        node: &str,
+        grant: DeviceGrant,
+    ) -> Result<DeviceGrant, AppError> {
+        let owner = self.models.roster.is_owner_node(node);
+        write_grant(self.local()?.config_path(), node, owner, grant)
     }
     pub async fn device_update(&self, node: &str, input: Value) -> Result<(), AppError> {
         let local = self.local()?;
@@ -544,6 +582,78 @@ impl AppApi for Service {
     }
 }
 
+fn caps(p: &peers::config::Permissions) -> DeviceCaps {
+    DeviceCaps {
+        exec: p.exec,
+        terminals: p.terminals,
+        projects: p.projects,
+        desktop: p.desktop,
+        computer: p.computer,
+        browser: p.browser,
+        messages: p.messages,
+        activity: p.activity,
+        spaces: p.spaces,
+        llm: p.llm,
+        vault: p.vault,
+    }
+}
+fn read_grant(path: &std::path::Path, node: &str) -> Result<DeviceGrant, AppError> {
+    let config = Config::read(path).map_err(unavailable)?;
+    let grant = config
+        .grants
+        .get(node)
+        .ok_or_else(|| error(404, "not_found", "This device has no grant on this device"))?;
+    Ok(DeviceGrant {
+        permissions: caps(&grant.permissions),
+    })
+}
+/// Replace what a paired device may do here. Guests never reach subscriptions.
+fn write_grant(
+    path: &std::path::Path,
+    node: &str,
+    owner: bool,
+    grant: DeviceGrant,
+) -> Result<DeviceGrant, AppError> {
+    let p = grant.permissions;
+    if !owner && (p.llm || p.vault) {
+        return Err(error(
+            403,
+            "forbidden",
+            "Guest devices cannot access subscriptions",
+        ));
+    }
+    if p == DeviceCaps::default() {
+        return Err(error(
+            400,
+            "invalid",
+            "A grant needs at least one capability; remove the device instead",
+        ));
+    }
+    read_grant(path, node)?;
+    Config::update(path, |c| {
+        let grant = c
+            .grants
+            .get_mut(node)
+            .ok_or_else(|| anyhow::anyhow!("Device not found"))?;
+        grant.permissions = peers::config::Permissions {
+            exec: p.exec,
+            terminals: p.terminals,
+            projects: p.projects,
+            desktop: p.desktop,
+            computer: p.computer,
+            browser: p.browser,
+            messages: p.messages,
+            activity: p.activity,
+            spaces: p.spaces,
+            llm: p.llm,
+            vault: p.vault,
+        };
+        Ok(())
+    })
+    .map_err(unavailable)?;
+    read_grant(path, node)
+}
+
 /// Transport-neutral dispatcher. Demo fixtures require an explicit process flag.
 static MOCK: std::sync::LazyLock<cranibox_contracts::mock::MockAppApi> =
     std::sync::LazyLock::new(cranibox_contracts::mock::MockAppApi::fixture);
@@ -565,6 +675,15 @@ pub async fn dispatch(
                 .map_err(unavailable)?,
         )
     };
+    route(service, method, path, body).await
+}
+/// Routes one call to the real service, or to the fixtures when `service` is `None`.
+async fn route(
+    service: Option<Arc<Service>>,
+    method: &str,
+    path: &str,
+    body: Value,
+) -> Result<Value, AppError> {
     let api: &dyn AppApi = service
         .as_ref()
         .map_or(&*MOCK as &dyn AppApi, |s| s.as_ref());
@@ -606,7 +725,38 @@ pub async fn dispatch(
         }
         ("POST", "/pair/invite") => output(api.pair_invite(input(body)?).await?),
         ("POST", "/pair/accept") => output(api.pair_accept(input(body)?).await?),
+        ("GET", "/capabilities") => match service {
+            Some(service) => output(service.capabilities().await?),
+            None => output(MOCK.capabilities()),
+        },
         _ => {
+            if let Some((id, action)) = path
+                .strip_prefix("/capabilities/")
+                .and_then(|p| p.split_once('/'))
+                && method == "POST"
+            {
+                let id: CapabilityId = serde_json::from_value(Value::from(id))
+                    .map_err(|_| error(404, "not_found", "Unknown capability"))?;
+                let action: CapabilityAction = serde_json::from_value(Value::from(action))
+                    .map_err(|_| error(404, "not_found", "Unknown capability action"))?;
+                return match service {
+                    Some(service) => service.capability_action(id, action, body).await,
+                    None => MOCK.capability_action(id, action, body),
+                };
+            }
+            if let Some(node) = path
+                .strip_prefix("/devices/")
+                .and_then(|p| p.strip_suffix("/grant"))
+                .filter(|n| !n.contains('/'))
+            {
+                return match (method, service) {
+                    ("GET", Some(service)) => output(service.device_grant(node)?),
+                    ("GET", None) => output(MOCK.device_grant(node)?),
+                    ("PUT", Some(service)) => output(service.set_device_grant(node, input(body)?)?),
+                    ("PUT", None) => output(MOCK.set_device_grant(node, input(body)?)?),
+                    _ => Err(error(405, "invalid", "GET or PUT required")),
+                };
+            }
             if let Some(flow) = path
                 .strip_prefix("/pair/")
                 .and_then(|p| p.strip_suffix("/confirm"))
@@ -948,5 +1098,111 @@ mod pairing_tests {
             .await;
         assert_eq!(unknown.unwrap_err().status, 404);
         stop.cancel();
+    }
+}
+
+#[cfg(test)]
+mod grant_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn grants_round_trip_stay_signed_and_keep_guests_from_subscriptions() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        let store = peers::Store::new(path.clone());
+        store.manage(peers::Command::Identity).await.unwrap();
+        let caller = "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+        store
+            .manage(peers::Command::Grant {
+                node: caller.into(),
+                permissions: peers::config::Permissions {
+                    exec: true,
+                    terminals: true,
+                    ..Default::default()
+                },
+                inbound: None,
+                require_verified: None,
+            })
+            .await
+            .unwrap();
+        let grant = read_grant(&path, caller).unwrap();
+        let value = serde_json::to_value(grant).unwrap();
+        // Every capability is present, including the ones omitted from signed bytes.
+        assert_eq!(value["permissions"].as_object().unwrap().len(), 11);
+        assert_eq!(value["permissions"]["llm"], false);
+        assert!(grant.permissions.exec && !grant.permissions.computer);
+
+        let mut wanted = grant;
+        wanted.permissions.computer = true;
+        wanted.permissions.exec = false;
+        assert_eq!(write_grant(&path, caller, false, wanted).unwrap(), wanted);
+        // The re-signed configuration still validates (Config::read checks signatures).
+        let config = Config::read(&path).unwrap();
+        assert!(config.grants[caller].signature.is_some());
+        assert!(config.grants[caller].permissions.computer);
+        assert_eq!(read_grant(&path, caller).unwrap(), wanted);
+
+        let mut subscriptions = wanted;
+        subscriptions.permissions.llm = true;
+        assert_eq!(
+            write_grant(&path, caller, false, subscriptions)
+                .unwrap_err()
+                .status,
+            403
+        );
+        assert_eq!(
+            write_grant(&path, caller, true, subscriptions).unwrap(),
+            subscriptions
+        );
+        assert_eq!(
+            write_grant(&path, caller, true, DeviceGrant::default())
+                .unwrap_err()
+                .status,
+            400
+        );
+        assert_eq!(read_grant(&path, "node-unknown").unwrap_err().status, 404);
+        assert_eq!(
+            write_grant(&path, "node-unknown", true, wanted)
+                .unwrap_err()
+                .status,
+            404
+        );
+    }
+
+    #[tokio::test]
+    async fn mock_dispatch_serves_capabilities_and_grants() {
+        let list = route(None, "GET", "/capabilities", Value::Null)
+            .await
+            .unwrap();
+        assert_eq!(list["items"].as_array().unwrap().len(), 4);
+        let plan = route(
+            None,
+            "POST",
+            "/capabilities/computer/install_plan",
+            Value::Null,
+        )
+        .await
+        .unwrap();
+        assert!(plan["plan_id"].is_string());
+        assert_eq!(
+            route(None, "POST", "/capabilities/nope/start", Value::Null)
+                .await
+                .unwrap_err()
+                .status,
+            404
+        );
+        let node = "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+        let grant = route(None, "GET", &format!("/devices/{node}/grant"), Value::Null)
+            .await
+            .unwrap();
+        let updated = route(
+            None,
+            "PUT",
+            &format!("/devices/{node}/grant"),
+            grant.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated, grant);
     }
 }

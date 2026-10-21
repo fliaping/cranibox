@@ -41,6 +41,8 @@ tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"], 
 tower = { version = "0.5", features = ["util"], optional = true }
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
+# Crops cua-driver screenshots for `zoom`.
+png = "0.18"
 zeroize = { version = "1", optional = true }
 
 [target.'cfg(unix)'.dependencies]
