@@ -8,6 +8,7 @@ use cranibox_contracts::{
     net::PathKind,
     roster::RosterView,
 };
+use cranibox_net::pair::{FlowState, Side};
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
@@ -17,6 +18,8 @@ pub struct Service {
     local: Weak<LocalNode>,
     pub models: Arc<Models>,
     agent_updates: tokio::sync::Mutex<()>,
+    /// First time each inviter-side pairing flow was seen, for stable approval cards.
+    pair_seen: std::sync::Mutex<BTreeMap<String, u64>>,
 }
 pub fn error(status: u16, code: &str, message: impl Into<String>) -> AppError {
     AppError {
@@ -34,12 +37,22 @@ impl Service {
             local,
             models,
             agent_updates: tokio::sync::Mutex::new(()),
+            pair_seen: Default::default(),
         }
     }
     fn local(&self) -> Result<Arc<LocalNode>, AppError> {
         self.local
             .upgrade()
             .ok_or_else(|| unavailable("Device is stopping"))
+    }
+    async fn pairing(&self) -> Result<crate::peer::transport_iroh::Handle, AppError> {
+        self.local()?.iroh().await.ok_or_else(|| {
+            error(
+                503,
+                "pairing_unavailable",
+                "The iroh network is not running on this device",
+            )
+        })
     }
     fn env(&self) -> Result<Env, AppError> {
         Ok(cranibox_agents::environment(
@@ -269,22 +282,44 @@ impl AppApi for Service {
         }
         Ok(devices)
     }
-    async fn pair_invite(&self, _req: PairInviteReq) -> Result<PairInvite, AppError> {
-        Err(error(
-            503,
-            "pairing_unavailable",
-            "Encrypted pairing transport is not available on this build",
-        ))
+    async fn pair_invite(&self, req: PairInviteReq) -> Result<PairInvite, AppError> {
+        self.pairing()
+            .await?
+            .pair_invite(req)
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))
     }
-    async fn pair_accept(&self, _req: PairAcceptReq) -> Result<PairAccepted, AppError> {
-        Err(error(
-            503,
-            "pairing_unavailable",
-            "Encrypted pairing transport is not available on this build",
-        ))
+    async fn pair_accept(&self, req: PairAcceptReq) -> Result<PairAccepted, AppError> {
+        self.pairing()
+            .await?
+            .pair_accept(req)
+            .await
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))
     }
-    async fn pair_confirm(&self, _flow: &str, _req: PairConfirmReq) -> Result<(), AppError> {
-        Err(error(404, "not_found", "Pairing session not found"))
+    async fn pair_confirm(&self, flow: &str, req: PairConfirmReq) -> Result<(), AppError> {
+        let iroh = self.pairing().await?;
+        if iroh.pair_flows().iter().all(|f| f.flow_id != flow) {
+            return Err(error(404, "not_found", "Pairing session not found"));
+        }
+        let matches = req.matches;
+        match iroh
+            .pair_confirm(flow, req)
+            .await
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?
+        {
+            FlowState::Paired => Ok(()),
+            FlowState::Rejected if !matches => Ok(()),
+            FlowState::Rejected => Err(error(
+                409,
+                "pairing_rejected",
+                "The other device rejected the pairing code",
+            )),
+            FlowState::Failed(reason) => Err(error(409, "pairing_failed", reason)),
+            FlowState::Comparing => Err(error(
+                409,
+                "pairing_failed",
+                "The other device did not answer",
+            )),
+        }
     }
     async fn approvals(&self) -> Result<Vec<ApprovalCard>, AppError> {
         let local = self.local()?;
@@ -322,6 +357,38 @@ impl AppApi for Service {
                 });
             }
         }
+        // The joiner confirms in its pairing sheet; the inviter confirms here.
+        if let Some(iroh) = local.iroh().await {
+            let flows: Vec<_> = iroh
+                .pair_flows()
+                .into_iter()
+                .filter(|f| f.side == Side::Inviter && f.state == FlowState::Comparing)
+                .collect();
+            let mut seen = self.pair_seen.lock().unwrap();
+            seen.retain(|id, _| flows.iter().any(|f| &f.flow_id == id));
+            for flow in flows {
+                let created_at = *seen
+                    .entry(flow.flow_id.clone())
+                    .or_insert_with(cranibox_llm::auth::now);
+                cards.push(ApprovalCard {
+                    id: format!("pair:{}", flow.flow_id),
+                    kind: ApprovalKind::Pairing,
+                    from_node: Some(flow.peer_node_id.clone()),
+                    on_node: local.id.clone(),
+                    agent: None,
+                    title_key: "approval.pairing".into(),
+                    title_args: BTreeMap::from([
+                        ("code".into(), flow.sas),
+                        ("device".into(), flow.peer_node_id),
+                    ]),
+                    detail: None,
+                    risk: Risk::Medium,
+                    created_at,
+                    expires_at: None,
+                    actions: vec![ApprovalAction::AllowOnce, ApprovalAction::Deny],
+                });
+            }
+        }
         cards.extend(
             cranibox_agents::approvals::pending(&self.env()?, &local.id).map_err(unavailable)?,
         );
@@ -340,6 +407,10 @@ impl AppApi for Service {
         if id.starts_with("agent:") {
             return cranibox_agents::approvals::decide(&self.env()?, id, req.decision)
                 .map_err(|e| error(409, "approval_conflict", e.to_string()));
+        }
+        if let Some(flow) = id.strip_prefix("pair:") {
+            let matches = req.decision != ApprovalAction::Deny;
+            return self.pair_confirm(flow, PairConfirmReq { matches }).await;
         }
         let id = uuid::Uuid::parse_str(id.strip_prefix("message:").unwrap_or_default())
             .map_err(|_| error(400, "invalid", "Invalid approval"))?;
@@ -775,6 +846,107 @@ mod tests {
                 .windows(secret.len())
                 .any(|bytes| bytes == secret.as_bytes())
         );
+        stop.cancel();
+    }
+}
+
+#[cfg(test)]
+mod pairing_tests {
+    use super::*;
+    use tokio_util::sync::CancellationToken;
+
+    async fn node(root: &std::path::Path, stop: &CancellationToken) -> (Arc<LocalNode>, Service) {
+        let path = root.join("peers.json");
+        std::fs::create_dir_all(root).unwrap();
+        Config::update(&path, |_| Ok(())).unwrap();
+        let identity = Config::identity(&path).unwrap();
+        let dir = path.with_file_name("models");
+        std::fs::create_dir_all(&dir).unwrap();
+        // Use a fixture key directly; this test must never consult the user's keychain.
+        agent_workspace_runtime::config::write_private(
+            &dir.join("encryption.key"),
+            identity.noise_private(),
+            false,
+        )
+        .unwrap();
+        let local = Arc::new(LocalNode::start(path.clone()).await.unwrap());
+        let models = Models::start_on(
+            path,
+            stop.clone(),
+            Some(vec!["127.0.0.1:0".parse().unwrap()]),
+        )
+        .await
+        .unwrap();
+        let app = Service::new(Arc::downgrade(&local), models);
+        (local, app)
+    }
+
+    /// Both sides of iroh pairing through the App API the desktop and web UIs call:
+    /// the joiner confirms in its sheet, the inviter confirms from its approval card.
+    /// Needs network access for the iroh relay, so it is opt-in.
+    #[tokio::test]
+    #[ignore]
+    async fn real_pairing_through_app_api() {
+        let root = tempfile::tempdir().unwrap();
+        let stop = CancellationToken::new();
+        let (a, a_app) = node(&root.path().join("a"), &stop).await;
+        let (b, b_app) = node(&root.path().join("b"), &stop).await;
+        let invite = a_app
+            .pair_invite(PairInviteReq {
+                purpose: cranibox_contracts::net::PairPurpose::OwnerDevice,
+            })
+            .await
+            .unwrap();
+        assert!(invite.link.starts_with("cranibox://pair/"));
+        let accepted = b_app
+            .pair_accept(PairAcceptReq { link: invite.link })
+            .await
+            .unwrap();
+        let card = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let cards = a_app.approvals().await.unwrap();
+                if let Some(card) = cards.into_iter().find(|c| c.kind == ApprovalKind::Pairing) {
+                    return card;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("inviter never showed a pairing approval");
+        assert_eq!(card.title_args["code"], accepted.sas);
+        assert_eq!(card.from_node.as_deref(), Some(b.id.as_str()));
+        let again = a_app.approvals().await.unwrap();
+        assert_eq!(again[0].created_at, card.created_at, "stable card");
+        let (joiner, inviter) = tokio::join!(
+            b_app.pair_confirm(&accepted.flow_id, PairConfirmReq { matches: true }),
+            a_app.decide(
+                &card.id,
+                ApprovalDecision {
+                    decision: ApprovalAction::AllowOnce
+                }
+            ),
+        );
+        joiner.unwrap();
+        inviter.unwrap();
+        let cards = a_app.approvals().await.unwrap();
+        assert!(cards.iter().all(|c| c.kind != ApprovalKind::Pairing));
+        for (node, peer) in [(&a, &b.id), (&b, &a.id)] {
+            let config = Config::read(node.config_path()).unwrap();
+            assert!(
+                config.grants.contains_key(peer),
+                "{} has no grant for {peer}",
+                node.id
+            );
+        }
+        // A repeated confirm of a finished flow is idempotent; an unknown flow is not found.
+        b_app
+            .pair_confirm(&accepted.flow_id, PairConfirmReq { matches: true })
+            .await
+            .unwrap();
+        let unknown = b_app
+            .pair_confirm("no-such-flow", PairConfirmReq { matches: true })
+            .await;
+        assert_eq!(unknown.unwrap_err().status, 404);
         stop.cancel();
     }
 }
