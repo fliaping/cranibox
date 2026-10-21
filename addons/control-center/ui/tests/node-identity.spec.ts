@@ -48,7 +48,7 @@ test('identity migration retains failed input, restores keyboard focus and keeps
     await field.fill(target);
     await dialog.getByRole('button', { name: 'Migrate identity', exact: true }).click();
     await expect(dialog).not.toBeVisible();
-    await expect(page.locator('.banner[role="status"]')).toContainText('Node identity migrated');
+    await expect(page.locator('.cx-notice[role="status"]')).toContainText('Node identity migrated');
     await page.getByLabel('Search nodes', { exact: true }).fill(source);
     const row = page.locator('.node-list .list-row');
     await expect(row).toHaveCount(1);

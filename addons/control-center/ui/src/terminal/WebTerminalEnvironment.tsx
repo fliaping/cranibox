@@ -25,20 +25,22 @@ const connect: TerminalEnvironment['connect'] = async (options, events) => {
   return { close: () => socket.close(), send: input => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(input)); } };
 };
 export function WebTerminalEnvironment({ children }: { children: ReactNode }) {
-  const { snapshot } = useWorkspace();
+  const { snapshot, available } = useWorkspace();
+  // Without the container workspace the node serves terminals itself.
+  const ready = !!snapshot || available === false;
   const [routes, setRoutes] = useState<DirectCatalog['routes']>([]);
   useEffect(() => {
     let alive = true, serial = 0;
     const refresh = async () => { const current = ++serial; try { const value = await request('/api/peers', { operation: 'list' }) as DirectCatalog; if (alive && serial === current) setRoutes(value.routes || []); } catch { /* Workspace displays session/bootstrap errors. */ } };
-    if (snapshot) void refresh();
+    if (ready) void refresh();
     window.addEventListener('cranibox:peers-changed', refresh); window.addEventListener('focus', refresh);
     return () => { alive = false; ++serial; window.removeEventListener('cranibox:peers-changed', refresh); window.removeEventListener('focus', refresh); };
-  }, [!!snapshot]);
+  }, [ready]);
   const manage = useCallback<TerminalEnvironment['manage']>((node, command) => request('/api/terminal/sessions', { ...command, ...terminalTarget(node) }), []);
   const targets = [
     ...(snapshot?.local_node ? [{ id: snapshot.local_node.id, name: t('Workspace 主机', 'Workspace host') + (snapshot.access?.hostname ? ' · ' + snapshot.access.hostname : ''), available: snapshot.local_node.online }] : []),
     ...(snapshot?.remote_nodes?.nodes || []).map(node => ({ id: node.id, aliases: node.aliases, name: node.name || node.id, available: !!(node.online && node.terminal_sessions) })),
     ...routes.map(route => ({ id: directTarget(route.node), name: route.node + t(' · 直连', ' · Direct'), available: true })),
   ];
-  return <TerminalEnvironmentProvider value={{ t, available: !!snapshot, includeLocal: !snapshot?.local_node, localNode: snapshot?.local_node?.id, targets, manage, connect }}>{children}</TerminalEnvironmentProvider>;
+  return <TerminalEnvironmentProvider value={{ t, available: ready, includeLocal: !snapshot?.local_node, localNode: snapshot?.local_node?.id, targets, manage, connect }}>{children}</TerminalEnvironmentProvider>;
 }
