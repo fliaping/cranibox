@@ -1,1 +1,25 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Cranibox Node</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Cranibox</title>
+<link rel="stylesheet" href="/src/splash.css"/>
+</head>
+<body>
+<main class="splash" aria-live="polite">
+  <div class="mark" aria-hidden="true"><span></span><span></span><span></span></div>
+  <h1>Cranibox</h1>
+  <p class="tagline">设备互联的 Agent 工作台 · The agent workspace across your devices</p>
+  <p id="status" class="status">正在启动本机节点… · Starting this device…</p>
+  <div id="failure" class="failure" hidden>
+    <p role="alert" id="error"></p>
+    <div class="actions">
+      <button id="retry" type="button">重试 · Retry</button>
+      <button id="quit" type="button" class="secondary">退出 · Quit</button>
+    </div>
+  </div>
+</main>
+<script type="module" src="/src/splash.ts"></script>
+</body>
+</html>

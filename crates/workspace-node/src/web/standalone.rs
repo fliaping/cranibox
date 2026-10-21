@@ -95,6 +95,7 @@ struct State {
     hosts: Arc<HashSet<String>>,
     origins: Arc<HashSet<String>>,
     node: String,
+    shell: Option<Arc<dyn Shell>>,
 }
 
 /// Read the access token beside the node configuration, creating it once (0600).
@@ -122,23 +123,49 @@ pub fn sign_in_url(address: SocketAddr, token: &str) -> String {
     format!("http://{host}:{}/?token={token}", address.port())
 }
 
+/// Address the running device service recorded, or the default one.
+pub fn recorded_address(peers: &Path) -> SocketAddr {
+    std::fs::read_to_string(peers.with_file_name("ui.address"))
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .unwrap_or_else(|| DEFAULT_LISTEN.parse().expect("default listen address"))
+}
+
+async fn bind(listen: Option<SocketAddr>) -> Result<tokio::net::TcpListener> {
+    let address = listen.unwrap_or_else(|| DEFAULT_LISTEN.parse().expect("default listen address"));
+    match tokio::net::TcpListener::bind(address).await {
+        Ok(listener) => Ok(listener),
+        // Several devices may share one machine (tests, isolated identities): without an
+        // explicit address, take any free loopback port and record it for `ui-url`.
+        Err(e) if listen.is_none() && e.kind() == std::io::ErrorKind::AddrInUse => {
+            Ok(tokio::net::TcpListener::bind("127.0.0.1:0").await?)
+        }
+        Err(e) => Err(e).with_context(|| format!("listen on {address}")),
+    }
+}
+
 /// Run this device: the node core, its interface, and an optional legacy gateway link.
 pub async fn run(
     peers: std::path::PathBuf,
-    listen: SocketAddr,
+    listen: Option<SocketAddr>,
     allow_hosts: Vec<String>,
     gateway: Option<crate::settings::Settings>,
 ) -> Result<()> {
     let local = Arc::new(LocalNode::start(peers.clone()).await?);
     let token = access_token(&peers)?;
-    let listener = match tokio::net::TcpListener::bind(listen).await {
+    let listener = match bind(listen).await {
         Ok(listener) => listener,
         Err(e) => {
             let _ = local.shutdown().await;
-            return Err(e).with_context(|| format!("listen on {listen}"));
+            return Err(e);
         }
     };
     let address = listener.local_addr()?;
+    agent_workspace_runtime::config::write_private(
+        &peers.with_file_name("ui.address"),
+        address.to_string().as_bytes(),
+        false,
+    )?;
     // Service logs are often world-readable; print the secret link only to a terminal.
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         eprintln!(
@@ -160,7 +187,11 @@ pub async fn run(
     let ui = serve(
         local.clone(),
         listener,
-        Options { token, allow_hosts },
+        Options {
+            token,
+            allow_hosts,
+            shell: None,
+        },
         stop.clone(),
     );
     let result = match gateway {
@@ -179,10 +210,18 @@ pub async fn run(
     result.and(shutdown)
 }
 
+/// Native operations of a windowed shell (autostart, external links, window, quit).
+/// Only the desktop app provides one; pages see `"shell": true` in their configuration.
+#[async_trait]
+pub trait Shell: Send + Sync + 'static {
+    async fn call(&self, operation: &str, body: Value) -> Result<Value>;
+}
+
 pub struct Options {
     pub token: String,
     /// Extra `host[:port]` values accepted from a trusted reverse proxy.
     pub allow_hosts: Vec<String>,
+    pub shell: Option<Arc<dyn Shell>>,
 }
 
 /// Serve this device's interface on an already bound loopback listener until `stop`.
@@ -229,6 +268,7 @@ pub async fn serve(
         hosts: Arc::new(hosts),
         origins: Arc::new(origins),
         node,
+        shell: options.shell,
     };
     let shutdown = stop.clone();
     let result = axum::serve(listener, router(state))
@@ -363,7 +403,12 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     if header(&headers, "content-type") != "application/json" {
         return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
     }
-    let Some(limit) = Services::limit(&path) else {
+    let limit = if path == "/api/shell" {
+        Some(16384)
+    } else {
+        Services::limit(&path)
+    };
+    let Some(limit) = limit else {
         return error(StatusCode::NOT_FOUND, "Not found");
     };
     let bytes = match tokio::time::timeout(
@@ -381,6 +426,19 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
         Ok(_) => return error(StatusCode::BAD_REQUEST, "Object required"),
         Err(_) => return error(StatusCode::BAD_REQUEST, "Invalid JSON"),
     };
+    if path == "/api/shell" {
+        let Some(shell) = &state.shell else {
+            return error(
+                StatusCode::NOT_FOUND,
+                "Not available outside the desktop app",
+            );
+        };
+        let operation = body["operation"].as_str().unwrap_or_default().to_owned();
+        return match shell.call(&operation, body).await {
+            Ok(value) => Json(value).into_response(),
+            Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+        };
+    }
     match state.services.api(&session, &path, body).await {
         Some(Ok(value)) => Json(value).into_response(),
         Some(Err(e)) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
@@ -428,6 +486,7 @@ async fn page_response(
         "cursor": 0,
         "edition": "node",
         "node": state.node,
+        "shell": state.shell.is_some(),
     });
     (
         [("content-type", "text/html; charset=utf-8")],
@@ -466,6 +525,7 @@ mod tests {
             Options {
                 token: token.clone(),
                 allow_hosts: vec![],
+                shell: None,
             },
             stop.clone(),
         ));

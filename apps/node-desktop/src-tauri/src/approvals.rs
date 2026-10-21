@@ -12,7 +12,7 @@ use tauri_plugin_notification::{Action, ActionType, NotificationExt};
 pub fn inbox(app: &tauri::AppHandle) {
     show(app);
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.eval("location.hash = '/app/inbox'");
+        let _ = window.eval("location.assign('/app/inbox')");
     }
 }
 

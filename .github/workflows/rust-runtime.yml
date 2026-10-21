@@ -63,8 +63,6 @@ jobs:
       - run: npm ci --prefix apps/node-desktop
       - run: npm run build --prefix apps/node-desktop
       - run: cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
-      - name: Verify native desktop transport and acknowledgement failures
-        run: cargo test --locked -p cranibox-node-desktop --features desktop --bin cranibox-node-desktop desktops::tests
       - name: Verify Linux login launcher with spaces and reserved path characters
         if: runner.os == 'Linux'
         run: cargo test --locked -p cranibox-node-desktop --lib gio_launches -- --ignored --nocapture

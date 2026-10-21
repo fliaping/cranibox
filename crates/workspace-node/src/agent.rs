@@ -47,16 +47,18 @@ pub enum Command {
     Mcp,
     /// Run this device and serve its interface on loopback (the default command).
     Serve {
-        #[arg(long, default_value = crate::web::standalone::DEFAULT_LISTEN)]
-        listen: std::net::SocketAddr,
+        /// Loopback address; default 127.0.0.1:7377, or a free port when that is taken.
+        #[arg(long)]
+        listen: Option<std::net::SocketAddr>,
         /// Also accept this Host (host[:port]) from a trusted reverse proxy.
         #[arg(long = "allow-host")]
         allow_host: Vec<String>,
     },
     /// Print the sign-in link of this device's interface.
     UiUrl {
-        #[arg(long, default_value = crate::web::standalone::DEFAULT_LISTEN)]
-        listen: std::net::SocketAddr,
+        /// Defaults to the address the running device service recorded.
+        #[arg(long)]
+        listen: Option<std::net::SocketAddr>,
     },
 }
 pub async fn run(settings: Settings, command: Command) -> Result<()> {

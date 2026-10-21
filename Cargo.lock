@@ -1358,6 +1358,7 @@ version = "0.1.0"
 dependencies = [
  "agent-workspace-runtime",
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
  "cranibox-node",
  "serde",
@@ -1368,6 +1369,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-single-instance",
  "tokio",
+ "tokio-util",
  "url",
 ]
 

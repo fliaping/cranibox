@@ -1,3 +1,5 @@
+// Every device runs the same way: node core plus its own interface. A saved legacy
+// gateway connection is kept alongside, never required.
 use crate::{
     agent,
     settings::{self, Settings},
@@ -46,16 +48,11 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     let peer_path = crate::peer::config::path_for(&args.config);
     // Every device runs the same way: node core plus its own interface. A saved legacy
     // gateway connection is kept alongside, never required.
-    let default_listen = || {
-        crate::web::standalone::DEFAULT_LISTEN
-            .parse::<std::net::SocketAddr>()
-            .expect("default listen address")
-    };
     let service = match &args.command {
         None
         | Some(agent::Command::Peer {
             command: crate::peer::Command::Serve,
-        }) => Some((default_listen(), Vec::new())),
+        }) => Some((None, Vec::new())),
         Some(agent::Command::Serve { listen, allow_host }) => Some((*listen, allow_host.clone())),
         _ => None,
     };
@@ -88,6 +85,8 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     let command = match args.command {
         Some(agent::Command::UiUrl { listen }) => {
             let token = crate::web::standalone::access_token(&peer_path)?;
+            let listen =
+                listen.unwrap_or_else(|| crate::web::standalone::recorded_address(&peer_path));
             println!("{}", crate::web::standalone::sign_in_url(listen, &token));
             return Ok(());
         }
