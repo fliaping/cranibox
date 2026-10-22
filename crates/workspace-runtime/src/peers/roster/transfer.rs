@@ -117,6 +117,7 @@ mod tests {
             is_claude_node: false,
             name: "Laptop".into(),
             added_at: 1,
+            identity: None,
         };
         let envelope = owner.seal_for(&member).unwrap();
         let private: [u8; 32] = private.to_bytes().as_slice().try_into().unwrap();

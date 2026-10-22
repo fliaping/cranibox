@@ -35,6 +35,10 @@ pub struct RosterMember {
     pub is_claude_node: bool,
     pub name: String,
     pub added_at: u64,
+    /// The member's signed public device identity (`PublicIdentity` JSON), so every
+    /// member can pin every other one without pairing them separately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

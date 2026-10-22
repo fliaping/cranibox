@@ -194,6 +194,10 @@ pub async fn run(
         allow_hosts.push(host);
     }
     let local = Arc::new(LocalNode::start(peers.clone()).await?);
+    // Identity, roster trust and account sync run from the start, not on first use.
+    if let Err(error) = local.models().await {
+        eprintln!("model service: {error:#}");
+    }
     let token = access_token(&peers)?;
     let listener = match bind(listen).await {
         Ok(listener) => listener,

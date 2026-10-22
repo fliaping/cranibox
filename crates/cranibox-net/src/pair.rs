@@ -49,7 +49,13 @@ pub struct Outcome {
     pub issued: Option<String>,
     /// Bearer secret the peer issued to this node, if any (store as the route token).
     pub received: Option<String>,
+    /// Joiner of an owner-device pairing: the inviter's identity to join (roster and
+    /// sealed owner key), see [`PairHost::bundle`].
+    pub identity: Option<Value>,
 }
+
+/// Feature bit: the device exchanges owner identities in owner-device pairings.
+pub const FEATURE_IDENTITY: u8 = 1;
 
 /// Node-side hooks: identities, the SAS code and persisting the result.
 #[async_trait::async_trait]
@@ -61,6 +67,16 @@ pub trait PairHost: Send + Sync + 'static {
     fn verify(&self, peer: &Value, endpoint: &EndpointId) -> Result<(String, String)>;
     /// Persist a confirmed pairing. Must be atomic: on error nothing changed.
     async fn apply(&self, outcome: Outcome) -> Result<()>;
+    /// Joiner: this device's roster member, sent so the inviter can add it.
+    async fn member(&self) -> Option<Value> {
+        None
+    }
+    /// Inviter: add `member` (the joiner, whose identity is `peer`) to this device's
+    /// identity and return what it needs to join: the new roster and the owner key
+    /// sealed to the member's key.
+    async fn bundle(&self, _member: &Value, _peer: &Value) -> Option<Value> {
+        None
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -72,11 +88,23 @@ enum Frame {
         secret: [u8; 16],
         identity: Value,
         addr: IrohAddr,
+        #[serde(default)]
+        features: u8,
     },
     Welcome {
         identity: Value,
         purpose: PairPurpose,
         addr: IrohAddr,
+        #[serde(default)]
+        features: u8,
+    },
+    /// Joiner → inviter after both committed: the joiner's roster member (or null).
+    Member {
+        member: Value,
+    },
+    /// Inviter → joiner: the identity to join (or null).
+    Identity {
+        bundle: Option<Value>,
     },
     Reject {
         reason: String,
@@ -360,16 +388,18 @@ impl Pairing {
                 secret: ticket.secret,
                 identity: self.host.identity(),
                 addr: self.node.addr(),
+                features: FEATURE_IDENTITY,
             },
         )
         .await?;
-        let (identity, purpose, peer_addr) =
+        let (identity, purpose, peer_addr, features) =
             match tokio::time::timeout(STEP_TIMEOUT, read_frame(&mut recv)).await?? {
                 Frame::Welcome {
                     identity,
                     purpose,
                     addr,
-                } => (identity, purpose, addr),
+                    features,
+                } => (identity, purpose, addr, features),
                 Frame::Reject { reason } => bail!("{reason}"),
                 _ => bail!("unexpected pairing answer"),
             };
@@ -399,6 +429,7 @@ impl Pairing {
             identity,
             peer_node_id,
             peer_addr,
+            peer_features: features,
             conn,
         };
         tokio::spawn(pending.run(send, recv, decision, state));
@@ -413,6 +444,7 @@ impl Pairing {
             secret,
             identity,
             addr: peer_addr,
+            features,
         } = tokio::time::timeout(STEP_TIMEOUT, read_frame(&mut recv)).await??
         else {
             bail!("unexpected pairing frame");
@@ -447,6 +479,7 @@ impl Pairing {
                 identity: self.host.identity(),
                 purpose,
                 addr: self.node.addr(),
+                features: FEATURE_IDENTITY,
             },
         )
         .await?;
@@ -468,6 +501,7 @@ impl Pairing {
             identity,
             peer_node_id,
             peer_addr,
+            peer_features: features,
             conn,
         }
         .run(send, recv, decision, state)
@@ -495,6 +529,7 @@ struct Pending {
     identity: Value,
     peer_node_id: String,
     peer_addr: IrohAddr,
+    peer_features: u8,
     conn: Connection,
 }
 impl Pending {
@@ -577,6 +612,45 @@ impl Pending {
         })
         .await
         .context("the other device did not finish pairing")??;
+        // Phase 3 (owner devices, both sides new enough): the joiner joins the inviter's
+        // identity. Failing here never undoes the pairing itself.
+        let mut joined = None;
+        if self.purpose == PairPurpose::OwnerDevice && self.peer_features & FEATURE_IDENTITY != 0 {
+            let identity = tokio::time::timeout(STEP_TIMEOUT, async {
+                match self.side {
+                    Side::Joiner => {
+                        let member = self.host.member().await.unwrap_or(Value::Null);
+                        write_frame(send, &Frame::Member { member }).await?;
+                        match read_frame(recv).await? {
+                            Frame::Identity { bundle } => anyhow::Ok(bundle),
+                            _ => bail!("unexpected pairing frame"),
+                        }
+                    }
+                    Side::Inviter => {
+                        let member = match read_frame(recv).await? {
+                            Frame::Member { member } => member,
+                            _ => bail!("unexpected pairing frame"),
+                        };
+                        let bundle = if member.is_null() {
+                            None
+                        } else {
+                            self.host.bundle(&member, &self.identity).await
+                        };
+                        write_frame(send, &Frame::Identity { bundle }).await?;
+                        Ok(None)
+                    }
+                }
+            })
+            .await;
+            joined = match identity {
+                Ok(Ok(bundle)) => bundle,
+                Ok(Err(error)) => {
+                    eprintln!("pairing identity exchange: {error:#}");
+                    None
+                }
+                Err(_) => None,
+            };
+        }
         let expects = self.side == Side::Joiner || self.purpose == PairPurpose::OwnerDevice;
         ensure!(
             received.is_some() == expects
@@ -594,6 +668,7 @@ impl Pending {
                 peer_addr: self.peer_addr.clone(),
                 issued,
                 received,
+                identity: joined,
             })
             .await?;
         Ok(true)

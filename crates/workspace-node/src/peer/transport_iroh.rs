@@ -358,113 +358,212 @@ impl PairHost for Host {
         ))
     }
     async fn apply(&self, outcome: Outcome) -> Result<()> {
-        let peer: PublicIdentity = serde_json::from_value(outcome.peer_identity.clone())?;
-        let node = outcome.peer_node_id.clone();
         let path = self.shared.path.clone();
-        let mut learned_peer = LearnedPeer {
-            addr: outcome.peer_addr.clone(),
-            port: 0,
-        };
-        // Route side: bind the forward first; the lease must be live before it is saved.
-        let forward = if outcome.received.is_some() {
-            let target = addr::endpoint_addr(&learned_peer.addr)?;
-            let forward = Forward::bind(self.shared.node.clone(), 0, target).await?;
-            let lease = Lease::acquire(&lock_path(&path, &node)?)?;
-            learned_peer.port = forward.address.port();
-            Some((forward, lease))
-        } else {
-            None
-        };
-        let token = match &outcome.received {
-            Some(secret) => {
-                let file = token_path(&path, &node)?;
-                secrets::write_private(&file, secret.as_bytes(), true)?;
-                Some(file)
-            }
-            None => None,
-        };
-        let mut pinned = Pinned::new(peer.clone());
-        // The owner compared the pairing code during this flow.
-        pinned.verified = true;
-        let issued = outcome.issued.clone();
-        let purpose = outcome.purpose;
-        let lock = lock_path(&path, &node)?;
-        let port = learned_peer.port;
-        let update_path = path.clone();
-        let update_node = node.clone();
-        tokio::task::spawn_blocking(move || {
-            Config::update(&update_path, |config| {
-                if let Some(secret) = &issued {
-                    let permissions = match purpose {
-                        PairPurpose::OwnerDevice => owner_permissions(),
-                        PairPurpose::Guest => Permissions {
-                            messages: true,
-                            ..Permissions::default()
-                        },
-                    };
-                    let mut grant = Grant::issue(secret, permissions);
-                    grant.peer = Some(pinned.clone());
-                    grant.inbound = match purpose {
-                        PairPurpose::OwnerDevice => Inbound::Accept,
-                        PairPurpose::Guest => Inbound::Hold,
-                    };
-                    config.grants.insert(update_node.clone(), grant);
-                }
-                if let Some(token_file) = token {
-                    let mut alternatives = Vec::new();
-                    if let Some(old) = config.routes.remove(&update_node) {
-                        alternatives = old
-                            .endpoints()
-                            .into_iter()
-                            .filter(|e| e.local_forward_lock.as_ref() != Some(&lock))
-                            .take(super::config::MAX_PATHS - 1)
-                            .collect();
-                    }
-                    config.routes.insert(
-                        update_node.clone(),
-                        Route {
-                            url: format!("http://127.0.0.1:{port}"),
-                            token_file,
-                            allow_insecure: false,
-                            local_forward_lock: Some(lock),
-                            alternatives,
-                            target_identity: Some(pinned),
-                            config_path: None,
-                        },
-                    );
-                }
-                Ok(())
-            })
-        })
-        .await??;
-        if let Some(id) = endpoint_of(&peer) {
-            self.allow.insert(id);
-        }
-        if let Some(forward) = forward {
-            self.shared
-                .forwards
-                .lock()
-                .await
-                .insert(node.clone(), forward);
-        }
-        let mut learned = Learned::read(&path);
-        learned.peers.insert(node, learned_peer);
+        ensure_peer(
+            &self.shared,
+            &self.allow,
+            serde_json::from_value(outcome.peer_identity.clone())?,
+            outcome.peer_addr.clone(),
+            outcome.issued.clone(),
+            outcome.received.clone(),
+            outcome.purpose,
+            outcome.side == Side::Joiner,
+        )
+        .await?;
+        // Owner devices share one identity: the joiner takes the inviter's roster and key.
         if outcome.side == Side::Joiner
-            && let Some(relay) = &outcome.peer_addr.relay_url
-            && !relay.contains(".iroh.link")
-            && !learned.relays.contains(relay)
+            && let Some(bundle) = &outcome.identity
         {
-            learned.relays.insert(0, relay.clone());
-            learned.relays.truncate(4);
-            if self.shared.adopt_learned
-                && let Err(error) = self.shared.node.adopt_relay(relay).await
-            {
-                eprintln!("iroh: cannot use relay {relay}: {error:#}");
+            match crate::models::live(&path) {
+                Some(models) => match models.join_identity(&outcome.peer_node_id, bundle) {
+                    Ok(true) => {}
+                    Ok(false) => eprintln!(
+                        "pairing: kept this device's identity; it already includes other devices"
+                    ),
+                    Err(error) => eprintln!("pairing: could not join the identity: {error:#}"),
+                },
+                None => eprintln!("pairing: identity not joined, the model service is not running"),
             }
         }
-        learned.write(&path)?;
         Ok(())
     }
+    async fn member(&self) -> Option<Value> {
+        let models = crate::models::live(&self.shared.path)?;
+        serde_json::to_value(models.own_member()?).ok()
+    }
+    async fn bundle(&self, member: &Value, peer: &Value) -> Option<Value> {
+        let models = crate::models::live(&self.shared.path)?;
+        let member: cranibox_contracts::roster::RosterMember =
+            serde_json::from_value(member.clone()).ok()?;
+        let peer: PublicIdentity = serde_json::from_value(peer.clone()).ok()?;
+        // The member must be the SAS-verified device on the other end.
+        if member.node_id != peer.node_id
+            || !member.signing_key.eq_ignore_ascii_case(&peer.signing_key)
+        {
+            eprintln!("pairing: the offered member does not match the paired device");
+            return None;
+        }
+        match models.invite_bundle(member, serde_json::to_value(&peer).ok()?) {
+            Ok(bundle) => Some(bundle),
+            Err(error) => {
+                eprintln!("pairing: could not add the device to this identity: {error:#}");
+                None
+            }
+        }
+    }
+}
+
+type LiveTransport = (std::sync::Weak<Shared>, Allowlist);
+fn live_transports() -> &'static Mutex<HashMap<PathBuf, LiveTransport>> {
+    static LIVE: OnceLock<Mutex<HashMap<PathBuf, LiveTransport>>> = OnceLock::new();
+    LIVE.get_or_init(Default::default)
+}
+
+/// Trust a fellow member of this device's owner roster: grant, route and iroh forward,
+/// backed by the per-pair `secret` both members derive on their own.
+pub async fn ensure_roster_peer(peers: &Path, identity: &Value, secret: String) -> Result<()> {
+    let (shared, allow) = {
+        let live = live_transports().lock().unwrap();
+        let (shared, allow) = live.get(peers).context("iroh is not running")?;
+        (
+            shared.upgrade().context("iroh is not running")?,
+            allow.clone(),
+        )
+    };
+    let peer: PublicIdentity = serde_json::from_value(identity.clone())?;
+    peer.verify()?;
+    let addr = IrohAddr {
+        endpoint_id: peer.signing_key.clone(),
+        relay_url: shared.node.own_relays().first().map(|u| u.to_string()),
+        direct: Vec::new(),
+    };
+    ensure_peer(
+        &shared,
+        &allow,
+        peer,
+        addr,
+        Some(secret.clone()),
+        Some(secret),
+        PairPurpose::OwnerDevice,
+        false,
+    )
+    .await
+}
+
+/// Persist trust in a peer device: its grant (when `issued`), its route and iroh forward
+/// (when `received`), the allowlist and the learned address. Used by pairing and by
+/// the owner roster, whose members trust each other without pairing separately.
+#[allow(clippy::too_many_arguments)]
+async fn ensure_peer(
+    shared: &Arc<Shared>,
+    allow: &Allowlist,
+    peer: PublicIdentity,
+    peer_addr: IrohAddr,
+    issued: Option<String>,
+    received: Option<String>,
+    purpose: PairPurpose,
+    adopt_relay: bool,
+) -> Result<()> {
+    let learned_peer_relay = peer_addr.relay_url.clone();
+    let node = peer.node_id.clone();
+    let path = shared.path.clone();
+    let mut learned_peer = LearnedPeer {
+        addr: peer_addr,
+        port: 0,
+    };
+    // Route side: bind the forward first; the lease must be live before it is saved.
+    let forward = if received.is_some() {
+        let target = addr::endpoint_addr(&learned_peer.addr)?;
+        let forward = Forward::bind(shared.node.clone(), 0, target).await?;
+        let lease = Lease::acquire(&lock_path(&path, &node)?)?;
+        learned_peer.port = forward.address.port();
+        Some((forward, lease))
+    } else {
+        None
+    };
+    let token = match &received {
+        Some(secret) => {
+            let file = token_path(&path, &node)?;
+            secrets::write_private(&file, secret.as_bytes(), true)?;
+            Some(file)
+        }
+        None => None,
+    };
+    let mut pinned = Pinned::new(peer.clone());
+    // The owner compared the pairing code during this flow.
+    pinned.verified = true;
+    let lock = lock_path(&path, &node)?;
+    let port = learned_peer.port;
+    let update_path = path.clone();
+    let update_node = node.clone();
+    tokio::task::spawn_blocking(move || {
+        Config::update(&update_path, |config| {
+            if let Some(secret) = &issued {
+                let permissions = match purpose {
+                    PairPurpose::OwnerDevice => owner_permissions(),
+                    PairPurpose::Guest => Permissions {
+                        messages: true,
+                        ..Permissions::default()
+                    },
+                };
+                let mut grant = Grant::issue(secret, permissions);
+                grant.peer = Some(pinned.clone());
+                grant.inbound = match purpose {
+                    PairPurpose::OwnerDevice => Inbound::Accept,
+                    PairPurpose::Guest => Inbound::Hold,
+                };
+                config.grants.insert(update_node.clone(), grant);
+            }
+            if let Some(token_file) = token {
+                let mut alternatives = Vec::new();
+                if let Some(old) = config.routes.remove(&update_node) {
+                    alternatives = old
+                        .endpoints()
+                        .into_iter()
+                        .filter(|e| e.local_forward_lock.as_ref() != Some(&lock))
+                        .take(super::config::MAX_PATHS - 1)
+                        .collect();
+                }
+                config.routes.insert(
+                    update_node.clone(),
+                    Route {
+                        url: format!("http://127.0.0.1:{port}"),
+                        token_file,
+                        allow_insecure: false,
+                        local_forward_lock: Some(lock),
+                        alternatives,
+                        target_identity: Some(pinned),
+                        config_path: None,
+                    },
+                );
+            }
+            Ok(())
+        })
+    })
+    .await??;
+    if let Some(id) = endpoint_of(&peer) {
+        allow.insert(id);
+    }
+    if let Some(forward) = forward {
+        shared.forwards.lock().await.insert(node.clone(), forward);
+    }
+    let mut learned = Learned::read(&path);
+    learned.peers.insert(node, learned_peer);
+    if adopt_relay
+        && let Some(relay) = &learned_peer_relay
+        && !relay.contains(".iroh.link")
+        && !learned.relays.contains(relay)
+    {
+        learned.relays.insert(0, relay.clone());
+        learned.relays.truncate(4);
+        if shared.adopt_learned
+            && let Err(error) = shared.node.adopt_relay(relay).await
+        {
+            eprintln!("iroh: cannot use relay {relay}: {error:#}");
+        }
+    }
+    learned.write(&path)?;
+    Ok(())
 }
 
 /// Running iroh transport; [`Handle`] is what the App API (WS7) calls.
@@ -584,6 +683,10 @@ impl Service {
             forwards: Default::default(),
             migrate_tried: Default::default(),
         });
+        live_transports()
+            .lock()
+            .unwrap()
+            .insert(path.clone(), (Arc::downgrade(&shared), allow.clone()));
         let host = Arc::new(Host {
             shared: shared.clone(),
             identity: identity.public().clone(),

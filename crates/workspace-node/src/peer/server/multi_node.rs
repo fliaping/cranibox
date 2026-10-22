@@ -99,6 +99,7 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
                 is_claude_node: n == 2,
                 name: format!("Device {n}"),
                 added_at: 0,
+                identity: None,
             }
         })
         .collect();

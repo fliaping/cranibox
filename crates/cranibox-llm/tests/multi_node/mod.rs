@@ -25,6 +25,7 @@ fn roster() -> Arc<MockRoster> {
                     is_claude_node: n == 3,
                     name: format!("Device {n}"),
                     added_at: 0,
+                    identity: None,
                 }
             })
             .collect(),

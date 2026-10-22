@@ -982,6 +982,12 @@ async fn route(
             _ => Err(error(405, "invalid", "Unknown pairing request")),
         };
     }
+    if (method, path) == ("GET", "/identity") {
+        let service = service
+            .as_ref()
+            .ok_or_else(|| error(503, "unavailable", "Demo devices have no identity"))?;
+        return Ok(service.models.identity());
+    }
     match (method, path) {
         ("GET", "/status") => output(api.status().await?),
         ("GET", "/devices") => output(api.devices().await?),

@@ -171,6 +171,7 @@ async fn coordinator() -> Result<()> {
                 is_claude_node: false,
                 name: format!("Fixture {i}"),
                 added_at: 0,
+                identity: None,
             }
         })
         .collect();

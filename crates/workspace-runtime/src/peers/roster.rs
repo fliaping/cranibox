@@ -66,7 +66,8 @@ pub fn verify(roster: &Roster, owner: &str) -> Result<()> {
 }
 pub struct RosterStore {
     path: PathBuf,
-    owner: String,
+    /// The pinned identity; replaced only by [`RosterStore::adopt`].
+    owner: RwLock<String>,
     current: RwLock<Option<Roster>>,
     changed: watch::Sender<u64>,
 }
@@ -85,7 +86,7 @@ impl RosterStore {
         let epoch = current.as_ref().map_or(0, |r| r.epoch);
         Ok(Self {
             path,
-            owner,
+            owner: RwLock::new(owner),
             current: RwLock::new(current),
             changed: watch::channel(epoch).0,
         })
@@ -108,7 +109,7 @@ impl RosterStore {
         crate::config::write_private(&pin, owner.as_bytes(), false)
     }
     pub fn install(&self, roster: Roster) -> Result<Vec<String>> {
-        verify(&roster, &self.owner)?;
+        verify(&roster, &self.owner())?;
         let mut guard = self
             .current
             .write()
@@ -130,7 +131,7 @@ impl RosterStore {
             Err(e) => return Err(e.into()),
         };
         if let Some(old) = disk.as_ref() {
-            verify(old, &self.owner)?;
+            verify(old, &self.owner())?;
             ensure!(roster.epoch > old.epoch, "stale roster epoch");
         }
         let removed = disk
@@ -156,8 +157,44 @@ impl RosterStore {
         // Caller must rotate all account DEKs before announcing the new roster.
         Ok(removed)
     }
+    /// The pinned owner public key (hex).
+    pub fn owner(&self) -> String {
+        self.owner.read().map(|o| o.clone()).unwrap_or_default()
+    }
+    /// Join another identity: replace the pinned owner and the roster in one step. Only
+    /// for a roster received over a SAS-verified pairing that names this device.
+    pub fn adopt(&self, owner: &str, roster: Roster) -> Result<()> {
+        unhex::<32>(owner)?;
+        verify(&roster, owner)?;
+        let mut guard = self
+            .current
+            .write()
+            .map_err(|_| anyhow::anyhow!("roster lock poisoned"))?;
+        let mut pinned = self
+            .owner
+            .write()
+            .map_err(|_| anyhow::anyhow!("roster lock poisoned"))?;
+        fs::create_dir_all(
+            self.path
+                .parent()
+                .context("roster needs parent directory")?,
+        )?;
+        let lock = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(self.path.with_extension("lock"))?;
+        lock.lock_exclusive()?;
+        crate::config::write_private(&self.path, &serde_json::to_vec_pretty(&roster)?, true)?;
+        crate::config::write_private(&self.path.with_extension("owner"), owner.as_bytes(), true)?;
+        let epoch = roster.epoch;
+        *pinned = owner.to_owned();
+        *guard = Some(roster);
+        self.changed.send_replace(epoch);
+        Ok(())
+    }
     pub fn issue(&self, key: &OwnerKey, members: Vec<RosterMember>) -> Result<Vec<String>> {
-        ensure!(key.public() == self.owner, "wrong owner key");
+        ensure!(key.public() == self.owner(), "wrong owner key");
         let epoch = self
             .current()
             .map_or(0, |r| r.epoch)
@@ -165,7 +202,7 @@ impl RosterStore {
             .context("roster epoch exhausted")?;
         let mut roster = Roster {
             version: ROSTER_VERSION,
-            owner_pub: self.owner.clone(),
+            owner_pub: self.owner(),
             epoch,
             members,
             sig: String::new(),
@@ -242,6 +279,7 @@ mod tests {
             is_claude_node: false,
             name: "My computer".into(),
             added_at: 0,
+            identity: None,
         }
     }
     #[test]

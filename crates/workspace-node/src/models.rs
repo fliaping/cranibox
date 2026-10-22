@@ -22,6 +22,35 @@ use std::{
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
+fn live_models()
+-> &'static std::sync::Mutex<std::collections::HashMap<PathBuf, std::sync::Weak<Models>>> {
+    static LIVE: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<PathBuf, std::sync::Weak<Models>>>,
+    > = std::sync::OnceLock::new();
+    LIVE.get_or_init(Default::default)
+}
+/// The running model service of the node whose peer configuration is `peers`.
+pub fn live(peers: &Path) -> Option<Arc<Models>> {
+    live_models().lock().unwrap().get(peers)?.upgrade()
+}
+
+/// `cbo-xxxx-xxxx-xxxx-xxxx`: short, stable code of an owner identity (its public key).
+pub fn identity_code(owner_pub: &str) -> String {
+    use sha2::Digest;
+    let digest =
+        sha2::Sha256::digest([b"cranibox-identity-v1\0".as_slice(), owner_pub.as_bytes()].concat());
+    let text = data_encoding::BASE32_NOPAD
+        .encode(&digest[..10])
+        .to_ascii_lowercase();
+    format!(
+        "cbo-{}-{}-{}-{}",
+        &text[0..4],
+        &text[4..8],
+        &text[8..12],
+        &text[12..16]
+    )
+}
+
 pub struct Models {
     pub roster: Arc<RosterStore>,
     pub vault: Arc<Vault>,
@@ -32,6 +61,8 @@ pub struct Models {
     path: PathBuf,
     owner_path: PathBuf,
     stop: CancellationToken,
+    /// This device's vault X25519 key, for secrets shared with fellow roster members.
+    vault_private: zeroize::Zeroizing<[u8; 32]>,
 }
 impl Models {
     pub async fn start(path: PathBuf, stop: CancellationToken) -> Result<Arc<Self>> {
@@ -84,6 +115,10 @@ impl Models {
                 Some(&cranibox_llm::vault::keys::PlatformKeyStore),
             )?
         };
+        let vault_private: [u8; 32] = encryption
+            .expose()
+            .try_into()
+            .context("invalid vault key")?;
         let keys = VaultKeys::new(
             config.node_id.clone(),
             public.signing_key.clone(),
@@ -115,8 +150,9 @@ impl Models {
                     },
                     priority: 128,
                     is_claude_node: false,
-                    name: std::env::var("HOSTNAME").unwrap_or_else(|_| "My device".into()),
+                    name: crate::device_info::local().name.clone(),
                     added_at: cranibox_llm::auth::now(),
+                    identity: serde_json::to_value(identity.public()).ok(),
                 }],
             )?;
         }
@@ -177,7 +213,12 @@ impl Models {
             path,
             owner_path,
             stop: stop.child_token(),
+            vault_private: zeroize::Zeroizing::new(vault_private),
         });
+        live_models()
+            .lock()
+            .unwrap()
+            .insert(service.path.clone(), Arc::downgrade(&service));
         let weak = Arc::downgrade(&service);
         let cancel = service.stop.clone();
         tokio::spawn(async move {
@@ -191,6 +232,7 @@ impl Models {
     }
     async fn tick(&self) -> Result<()> {
         use futures_util::{StreamExt, stream};
+        self.trust_members().await;
         let roster = self.roster.current().context("no roster")?;
         let mut reachable = BTreeSet::new();
         // A dead peer must not serialize all other health probes behind its
@@ -311,6 +353,187 @@ impl Models {
             }
         }
         Ok(models)
+    }
+    /// This device's identity code and roster summary.
+    pub fn identity(&self) -> serde_json::Value {
+        let owner = self.roster.owner();
+        let roster = self.roster.current();
+        serde_json::json!({
+            "code": identity_code(&owner),
+            "owner_pub": owner,
+            "epoch": roster.as_ref().map(|r| r.epoch),
+            "members": roster.map_or(0, |r| r.members.len()),
+        })
+    }
+    /// Secret this device shares with a fellow roster member: both derive it from the
+    /// vault keys listed in the signed roster, so nothing is exchanged.
+    fn member_secret(&self, member: &RosterMember) -> Result<String> {
+        use sha2::Digest;
+        let public: [u8; 32] = (0..32)
+            .map(|i| {
+                u8::from_str_radix(member.x25519_pub.get(i * 2..i * 2 + 2).unwrap_or("zz"), 16)
+            })
+            .collect::<Result<Vec<u8>, _>>()?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("invalid member key"))?;
+        let shared = x25519_dalek::StaticSecret::from(*self.vault_private)
+            .diffie_hellman(&x25519_dalek::PublicKey::from(public));
+        ensure!(shared.was_contributory(), "invalid member key");
+        let me = self.vault.node();
+        let (a, b) = if me < member.node_id.as_str() {
+            (me, member.node_id.as_str())
+        } else {
+            (member.node_id.as_str(), me)
+        };
+        let digest = sha2::Sha256::digest(
+            [
+                b"cranibox-roster-peer-v1\0".as_slice(),
+                shared.as_bytes(),
+                a.as_bytes(),
+                b"/",
+                b.as_bytes(),
+            ]
+            .concat(),
+        );
+        Ok(digest.iter().map(|b| format!("{b:02x}")).collect())
+    }
+    /// Every member of this identity trusts every other one: create the missing grant
+    /// and route for members this device was not paired with directly.
+    async fn trust_members(&self) {
+        let Some(roster) = self.roster.current() else {
+            return;
+        };
+        let Ok(config) = Config::read(&self.path) else {
+            return;
+        };
+        for member in roster.members {
+            if member.node_id == self.vault.node()
+                || (config.grants.contains_key(&member.node_id)
+                    && config.routes.contains_key(&member.node_id))
+            {
+                continue;
+            }
+            let Some(identity) = member.identity.as_ref() else {
+                continue;
+            };
+            let secret = match self.member_secret(&member) {
+                Ok(secret) => secret,
+                Err(error) => {
+                    eprintln!(
+                        "roster: no shared secret with {}: {error:#}",
+                        member.node_id
+                    );
+                    continue;
+                }
+            };
+            if let Err(error) =
+                crate::peer::transport_iroh::ensure_roster_peer(&self.path, identity, secret).await
+            {
+                eprintln!("roster: cannot connect to {}: {error:#}", member.node_id);
+            }
+        }
+    }
+    /// This device's own roster member (sent when joining another identity).
+    pub fn own_member(&self) -> Option<RosterMember> {
+        self.roster.current()?.member(self.vault.node()).cloned()
+    }
+    /// Inviter: add a SAS-verified owner device to this identity and return what it
+    /// needs to join: the new signed roster and the owner key sealed to its vault key.
+    pub fn invite_bundle(
+        &self,
+        member: RosterMember,
+        identity: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        ensure!(
+            agent_workspace_runtime::protocol::valid_node_id(&member.node_id)
+                && member.node_id != self.vault.node(),
+            "invalid member"
+        );
+        let mut member = member;
+        member.role = Role::Node;
+        member.is_claude_node = false;
+        member.added_at = cranibox_llm::auth::now();
+        member.name = member.name.chars().take(64).collect();
+        member.identity = Some(identity);
+        let own = Config::identity(&self.path)
+            .ok()
+            .and_then(|i| serde_json::to_value(i.public()).ok());
+        let me = self.vault.node().to_owned();
+        self.edit_members(|members| {
+            members.retain(|m| m.node_id != member.node_id);
+            // Older rosters lack this device's identity; members need it to trust us.
+            if let Some(m) = members.iter_mut().find(|m| m.node_id == me)
+                && m.identity.is_none()
+            {
+                m.identity = own;
+            }
+            members.push(member.clone());
+            Ok(())
+        })?;
+        let roster = self.roster.current().context("no roster")?;
+        let owner = OwnerKey::load_or_create(&self.owner_path)?;
+        let sealed = owner.seal_for(&member)?;
+        Ok(serde_json::json!({"owner_pub": roster.owner_pub, "roster": roster, "sealed": sealed}))
+    }
+    /// Joiner: take the identity offered by `inviter` over a SAS-verified pairing.
+    /// Returns `false` when this device already belongs to an identity with other
+    /// devices (merging two identities is not automatic).
+    pub fn join_identity(&self, inviter: &str, bundle: &serde_json::Value) -> Result<bool> {
+        let owner = bundle["owner_pub"]
+            .as_str()
+            .context("missing owner")?
+            .to_owned();
+        let roster: cranibox_contracts::roster::Roster =
+            serde_json::from_value(bundle["roster"].clone())?;
+        let sealed: agent_workspace_runtime::peers::roster::SealedOwnerKey =
+            serde_json::from_value(bundle["sealed"].clone())?;
+        agent_workspace_runtime::peers::roster::verify(&roster, &owner)?;
+        let me = self.own_member().context("no own roster member")?;
+        ensure!(
+            roster
+                .member(&me.node_id)
+                .is_some_and(|m| m.x25519_pub == me.x25519_pub && m.signing_key == me.signing_key),
+            "the offered identity does not include this device"
+        );
+        ensure!(
+            roster.member(inviter).is_some(),
+            "the inviter is not in its identity"
+        );
+        if owner == self.roster.owner() {
+            if roster.epoch > self.roster.current().map_or(0, |r| r.epoch) {
+                self.install_roster(roster)?;
+            }
+            return Ok(true);
+        }
+        if self.roster.current().is_some_and(|r| r.members.len() > 1) {
+            return Ok(false);
+        }
+        let dir = self.path.with_file_name("models");
+        let private = cranibox_llm::vault::keys::load_or_create(
+            self.vault.node(),
+            &dir.join("encryption.key"),
+            Some(&cranibox_llm::vault::keys::PlatformKeyStore),
+        )?;
+        let private: [u8; 32] = private.expose().try_into().context("invalid vault key")?;
+        // Keep the previous identity's key aside instead of destroying it.
+        if self.owner_path.exists() {
+            std::fs::rename(
+                &self.owner_path,
+                self.owner_path.with_extension("key.previous"),
+            )?;
+        }
+        if let Err(error) =
+            OwnerKey::install_sealed(&self.owner_path, &owner, &me.node_id, &private, &sealed)
+        {
+            let _ = std::fs::rename(
+                self.owner_path.with_extension("key.previous"),
+                &self.owner_path,
+            );
+            return Err(error);
+        }
+        self.roster.adopt(&owner, roster)?;
+        self.vault.rotate_for_roster()?;
+        Ok(true)
     }
     pub fn install_roster(&self, roster: cranibox_contracts::roster::Roster) -> Result<()> {
         let removed_self = roster.member(self.vault.node()).is_none();
