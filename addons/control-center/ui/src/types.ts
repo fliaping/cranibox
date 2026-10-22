@@ -18,7 +18,6 @@ export interface Snapshot {
   desktop?: { installed?: boolean; runtime_available?: boolean; running?: boolean; state?: string; service?: string; local_url?: string; code_server_path?: string; computer_use?: { installed?: boolean; running?: boolean; paused?: boolean; state?: string; backend_available?: boolean; loopback_only?: boolean; bridge_url?: string; native_url?: string; native_bind?: string; backend?: string; backend_diagnostic?: { detail?: string }; resolution?: { width: number; height: number }; active_sessions?: { id: string; last_action?: string; idle_seconds?: number }[]; mcp_agents?: string[]; capabilities?: string[] } };
   network?: { installed?: boolean; mode?: string; root_domain?: string; routes?: { name: string; host?: string; target: string; public_url?: string }[] };
   tailscale?: { installed?: boolean; state?: string; serve_enabled?: boolean; url?: string; ips?: string[]; dns_name?: string };
-  remote_nodes?: { installed: boolean; available: boolean; error?: string; nodes: RemoteNode[] };
   local_node?: { id: string; online: boolean; terminal_sessions: boolean };
   metrics?: Metrics;
   ports?: { command: string; pid?: number; address: string; user?: string }[];

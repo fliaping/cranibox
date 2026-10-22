@@ -11,11 +11,11 @@ import threading
 import time
 import unittest
 
-from workspace_web_harness import Harness, CORE, NODE, RUNTIME, WEB, free_port, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, WEB, free_port, sockets_allowed, until
 from test_cranibox_terminal import Socket
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class WebDirectPeersTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness()

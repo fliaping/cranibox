@@ -1,5 +1,5 @@
-//! Browser terminals: this device's shells, paired devices, or an optional relay.
-use super::{RelayTerminal, Services, error};
+//! Browser terminals: this device's shells or a paired device's.
+use super::{Services, error};
 use agent_workspace_runtime::peers::terminal::{self as direct, Event, Input};
 use axum::{
     extract::{
@@ -144,7 +144,6 @@ pub async fn upgrade(
 enum Terminal {
     Local(crate::local::Terminal),
     Direct(direct::Terminal),
-    Relay(Box<dyn RelayTerminal>),
 }
 async fn open(services: &Services, options: Options) -> anyhow::Result<Terminal> {
     let own = services
@@ -153,33 +152,16 @@ async fn open(services: &Services, options: Options) -> anyhow::Result<Terminal>
         .is_some_and(|local| options.node.as_deref() == Some(&local.id));
     anyhow::ensure!(!options.local || own, "local node identity changed");
     if let Some(node) = options.node.filter(|_| options.direct || !own) {
-        if options.direct {
-            return Ok(Terminal::Direct(
-                direct::Terminal::connect(
-                    services.peer_store().route(&node)?,
-                    &node,
-                    &options.session_id,
-                    options.cols,
-                    options.rows,
-                    options.takeover,
-                )
-                .await?,
-            ));
-        }
-        let relay = services
-            .relay
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Pair this device to open its terminal"))?;
-        return Ok(Terminal::Relay(
-            relay
-                .terminal(
-                    &node,
-                    options.cols,
-                    options.rows,
-                    options.session_id,
-                    options.takeover,
-                )
-                .await?,
+        return Ok(Terminal::Direct(
+            direct::Terminal::connect(
+                services.peer_store().route(&node)?,
+                &node,
+                &options.session_id,
+                options.cols,
+                options.rows,
+                options.takeover,
+            )
+            .await?,
         ));
     }
     Ok(Terminal::Local(
@@ -199,17 +181,12 @@ impl Terminal {
         match self {
             Self::Local(local) => local.send(message),
             Self::Direct(remote) => remote.send(message),
-            Self::Relay(remote) => {
-                message.validate()?;
-                remote.send(message)
-            }
         }
     }
     async fn output(&mut self) -> Option<Event> {
         match self {
             Self::Local(local) => local.output.recv().await,
             Self::Direct(remote) => remote.output.recv().await,
-            Self::Relay(remote) => remote.output().await,
         }
     }
 }
@@ -309,20 +286,12 @@ pub async fn manage(services: &Services, mut body: Value) -> anyhow::Result<Valu
                 agent_workspace_runtime::protocol::valid_node_id(&node),
                 "invalid node"
             );
-            if direct {
-                return services
-                    .peer_store()
-                    .manage(agent_workspace_runtime::peers::Command::Sessions {
-                        node,
-                        command: body,
-                    })
-                    .await;
-            }
             services
-                .relay
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Pair this device to manage its sessions"))?
-                .terminal_manage(&node, body)
+                .peer_store()
+                .manage(agent_workspace_runtime::peers::Command::Sessions {
+                    node,
+                    command: body,
+                })
                 .await
         }
         _ => anyhow::bail!("invalid node"),

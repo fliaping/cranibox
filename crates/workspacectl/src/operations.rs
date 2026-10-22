@@ -251,33 +251,6 @@ pub async fn run(ctx: &Context, name: &str, args: &[String]) -> Result<i32> {
             ensure!(args.is_empty(), "Unexpected update arguments");
             manager(ctx, &["update"]).await
         }
-        "runtime" => {
-            if action == "install" {
-                let installer = ctx.implementation_script("install-workspace-runtime.sh")?;
-                let mut command = ctx.command("bash");
-                command.arg(installer).args(&args[1..]);
-                return Ok(command.status().await?.code().unwrap_or(1));
-            }
-            ensure!(
-                ["status", "start", "stop", "restart"].contains(&action) && args.len() <= 1,
-                "Usage: workspacectl runtime install|start|stop|restart|status"
-            );
-            ctx.execute(&[
-                "systemctl",
-                "--user",
-                action,
-                if ctx
-                    .root
-                    .join(".config/agent-workspace/unified-server")
-                    .exists()
-                {
-                    "agent-workspace-web.service"
-                } else {
-                    "agent-workspace-runtime.service"
-                },
-            ])
-            .await
-        }
         "tailscale" => {
             if action == "autoconnect" {
                 ensure!(args.len() == 1, "Unexpected tailscale arguments");

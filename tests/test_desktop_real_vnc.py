@@ -17,7 +17,7 @@ import unittest
 from unittest.mock import patch
 
 from test_cranibox_terminal import Socket
-from workspace_web_harness import CORE, NODE, ROOT, RUNTIME, WEB, Harness, free_port, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, ROOT, WEB, Harness, free_port, sockets_allowed, until
 
 
 DES = ROOT / 'addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/des.js'
@@ -108,7 +108,7 @@ class RealVncTests(unittest.TestCase):
     def setUp(self):
         for tool in TOOLS:
             self.assertIsNotNone(shutil.which(tool), f'Missing integration tool: {tool}')
-        for path in (CORE, NODE, RUNTIME, WEB, DES):
+        for path in (CORE, NODE, WEB, DES):
             self.assertTrue(path.is_file(), f'Missing integration dependency: {path}')
         self.assertTrue(sockets_allowed(), 'Real sockets are required')
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-real-vnc-')

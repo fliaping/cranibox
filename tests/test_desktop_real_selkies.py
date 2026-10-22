@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import unittest
 
-from workspace_web_harness import CORE, NODE, ROOT, RUNTIME, WEB, Harness
+from workspace_web_harness import CORE, NODE, ROOT, WEB, Harness
 
 
 @unittest.skipUnless(os.environ.get('CRANIBOX_TEST_REAL_SELKIES'), 'opt in to the existing Selkies desktop')
@@ -23,7 +23,7 @@ class RealSelkiesTests(unittest.TestCase):
     def test_jpeg_keyboard_reconnect_and_revocation_through_relay(self):
         for tool in ('node', 'kdialog'):
             self.assertIsNotNone(shutil.which(tool), f'Missing integration tool: {tool}')
-        for binary in (CORE, NODE, RUNTIME, WEB):
+        for binary in (CORE, NODE, WEB):
             self.assertTrue(binary.is_file(), f'Missing integration binary: {binary}')
         h = Harness(unified=True)
         self.addCleanup(h.close)

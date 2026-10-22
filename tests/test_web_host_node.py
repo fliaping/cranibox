@@ -131,7 +131,10 @@ class WebHostNodeTests(unittest.TestCase):
         host_project = host['projects'][0]
         shell = self.sessions(operation='create', name='Legacy shell', cwd=str(self.h.root))['session']
         host = self.api('/api/projects', operation='bind', replica_id=host_project['replicas'][0]['id'], terminal_id=shell['id'])
-        both = self.api('/api/projects', operation='register', name='Remote private', node='test-node', path='/private/remote')
+        # Another device's working copies are registered on that device, not here.
+        status, value = self.h.post('/api/projects', {'operation': 'register', 'name': 'Remote private',
+                                                       'node': 'node-' + 'a' * 32, 'path': '/private/remote'})
+        self.assertEqual(status, 400, value)
         self.h.stop(self.h.web)
         path = self.h.root / '.config/agent-workspace/projects.json'
         legacy = json.loads(path.read_text())
@@ -140,7 +143,7 @@ class WebHostNodeTests(unittest.TestCase):
         self.h.start_web()
         self.h.login()
         upgraded = self.api('/api/projects', operation='list')
-        self.assertEqual(upgraded['projects'], both['projects'])
+        self.assertEqual(upgraded['projects'], host['projects'])
         self.assertEqual(upgraded['revision'], legacy['revision'] + 1)
         self.enable_listener(projects=True)
         status, view = self.direct_projects(operation='list')
@@ -150,8 +153,6 @@ class WebHostNodeTests(unittest.TestCase):
         self.assertEqual(self.api('/api/projects', operation='list')['revision'], upgraded['revision'])
         self.assertEqual(self.direct('POST', f'/nodes/{self.target}/terminal/sessions', {'operation': 'list'})[0], 403)
         self.assertEqual(self.direct_projects(operation='bind', replica_id=host_project['replicas'][0]['id'], terminal_id=shell['id'])[0], 403)
-        remote_replica = both['projects'][1]['replicas'][0]['id']
-        self.assertEqual(self.direct_projects(operation='forget', replica_id=remote_replica)[0], 400)
         self.assertEqual(self.direct_projects(operation='register', name='Wrong owner', node='test-node', path='/wrong/owner')[0], 400)
         self.sessions(operation='end', id=shell['id'])
 
@@ -162,17 +163,6 @@ class WebHostNodeTests(unittest.TestCase):
             status, value = self.h.post('/api/terminal/sessions', {**command, 'operation': 'create', 'name': 'must not start'})
             self.assertEqual(status, 400, value)
         self.assertEqual(self.sessions(operation='list')['sessions'], before)
-        # Ordinary mesh credentials never inherit controller access to the host.
-        token = (self.h.root / 'node.token').read_text().strip()
-        status, visible = self.h.http('POST', '/api/v1/mesh/projects', {'operation': 'list'}, self.h.gateway_port,
-                                      {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
-        self.assertEqual(status, 200, visible)
-        self.assertEqual(visible['projects'], [])
-        status, value = self.h.http('POST', '/api/v1/mesh/projects',
-                                    {'operation': 'register', 'name': 'unauthorized', 'node': self.target, 'path': '/must-not-register'},
-                                    self.h.gateway_port, {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
-        self.assertEqual(status, 400, value)
-
 
 if __name__ == '__main__':
     unittest.main()

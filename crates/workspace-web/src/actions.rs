@@ -11,7 +11,6 @@ fn agent_ids() -> Vec<&'static str> {
         .collect()
 }
 const ACTIONS: &[&str] = &[
-    "installRuntime",
     "installAgent",
     "updateOpenClaw",
     "installMcpm",
@@ -160,16 +159,6 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
     let action = text(&body, "type");
     let id = text(&body, "id");
     match action {
-        "installRuntime" => {
-            operation(
-                state,
-                session,
-                "Repair built-in node gateway",
-                &["runtime", "install"],
-                900,
-            )
-            .await?;
-        }
         "installAgent" => {
             operation(
                 state,

@@ -20,13 +20,12 @@ REVISION = 'a' * 40
 
 def healthy_probe():
     return {
-        **{'health_'+str(port): {'status': 200, 'value': {'ok': True, 'protocol_version': 1}}
-           for port in (9080, 9090)},
+        'health_9080': {'status': 200, 'value': {'ok': True, 'implementation': 'rust'}},
         'web_status': 200, 'peers_status': 200, 'api_node_id': 'node-test', 'node_id': 'node-test',
         'static_assets': {'/web.js': 200, '/web.css': 200},
         'versions': {name: {'exit_code': 0, 'version': 'test'}
                      for name in ('cranibox', 'workspacectl', 'herdr', 'cranibox-node')},
-        'aliases': {name: True for name in ('workspacectl', 'workspace-services', 'workspace-runtime')},
+        'aliases': {name: True for name in ('workspacectl', 'workspace-services')},
         'image_binary_matches': True,
         'service': {name: {'exit_code': 0} for name in ('is-enabled', 'is-active')},
         'credentials_mode': 0o600, 'peers_mode': 0o600,

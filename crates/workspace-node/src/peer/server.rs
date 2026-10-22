@@ -618,27 +618,6 @@ impl Running {
     pub(crate) async fn desktop(&self) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
         desktop::open(&self.app, None, false).await
     }
-    pub(crate) async fn relay_desktop(
-        &self,
-        caller: &str,
-    ) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
-        anyhow::ensure!(valid_node_id(caller), "invalid desktop caller");
-        let grant = Config::read(&self.app.path)?
-            .grants
-            .get(caller)
-            .filter(|grant| grant.permissions.desktop)
-            .cloned()
-            .context("desktop capability not granted by target node")?;
-        desktop::open(
-            &self.app,
-            Some(Caller {
-                node: caller.into(),
-                grant,
-            }),
-            false,
-        )
-        .await
-    }
     pub async fn wait(mut self) -> Result<()> {
         let result = if let Some(transport) = self.listener.take() {
             let result = transport.task.await;

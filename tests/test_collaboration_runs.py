@@ -7,10 +7,10 @@ import uuid
 
 import test_device_tasks as device_tasks
 import test_task_runs as runs
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, free_port, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, free_port, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class CollaborationTests(unittest.TestCase):
     setUp = device_tasks.DeviceTasksTests.setUp
     cli = device_tasks.DeviceTasksTests.cli
@@ -143,7 +143,7 @@ class CollaborationTests(unittest.TestCase):
         self.assertEqual(len(self.tasks(operation='list')['collaborations']), 1)
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class CollaborationPromptTests(unittest.TestCase):
     setUp = runs.TaskRunsTests.setUp
     cli = runs.TaskRunsTests.cli

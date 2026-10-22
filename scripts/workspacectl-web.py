@@ -14,7 +14,7 @@ RUNTIME = ROOT / 'opt/agent-workspace-web'
 CONFIG = ROOT / '.config/agent-workspace/web.json'
 UNIT = 'agent-workspace-web.service'
 DEFAULTS = {'port': 9080, 'publicUrl': '', 'workspaceUrl': 'http://localhost:8443',
-            'desktopUrl': 'https://localhost:3001', 'runtimeUrl': 'http://127.0.0.1:9090'}
+            'desktopUrl': 'https://localhost:3001'}
 
 
 def config():

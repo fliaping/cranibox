@@ -1,5 +1,5 @@
 //! One program per device: `cranibox` runs this device's node and its web interface.
-//! The Docker workspace build adds the container console, services and gateway.
+//! The Docker workspace build adds the container console and services.
 use anyhow::Result;
 
 #[tokio::main(worker_threads = 2)]
@@ -18,25 +18,23 @@ async fn main() -> Result<()> {
         let mode = match name.as_str() {
             "workspacectl" => Some("ctl".to_owned()),
             "workspace-services" | "systemctl" => Some("service".to_owned()),
-            "workspace-runtime" => Some("runtime".to_owned()),
             "workspace-web" => Some("serve".to_owned()),
             "cranibox-node" => None,
             _ if args.get(1).is_some_and(|s| s.starts_with("__")) => Some("service".to_owned()),
             _ if args
                 .get(1)
-                .is_some_and(|s| matches!(s.as_str(), "serve" | "ctl" | "service" | "runtime")) =>
+                .is_some_and(|s| matches!(s.as_str(), "serve" | "ctl" | "service")) =>
             {
                 Some(args.remove(1))
             }
             _ => None,
         };
         match mode.as_deref() {
-            Some("serve") => return agent_workspace_web::run(args, true).await,
+            Some("serve") => return agent_workspace_web::run(args).await,
             Some("ctl") => std::process::exit(agent_workspacectl::run(args[1..].to_vec()).await?),
             Some("service") => {
                 std::process::exit(agent_workspace_services::run(args[1..].to_vec())?)
             }
-            Some("runtime") => return agent_workspace_runtime::cli::run(args).await,
             _ => {}
         }
     }

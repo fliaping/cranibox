@@ -9,10 +9,13 @@ async function api(page: Page, path: string, body: Record<string, unknown>) {
   }, { path, body });
 }
 
+// The Workspace host's own working copies; another device registers its own.
+const host = async (page: Page) => (await api(page, '/api/peers', { operation: 'identity' })).node_id as string;
+
 async function register(page: Page, name: string, path: string) {
   await page.getByRole('button', { name: 'Register project', exact: true }).click();
   await page.getByLabel('Project name', { exact: true }).fill(name);
-  await page.getByLabel('Device', { exact: true }).selectOption('preview-node');
+  await page.getByLabel('Device', { exact: true }).selectOption(await host(page));
   await page.getByLabel('Absolute directory on device', { exact: true }).fill(path);
   await page.getByRole('button', { name: 'Save directory', exact: true }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
@@ -47,7 +50,7 @@ test('project shells reopen in place, share existing sessions and survive page r
   await page.getByRole('button', { name: 'Close terminal window', exact: true }).click();
   expect(operations.filter(op => op === 'create')).toHaveLength(1);
   expect(operations).not.toContain('end');
-  const original = await api(page, '/api/terminal/sessions', { node: 'preview-node', operation: 'list' });
+  const original = await api(page, '/api/terminal/sessions', { node: await host(page), operation: 'list' });
   const session = original.sessions.find((s: any) => s.name === 'Project shell');
   await page.getByRole('button', { name: 'Unlink Project shell', exact: true }).click();
   await expect(page.locator('.projects-sessions li')).toHaveCount(0);
@@ -67,19 +70,19 @@ test('project shells reopen in place, share existing sessions and survive page r
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Remove directory record', exact: true }).click();
   await expect(page.locator('.projects-list button')).toHaveCount(0);
-  const kept = await api(page, '/api/terminal/sessions', { node: 'preview-node', operation: 'list' });
+  const kept = await api(page, '/api/terminal/sessions', { node: await host(page), operation: 'list' });
   expect(kept.sessions.find((s: any) => s.id === session.id).status).toBe('running');
-  await api(page, '/api/terminal/sessions', { node: 'preview-node', operation: 'end', id: session.id });
+  await api(page, '/api/terminal/sessions', { node: await host(page), operation: 'end', id: session.id });
 });
 
 test('invalid target directories report failure without inventing a session', async ({ page }) => {
   await page.goto('/#/projects');
   await register(page, 'Missing working tree', '/cranibox-test-nonexistent-directory');
-  const before = await api(page, '/api/terminal/sessions', { node: 'preview-node', operation: 'list' });
+  const before = await api(page, '/api/terminal/sessions', { node: await host(page), operation: 'list' });
   await page.getByRole('button', { name: 'Create shell here', exact: true }).click();
   await expect(page.locator('.projects-view').getByRole('alert')).toBeVisible();
   await expect(page.locator('.projects-sessions li')).toHaveCount(0);
-  const after = await api(page, '/api/terminal/sessions', { node: 'preview-node', operation: 'list' });
+  const after = await api(page, '/api/terminal/sessions', { node: await host(page), operation: 'list' });
   expect(after.sessions.map((s: any) => s.id)).toEqual(before.sessions.map((s: any) => s.id));
   await expect(page.getByRole('button', { name: 'Create shell here', exact: true })).toBeEnabled();
 });

@@ -56,7 +56,7 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 - **轻量独立 Web 管理页** — Rust HTTP 后端与 React 前端，浏览器访问，支持明暗主题和移动端，见 [安装与安全访问](docs/web-control-center.md)
 - **原生用户服务管理** — Rust 兼容入口与 s6 监督服务；初始化任务使用 oneshot，见 [实现与迁移边界](docs/native-services-and-web.md)
 - **Agent 可直接操作环境** — Rust `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力；[构建与迁移范围](docs/workspacectl-rust.md)
-- **Rust WebSocket 远程节点** — Windows/macOS/Linux 客户端主动接入，Agent 用 CLI/MCP 执行命令；网关随镜像默认启动，构建与迁移范围见 [Rust 核心与远程节点](docs/rust-remote-nodes.md)
+- **对等设备网络** — Windows/macOS/Linux 设备与本工作区及彼此经 iroh 配对（直连、局域网或中继）；Agent 用 `cranibox nodes|exec|mcp` 访问已配对和同一身份的设备，见 [设备组网](docs/iroh-network.md)
 - **托盘客户端与设备组网** — Windows/macOS/Linux 独立 GUI 客户端，关闭窗口保持后台连接，支持登录自启动；同组设备的 Agent 使用各自节点身份互访，连接入口可选 Tailscale 私网或公网 WSS 中继，见 [客户端与设备组网](docs/node-desktop-and-device-mesh.md)
 - **节点直连基础** — 持久 NodeID、目标本地授权与独立 HTTP/WebSocket，CLI/MCP 在 Workspace 停止后仍能执行命令和连接原 Shell，Web/Tauri 共享设备页可管理直连连接、授权检查及后台命令任务；[配置与边界](docs/direct-node-peers.md)
 - **设备间消息** — Web/Tauri 共用持久收发箱，支持线程回复、显式收件确认、离线重试及重启恢复；Agent 可通过独立 MCP 使用，不依赖 Workspace 中继；[使用与边界](docs/device-messages.md)
@@ -65,7 +65,7 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
 - **设备自动组网** — Web/Tauri 共用 EasyTier 安装、用户态组网、节点发现和授权连接，支持 Workspace 地址加短期邀请接入、多个入网地址和节点重启恢复；同时支持系统 Tailscale 状态、官方登录，以及按在线设备核对 NodeID 并保存授权连接；[使用与当前边界](docs/device-networks.md)。已支持显式多路径的新连接选路；公钥配对、全网目录分发与既有连接无缝迁移仍按[对等组网设计](docs/decentralized-node-network-design.md)推进
 - **跨设备桌面** — Web/Tauri 共用 noVNC 查看器，通过 Rust 直连或 WebSocket 中继访问授权桌面；仅出站接入的节点无需开放入站端口，Linux/X11 与兼容 wlroots 的 Wayland 会话支持托管 VNC，其他环境接入已有 VNC；支持画面、键鼠、全屏与重连；[使用与边界](docs/remote-desktops.md)
 - **虚拟空间** — 引导检测与安装容器环境，创建独立 Linux 工作区，接入统一项目和终端，停止与归档保留数据；[平台支持与边界](docs/virtual-spaces.md)
-- **项目与会话** — Web/Tauri 共用项目页面，汇总网关与授权直连节点的目录，注册工作副本，创建、关联和找回原 Shell；可按设备启用后台目录增量同步，关闭页面后继续，离线保留只读快照。支持本机与直连节点双向、以及两个直连远端之间经清单确认的分块工作文件复制，断网后查询目标回执恢复结果，[使用与边界](docs/project-session-catalog.md)。已支持[非交互 Agent 后台执行](docs/agent-executions.md)；运行会话迁移仍按[设计与交付顺序](docs/distributed-agent-workspace-design.md)推进
+- **项目与会话** — Web/Tauri 共用项目页面，汇总已授权配对设备的目录，注册工作副本，创建、关联和找回原 Shell；可按设备启用后台目录增量同步，关闭页面后继续，离线保留只读快照。支持本机与直连节点双向、以及两个直连远端之间经清单确认的分块工作文件复制，断网后查询目标回执恢复结果，[使用与边界](docs/project-session-catalog.md)。已支持[非交互 Agent 后台执行](docs/agent-executions.md)；运行会话迁移仍按[设计与交付顺序](docs/distributed-agent-workspace-design.md)推进
 - **Selkies 浏览器桌面** — 通过 HTTPS 在浏览器中访问完整 Linux 桌面（Selkies 经 WebSocket 串流）；可选 XFCE（默认）、LXQt 或 KDE
 - **Agent 托管浏览器** — 桌面默认 Chromium 使用持久化托管用户目录，Agent 可直接操作同一窗口、标签页和登录会话，无需每次确认
 - **桌面 Computer Use** — Agent 可截图并操作 Selkies 正在显示的同一个桌面，支持鼠标、键盘、滚动、拖拽、窗口聚焦和紧急停止

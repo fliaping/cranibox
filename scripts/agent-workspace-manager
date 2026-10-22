@@ -644,12 +644,6 @@ class WorkspaceManager:
             self.install_code_server()
         elif target in {"web", "control-center"}:
             self.install_web_control_center()
-        elif target in {"runtime", "nodes"}:
-            root = self.source_root()
-            assert root is not None
-            self.install_workspace_controls()
-            run(["bash", str(root / "scripts/install-workspace-runtime.sh"), *extra_args],
-                env={**os.environ, "AGENT_WORKSPACE_CONFIG_ROOT": str(self.settings.config_root)})
         elif target in {"proxyctl", "proxy", "caddy"}:
             self.install_proxyctl()
         elif target in {"mcpm", "mcp-manager"}:
@@ -713,11 +707,6 @@ class WorkspaceManager:
                 "Web Control Center",
                 "ok" if (self.settings.config_root / "opt/agent-workspace-web/workspace-web").exists() else "optional",
                 "workspacectl web url",
-            ),
-            (
-                "Rust remote nodes",
-                "ok" if (self.settings.config_root / "bin/workspace-runtime").exists() else "optional",
-                "workspacectl runtime status / workspacectl nodes --json",
             ),
             (
                 "MCPM",
@@ -809,8 +798,6 @@ def build_parser() -> argparse.ArgumentParser:
             "foundation",
             "web",
             "control-center",
-            "runtime",
-            "nodes",
             "base",
             "remote",
             "code-server",

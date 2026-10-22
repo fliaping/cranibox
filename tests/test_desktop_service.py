@@ -12,12 +12,12 @@ import time
 import unittest
 from unittest.mock import patch
 
-from workspace_web_harness import Harness, CORE, NODE, ROOT, RUNTIME, WEB, free_port, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, ROOT, WEB, free_port, sockets_allowed, until
 from test_cranibox_terminal import Socket
 from test_remote_desktops import DesktopServer, SelkiesServer
 
 
-@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
+@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
 class DesktopServiceTests(unittest.TestCase):
     def setUp(self):
         self.fixture = tempfile.TemporaryDirectory(prefix='cranibox-managed-vnc-')
@@ -283,7 +283,7 @@ class DesktopServiceTests(unittest.TestCase):
         self.assertIsNone(peer.poll())
 
 
-@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
+@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
 class WaylandDesktopServiceTests(unittest.TestCase):
     wayland = True
     setUp = DesktopServiceTests.setUp

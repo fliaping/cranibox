@@ -9,10 +9,10 @@ import uuid
 from pathlib import Path
 
 import test_device_tasks as device_tasks
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class TaskRunsTests(unittest.TestCase):
     api = device_tasks.DeviceTasksTests.api
     tasks = device_tasks.DeviceTasksTests.tasks

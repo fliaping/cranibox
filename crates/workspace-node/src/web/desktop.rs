@@ -33,8 +33,6 @@ struct Options {
     node: String,
     #[serde(default)]
     local: bool,
-    #[serde(default)]
-    relay: bool,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -67,10 +65,6 @@ impl Hub {
         let options: Options = serde_json::from_value(body)?;
         anyhow::ensure!(valid_node_id(&options.node), "invalid node ID");
         anyhow::ensure!(
-            !(options.local && options.relay),
-            "choose one desktop route"
-        );
-        anyhow::ensure!(
             self.tickets.lock().await.len() < 64,
             "too many desktop requests"
         );
@@ -78,13 +72,6 @@ impl Hub {
             let local = services.local()?;
             anyhow::ensure!(local.id == options.node, "local node identity mismatch");
             local.desktop().await?
-        } else if options.relay {
-            services
-                .relay
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("This device has no relay to that desktop"))?
-                .desktop(&options.node)
-                .await?
         } else {
             services
                 .peer_store()

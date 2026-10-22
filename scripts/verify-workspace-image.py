@@ -32,7 +32,7 @@ def get(port,path,method='GET',body=None,headers=None,tls=False):
         response=connection.getresponse()
         return response.status,response.read(),{key.lower():value for key,value in response.getheaders()}
     finally: connection.close()
-for port in (9080,9090):
+for port in (9080,):
     status,body,_=get(port,'/healthz')
     out['health_'+str(port)]={'status':status,'value':json.loads(body)}
 status,body,headers=get(9080,'/'); html=body.decode()
@@ -45,7 +45,7 @@ out['peers_status']=status; out['api_node_id']=json.loads(body).get('node_id')
 peers=root/'.config/cranibox-node/peers.json'
 out['node_id']=json.loads(peers.read_text())['node_id']
 out['peers_mode']=stat.S_IMODE(peers.stat().st_mode)
-credentials=root/'.config/agent-workspace/runtime.json'
+credentials=peers
 out['credentials_mode']=stat.S_IMODE(credentials.stat().st_mode)
 out['credentials_sha256']=hashlib.sha256(credentials.read_bytes()).hexdigest()
 out['versions']={}
@@ -55,7 +55,7 @@ for name,path in [('cranibox',root/'bin/cranibox'),('workspacectl',root/'bin/wor
     out['versions'][name]={'exit_code':result.returncode,'version':result.stdout.strip()}
 out['image_binary_matches']=hashlib.sha256((root/'bin/cranibox').read_bytes()).digest()==hashlib.sha256(pathlib.Path('/usr/local/lib/agent-workspace/cranibox').read_bytes()).digest()
 out['aliases']={name:(root/'bin'/name).resolve()==(root/'bin/cranibox').resolve()
-                for name in ('workspacectl','workspace-services','workspace-runtime')}
+                for name in ('workspacectl','workspace-services')}
 out['service']={}
 for operation in ('is-enabled','is-active'):
     result=subprocess.run(['/config/bin/workspace-services','--user',operation,'agent-workspace-web.service'],capture_output=True,text=True,timeout=15)
@@ -195,15 +195,15 @@ class ImageCheck:
     @staticmethod
     def conditions(probe, credentials):
         result = {
-            'rust-listeners': all(probe['health_'+str(p)] ==
-                {'status': 200, 'value': {'ok': True, 'protocol_version': 1}} for p in (9080, 9090)),
+            'rust-listeners': probe['health_9080'] ==
+                {'status': 200, 'value': {'ok': True, 'implementation': 'rust'}},
             'web-and-node': probe['web_status'] == 200 and probe['peers_status'] == 200
                 and probe['api_node_id'] == probe['node_id']
                 and set(probe['static_assets']) == {'/web.js', '/web.css'}
                 and all(status == 200 for status in probe['static_assets'].values()),
             'built-in-programs': all(value['exit_code'] == 0 for value in probe['versions'].values())
                 and set(probe['versions']) == {'cranibox', 'workspacectl', 'herdr', 'cranibox-node'}
-                and set(probe['aliases']) == {'workspacectl', 'workspace-services', 'workspace-runtime'}
+                and set(probe['aliases']) == {'workspacectl', 'workspace-services'}
                 and all(probe['aliases'].values()) and probe['image_binary_matches'],
             'default-service': set(probe['service']) == {'is-enabled', 'is-active'}
                 and all(value['exit_code'] == 0 for value in probe['service'].values()),

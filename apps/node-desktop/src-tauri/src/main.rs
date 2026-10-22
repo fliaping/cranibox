@@ -4,8 +4,7 @@
 mod approvals;
 
 use cranibox_node::{
-    node::{self, Control},
-    settings::{self, Settings},
+    settings,
     web::standalone::{self, Shell},
 };
 use serde_json::{Value, json};
@@ -21,15 +20,9 @@ use tauri::{
 #[cfg(not(target_os = "linux"))]
 use tauri_plugin_autostart::ManagerExt;
 
-struct Running {
-    control: Control,
-    task: tauri::async_runtime::JoinHandle<()>,
-}
 #[derive(Default)]
 struct Service {
     local: Option<Arc<cranibox_node::local::LocalNode>>,
-    /// Legacy Workspace gateway connection, kept when the device was enrolled.
-    running: Option<Running>,
     /// Sign-in link of this window's interface server.
     url: Option<String>,
     error: Option<String>,
@@ -38,19 +31,6 @@ struct AppState {
     service: tokio::sync::Mutex<Service>,
     stop: tokio_util::sync::CancellationToken,
     quitting: AtomicBool,
-}
-fn start(settings: Settings, local: Arc<cranibox_node::local::LocalNode>) -> Running {
-    let control = Control::default();
-    let task_control = control.clone();
-    let task = tauri::async_runtime::spawn(async move {
-        if let Err(error) = node::connect_managed(settings, task_control.clone(), local).await {
-            task_control.status.send_replace(node::ConnectionStatus {
-                state: "failed".into(),
-                message: Some(format!("{error:#}")),
-            });
-        }
-    });
-    Running { control, task }
 }
 fn show(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -119,11 +99,6 @@ async fn quit_app(app: tauri::AppHandle, state: Arc<AppState>) {
         return;
     }
     state.stop.cancel();
-    let running = state.service.lock().await.running.take();
-    if let Some(running) = running {
-        running.control.stop.cancel();
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(10), running.task).await;
-    }
     if let Some(local) = state.service.lock().await.local.take() {
         let _ = local.shutdown().await;
     }
@@ -289,12 +264,6 @@ fn main() -> anyhow::Result<()> {
                     }
                 };
                 service.local = Some(local.clone());
-                if path.exists() {
-                    match Settings::read(&path) {
-                        Ok(settings) => service.running = Some(start(settings, local.clone())),
-                        Err(error) => service.error = Some(format!("{error:#}")),
-                    }
-                }
                 // A fresh token per launch: only this window ever receives the link.
                 let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
                     Ok(listener) => listener,
@@ -337,18 +306,11 @@ fn main() -> anyhow::Result<()> {
                 loop {
                     let (status, local) = {
                         let service = status_state.service.lock().await;
-                        let status = service
-                            .running
-                            .as_ref()
-                            .map(|running| running.control.status.borrow().state.clone())
-                            .unwrap_or_else(|| {
-                                if service.local.is_some() {
-                                    "本机服务运行中 / Running"
-                                } else {
-                                    "本机服务不可用 / Unavailable"
-                                }
-                                .into()
-                            });
+                        let status = if service.local.is_some() {
+                            "本机服务运行中 / Running"
+                        } else {
+                            "本机服务不可用 / Unavailable"
+                        };
                         (status, service.local.clone())
                     };
                     let cards = cranibox_node::app::dispatch(local, "GET", "/approvals", Value::Null).await.ok();

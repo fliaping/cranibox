@@ -10,10 +10,10 @@ import unittest
 import uuid
 
 import test_web_direct_peers as fixture
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(),
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(),
                      'build Rust binaries; real sockets required')
 class BackgroundAgentSyncTests(unittest.TestCase):
     setUp = fixture.WebDirectPeersTests.setUp

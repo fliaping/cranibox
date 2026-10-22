@@ -10,10 +10,10 @@ import threading
 import unittest
 import uuid
 
-from workspace_web_harness import Harness, CORE, NODE, RUNTIME, WEB, free_port, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, WEB, free_port, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class DeviceMessagesTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness()

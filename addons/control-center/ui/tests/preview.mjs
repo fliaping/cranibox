@@ -27,15 +27,11 @@ await fs.writeFile(command, [
 await fs.writeFile(path.join(directory, 'tailscale'), '#!' + process.execPath + '\nconsole.log(JSON.stringify({BackendState:"Stopped",Peer:{}}));\n', { mode: 0o700 });
 const binary = process.env.CRANIBOX_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox');
 const node = process.env.CRANIBOX_NODE_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox-node');
-const runtime = process.env.WORKSPACE_RUNTIME_BIN || path.resolve(uiRoot, '../../../target/debug/workspace-runtime');
 const webPort = Number(process.env.UI_PREVIEW_PORT || '19080');
-const runtimePort = webPort + 10;
+await fs.rm(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), { force: true });
 const closeDesktopFixture = await rfbFixture(webPort + 30);
 const closeAuthenticatedDesktopFixture = await rfbFixture(webPort + 34, { username: 'cranibox', password: 'wayland8' });
 const closeSelkiesFixture = await selkiesFixture(webPort + 38);
-const credentials = path.join(directory, '.config/agent-workspace/runtime.json');
-await fs.mkdir(path.dirname(credentials), { recursive: true });
-await fs.writeFile(path.join(path.dirname(credentials), 'web.json'), JSON.stringify({ runtimeUrl: 'http://127.0.0.1:' + runtimePort }));
 const processes = [];
 let stopping = false;
 async function stop(code = 0) {
@@ -79,23 +75,26 @@ async function wait(check) {
 process.on('SIGTERM', () => void stop());
 process.on('SIGINT', () => void stop());
 try {
-  for (const args of [['init', '--credentials', credentials], ['enroll', 'preview-node', '--credentials', credentials, '--token-file', path.join(directory, 'node.token')]]) {
-    const result = spawnSync(runtime, args, { stdio: 'pipe' });
-    if (result.status !== 0) throw Error('Preview gateway credential setup failed');
-  }
-  start(binary, ['serve', '--config-root', directory, '--command', command, '--port', String(webPort), '--gateway-port', String(runtimePort)]);
-  await wait(async () => (await fetch('http://127.0.0.1:' + runtimePort + '/healthz')).ok);
+  start(binary, ['serve', '--config-root', directory, '--command', command, '--port', String(webPort)]);
+  await wait(async () => (await fetch('http://127.0.0.1:' + webPort + '/healthz')).ok);
   const host = JSON.parse(await fs.readFile(path.join(directory, '.config/cranibox-node/peers.json'), 'utf8')).node_id;
-  for (const args of [
-    ['desktop', '--address', '127.0.0.1:' + (webPort + 30)],
-    ['grant', '--node', host, '--desktop', '--output-token', path.join(directory, 'desktop-grant.token')],
-  ]) {
-    const result = spawnSync(node, ['--config', path.join(directory, 'preview-node/settings.json'), 'peer', ...args], { stdio: 'pipe' });
-    if (result.status !== 0) throw Error('Preview desktop setup failed: ' + result.stderr);
-  }
-  start(node, ['--config', path.join(directory, 'preview-node/settings.json'), '--id', 'preview-node', '--name', 'Preview Linux node', '--server', 'ws://127.0.0.1:' + runtimePort, '--token-file', path.join(directory, 'node.token')]);
-  const controller = JSON.parse(await fs.readFile(credentials, 'utf8')).controller_token;
-  await wait(async () => (await (await fetch('http://127.0.0.1:' + runtimePort + '/api/v1/nodes', { headers: { Authorization: 'Bearer ' + controller } })).json()).nodes.some(node => node.online));
+  // A second device paired directly with the host: desktop, terminals, commands and projects.
+  const peer = (config, args) => {
+    const result = spawnSync(node, ['--config', config, 'peer', ...args], { stdio: 'pipe', env: { ...process.env, HOME: directory } });
+    if (result.status !== 0) throw Error('Preview device setup failed: ' + result.stderr);
+    return result.stdout.toString();
+  };
+  const previewConfig = path.join(directory, 'preview-node/settings.json');
+  const grant = path.join(directory, 'preview-grant.token');
+  const previewPort = webPort + 20;
+  peer(previewConfig, ['desktop', '--address', '127.0.0.1:' + (webPort + 30)]);
+  peer(previewConfig, ['grant', '--allow-unverified', '--node', host, '--desktop', '--terminals', '--exec', '--projects', '--output-token', grant]);
+  peer(previewConfig, ['listen', '--address', '127.0.0.1:' + previewPort]);
+  const preview = JSON.parse(peer(previewConfig, ['identity'])).node_id;
+  start(node, ['--config', previewConfig, 'peer', 'serve']);
+  peer(path.join(directory, '.config/cranibox-node/settings.json'), ['connect', '--node', preview, '--url', 'http://127.0.0.1:' + previewPort, '--credential-file', grant]);
+  // Tests read the preview device's NodeID from here.
+  await fs.writeFile(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), preview);
 } catch (error) {
   console.error(error.message);
   await stop(1);

@@ -156,18 +156,16 @@ pub struct RelayFlags {
     pub listen: Option<SocketAddr>,
 }
 
-/// Run this device: the node core, its interface, and an optional legacy gateway link.
+/// Run this device: the node core and its interface.
 pub async fn run(
     peers: std::path::PathBuf,
     listen: Option<SocketAddr>,
     mut allow_hosts: Vec<String>,
-    gateway: Option<crate::settings::Settings>,
     relay: RelayFlags,
 ) -> Result<()> {
     // Register for SIGTERM before starting services: a stop request that arrives while
     // the node restores its networks must still run the cleanup below.
-    let control = crate::node::Control::default();
-    let stop = control.stop.clone();
+    let stop = CancellationToken::new();
     let signal = stop.clone();
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -258,18 +256,7 @@ pub async fn run(
         },
         stop.clone(),
     );
-    let result = match gateway {
-        Some(settings) => {
-            let link = crate::node::connect_managed(settings, control, local.clone());
-            let (ui, link) = tokio::join!(ui, async {
-                let result = link.await;
-                stop.cancel();
-                result
-            });
-            ui.and(link)
-        }
-        None => ui.await,
-    };
+    let result = ui.await;
     let shutdown = local.shutdown().await;
     result.and(shutdown)
 }

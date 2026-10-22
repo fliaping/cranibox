@@ -35,7 +35,6 @@ pub struct Config {
     pub workspace_url: String,
     pub desktop_url: String,
     pub applications_url: String,
-    pub runtime_url: String,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -45,7 +44,6 @@ impl Default for Config {
             workspace_url: "http://localhost:8443".into(),
             desktop_url: "https://localhost:3001".into(),
             applications_url: "https://localhost:3002".into(),
-            runtime_url: "http://127.0.0.1:9090".into(),
         }
     }
 }
@@ -59,19 +57,6 @@ impl Config {
         }
     }
     pub fn validate(&self) -> Result<()> {
-        let runtime = url::Url::parse(&self.runtime_url)?;
-        ensure!(
-            runtime.scheme() == "http"
-                && runtime.host_str().is_some_and(|h| h == "localhost"
-                    || h.parse::<std::net::IpAddr>()
-                        .is_ok_and(|ip| ip.is_loopback()))
-                && runtime.username().is_empty()
-                && runtime.password().is_none()
-                && runtime.path() == "/"
-                && runtime.query().is_none()
-                && runtime.fragment().is_none(),
-            "runtimeUrl must be a loopback HTTP origin"
-        );
         for (text, public) in [
             (&self.public_url, true),
             (&self.workspace_url, false),
@@ -302,12 +287,9 @@ pub struct State {
     pub root: PathBuf,
     pub command: PathBuf,
     pub config: Config,
-    pub remote_client: reqwest::Client,
-    pub gateway: Option<agent_workspace_runtime::server::Gateway>,
     pub local: Option<Arc<cranibox_node::local::LocalNode>>,
     sessions: Arc<Mutex<HashMap<String, SessionRef>>>,
     snapshot: Arc<Mutex<Snapshot>>,
-    remote_refresh: Arc<Mutex<()>>,
     hosts: HashSet<String>,
     origins: HashSet<String>,
     pub(crate) closing: watch::Sender<bool>,
@@ -360,15 +342,9 @@ impl State {
             closing.subscribe(),
         );
         Ok(Self {
-            gateway: None,
             local: None,
             services,
             applications: Default::default(),
-            remote_client: reqwest::Client::builder()
-                .no_proxy()
-                .redirect(reqwest::redirect::Policy::none())
-                .timeout(Duration::from_secs(4))
-                .build()?,
             history: Arc::new(Mutex::new(history)),
             metrics: Arc::default(),
             changed: watch::channel(0).0,
@@ -377,25 +353,19 @@ impl State {
             config,
             sessions,
             snapshot: Arc::default(),
-            remote_refresh: Arc::default(),
             hosts,
             origins,
             closing,
         })
     }
-    /// Route device operations to the started node and, if enrolled, the legacy gateway.
+    /// Route device operations to the started node.
     pub fn attach_node(&mut self) {
         let mut services = cranibox_node::web::Services::new(
             None,
             self.root.join(".config/cranibox-node/peers.json"),
             Arc::new(WebSessions(self.sessions.clone())),
             self.closing.subscribe(),
-        )
-        .with_relay(Arc::new(crate::gateway_relay::GatewayRelay {
-            gateway: self.gateway.clone(),
-            runtime_url: self.config.runtime_url.clone(),
-            root: self.root.clone(),
-        }));
+        );
         if let Some(local) = &self.local {
             services.set_local(local.clone());
         }
@@ -445,16 +415,7 @@ impl State {
         sessions.insert(id, s.clone());
         Ok(s)
     }
-    pub fn allow_loopback_port(&mut self, port: u16) {
-        for host in ["127.0.0.1", "localhost", "[::1]"] {
-            self.hosts.insert(format!("{host}:{port}"));
-            self.origins.insert(format!("http://{host}:{port}"));
-        }
-    }
     pub async fn maintenance(&self) {
-        if let Some(gateway) = &self.gateway {
-            gateway.maintenance().await;
-        }
         if self.history.lock().await.flush().is_err() {
             eprintln!("operation history flush failed");
         }
@@ -485,9 +446,6 @@ impl State {
     pub async fn shutdown(&self) {
         self.closing.send_replace(true);
         self.applications.shutdown();
-        if let Some(gateway) = &self.gateway {
-            gateway.shutdown().await;
-        }
         if let Some(local) = &self.local {
             let _ = local.shutdown().await;
         }
@@ -502,31 +460,6 @@ impl State {
     }
     pub async fn snapshot(&self) -> Option<Value> {
         self.snapshot.lock().await.value.clone()
-    }
-    pub(crate) fn track_nodes(&self) -> Option<tokio::task::JoinHandle<()>> {
-        let mut changes = self.gateway.as_ref()?.subscribe_nodes();
-        let state = self.clone();
-        let mut closing = self.closing.subscribe();
-        Some(tokio::spawn(async move {
-            while !*closing.borrow() {
-                tokio::select! {
-                    result = changes.changed() => { if result.is_err() { break; } }
-                    _ = closing.changed() => { break; }
-                }
-                // Serialize with full collections so a slower status command cannot
-                // overwrite a device connection update with an older snapshot.
-                let _update = state.remote_refresh.lock().await;
-                let remote = crate::remote::snapshot(&state).await;
-                let mut cache = state.snapshot.lock().await;
-                if let Some(value) = &mut cache.value
-                    && value["remote_nodes"] != remote
-                {
-                    value["remote_nodes"] = remote;
-                    cache.at = millis().max(cache.at.saturating_add(1));
-                    state.changed.send_modify(|revision| *revision += 1);
-                }
-            }
-        }))
     }
     async fn refresh(&self, force: bool) {
         let mut cache = self.snapshot.lock().await;
@@ -543,19 +476,16 @@ impl State {
         tokio::spawn(async move {
             let started = Instant::now();
             let result = state.collect().await;
-            let _update = state.remote_refresh.lock().await;
-            let remote = crate::remote::snapshot(&state).await;
             let mut metrics = state.metrics.lock().await;
             metrics.collections += 1;
             metrics.collection_ms = started.elapsed().as_millis() as u64;
             metrics.maximum_ms = metrics.maximum_ms.max(metrics.collection_ms);
-            let sample = metrics.sample(state.gateway.is_some());
+            let sample = metrics.sample(state.local.is_some());
             drop(metrics);
             let mut cache = state.snapshot.lock().await;
             cache.refreshing = false;
             match result {
                 Ok(mut value) => {
-                    value["remote_nodes"] = remote;
                     if let Some(local) = &state.local {
                         value["local_node"] =
                             json!({"id":local.id,"online":true,"terminal_sessions":true});
@@ -1071,30 +1001,8 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                 None => error(StatusCode::NOT_FOUND, "Operation unavailable"),
             }
         }
-        "/api/nodes/group"
-        | "/api/nodes/enroll"
-        | "/api/nodes/revoke"
-        | "/api/nodes/identity"
-        | "/api/nodes/exec"
-        | "/api/nodes/jobs"
-        | "/api/nodes/job"
-        | "/api/nodes/cancel" => {
-            match crate::remote::manage(&state, path.rsplit('/').next().unwrap(), &body).await {
-                Ok(mut value) => {
-                    if path.ends_with("/job") {
-                        incremental(&mut value, "stdout", body["stdoutCursor"].as_u64());
-                        incremental(&mut value, "stderr", body["stderrCursor"].as_u64());
-                    }
-                    if !path.ends_with("/job") && !path.ends_with("/jobs") {
-                        state.refresh(true).await;
-                    }
-                    Json(value).into_response()
-                }
-                Err(e) => error(StatusCode::BAD_REQUEST, e),
-            }
-        }
         "/api/metrics" => {
-            Json(state.metrics.lock().await.sample(state.gateway.is_some())).into_response()
+            Json(state.metrics.lock().await.sample(state.local.is_some())).into_response()
         }
         "/api/poll" => {
             state.refresh(body["refresh"] == true).await;

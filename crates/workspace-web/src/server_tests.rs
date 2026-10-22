@@ -206,30 +206,11 @@ async fn session_pressure_keeps_disconnected_operations_prompts_and_live_request
     assert_eq!(state.sessions.lock().await.len(), 64);
 }
 #[tokio::test]
-async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
-    let (directory, state, session) = fixture().await;
-    let path = directory
-        .path()
-        .join(".config/agent-workspace/runtime.json");
-    agent_workspace_runtime::config::write_private(
-        &path,
-        &serde_json::to_vec(&agent_workspace_runtime::config::Credentials {
-            controller_token: token(),
-            mesh_groups: Default::default(),
-            node_aliases: Default::default(),
-            nodes: Default::default(),
-        })
-        .unwrap(),
-        false,
-    )
-    .unwrap();
+async fn history_and_metrics_require_csrf() {
+    let (_directory, state, session) = fixture().await;
     for route in [
         "/api/history/list",
         "/api/history/get",
-        "/api/nodes/enroll",
-        "/api/nodes/revoke",
-        "/api/nodes/group",
-        "/api/nodes/exec",
         "/api/events",
         "/api/metrics",
     ] {
@@ -240,103 +221,24 @@ async fn history_and_node_mutations_require_csrf_and_keep_tokens_private() {
             StatusCode::UNAUTHORIZED
         );
     }
-    let enrolled = json_body(
-        call(
-            &state,
-            &session,
-            "/api/nodes/enroll",
-            json!({"id":"laptop"}),
-            true,
-        )
-        .await,
-    )
-    .await;
-    assert_eq!(enrolled["token"].as_str().unwrap().len(), 64);
     assert_eq!(
-        call(
-            &state,
-            &session,
-            "/api/nodes/enroll",
-            json!({"id":"laptop"}),
-            true
-        )
-        .await
-        .status(),
-        StatusCode::BAD_REQUEST
-    );
-    let rotated = json_body(
-        call(
-            &state,
-            &session,
-            "/api/nodes/enroll",
-            json!({"id":"laptop","rotate":true}),
-            true,
-        )
-        .await,
-    )
-    .await;
-    assert_ne!(enrolled["token"], rotated["token"]);
-    assert_eq!(
-        call(
-            &state,
-            &session,
-            "/api/nodes/group",
-            json!({"id":"laptop","group":"personal"}),
-            true
-        )
-        .await
-        .status(),
+        call(&state, &session, "/api/history/list", json!({}), true)
+            .await
+            .status(),
         StatusCode::OK
     );
-    assert_eq!(
-        agent_workspace_runtime::config::Credentials::read(&path)
-            .unwrap()
-            .mesh_groups
-            .get("laptop")
-            .map(String::as_str),
-        Some("personal")
-    );
-    for input in [
-        json!({"id":"laptop","group":"invalid/group"}),
-        json!({"id":"missing","group":"personal"}),
-    ] {
-        assert_eq!(
-            call(&state, &session, "/api/nodes/group", input, true)
-                .await
-                .status(),
-            StatusCode::BAD_REQUEST
-        );
-    }
-    let history =
-        json_body(call(&state, &session, "/api/history/list", json!({}), true).await).await;
-    assert!(
-        !history
-            .to_string()
-            .contains(enrolled["token"].as_str().unwrap())
-    );
+    // The legacy gateway's node management is gone.
     assert_eq!(
         call(
             &state,
             &session,
-            "/api/nodes/revoke",
+            "/api/nodes/enroll",
             json!({"id":"laptop"}),
             true
         )
         .await
         .status(),
-        StatusCode::OK
-    );
-    assert!(
-        agent_workspace_runtime::config::Credentials::read(&path)
-            .unwrap()
-            .nodes
-            .is_empty()
-    );
-    assert!(
-        agent_workspace_runtime::config::Credentials::read(&path)
-            .unwrap()
-            .mesh_groups
-            .is_empty()
+        StatusCode::NOT_FOUND
     );
 }
 #[tokio::test]

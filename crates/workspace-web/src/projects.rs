@@ -11,7 +11,7 @@ pub async fn manage(state: &State, body: Value) -> Result<Value> {
         *node = state.local.as_ref().map(|local| local.id.clone());
     }
     let store = Store::new(state.root.join(".config/agent-workspace/projects.json"));
-    // The host's terminal engine belongs to workspace-web, not the gateway.
+    // The host's terminal engine belongs to workspace-web.
     if let Command::Bind {
         replica_id,
         terminal_id,
@@ -37,21 +37,9 @@ pub async fn manage(state: &State, body: Value) -> Result<Value> {
             );
         }
     }
-    if let Some(gateway) = &state.gateway {
-        gateway
-            .api(
-                axum::http::Method::POST,
-                "/projects",
-                Some(serde_json::to_value(command)?),
-            )
-            .await
-    } else {
-        let owner = state.local.as_ref().map(|local| local.id.clone());
-        Ok(serde_json::to_value(
-            tokio::task::spawn_blocking(move || {
-                store.apply(command, |node| node == owner.as_deref())
-            })
+    let owner = state.local.as_ref().map(|local| local.id.clone());
+    Ok(serde_json::to_value(
+        tokio::task::spawn_blocking(move || store.apply(command, |node| node == owner.as_deref()))
             .await??,
-        )?)
-    }
+    )?)
 }

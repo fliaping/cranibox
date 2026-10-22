@@ -62,9 +62,9 @@ impl Metrics {
         self.cpu_ticks = current;
         self.sample_at = Instant::now();
         let scope = if unified {
-            "cranibox server process including Web and node gateway; excludes child processes and managed services"
+            "cranibox server process including Web and the device node; excludes child processes and managed services"
         } else {
-            "workspace-web process; excludes child processes, gateway and managed services"
+            "workspace-web process; excludes child processes and managed services"
         };
         json!({"rss_bytes":rss,"cpu_percent":cpu,"uptime_seconds":self.started.elapsed().as_secs(),"collections":self.collections,"collection_ms":self.collection_ms,"maximum_collection_ms":self.maximum_ms,"cache_hits":self.cache_hits,"stream_messages":self.stream_messages,"stream_bytes":self.stream_bytes,"scope":scope,"unified_server":unified})
     }

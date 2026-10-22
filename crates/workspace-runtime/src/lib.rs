@@ -1,16 +1,11 @@
-#[cfg(feature = "server")]
-pub mod cli;
 #[cfg(feature = "client")]
 pub mod client;
 pub mod config;
-#[cfg(feature = "server")]
 pub mod journal;
 #[cfg(feature = "client")]
 pub mod peers;
 pub mod projects;
 pub mod protocol;
-#[cfg(feature = "server")]
-pub mod server;
 
 pub async fn shutdown_signal() {
     #[cfg(unix)]

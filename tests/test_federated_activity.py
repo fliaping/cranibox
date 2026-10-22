@@ -10,10 +10,10 @@ import unittest
 import uuid
 
 import test_device_tasks as task_tests
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class ActivityTests(unittest.TestCase):
     setUp = task_tests.DeviceTasksTests.setUp
     cli = task_tests.DeviceTasksTests.cli

@@ -30,17 +30,12 @@ for directory in bin .local/bin; do
   fi
 done
 
-for name in runtime web; do
+for name in web; do
   unit="$config_root/.config/systemd/user/agent-workspace-$name.service"
   existed=false
   [[ ! -e "$unit" ]] || existed=true
-  if [[ "$name" == runtime ]]; then
-    AGENT_WORKSPACE_RUNTIME_BIN="$builtin_root/workspace-runtime" \
-      bash "$script_root/install-workspace-runtime.sh" --ensure --no-start
-  else
-    AGENT_WORKSPACE_WEB_BIN="$builtin_root/workspace-web" \
-      bash "$script_root/install-workspace-web.sh" --ensure --no-start
-  fi
+  AGENT_WORKSPACE_WEB_BIN="$builtin_root/workspace-web" \
+    bash "$script_root/install-workspace-web.sh" --ensure --no-start
   # Respect an existing service's disabled state on subsequent boots.
   if ! $existed; then
     "$config_root/bin/workspace-services" --user enable "agent-workspace-$name.service"

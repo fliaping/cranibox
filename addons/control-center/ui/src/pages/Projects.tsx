@@ -16,6 +16,5 @@ export function Projects() {
   const direct = useMemo<DirectClient>(() => command => request('/api/peers', command), []);
   return <FederatedProjectsView client={client} direct={direct} language={window.workspaceWeb.language} devices={[
     { id: snapshot?.local_node?.id || '', name: t('Workspace 主机', 'Workspace host') + (snapshot?.access?.hostname ? ' · ' + snapshot.access.hostname : ''), online: true, terminal_sessions: true, can_copy: !!snapshot?.local_node?.id },
-    ...(snapshot?.remote_nodes?.nodes || []),
   ]} />;
 }

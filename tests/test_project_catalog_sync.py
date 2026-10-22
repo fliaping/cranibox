@@ -10,10 +10,10 @@ import uuid
 
 import test_web_direct_peers as direct_fixture
 import test_web_host_node as host_fixture
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(),
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(),
                      'build Rust binaries; real sockets required')
 class ProjectCatalogSyncTests(unittest.TestCase):
     setUp = direct_fixture.WebDirectPeersTests.setUp
@@ -275,9 +275,8 @@ class EmbeddedHostCatalogSyncTests(unittest.TestCase):
     enable_listener = host_fixture.WebHostNodeTests.enable_listener
     direct_projects = host_fixture.WebHostNodeTests.direct_projects
 
-    def test_embedded_workspace_advertises_sync_and_filters_other_devices(self):
+    def test_embedded_workspace_advertises_sync_of_its_own_projects(self):
         own = self.api('/api/projects', operation='register', name='host-owned', node=None, path=str(self.h.root))
-        self.api('/api/projects', operation='register', name='other-device', node='test-node', path='/private/another')
         self.enable_listener(projects=True)
         status, listing = self.direct_projects(operation='list')
         self.assertEqual(status, 200, listing)

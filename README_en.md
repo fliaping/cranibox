@@ -13,8 +13,8 @@
   </p>
 </div>
 
-Rust HTTP/WebSocket gateway and Windows/macOS/Linux remote node clients are available
-as the first stage of the Rust migration. See [setup, CLI/MCP, and migration status](docs/rust-remote-nodes.md).
+Every device, including this workspace, runs the same Cranibox node; devices pair peer to
+peer over iroh. See [the device network](docs/iroh-network.md).
 
 ---
 
@@ -57,7 +57,7 @@ Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click
 - **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, DeepSeek Harness, or OpenClaw on first boot; Codex and Claude Code also receive their official code-server extensions
 - **Unified bilingual Control Center** — Manage Agents, the managed browser, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
 - **Browser Control Center** — Rust HTTP backend with a React UI, themes and mobile support; see [installation and access](docs/web-control-center.md)
-- **Built-in remote node gateway** — Windows/macOS/Linux clients connect over WebSocket; the gateway and Web UI are initialized and enabled on first container boot. See [remote nodes](docs/rust-remote-nodes.md)
+- **Peer device network** — Windows/macOS/Linux devices pair with this workspace and each other over iroh (direct, LAN or relayed); Agents use `cranibox nodes|exec|mcp` across paired and same-identity devices. See [the device network](docs/iroh-network.md)
 - **Direct node foundation** — Persistent node IDs, target-owned grants, and independent HTTP/WebSocket access let CLI/MCP execute commands and reattach shells without a running Workspace. Shared Web/Tauri device controls manage direct routes, capability checks, and background command jobs; [setup and limits](docs/direct-node-peers.md).
 - **Device messages** — A shared Web/Tauri inbox and outbox supports durable text, threaded replies, explicit receipt acknowledgements, offline retries and restart recovery. Agents can use an independent MCP without the Workspace relay; [usage and limits](docs/device-messages.md).
 - **Cross-device collaboration tasks** — Shared Web/Tauri controls provide durable delegation, explicit Agent claims, progress, worker questions and durable offline replies, final reports, cooperative cancellation and attempt history. Reconnection retains the original attempt; reports need no reverse connection. Available through an independent MCP; receivers can separately opt into trusted background task workers; [usage and limits](docs/device-tasks.md).
@@ -68,7 +68,7 @@ Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click
 - **Native user service management** — Rust compatibility CLI and s6 supervision, with oneshot initialization; see [implementation and migration limits](docs/native-services-and-web.md)
 - **Lightweight standalone Web UI** — Manage the workspace without loading code-server, with a React interface, light/dark themes, and a responsive layout; see [setup and secure access](docs/web-control-center.md)
 - **Agent-friendly environment control** — Native Rust `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities; [build and migration scope](docs/workspacectl-rust.md)
-- **Projects and sessions** — A shared Web/Tauri page combines gateway and authorized direct-node catalogs, registers working copies, and creates, links or reopens the original shells. Optional background catalog synchronization continues after the page closes; unavailable devices retain read-only snapshots. Reviewed, chunked working-file copies work between the local device and a direct node in either direction, or between two direct remote nodes, with durable target receipts to recover outcomes after disconnection. See [usage and limits](docs/project-session-catalog.md). [Non-interactive background Agent execution](docs/agent-executions.md) is available; running-session migration remains in the [delivery plan](docs/distributed-agent-workspace-design.md)
+- **Projects and sessions** — A shared Web/Tauri page combines the catalogs of authorized paired devices, registers working copies, and creates, links or reopens the original shells. Optional background catalog synchronization continues after the page closes; unavailable devices retain read-only snapshots. Reviewed, chunked working-file copies work between the local device and a direct node in either direction, or between two direct remote nodes, with durable target receipts to recover outcomes after disconnection. See [usage and limits](docs/project-session-catalog.md). [Non-interactive background Agent execution](docs/agent-executions.md) is available; running-session migration remains in the [delivery plan](docs/distributed-agent-workspace-design.md)
 - **Selkies browser desktop** — Full Linux desktop in the browser over HTTPS (Selkies streams over WebSocket) with XFCE (default), LXQt, or KDE
 - **Managed Agent browser** — The default desktop Chromium uses a persistent managed profile so Agents can operate the same window, tabs, and signed-in session without repeated prompts
 - **Desktop Computer Use** — Agents can capture and operate the same Selkies desktop with pointer, keyboard, scroll, drag, window focus, and emergency stop tools

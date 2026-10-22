@@ -21,5 +21,5 @@ export function WebRemoteDesktops() {
   const { snapshot } = useWorkspace();
   const client = useCallback((command: DirectCommand) => request('/api/peers', command), []);
   const serviceClient = useCallback((command: DesktopServiceCommand) => request('/api/desktop/service', command), []);
-  return <RemoteDesktopsView relayNodes={snapshot?.remote_nodes?.nodes} client={client} serviceClient={serviceClient} connect={webDesktopConnector} language={document.documentElement.lang} onAccess={() => { location.hash = '/nodes'; }} local={snapshot?.local_node ? { id: snapshot.local_node.id, name: snapshot.access?.hostname || 'Workspace' } : undefined} />;
+  return <RemoteDesktopsView client={client} serviceClient={serviceClient} connect={webDesktopConnector} language={document.documentElement.lang} onAccess={() => { location.hash = '/nodes'; }} local={snapshot?.local_node ? { id: snapshot.local_node.id, name: snapshot.access?.hostname || 'Workspace' } : undefined} />;
 }

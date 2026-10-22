@@ -29,25 +29,10 @@ Operate: service <status|start|stop|restart|enable|disable> <name>
          desktop scaling status|repair|restore | network domain <domain>
          tailscale login|up|serve|autoconnect|logout | proxy init|add|remove|list|check|render|domain|rollback
          web install|start|stop|restart|status|url|configure
-Remote:  nodes [options] | node exec|job|cancel|enroll|revoke|mcp [arguments]
+Devices: nodes | node exec|job|cancel|mcp [arguments]   (paired and same-identity devices)
          messages held | release <message-id> | reject <message-id>
          messages inbound <node-id> accept|hold|refuse
-         runtime install|start|stop|restart|status
 ";
-
-async fn runtime(ctx: &Context, args: &[String]) -> Result<i32> {
-    let binary = env::var_os("AGENT_WORKSPACE_RUNTIME_BIN")
-        .map(PathBuf::from)
-        .filter(|path| executable(path))
-        .or_else(|| {
-            let path = ctx.root.join("bin/workspace-runtime");
-            executable(&path).then_some(path)
-        })
-        .unwrap_or_else(|| PathBuf::from("workspace-runtime"));
-    let mut command = ctx.command(&binary.to_string_lossy());
-    command.args(args);
-    Ok(command.status().await?.code().unwrap_or(1))
-}
 
 fn node_binary(ctx: &Context) -> PathBuf {
     env::var_os("CRANIBOX_NODE_BIN")
@@ -108,6 +93,12 @@ fn messages_args(ctx: &Context, args: &[String]) -> Result<Vec<String>> {
     }
     Ok(command)
 }
+/// Agent device commands run in the device node, over its own peers.
+async fn node(ctx: &Context, args: &[String]) -> Result<i32> {
+    let mut command = ctx.command(&node_binary(ctx).to_string_lossy());
+    command.args(args);
+    Ok(command.status().await?.code().unwrap_or(1))
+}
 async fn messages(ctx: &Context, args: &[String]) -> Result<i32> {
     let arguments = messages_args(ctx, args)?;
     let mut command = ctx.command(&node_binary(ctx).to_string_lossy());
@@ -123,11 +114,10 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
     if args.first().is_some_and(|value| value == "node") {
         ensure!(
             args.get(1)
-                .is_some_and(|value| ["exec", "job", "cancel", "enroll", "revoke", "mcp"]
-                    .contains(&value.as_str())),
-            "Usage: workspacectl node exec|job|cancel|enroll|revoke|mcp [arguments]"
+                .is_some_and(|value| ["exec", "job", "cancel", "mcp"].contains(&value.as_str())),
+            "Usage: workspacectl node exec|job|cancel|mcp [arguments]"
         );
-        return runtime(&ctx, &args[1..]).await;
+        return node(&ctx, &args[1..]).await;
     }
     if args.first().is_some_and(|value| value == "nodes") {
         let mut after_separator = false;
@@ -137,7 +127,7 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
             }
             after_separator || value != "--json"
         });
-        return runtime(&ctx, &args).await;
+        return node(&ctx, &args).await;
     }
     let json_output = args.iter().any(|value| value == "--json");
     args.retain(|value| value != "--json");
@@ -244,8 +234,8 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
             );
             openclaw::update(&ctx).await
         }
-        "browser" | "desktop" | "network" | "tailscale" | "runtime" | "service" | "s6" | "logs"
-        | "install" | "update" => {
+        "browser" | "desktop" | "network" | "tailscale" | "service" | "s6" | "logs" | "install"
+        | "update" => {
             ensure!(
                 !json_output,
                 "--json is only available for inspect commands"

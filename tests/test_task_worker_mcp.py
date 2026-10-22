@@ -11,7 +11,7 @@ import unittest
 import uuid
 
 import test_task_runs as task_runs
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
 class Channel:
@@ -59,7 +59,7 @@ class Channel:
         return text if error else json.loads(text)
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class TaskWorkerMcpTests(unittest.TestCase):
     # Reuse setup/helpers without inheriting and rerunning the operator suite.
     setUp = task_runs.TaskRunsTests.setUp
@@ -166,7 +166,7 @@ class TaskWorkerMcpTests(unittest.TestCase):
 
     def test_all_binary_entries_expose_only_the_bound_tool_and_validate_arguments(self):
         task, _, channel = self.active()
-        for binary in (NODE, CORE, RUNTIME, WEB):
+        for binary in (NODE, CORE, WEB):
             candidate = Channel(self, task, binary)
             self.assertEqual(candidate.call('initialize', {'protocolVersion':'2025-06-18'})['serverInfo']['name'], 'cranibox-task-worker')
             tools = candidate.call('tools/list')['tools']

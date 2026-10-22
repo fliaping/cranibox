@@ -1,4 +1,3 @@
-use crate::settings::Settings;
 use agent_workspace_runtime::{client, protocol::ExecRequest};
 use anyhow::Result;
 use clap::Subcommand;
@@ -109,54 +108,6 @@ pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()
             anyhow::ensure!(success, "remote command failed");
         }
         _ => anyhow::bail!("device commands use their local configuration"),
-    }
-    Ok(())
-}
-
-pub async fn run(settings: Settings, command: Command) -> Result<()> {
-    let api = settings.api()?;
-    match command {
-        Command::Peer { .. }
-        | Command::Space { .. }
-        | Command::AppMcp { .. }
-        | Command::Serve { .. }
-        | Command::UiUrl { .. } => {
-            anyhow::bail!("device commands use their local configuration")
-        }
-        Command::Nodes => client::print(api.get("/api/v1/nodes").await?),
-        Command::Job { id, .. } => client::print(api.get(&client::job_path(&id)?).await?),
-        Command::Cancel { id, .. } => client::print(
-            api.post(
-                &format!("{}/cancel", client::job_path(&id)?),
-                serde_json::json!({}),
-            )
-            .await?,
-        ),
-        Command::Mcp => client::mcp(api).await?,
-        Command::Exec {
-            node,
-            cwd,
-            timeout_secs,
-            detach,
-            mut command,
-        } => {
-            let result = api
-                .execute(
-                    &node,
-                    ExecRequest {
-                        program: command.remove(0),
-                        args: command,
-                        cwd,
-                        env: Default::default(),
-                        timeout_secs,
-                    },
-                    detach,
-                )
-                .await?;
-            let success = detach || (result["outcome"] == "exited" && result["exit_code"] == 0);
-            client::print(result);
-            anyhow::ensure!(success, "remote command failed");
-        }
     }
     Ok(())
 }

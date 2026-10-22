@@ -1,4 +1,4 @@
-//! The device owns its shells and catalog; gateway connections are only transports.
+//! The device owns its shells and catalog; peer connections are only transports.
 use crate::peer::{self, config::Config};
 use agent_workspace_pty::engine::{Engine, Manage};
 use agent_workspace_runtime::{
@@ -18,7 +18,6 @@ pub struct LocalNode {
     path: PathBuf,
     catalog: Store,
     pub(crate) engine: Engine,
-    pub(crate) slots: Arc<Semaphore>,
     stop: CancellationToken,
     peer: Mutex<Option<peer::Running>>,
     desktop_service: crate::desktop_service::Service,
@@ -90,7 +89,6 @@ impl LocalNode {
             path,
             catalog,
             engine,
-            slots,
             desktop_service,
             browser_service,
             network,
@@ -293,18 +291,6 @@ impl LocalNode {
             .desktop()
             .await
     }
-    pub(crate) async fn relay_desktop(
-        &self,
-        caller: &str,
-    ) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
-        self.peer
-            .lock()
-            .await
-            .as_ref()
-            .context("local node is stopping")?
-            .relay_desktop(caller)
-            .await
-    }
 }
 
 pub(crate) async fn projects_in(
@@ -353,10 +339,6 @@ impl Drop for LocalNode {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use crate::{
-        node::{Control, connect_managed},
-        settings::Settings,
-    };
     use std::time::Duration;
 
     async fn expect(terminal: &mut Terminal, needle: &str) {
@@ -377,7 +359,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn local_catalog_and_shell_survive_gateway_replacement() {
+    async fn local_catalog_and_shell_survive_detach_and_restart() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("peers.json");
         let local = Arc::new(LocalNode::start(path.clone()).await.unwrap());
@@ -442,42 +424,6 @@ mod tests {
         expect(&mut first, "LOCAL_READY").await;
         drop(first);
 
-        // Two separate gateway connections are cancelled; neither owns the Shell.
-        let token = root.path().join("node.token");
-        agent_workspace_runtime::config::write_private(
-            &token,
-            agent_workspace_runtime::config::token().as_bytes(),
-            false,
-        )
-        .unwrap();
-        for gateway_id in ["first-profile", "second-profile"] {
-            let control = Control::default();
-            let mut status = control.status.subscribe();
-            let stop = control.stop.clone();
-            let settings = Settings {
-                server: "ws://127.0.0.1:9".into(),
-                id: gateway_id.into(),
-                token_file: token.clone(),
-                name: None,
-                allow_insecure: false,
-            };
-            let owner = local.clone();
-            let task = tokio::spawn(connect_managed(settings, control, owner));
-            tokio::time::timeout(
-                Duration::from_secs(3),
-                status
-                    .wait_for(|state| state.state == "connecting" || state.state == "reconnecting"),
-            )
-            .await
-            .unwrap()
-            .unwrap();
-            stop.cancel();
-            tokio::time::timeout(Duration::from_secs(3), task)
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
-        }
         let mut second = local.attach(&id, 100, 30, true).await.unwrap();
         second
             .send(Input::Input {

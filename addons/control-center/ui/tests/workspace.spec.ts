@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { previewNode } from './preview-node';
 
 const pages = ['overview', 'nodes', 'projects', 'terminal', 'history', 'performance', 'agents', 'browser', 'resources', 'services', 'desktop', 'network', 'diagnostics'];
 for (const width of [375, 768, 1024, 1440]) {
@@ -48,7 +49,7 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   await expect(target.locator('option')).toHaveCount(3);
   const host = await target.inputValue();
   expect(host).toMatch(/^node-/);
-  for (const node of [host, 'preview-node']) {
+  for (const node of [host, 'direct:' + await previewNode()]) {
     await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption(node);
     await createTerminal(page, 'Browser task');
     await expect(page.getByRole('combobox', { name: 'Target', exact: true })).toBeEnabled();
@@ -94,7 +95,7 @@ test('remote terminal reconnects automatically after transport loss and respects
     };
   });
   await page.goto('/#/terminal');
-  await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption('preview-node');
+  await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption('direct:' + await previewNode());
   await createTerminal(page, 'Network recovery');
   await sendTerminal(page, "export CRANIBOX_BROWSER=NATIVE; printf '%s%s\\n' BEFORE _DISCONNECT");
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('BEFORE_DISCONNECT');
@@ -174,7 +175,7 @@ test('floating terminal moves, resizes and keeps a running command connected whi
   await endTerminal(page, 'Floating task');
 });
 
-test('overview, Agent and remote node actions open terminals in place and restore minimized state after reload', async ({ page }) => {
+test('overview and Agent actions open terminals in place and restore minimized state after reload', async ({ page }) => {
   const inputs: string[] = [];
   page.on('websocket', socket => socket.on('framesent', event => {
     try { const data = JSON.parse(String(event.payload)); if (data.type === 'input') inputs.push(data.data); } catch { /* Other frames. */ }
@@ -198,14 +199,6 @@ test('overview, Agent and remote node actions open terminals in place and restor
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(activePane(page).locator('.status')).toContainText('Connected');
   await endTerminal(page, 'Codex');
-  await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
-  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Devices & network', exact: true }).click();
-  await page.locator('.list-row').filter({ hasText: 'Preview Linux node' }).getByRole('button', { name: 'Terminal', exact: true }).click();
-  await expect(page).toHaveURL(/#\/nodes$/);
-  await expect(page.getByRole('combobox', { name: 'Target', exact: true })).toHaveValue('preview-node');
-  await expect(activePane(page).locator('.status')).toContainText('Connected');
-  await endTerminal(page, (await page.getByRole('tab', { selected: true }).textContent())!);
 });
 
 test('mobile command composer protects IME input, exposes shortcuts and manages sessions in a drawer', async ({ page }) => {
@@ -285,7 +278,7 @@ test('local and remote tabs keep their connections while switching nodes and nav
   await page.goto('/#/terminal');
   await createTerminal(page, 'Local build');
   await sendTerminal(page, "printf '%s%s\\n' LOCAL _CONNECTED");
-  await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption('preview-node');
+  await page.getByRole('combobox', { name: 'Target', exact: true }).selectOption('direct:' + await previewNode());
   await createTerminal(page, 'Remote logs');
   await sendTerminal(page, "printf '%s%s\\n' REMOTE _CONNECTED");
   await page.getByRole('tab', { name: 'Local build', exact: true }).click();
@@ -493,38 +486,6 @@ for (const width of [375, 1440]) {
   });
 }
 
-
-test('node credentials appear once and remote tasks reach durable history', async ({ page }) => {
-  await page.goto('/#/nodes');
-  await expect(page.locator('.list-row strong').filter({ hasText: 'Preview Linux node' })).toBeVisible();
-  const preview = page.locator('.list-row').filter({ hasText: 'Preview Linux node' });
-  await preview.getByRole('textbox', { name: 'Device group preview-node', exact: true }).fill('personal');
-  page.once('dialog', dialog => dialog.accept());
-  await preview.getByRole('button', { name: 'Save group', exact: true }).click();
-  await expect(preview).toContainText('Group: personal');
-  await page.getByLabel('New node ID', { exact: true }).fill('browser-test-node');
-  await page.getByRole('button', { name: 'Register node', exact: true }).click();
-  const secret = page.getByLabel('Node credential', { exact: true });
-  await expect(secret).toHaveAttribute('type', 'password');
-  await expect(secret).not.toHaveValue('');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(secret).toHaveCount(0);
-  await page.reload();
-  await expect(secret).toHaveCount(0);
-  await page.getByRole('combobox', { name: 'Target node', exact: true }).selectOption('preview-node');
-  await page.getByLabel('Program', { exact: true }).fill('/bin/echo');
-  await page.getByRole('textbox', { name: 'Arguments (JSON array)', exact: true }).fill('["browser remote output"]');
-  await page.getByRole('button', { name: 'Run task', exact: true }).click();
-  await page.getByRole('link', { name: 'Task submitted. View output' }).click();
-  await expect(page.locator('.history-output')).toContainText('browser remote output');
-  await expect(page.getByText('Exit code 0', { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.locator('.history-output')).toContainText('browser remote output');
-  await page.goto('/#/nodes');
-  page.once('dialog', dialog => dialog.accept());
-  await page.locator('.list-row').filter({ hasText: 'browser-test-node' }).getByRole('button', { name: 'Revoke', exact: true }).click();
-  await expect(page.locator('.list-row').filter({ hasText: 'browser-test-node' })).toHaveCount(0);
-});
 
 test('cancelled local operation appears in history and metrics use actual service data', async ({ page }) => {
   await page.goto('/#/services');

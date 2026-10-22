@@ -1,4 +1,4 @@
-"""Isolated Rust Web, gateway and Linux node used by tests and measurements."""
+"""Isolated Rust Web host (with its embedded device node) used by tests and measurements."""
 import http.client
 import json
 import os
@@ -15,7 +15,6 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = Path(os.environ.get('WORKSPACE_WEB_BIN', ROOT / 'target/debug/workspace-web'))
-RUNTIME = Path(os.environ.get('WORKSPACE_RUNTIME_BIN', ROOT / 'target/debug/workspace-runtime'))
 
 
 NODE = Path(os.environ.get("CRANIBOX_NODE_BIN", ROOT / "target/debug/cranibox-node"))
@@ -104,7 +103,7 @@ class Harness:
         self.unified = unified
         # Simulated remote devices share this host network with the Web node.
         # Model routing is exercised by the Rust three-node integration test;
-        # skip the fixed model listener on this simulated gateway client.
+        # skip the fixed model listener on these simulated devices.
         self.node_env = {"CRANIBOX_APP_MOCK": "1", **(node_env or {})}
         # Multiple Web hosts also share this network. Their model listeners must
         # be disabled just like the simulated remote nodes above.
@@ -116,6 +115,9 @@ class Harness:
         self.logs = []
         self.cookie = ''
         self.csrf = ''
+        # There is no gateway or gateway-enrolled device any more; tests that stop
+        # them to prove independence keep working against the Web host alone.
+        self.server = self.node = None
         try:
             self.initialize()
         except BaseException:
@@ -123,20 +125,10 @@ class Harness:
             raise
 
     def initialize(self):
-        # Keep both reservations open while allocating: releasing the first
-        # socket before the second bind can return the same ephemeral port.
-        with socket.socket() as web_socket, socket.socket() as gateway_socket:
-            web_socket.bind(('127.0.0.1', 0))
-            gateway_socket.bind(('127.0.0.1', 0))
-            self.web_port = web_socket.getsockname()[1]
-            self.gateway_port = gateway_socket.getsockname()[1]
-        self.credentials = self.root / '.config/agent-workspace/runtime.json'
-        self.credentials.parent.mkdir(parents=True)
-        self.cli('init', '--credentials', self.credentials)
-        self.cli('enroll', 'test-node', '--credentials', self.credentials, '--token-file', self.root / 'node.token')
-        (self.credentials.parent / 'web.json').write_text(json.dumps({
-            'port': self.web_port, 'runtimeUrl': f'http://127.0.0.1:{self.gateway_port}',
-            'publicUrl': f'http://127.0.0.1:{self.gateway_port}'}))
+        self.web_port = free_port()
+        config = self.root / '.config/agent-workspace'
+        config.mkdir(parents=True)
+        (config / 'web.json').write_text(json.dumps({'port': self.web_port}))
         self.command = self.root / 'workspacectl'
         self.command.write_text('#!' + sys.executable + '''
 import json,os,sys,time
@@ -159,16 +151,8 @@ else:
 ''', encoding='utf8')
         self.command.chmod(0o700)
         self.start_web()
-        if not self.unified:
-            self.start_gateway()
-        self.node = self.start(NODE, '--id', 'test-node', '--server', f'ws://127.0.0.1:{self.gateway_port}', '--token-file', self.root / 'node.token')
         self.login()
-        until(lambda: self.gateway('/api/v1/nodes')['nodes'][0]['online'])
         until(lambda: self.post('/api/poll', {})[1].get('snapshot'))
-
-    def cli(self, *args):
-        command = [str(CORE), 'runtime'] if self.unified else [str(RUNTIME)]
-        return subprocess.run([*command, *map(str, args)], capture_output=True, check=True, timeout=10)
 
     def start(self, binary, *args):
         log = (self.root / f'process-{len(self.logs)}.log').open('wb')
@@ -185,8 +169,7 @@ else:
 
     def start_web(self):
         if self.unified:
-            self.web = self.start(CORE, 'serve', '--config-root', self.root, '--command', self.command, '--gateway-port', self.gateway_port)
-            self.server = self.web
+            self.web = self.start(CORE, 'serve', '--config-root', self.root, '--command', self.command)
         else:
             self.web = self.start(WEB, '--config-root', self.root, '--command', self.command)
         try:
@@ -195,10 +178,33 @@ else:
             path = self.root / f'process-{len(self.logs) - 1}.log'
             raise AssertionError(f'{error}\n{path.read_text(errors="replace")}') from error
 
-    def start_gateway(self):
-        self.server = self.start(RUNTIME, 'serve', '--credentials', self.credentials,
-                                 '--listen', f'127.0.0.1:{self.gateway_port}', '--web-upstream', f'http://127.0.0.1:{self.web_port}')
-        until(lambda: self.http('GET', '/healthz', port=self.gateway_port)[0] == 200)
+    def pair_remote(self, *permissions, name='remote'):
+        """Start a real peer device that grants this Web host `permissions` (CLI flags)."""
+        config = self.root / name / 'settings.json'
+
+        def peer(*args):
+            result = subprocess.run([str(NODE), '--config', str(config), 'peer', *map(str, args)],
+                                    capture_output=True, text=True, timeout=10,
+                                    env={**os.environ, 'HOME': str(self.root), **self.node_env})
+            assert result.returncode == 0, result.stderr
+            return json.loads(result.stdout)
+        caller = self.post('/api/peers', {'operation': 'identity'})[1]['node_id']
+        node = peer('identity')['node_id']
+        token = self.root / f'{name}.token'
+        peer('grant', '--allow-unverified', '--node', caller, '--output-token', token, *permissions)
+        port = free_port()
+        peer('listen', '--address', f'127.0.0.1:{port}')
+        self.remote_config = config
+        self.node = self.start(NODE, '--config', config, 'peer', 'serve')
+        status, value = self.post('/api/peers', {'operation': 'connect', 'node': node, 'url': f'http://127.0.0.1:{port}',
+                                                 'token': token.read_text().strip()})
+        assert status == 200, value
+        until(lambda: self.post('/api/peers', {'operation': 'probe', 'node': node})[0] == 200)
+        return node
+
+    def restart_remote(self):
+        self.stop(self.node)
+        self.node = self.start(NODE, '--config', self.remote_config, 'peer', 'serve')
 
     def headers(self):
         return {'Cookie': self.cookie, 'X-Workspace-CSRF': self.csrf, 'Content-Type': 'application/json'}
@@ -225,21 +231,8 @@ else:
     def post(self, path, body):
         return self.http('POST', path, body)
 
-    def gateway(self, path, data=None):
-        token = json.loads(self.credentials.read_text())['controller_token']
-        status, body = self.http('POST' if data is not None else 'GET', path, data, self.gateway_port,
-                                {'Authorization':'Bearer ' + token, 'Content-Type':'application/json'})
-        assert status < 300, (status, body)
-        return body
-
-    def remote_job(self, code, timeout=10):
-        status, value = self.post('/api/nodes/exec', {'id':'test-node','request':{
-            'program':sys.executable,'args':['-c',code], 'env':{},'timeout_secs':timeout}})
-        assert status == 200, value
-        return value['id']
-
     def stop(self, process, force=False):
-        if process.poll() is None:
+        if process is not None and process.poll() is None:
             process.kill() if force else process.terminate()
             try:
                 process.wait(timeout=8)

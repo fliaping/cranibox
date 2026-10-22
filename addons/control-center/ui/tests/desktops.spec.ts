@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { previewNode } from './preview-node';
 
 for (const platform of ['windows', 'macos']) test(platform + ' desktop setup checks the real local greeting before reviewing sharing', async ({ page }) => {
   const commands: any[] = [], errors: string[] = [];
@@ -239,7 +240,7 @@ test('leaving a pending desktop releases its unused ticket before reconnecting',
   }, { times: 1 });
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  await section.getByRole('button').filter({ hasText: 'Preview Linux node' }).click();
+  await section.getByRole('button').filter({ hasText: await previewNode() }).click();
   await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
   await ready;
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
@@ -248,33 +249,6 @@ test('leaving a pending desktop releases its unused ticket before reconnecting',
   expect(await (await cancelled).json()).toEqual({ cancelled: true });
   await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
   await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-  expect(errors).toEqual([]);
-});
-test('an outbound-only device opens its real desktop through the Workspace relay', async ({ page }) => {
-  const requests: Record<string, unknown>[] = [], errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (request.url().endsWith('/api/desktop/ticket')) requests.push(request.postDataJSON()); });
-  await page.goto('/#/desktop');
-  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  await section.getByRole('button').filter({ hasText: 'Preview Linux node' }).click();
-  await expect(section.locator('.desktop-route-options')).toContainText('without opening ports');
-  await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-  await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
-  expect(requests).toEqual([{ node: 'preview-node', local: false, relay: true }]);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  for (const [width, height] of [[375, 900], [900, 375], [1440, 1000]]) {
-    await page.setViewportSize({ width, height });
-    for (const theme of ['dark', 'light']) {
-      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await section.screenshot({ path: '/tmp/cranibox-relay-' + width + '-' + theme + '.png', animations: 'disabled' });
-    }
-  }
-  await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-  await page.goto('/#/nodes');
   expect(errors).toEqual([]);
 });
 test('a real VNC desktop renders, forwards input and reconnects without closing the desktop', async ({ page }) => {

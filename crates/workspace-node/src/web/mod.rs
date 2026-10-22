@@ -7,7 +7,6 @@ pub mod standalone;
 pub mod terminal;
 
 use crate::local::LocalNode;
-use agent_workspace_runtime::peers::desktop::Stream;
 use anyhow::Result;
 use async_trait::async_trait;
 use axum::{
@@ -37,33 +36,10 @@ pub trait SessionStore: Send + Sync + 'static {
     async fn alive(&self, session: &str) -> bool;
 }
 
-/// A host terminal reached through another transport (the legacy Workspace gateway).
-#[async_trait]
-pub trait RelayTerminal: Send {
-    fn send(&self, input: agent_workspace_runtime::peers::terminal::Input) -> Result<()>;
-    async fn output(&mut self) -> Option<agent_workspace_runtime::peers::terminal::Event>;
-}
-
-/// Optional routes to devices that are not paired directly with this one.
-#[async_trait]
-pub trait Relay: Send + Sync + 'static {
-    async fn desktop(&self, node: &str) -> Result<Stream>;
-    async fn terminal(
-        &self,
-        node: &str,
-        cols: u16,
-        rows: u16,
-        session_id: String,
-        takeover: bool,
-    ) -> Result<Box<dyn RelayTerminal>>;
-    async fn terminal_manage(&self, node: &str, body: Value) -> Result<Value>;
-}
-
 #[derive(Clone)]
 pub struct Services {
     pub local: Option<Arc<LocalNode>>,
     peers: PathBuf,
-    relay: Option<Arc<dyn Relay>>,
     sessions: Arc<dyn SessionStore>,
     desktops: desktop::Hub,
     terminals: terminal::Hub,
@@ -80,16 +56,11 @@ impl Services {
         Self {
             local,
             peers,
-            relay: None,
             sessions,
             desktops: desktop::Hub::default(),
             terminals: terminal::Hub::default(),
             closing,
         }
-    }
-    pub fn with_relay(mut self, relay: Arc<dyn Relay>) -> Self {
-        self.relay = Some(relay);
-        self
     }
     pub fn set_local(&mut self, local: Arc<LocalNode>) {
         self.peers = local.config_path().to_path_buf();

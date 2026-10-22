@@ -5,21 +5,14 @@ edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.89"
 
-[[bin]]
-name = "workspace-runtime"
-path = "src/main.rs"
-required-features = ["server"]
-
 [features]
-default = ["server"]
+default = ["client"]
 client = ["dep:clap", "dep:reqwest", "dep:base64", "dep:futures-util", "dep:tokio-tungstenite", "dep:ed25519-dalek", "dep:snow", "dep:chacha20poly1305", "dep:data-encoding", "dep:hpke", "dep:rand08", "dep:zeroize"]
-server = ["client", "dep:axum", "dep:tower", "dep:base64"]
 
 [dependencies]
 cranibox-agents = { path = "../cranibox-agents" }
 anyhow = "1"
 cranibox-contracts = { path = "../cranibox-contracts" }
-axum = { version = "0.8", features = ["ws"], optional = true }
 base64 = { version = "0.22", optional = true }
 chacha20poly1305 = { version = "0.10", optional = true }
 clap = { version = "4", features = ["derive", "env"], optional = true }
@@ -38,7 +31,6 @@ sha2 = "0.10"
 subtle = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "process", "signal", "sync", "time", "io-util", "io-std"] }
 tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"], optional = true }
-tower = { version = "0.5", features = ["util"], optional = true }
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 # Crops cua-driver screenshots for `zoom`.

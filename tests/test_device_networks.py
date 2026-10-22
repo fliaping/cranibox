@@ -11,10 +11,10 @@ import unittest
 import urllib.request
 from unittest.mock import patch
 
-from workspace_web_harness import Harness, CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, WEB, sockets_allowed, until
 
 
-@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
+@unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
 class DeviceNetworkTests(unittest.TestCase):
     def setUp(self):
         fixture = tempfile.TemporaryDirectory(prefix='cranibox-network-api-')
@@ -268,7 +268,7 @@ class DeviceNetworkTests(unittest.TestCase):
         receiver = Harness()
         self.addCleanup(receiver.close)
         receiver_config = receiver.root / '.config/cranibox-node/networks.json'
-        command = {'operation': 'easy_tier_enroll', 'url': f'http://127.0.0.1:{self.h.gateway_port}', 'token': issued['token'], 'listen_port': None}
+        command = {'operation': 'easy_tier_enroll', 'url': f'http://127.0.0.1:{self.h.web_port}', 'token': issued['token'], 'listen_port': None}
         code, body = receiver.post('/api/network', command)
         self.assertEqual(code, 400, body)
         self.assertIn('Install EasyTier first', body['error'])
@@ -345,7 +345,7 @@ class DeviceNetworkTests(unittest.TestCase):
         self.addCleanup(receiver.close)
         receiver_config = receiver.root / '.config/cranibox-node/networks.json'
         self.provision(receiver_config)
-        upstream = f'http://127.0.0.1:{self.h.gateway_port}/api/network/bootstrap'
+        upstream = f'http://127.0.0.1:{self.h.web_port}/api/network/bootstrap'
         claims = []
 
         class Proxy(BaseHTTPRequestHandler):
@@ -435,7 +435,7 @@ class DeviceNetworkTests(unittest.TestCase):
         self.provision(receiver_config)
         pending = receiver_config.with_name('network-enrollment.json')
         pending.write_text('preserve corrupt recovery')
-        code, body = receiver.post('/api/network', {'operation': 'easy_tier_enroll', 'url': f'http://127.0.0.1:{self.h.gateway_port}', 'token': issued['token'], 'listen_port': None})
+        code, body = receiver.post('/api/network', {'operation': 'easy_tier_enroll', 'url': f'http://127.0.0.1:{self.h.web_port}', 'token': issued['token'], 'listen_port': None})
         self.assertEqual(code, 400, body)
         self.assertIn('network-enrollment.json', body['error'])
         self.assertEqual(pending.read_text(), 'preserve corrupt recovery')

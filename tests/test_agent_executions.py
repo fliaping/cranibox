@@ -10,10 +10,10 @@ import unittest
 import uuid
 from pathlib import Path
 
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, Harness, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, Harness, sockets_allowed, until
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class AgentExecutionsTests(unittest.TestCase):
     def setUp(self):
         tools = tempfile.TemporaryDirectory(prefix='cranibox-agent-tools-')

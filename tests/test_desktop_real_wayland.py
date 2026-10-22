@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import test_desktop_real_vnc as real_vnc
 from test_cranibox_terminal import Socket
-from workspace_web_harness import CORE, NODE, ROOT, RUNTIME, WEB, Harness, free_port, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, ROOT, WEB, Harness, free_port, sockets_allowed, until
 
 
 CRYPTO = ROOT / 'addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/crypto.js'
@@ -91,7 +91,7 @@ class RealWaylandTests(unittest.TestCase):
     def setUp(self):
         for tool in TOOLS:
             self.assertIsNotNone(shutil.which(tool), f'Missing integration tool: {tool}')
-        for path in (CORE, NODE, RUNTIME, WEB, CRYPTO):
+        for path in (CORE, NODE, WEB, CRYPTO):
             self.assertTrue(path.is_file(), f'Missing integration dependency: {path}')
         self.assertTrue(sockets_allowed(), 'Real sockets are required')
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-real-wayland-')

@@ -15,7 +15,7 @@ import unittest
 
 import test_web_direct_peers as direct
 from test_cranibox_terminal import Socket
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 
 class Relay:
@@ -140,7 +140,7 @@ class HttpPath:
         self.thread.join(timeout=2)
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class WebPeerPathsTests(unittest.TestCase):
     setUp = direct.WebDirectPeersTests.setUp
     api = direct.WebDirectPeersTests.api

@@ -1,10 +1,8 @@
 mod actions;
 mod applications;
-mod gateway_relay;
 mod metrics;
 mod projects;
 mod relay;
-mod remote;
 mod server;
 
 use anyhow::Result;
@@ -33,12 +31,13 @@ struct Args {
     /// Do not run the embedded iroh relay; devices use the public n0 relays.
     #[arg(long)]
     no_relay: bool,
-    /// Compatibility listener in the same process; use 0 for an ephemeral port.
-    #[arg(long, default_value_t = 9090)]
-    gateway_port: u16,
+    /// Accepted and ignored: the legacy gateway listener is gone, but service units
+    /// written by earlier installs still pass it.
+    #[arg(long = "gateway-port", hide = true)]
+    _gateway_port: Option<u16>,
 }
 
-pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
+pub async fn run(mut arguments: Vec<String>) -> Result<()> {
     if arguments.get(1).is_some_and(|arg| arg == "node") {
         arguments.remove(1);
         return cranibox_node::cli::run_from(arguments).await;
@@ -49,7 +48,7 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
     let args = Args::parse_from(arguments);
     anyhow::ensure!(
         args.host.is_loopback(),
-        "workspace-web must bind to loopback; expose it through the authenticated gateway"
+        "workspace-web must bind to loopback; expose it through an authenticated reverse proxy"
     );
     let mut config = server::Config::load(&args.config_root)?;
     if let Some(port) = args.port {
@@ -81,52 +80,12 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
     if std::env::var("CRANIBOX_APP_MOCK").as_deref() != Ok("1") {
         state.local.as_ref().expect("local node").models().await?;
     }
-    if integrated {
-        let path = args
-            .config_root
-            .join(".config/agent-workspace/runtime.json");
-        {
-            let _lock = agent_workspace_runtime::config::lock_credentials(&path)?;
-            if !path.exists() {
-                let creds = agent_workspace_runtime::config::Credentials {
-                    controller_token: agent_workspace_runtime::config::token(),
-                    mesh_groups: Default::default(),
-                    node_aliases: Default::default(),
-                    nodes: Default::default(),
-                };
-                agent_workspace_runtime::config::write_private(
-                    &path,
-                    &serde_json::to_vec_pretty(&creds)?,
-                    false,
-                )?;
-            }
-        }
-        state.gateway = Some(
-            agent_workspace_runtime::server::Gateway::new_with_local_node(
-                path,
-                state.local.as_ref().map(|local| local.id.clone()),
-            )?,
-        );
-    }
     state.attach_node();
     let listener = tokio::net::TcpListener::bind((args.host, config.port)).await?;
     println!(
         "Agent Workspace Web (Rust): http://{}",
         listener.local_addr()?
     );
-    let compatibility = if integrated && args.gateway_port != config.port {
-        let listener = tokio::net::TcpListener::bind((args.host, args.gateway_port)).await?;
-        let port = listener.local_addr()?.port();
-        state.allow_loopback_port(port);
-        eprintln!(
-            "Cranibox node compatibility listener: {}",
-            listener.local_addr()?
-        );
-        Some(listener)
-    } else {
-        None
-    };
-    let node_updates = state.track_nodes();
     let cleanup_state = state.clone();
     let cleanup = tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
@@ -135,31 +94,12 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
             cleanup_state.maintenance().await;
         }
     });
-    let router = if let Some(gateway) = &state.gateway {
-        gateway
-            .router()
-            .fallback_service(server::router(state.clone()))
-    } else {
-        server::router(state.clone())
-    };
+    let router = server::router(state.clone());
     let mut closed = state.closing.subscribe();
-    let mut compatibility_closed = state.closing.subscribe();
     embedded.spawn_self_check();
-    let main = embedded.serve(listener, router.clone(), async move {
+    let serving = embedded.serve(listener, router, async move {
         let _ = closed.changed().await;
     });
-    let extra = async move {
-        if let Some(listener) = compatibility {
-            axum::serve(listener, router)
-                .with_graceful_shutdown(async move {
-                    let _ = compatibility_closed.changed().await;
-                })
-                .await
-        } else {
-            Ok(())
-        }
-    };
-    let serving = async { tokio::try_join!(main, extra).map(|_| ()) };
     tokio::pin!(serving);
     let result = tokio::select! {
         result = &mut serving => {
@@ -173,9 +113,6 @@ pub async fn run(mut arguments: Vec<String>, integrated: bool) -> Result<()> {
             result
         }
     };
-    if let Some(updates) = node_updates {
-        updates.abort();
-    }
     cleanup.abort();
     result?;
     Ok(())

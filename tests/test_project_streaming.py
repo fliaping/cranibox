@@ -10,12 +10,12 @@ import threading
 import unittest
 
 import test_web_direct_peers as direct
-from workspace_web_harness import CORE, NODE, RUNTIME, WEB, sockets_allowed, until
+from workspace_web_harness import CORE, NODE, WEB, sockets_allowed, until
 
 CHUNK = 1024 * 1024
 
 
-@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, RUNTIME, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
 class ProjectStreamingTests(unittest.TestCase):
     setUp = direct.WebDirectPeersTests.setUp
     cli = direct.WebDirectPeersTests.cli

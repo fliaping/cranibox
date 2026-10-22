@@ -31,14 +31,13 @@ class BootstrapTests(unittest.TestCase):
         self.home = self.directory / 'volume'
         self.scripts = self.directory / 'image/bin'
         self.scripts.mkdir(parents=True)
-        for name in ('bootstrap-workspace-core.sh', 'install-workspace-runtime.sh',
+        for name in ('bootstrap-workspace-core.sh',
                      'install-workspace-web.sh', 'install-workspacectl.sh', 'install-cranibox.sh', 'install-cranibox.py'):
             shutil.copy2(SOURCE / 'scripts' / name, self.scripts / name)
         self.env = {k: v for k, v in os.environ.items()
                     if not k.startswith(('AGENT_WORKSPACE_', 'CARGO_', 'RUSTUP_'))}
         self.env.update(HOME=str(self.home), AGENT_WORKSPACE_CONFIG_ROOT=str(self.home),
-                        AGENT_WORKSPACE_BUILTIN_DIR=str(BINARIES), PATH='/usr/bin:/bin',
-                        AGENT_WORKSPACE_RUNTIME_URL='http://127.0.0.1:9')
+                        AGENT_WORKSPACE_BUILTIN_DIR=str(BINARIES), PATH='/usr/bin:/bin')
         self.units = self.home / '.config/systemd/user'
         self.credentials = self.home / '.config/agent-workspace/runtime.json'
         self.addCleanup(self.stop_services)
@@ -71,18 +70,20 @@ class BootstrapTests(unittest.TestCase):
 
     def test_empty_volume_gets_enabled_services_without_source_or_cargo(self):
         self.bootstrap()
-        self.assertEqual(self.credentials.stat().st_mode & 0o777, 0o600)
-        self.assertTrue(json.loads(self.credentials.read_text())['controller_token'])
+        # The legacy gateway and its credentials are gone.
+        self.assertFalse(self.credentials.exists())
+        self.assertFalse((self.home / 'bin/workspace-runtime').exists())
         self.assertEqual(self.manager('is-enabled', 'agent-workspace-web').stdout.strip(), 'enabled')
         self.assertFalse((self.units / 'agent-workspace-runtime.service').exists())
-        for name in ('workspacectl', 'workspace-services', 'workspace-runtime'):
+        for name in ('workspacectl', 'workspace-services'):
             self.assertTrue((self.home / 'bin' / name).is_symlink())
             self.assertEqual((self.home / 'bin' / name).resolve(), self.home / 'bin/cranibox')
         self.assertEqual((self.home / 'bin/workspacectl').read_bytes()[:4], b'\x7fELF')
         # Exercise the same enabled units that the startup oneshot starts.
-        ports = {name: free_port() for name in ('runtime', 'web')}
+        ports = {'web': free_port()}
         unit = self.units / 'agent-workspace-web.service'
-        text = unit.read_text().replace(' --config-root', f' --port {ports["web"]} --gateway-port {ports["runtime"]} --config-root')
+        # Units from earlier installs may still pass the retired gateway port.
+        text = unit.read_text().replace(' --config-root', f' --port {ports["web"]} --gateway-port {free_port()} --config-root')
         unit.write_text(text)
         self.manager('start', unit.name)
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -98,27 +99,22 @@ class BootstrapTests(unittest.TestCase):
                         self.fail('Built-in service did not become healthy')
                     time.sleep(.05)
 
-    def test_repeated_boot_preserves_credentials_configuration_and_disabled_state(self):
+    def test_repeated_boot_preserves_configuration_and_disabled_state(self):
         self.bootstrap()
-        subprocess.run([str(self.home / 'bin/workspace-runtime'), 'enroll', 'existing-node',
-                        '--credentials', str(self.credentials), '--token-file', str(self.directory / 'node.token')],
-                       check=True, capture_output=True, env=self.env, timeout=10)
         self.manager('disable', 'agent-workspace-web')
-        self.credentials.chmod(0o644)
         for unit in self.units.glob('*.service'):
             with unit.open('a') as output:
                 output.write('\n# user-maintained configuration\n')
-        before = {p: p.read_bytes() for p in [self.credentials, *self.units.glob('*.service')]}
+        before = {p: p.read_bytes() for p in self.units.glob('*.service')}
         binary = self.home / 'bin/cranibox'
         original_mtime = binary.stat().st_mtime_ns
         self.bootstrap()
-        self.assertEqual(self.credentials.stat().st_mode & 0o777, 0o600)
         self.assertEqual(binary.stat().st_mtime_ns, original_mtime)
         for path, content in before.items():
             self.assertEqual(path.read_bytes(), content)
         self.assertNotEqual(self.manager('is-enabled', 'agent-workspace-web', check=False).returncode, 0)
         # Restore missing program files while keeping custom service definitions.
-        (self.home / 'bin/workspace-runtime').unlink()
+        (self.home / 'bin/workspacectl').unlink()
         (self.home / 'opt/agent-workspace-web/workspace-web').unlink()
         self.bootstrap()
         for path, content in before.items():
@@ -136,11 +132,16 @@ class BootstrapTests(unittest.TestCase):
         self.units.mkdir(parents=True)
         (self.home / 'bin').mkdir()
         (self.home / 'opt/agent-workspace-web').mkdir(parents=True)
-        for name in ('workspacectl', 'workspace-services', 'workspace-runtime'):
+        for name in ('workspacectl', 'workspace-services'):
             shutil.copy2(BINARIES / name, self.home / 'bin' / name)
         shutil.copy2(BINARIES / 'workspace-web', self.home / 'opt/agent-workspace-web/workspace-web')
-        subprocess.run([str(self.home / 'bin/workspace-runtime'), 'init', '--credentials', str(self.credentials)], env=self.env, check=True, capture_output=True)
-        subprocess.run([str(self.home / 'bin/workspace-runtime'), 'enroll', 'retained-node', '--credentials', str(self.credentials), '--token-file', str(self.directory / 'existing.token')], env=self.env, check=True, capture_output=True)
+        # A stand-in for the retired gateway program and its credentials file.
+        runtime = self.home / 'bin/workspace-runtime'
+        runtime.write_text('#!/bin/sh\nexec sleep 1000\n')
+        runtime.chmod(0o755)
+        self.credentials.parent.mkdir(parents=True, exist_ok=True)
+        self.credentials.write_text('{"controller_token":"legacy"}\n')
+        self.credentials.chmod(0o600)
         port, gateway = free_port(), free_port()
         for name, command in {
             'runtime': f'"{self.home}/bin/workspace-runtime" serve --credentials "{self.credentials}" --listen 127.0.0.1:{gateway}',
@@ -169,7 +170,7 @@ class BootstrapTests(unittest.TestCase):
         while True:
             try:
                 with opener.open(f'http://127.0.0.1:{port}/healthz', timeout=1) as response:
-                    self.assertEqual(json.load(response)['protocol_version'], 1)
+                    self.assertEqual(json.load(response)['implementation'], 'rust')
                 break
             except OSError:
                 if time.monotonic() > deadline:

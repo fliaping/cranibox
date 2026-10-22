@@ -18,7 +18,6 @@ def install(root, binary, ensure, start):
     runtime_unit = unit.with_name('agent-workspace-runtime.service')
     credentials = root / '.config/agent-workspace/runtime.json'
     marker = credentials.with_name('unified-server')
-    first = not marker.exists()
     backup = root / '.local/state/cranibox' / ('install-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8])
     backup.mkdir(parents=True, mode=0o700)
     old_manager = root / 'bin/workspace-services'
@@ -59,8 +58,8 @@ def install(root, binary, ensure, start):
         os.replace(temporary, path)
 
     try:
-        # The compatibility port moves into the Web process; retire its previous owner first.
-        if first and runtime_unit.exists() and old_manager.exists():
+        # The legacy gateway service is retired.
+        if runtime_unit.exists() and old_manager.exists():
             manager(old_manager, 'stop', runtime_unit.name)
             manager(old_manager, 'disable', runtime_unit.name)
         if start and unit.exists() and old_manager.exists():
@@ -77,22 +76,22 @@ def install(root, binary, ensure, start):
             finally:
                 if os.path.exists(name):
                     os.unlink(name)
-        for name in ('workspacectl', 'workspace-services', 'workspace-runtime'):
+        for name in ('workspacectl', 'workspace-services'):
             link(root / 'bin' / name, core)
+        # The legacy gateway alias is gone; leave other files of that name alone.
+        if (root / 'bin/workspace-runtime').is_symlink() and os.readlink(root / 'bin/workspace-runtime') == str(core):
+            save(root / 'bin/workspace-runtime')
+            (root / 'bin/workspace-runtime').unlink()
         link(root / 'opt/agent-workspace-web/workspace-web', core)
         link(root / 'bin/systemctl', root / 'bin/workspace-services')
         link(root / '.local/bin/systemctl', root / 'bin/workspace-services')
         link(root / '.local/bin/workspacectl', root / 'bin/workspacectl')
         link(root / '.local/bin/cranibox', core)
-        save(credentials)
-        if not credentials.exists():
-            subprocess.run([str(core), 'runtime', 'init', '--credentials', str(credentials)], check=True, timeout=10)
-        credentials.chmod(0o600)
         if not unit.exists():
             save(unit)
             unit.parent.mkdir(parents=True, exist_ok=True)
             unit.write_text(f'''[Unit]
-Description=Cranibox Web, node gateway and workspace control (Rust)
+Description=Cranibox Web, device node and workspace control (Rust)
 
 [Service]
 Type=simple

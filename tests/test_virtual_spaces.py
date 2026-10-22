@@ -13,10 +13,10 @@ import unittest
 from urllib.parse import urlsplit
 from unittest.mock import patch
 
-from workspace_web_harness import Harness, CORE, NODE, WEB, RUNTIME, free_port, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, WEB, free_port, sockets_allowed, until
 
 
-@unittest.skipUnless(sys.platform == 'linux' and sockets_allowed() and all(path.exists() for path in (CORE, NODE, WEB, RUNTIME)), 'Linux binaries and real sockets required')
+@unittest.skipUnless(sys.platform == 'linux' and sockets_allowed() and all(path.exists() for path in (CORE, NODE, WEB)), 'Linux binaries and real sockets required')
 class VirtualSpacesTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='cranibox-space-engine-')
@@ -228,7 +228,11 @@ class VirtualSpacesTests(unittest.TestCase):
                 space = self.wait('stopped')
             event_index = len(self.state()['events'])
             for fields in [{'image': 'cranibox-current:test'}, {'pull_policy': 'never'}]:
-                status, error = self.h.post('/api/spaces', {'operation': 'resume', 'id': space['id'], **fields})
+                # Like api(): a finishing job may still hold the operation lock briefly.
+                def attempt():
+                    result = self.h.post('/api/spaces', {'operation': 'resume', 'id': space['id'], **fields})
+                    return None if 'another space operation is running' in str(result[1]) else result
+                status, error = until(attempt, seconds=15)
                 self.assertEqual(status, 400, error)
                 self.assertIn('Archive this space', str(error))
                 self.assertEqual(self.api()['spaces'][0], space)

@@ -97,6 +97,7 @@ class TerminalTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness(unified=True, node_env={'CRANIBOX_HERDR_BIN': '/missing-node-herdr'})
         self.addCleanup(self.h.close)
+        self.remote = self.h.pair_remote('--terminals', '--exec')
 
     def ticket(self, node=None, **kwargs):
         if 'session_id' not in kwargs:
@@ -123,7 +124,7 @@ class TerminalTests(unittest.TestCase):
         return ws
 
     def test_local_and_remote_real_tty_resize_unicode_ctrl_c_and_exit(self):
-        for node in (None, 'test-node'):
+        for node in (None, self.remote):
             with self.subTest(node=node):
                 ws = self.open(node, cwd=str(self.h.root))
                 ws.command("test -t 0 && test -t 1 && printf '%s%s\\n' TTY _OK")
@@ -151,7 +152,7 @@ class TerminalTests(unittest.TestCase):
                 ws.close()
 
     def test_detach_preserves_shell_and_jobs_reattach_rename_and_end(self):
-        for node in (None, 'test-node'):
+        for node in (None, self.remote):
             with self.subTest(node=node):
                 session = self.create(node)
                 ws = self.open(node, session_id=session)
@@ -202,24 +203,24 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual(self.h.post('/api/terminal/ticket', {'cols':0,'rows':24})[0], 400)
 
     def test_server_disconnect_and_restart_preserve_remote_shell_without_herdr(self):
-        session = self.create('test-node')
-        ws = self.open('test-node', session_id=session)
+        session = self.create(self.remote)
+        ws = self.open(self.remote, session_id=session)
         shell_file, completed = self.h.root / 'remote-shell', self.h.root / 'offline-completed'
         ws.command(f"echo $$ > {shell_file}; sleep 1; printf '%s%s\\n' OFFLINE _OUTPUT; printf done > {completed}")
         until(shell_file.exists)
         shell_pid = int(shell_file.read_text())
         node_pid = self.h.node.pid
-        self.assertEqual(self.manage('test-node', operation='list')['engine'], 'node-pty')
+        self.assertEqual(self.manage(self.remote, operation='list')['engine'], 'node-pty')
         self.h.stop(self.h.web, force=True)
         until(completed.exists)
         os.kill(shell_pid, 0)
         self.assertIsNone(self.h.node.poll())
         self.h.start_web()
         self.h.login()
-        until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        catalog = self.manage('test-node', operation='list')
+        until(lambda: self.h.post('/api/peers', {'operation': 'probe', 'node': self.remote})[0] == 200)
+        catalog = self.manage(self.remote, operation='list')
         self.assertEqual(catalog['sessions'][0]['id'], session)
-        reattached = Socket(self.h, self.ticket('test-node', session_id=session))
+        reattached = Socket(self.h, self.ticket(self.remote, session_id=session))
         self.addCleanup(reattached.close)
         self.assertEqual(reattached.status, 101)
         reattached.expect('OFFLINE_OUTPUT')
@@ -231,22 +232,22 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual(self.h.node.pid, node_pid)
 
     def test_client_restart_ends_owned_sessions(self):
-        session = self.create('test-node')
-        ws = self.open('test-node', session_id=session)
+        session = self.create(self.remote)
+        ws = self.open(self.remote, session_id=session)
         shell_file = self.h.root / 'client-owned-shell'
         ws.command(f'echo $$ > {shell_file}')
         until(shell_file.exists)
         shell_pid = int(shell_file.read_text())
         self.h.stop(self.h.node)
-        until(lambda: not self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
+        until(lambda: self.h.post('/api/peers', {'operation': 'probe', 'node': self.remote})[0] != 200)
         until(lambda: not Path(f'/proc/{shell_pid}/stat').exists() or Path(f'/proc/{shell_pid}/stat').read_text().split(') ')[1][0] == 'Z')
-        self.h.node = self.h.start(NODE, '--id', 'test-node', '--server', f'ws://127.0.0.1:{self.h.gateway_port}', '--token-file', self.h.root / 'node.token')
-        until(lambda: self.h.gateway('/api/v1/nodes')['nodes'][0]['online'])
-        self.assertEqual(self.manage('test-node', operation='list')['sessions'], [])
-        self.assertEqual(self.h.post('/api/terminal/sessions', {'node':'test-node', 'operation':'end', 'id':session})[0], 400)
+        self.h.restart_remote()
+        until(lambda: self.h.post('/api/peers', {'operation': 'probe', 'node': self.remote})[0] == 200)
+        self.assertEqual(self.manage(self.remote, operation='list')['sessions'], [])
+        self.assertEqual(self.h.post('/api/terminal/sessions', {'node':self.remote, 'operation':'end', 'id':session})[0], 400)
 
     def test_takeover_keeps_session_and_transfers_attachment(self):
-        for node in (None, 'test-node'):
+        for node in (None, self.remote):
             with self.subTest(node=node):
                 session = self.create(node)
                 first = self.open(node, session_id=session)
