@@ -7,6 +7,7 @@ rust-version = "1.89"
 description = "Cranibox default network: iroh endpoint, peer-http over QUIC, embedded relay and link pairing (WS1)."
 
 [dependencies]
+socket2 = { version = "0.6", features = ["all"] }
 cranibox-contracts = { path = "../cranibox-contracts" }
 async-trait = "0.1"
 futures-util = "0.3"

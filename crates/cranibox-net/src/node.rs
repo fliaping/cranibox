@@ -5,6 +5,7 @@ use cranibox_contracts::{config::IrohConfig, net::IrohAddr};
 use iroh::{
     Endpoint, EndpointAddr, EndpointId, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey,
     Watcher,
+    address_lookup::MemoryLookup,
     endpoint::{Connection, presets},
 };
 use std::{
@@ -40,6 +41,8 @@ pub struct Options {
     pub relay_auth: Option<String>,
     /// Disable n0 DNS/pkarr address lookup (tests; addresses come from tickets).
     pub no_address_lookup: bool,
+    /// Find trusted devices on the local network (see [`crate::lan`]).
+    pub lan: bool,
 }
 impl Options {
     pub fn from_config(config: &IrohConfig) -> Self {
@@ -47,6 +50,7 @@ impl Options {
             relays: config.relays.clone(),
             n0_fallback: config.n0_fallback,
             bind_port: config.bind_port,
+            lan: config.lan,
             ..Self::default()
         }
     }
@@ -75,12 +79,20 @@ pub struct IrohNode {
     own_relays: Arc<std::sync::RwLock<Vec<RelayUrl>>>,
     n0_fallback: bool,
     extra_roots: Arc<Vec<Vec<u8>>>,
+    /// Local-network lookup, started once the trusted peers are known.
+    lan: Option<(MemoryLookup, SecretKey)>,
 }
 
 impl IrohNode {
     /// Bind the endpoint with the node's ed25519 signing seed as the iroh SecretKey.
     pub async fn bind(seed: &[u8; 32], options: Options) -> Result<Self> {
         let secret = SecretKey::from_bytes(seed);
+        let lan = (options.lan && !options.relay_only).then(|| {
+            (
+                MemoryLookup::with_provenance("cranibox_lan"),
+                secret.clone(),
+            )
+        });
         let own = own_relay_map(&options.relays)?;
         let own_relays: Vec<RelayUrl> = own.urls();
         let mode = if own.is_empty() {
@@ -102,6 +114,9 @@ impl IrohNode {
             ]);
         if options.no_address_lookup {
             builder = builder.clear_address_lookup();
+        }
+        if let Some((memory, _)) = &lan {
+            builder = builder.address_lookup(memory.clone());
         }
         if options.relay_only {
             builder = builder.clear_ip_transports();
@@ -138,12 +153,26 @@ impl IrohNode {
             own_relays: Arc::new(std::sync::RwLock::new(own_relays)),
             n0_fallback: options.n0_fallback,
             extra_roots: Arc::new(options.extra_roots.clone()),
+            lan,
         };
         if !node.own_relays().is_empty() && options.n0_fallback {
             tokio::spawn(node.clone().relay_fallback());
         }
         tokio::spawn(node.clone().sweep());
         Ok(node)
+    }
+
+    /// Start announcing on the local network and learning addresses of `trusted` peers.
+    pub fn start_lan(&self, trusted: crate::allow::Allowlist) {
+        if let Some((memory, secret)) = self.lan.clone() {
+            tokio::spawn(crate::lan::run(
+                self.endpoint.clone(),
+                secret,
+                memory,
+                trusted,
+                self.stop.clone(),
+            ));
+        }
     }
 
     /// Own relays in preference order (configured, hub, learned from pairing).

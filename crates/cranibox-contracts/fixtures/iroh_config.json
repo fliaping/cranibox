@@ -4,5 +4,6 @@
     "https://hub.example.com/relay"
   ],
   "n0_fallback": true,
-  "bind_port": 0
+  "bind_port": 0,
+  "lan": true
 }

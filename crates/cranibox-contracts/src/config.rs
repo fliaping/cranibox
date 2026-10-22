@@ -46,6 +46,9 @@ pub struct IrohConfig {
     /// UDP port; 0 = ephemeral.
     #[serde(default)]
     pub bind_port: u16,
+    /// Find trusted devices on the local network by signed multicast (on by default).
+    #[serde(default = "yes")]
+    pub lan: bool,
 }
 fn yes() -> bool {
     true
@@ -57,6 +60,7 @@ impl Default for IrohConfig {
             relays: Vec::new(),
             n0_fallback: true,
             bind_port: 0,
+            lan: true,
         }
     }
 }

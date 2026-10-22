@@ -14,6 +14,7 @@
 pub mod addr;
 pub mod allow;
 pub mod forward;
+pub mod lan;
 pub mod mesh;
 pub mod node;
 pub mod pair;

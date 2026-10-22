@@ -575,6 +575,8 @@ impl Service {
             .as_ref()
             .map_or_else(Allowlist::default, |h| h.allow.clone());
         allow.insert(node.id());
+        // Local announcements are accepted only from the same trusted peers.
+        node.start_lan(allow.clone());
         let shared = Arc::new(Shared {
             path: path.clone(),
             node: node.clone(),
