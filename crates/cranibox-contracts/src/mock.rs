@@ -43,6 +43,9 @@ pub mod fixtures {
         APP_PAIR_INVITE => "app_pair_invite.json",
         APP_PAIR_ACCEPTED => "app_pair_accepted.json",
         APP_EVENTS => "app_events.json",
+        APP_CAPABILITIES => "app_capabilities.json",
+        APP_INSTALL_PLAN => "app_install_plan.json",
+        APP_DEVICE_GRANT => "app_device_grant.json",
         VAULT_PULL_REQ => "vault_pull_req.json",
         VAULT_PULL_RESP => "vault_pull_resp.json",
         VAULT_REFRESH_REQUEST => "vault_refresh_request.json",
@@ -279,6 +282,8 @@ impl LlmMgmt for MockLlmMgmt {
 pub struct MockAppApi {
     approvals: Mutex<Vec<ApprovalCard>>,
     agents: Mutex<Vec<AgentInfo>>,
+    capabilities: Mutex<Capabilities>,
+    grants: Mutex<BTreeMap<NodeId, DeviceGrant>>,
     pub mgmt: Arc<MockLlmMgmt>,
 }
 impl MockAppApi {
@@ -287,8 +292,151 @@ impl MockAppApi {
         Self {
             approvals: Mutex::new(load(fixtures::APP_APPROVALS)),
             agents: Mutex::new(load(fixtures::APP_AGENTS)),
+            capabilities: Mutex::new(load(fixtures::APP_CAPABILITIES)),
+            grants: Mutex::new(
+                devices
+                    .iter()
+                    .filter(|d| !d.badges.contains(&Badge::This))
+                    .map(|d| {
+                        (
+                            d.node_id.clone(),
+                            DeviceGrant {
+                                permissions: d.caps,
+                            },
+                        )
+                    })
+                    .collect(),
+            ),
             mgmt: Arc::new(MockLlmMgmt::fixture(devices[0].node_id.clone())),
         }
+    }
+    /// `GET /capabilities`.
+    pub fn capabilities(&self) -> Capabilities {
+        self.capabilities.lock().unwrap().clone()
+    }
+    /// `POST /capabilities/{id}/{action}`: the updated item, or an [`InstallPlan`].
+    pub fn capability_action(
+        &self,
+        id: CapabilityId,
+        action: CapabilityAction,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AppError> {
+        let mut capabilities = self.capabilities.lock().unwrap();
+        let item = capabilities
+            .items
+            .iter_mut()
+            .find(|i| i.id == id)
+            .ok_or_else(not_found)?;
+        if !item.actions.contains(&action) {
+            return Err(invalid("action does not apply in the current state"));
+        }
+        let plan: InstallPlan = load(fixtures::APP_INSTALL_PLAN);
+        match action {
+            CapabilityAction::InstallPlan => {
+                return serde_json::to_value(plan).map_err(|e| invalid(e.to_string()));
+            }
+            CapabilityAction::Install => {
+                let req: InstallReq = serde_json::from_value(body)
+                    .map_err(|_| invalid("install requires a reviewed plan_id"))?;
+                if req.plan_id != plan.plan_id {
+                    return Err(invalid("install plan expired or already used"));
+                }
+                item.provider.installed = true;
+            }
+            CapabilityAction::Start => item.provider.running = true,
+            CapabilityAction::Stop => {
+                item.provider.running = false;
+                if id == CapabilityId::Browser {
+                    item.sharing = CapabilitySharing {
+                        enabled: false,
+                        address: None,
+                    };
+                }
+            }
+            CapabilityAction::Enable => item.sharing.enabled = true,
+            CapabilityAction::Disable => item.sharing.enabled = false,
+            CapabilityAction::RequestPermissions => {
+                for permission in &mut item.permissions {
+                    permission.state = PermissionState::Granted;
+                }
+            }
+            CapabilityAction::OpenSettings | CapabilityAction::Refresh => {}
+        }
+        if id == CapabilityId::Browser && item.provider.running {
+            item.sharing = CapabilitySharing {
+                enabled: true,
+                address: Some("127.0.0.1:9333".into()),
+            };
+        }
+        item.actions = mock_actions(item);
+        serde_json::to_value(&*item).map_err(|e| invalid(e.to_string()))
+    }
+    /// `GET /devices/{node}/grant`.
+    pub fn device_grant(&self, node: &str) -> Result<DeviceGrant, AppError> {
+        self.grants
+            .lock()
+            .unwrap()
+            .get(node)
+            .copied()
+            .ok_or_else(not_found)
+    }
+    /// `PUT /devices/{node}/grant`.
+    pub fn set_device_grant(
+        &self,
+        node: &str,
+        grant: DeviceGrant,
+    ) -> Result<DeviceGrant, AppError> {
+        let mut grants = self.grants.lock().unwrap();
+        let current = grants.get_mut(node).ok_or_else(not_found)?;
+        if grant.permissions == DeviceCaps::default() {
+            return Err(invalid(
+                "a grant needs at least one capability; remove the device instead",
+            ));
+        }
+        *current = grant;
+        Ok(grant)
+    }
+}
+fn mock_actions(item: &CapabilityItem) -> Vec<CapabilityAction> {
+    use CapabilityAction::*;
+    let mut actions = vec![];
+    match item.id {
+        CapabilityId::Terminal => {}
+        CapabilityId::Desktop => {
+            actions.push(if item.sharing.enabled {
+                Disable
+            } else {
+                Enable
+            });
+            actions.push(OpenSettings);
+        }
+        CapabilityId::Computer => {
+            if !item.provider.installed {
+                actions.extend([InstallPlan, Install]);
+            } else {
+                actions.push(if item.provider.running { Stop } else { Start });
+                actions.push(if item.sharing.enabled {
+                    Disable
+                } else {
+                    Enable
+                });
+                actions.extend([RequestPermissions, OpenSettings]);
+            }
+        }
+        CapabilityId::Browser => {
+            if item.provider.installed {
+                actions.push(if item.provider.running { Stop } else { Start });
+            }
+        }
+    }
+    actions.push(Refresh);
+    actions
+}
+fn invalid(message: impl Into<String>) -> AppError {
+    AppError {
+        status: 400,
+        code: "invalid".into(),
+        message: message.into(),
     }
 }
 fn not_found() -> AppError {

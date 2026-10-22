@@ -51,6 +51,9 @@ fn every_fixture_round_trips() {
         PairInvite => APP_PAIR_INVITE,
         PairAccepted => APP_PAIR_ACCEPTED,
         Vec<AppEvent> => APP_EVENTS,
+        Capabilities => APP_CAPABILITIES,
+        InstallPlan => APP_INSTALL_PLAN,
+        DeviceGrant => APP_DEVICE_GRANT,
         PullReq => VAULT_PULL_REQ,
         PullResp => VAULT_PULL_RESP,
         RefreshRequest => VAULT_REFRESH_REQUEST,
@@ -255,4 +258,65 @@ async fn mocks_serve_fixtures() {
         .await
         .unwrap();
     assert!(agent.managed);
+}
+
+#[test]
+fn mock_capabilities_and_grants_follow_the_contract() {
+    let app = MockAppApi::fixture();
+    let ids: Vec<_> = app.capabilities().items.iter().map(|i| i.id).collect();
+    assert_eq!(
+        ids,
+        [
+            CapabilityId::Terminal,
+            CapabilityId::Desktop,
+            CapabilityId::Computer,
+            CapabilityId::Browser
+        ]
+    );
+    let plan: InstallPlan = serde_json::from_value(
+        app.capability_action(
+            CapabilityId::Computer,
+            CapabilityAction::InstallPlan,
+            Value::Null,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        app.capability_action(
+            CapabilityId::Computer,
+            CapabilityAction::Install,
+            serde_json::json!({"plan_id":"other"})
+        )
+        .is_err()
+    );
+    let item: CapabilityItem = serde_json::from_value(
+        app.capability_action(
+            CapabilityId::Computer,
+            CapabilityAction::Install,
+            serde_json::json!({"plan_id":plan.plan_id}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(item.provider.installed && item.actions.contains(&CapabilityAction::Start));
+    let browser: CapabilityItem = serde_json::from_value(
+        app.capability_action(CapabilityId::Browser, CapabilityAction::Start, Value::Null)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(browser.sharing.enabled && browser.sharing.address.is_some());
+    // An action that does not apply is refused.
+    assert!(
+        app.capability_action(CapabilityId::Terminal, CapabilityAction::Start, Value::Null)
+            .is_err()
+    );
+
+    let node = "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+    let mut grant = app.device_grant(node).unwrap();
+    grant.permissions.computer = !grant.permissions.computer;
+    assert_eq!(app.set_device_grant(node, grant).unwrap(), grant);
+    assert_eq!(app.device_grant(node).unwrap(), grant);
+    assert!(app.set_device_grant(node, DeviceGrant::default()).is_err());
+    assert!(app.device_grant("node-unknown").is_err());
 }

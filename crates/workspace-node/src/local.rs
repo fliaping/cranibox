@@ -22,6 +22,7 @@ pub struct LocalNode {
     stop: CancellationToken,
     peer: Mutex<Option<peer::Running>>,
     desktop_service: crate::desktop_service::Service,
+    browser_service: agent_workspace_runtime::peers::browser::manager::Service,
     network: crate::network::Service,
     iroh: Mutex<Option<peer::transport_iroh::Service>>,
     messages: crate::messages::Service,
@@ -65,6 +66,10 @@ impl LocalNode {
             }
         };
         let desktop_service = crate::desktop_service::Service::start(path.clone(), stop.clone());
+        let browser_service = agent_workspace_runtime::peers::browser::manager::Service::start(
+            path.clone(),
+            stop.clone().cancelled_owned(),
+        );
         let task_worker = crate::task_worker::Service::start(path.clone(), stop.clone());
         let project_sync = crate::project_sync::Service::start(path.clone(), stop.clone());
         let messages = crate::messages::Service::start(path.clone(), stop.clone());
@@ -85,6 +90,7 @@ impl LocalNode {
             engine,
             slots,
             desktop_service,
+            browser_service,
             network,
             iroh: Mutex::new(Some(iroh)),
             messages,
@@ -163,6 +169,12 @@ impl LocalNode {
         command: crate::desktop_service::Command,
     ) -> Result<Value> {
         self.desktop_service.manage(command).await
+    }
+    pub async fn manage_browser_service(
+        &self,
+        command: agent_workspace_runtime::peers::browser::manager::Command,
+    ) -> Result<Value> {
+        self.browser_service.manage(command).await
     }
     /// iroh network and pairing back end (App API `pair/*`), if iroh is running.
     pub async fn iroh(&self) -> Option<peer::transport_iroh::Handle> {
@@ -249,6 +261,7 @@ impl LocalNode {
             },
             self.network.shutdown(),
             self.desktop_service.shutdown(),
+            self.browser_service.shutdown(),
             self.messages.shutdown(),
             self.task_worker.shutdown(),
             self.project_sync.shutdown(),

@@ -585,7 +585,7 @@ async fn launch(spec: &Spec, password: &Path) -> Result<ManagedChild> {
         }
     }
 }
-async fn rfb(address: SocketAddr) -> Result<()> {
+pub(crate) async fn rfb(address: SocketAddr) -> Result<()> {
     tokio::time::timeout(Duration::from_secs(2),async {
         let mut stream=tokio::net::TcpStream::connect(address).await.context("Cannot connect to this local VNC port. Start the VNC server and check its loopback address.")?;
         let mut header=[0;12];

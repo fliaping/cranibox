@@ -729,7 +729,7 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             agent_workspace_runtime::peers::Store::new(path.clone())
                 .manage(agent_workspace_runtime::peers::Command::ComputerSharing {
                     computer: address.map(|address| {
-                        agent_workspace_runtime::peers::computer::Provider { address }
+                        agent_workspace_runtime::peers::computer::Provider::http(address)
                     }),
                 })
                 .await?,
@@ -908,6 +908,10 @@ async fn serve(path: &Path) -> Result<()> {
                 }
             };
             let desktop_service = crate::desktop_service::Service::start(path.into(), stop.clone());
+            let browser_service = agent_workspace_runtime::peers::browser::manager::Service::start(
+                path.into(),
+                stop.clone().cancelled_owned(),
+            );
             let task_worker = crate::task_worker::Service::start(path.into(), stop.clone());
             let project_sync = crate::project_sync::Service::start(path.into(), stop.clone());
             let messages = crate::messages::Service::start(path.into(), stop.clone());
@@ -929,6 +933,7 @@ async fn serve(path: &Path) -> Result<()> {
                 iroh.shutdown(),
                 network.shutdown(),
                 desktop_service.shutdown(),
+                browser_service.shutdown(),
                 messages.shutdown(),
                 task_worker.shutdown(),
                 project_sync.shutdown(),

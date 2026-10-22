@@ -1,0 +1,95 @@
+{
+  "platform": "macos",
+  "items": [
+    {
+      "id": "terminal",
+      "provider": {
+        "kind": "pty",
+        "installed": true,
+        "running": true,
+        "version": null,
+        "detail": null
+      },
+      "permissions": [],
+      "sharing": {
+        "enabled": true,
+        "address": null
+      },
+      "actions": [
+        "refresh"
+      ],
+      "error": null
+    },
+    {
+      "id": "desktop",
+      "provider": {
+        "kind": "screen_sharing",
+        "installed": true,
+        "running": true,
+        "version": null,
+        "detail": "macOS Screen Sharing on 127.0.0.1:5900"
+      },
+      "permissions": [],
+      "sharing": {
+        "enabled": false,
+        "address": null
+      },
+      "actions": [
+        "enable",
+        "open_settings",
+        "refresh"
+      ],
+      "error": null
+    },
+    {
+      "id": "computer",
+      "provider": {
+        "kind": "cua",
+        "installed": false,
+        "running": false,
+        "version": null,
+        "detail": null
+      },
+      "permissions": [
+        {
+          "id": "screen_recording",
+          "state": "unknown"
+        },
+        {
+          "id": "accessibility",
+          "state": "unknown"
+        }
+      ],
+      "sharing": {
+        "enabled": false,
+        "address": null
+      },
+      "actions": [
+        "install_plan",
+        "install",
+        "refresh"
+      ],
+      "error": null
+    },
+    {
+      "id": "browser",
+      "provider": {
+        "kind": "chrome",
+        "installed": true,
+        "running": false,
+        "version": null,
+        "detail": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      },
+      "permissions": [],
+      "sharing": {
+        "enabled": false,
+        "address": null
+      },
+      "actions": [
+        "start",
+        "refresh"
+      ],
+      "error": null
+    }
+  ]
+}

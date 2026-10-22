@@ -1,0 +1,8 @@
+{
+  "plan_id": "4f9c2d8e-1b3a-4c5d-9e7f-0a1b2c3d4e5f",
+  "commands": [
+    "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh)\""
+  ],
+  "url": "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh",
+  "expires_at": 1767225600
+}

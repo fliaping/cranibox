@@ -10,6 +10,8 @@ pub const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 /// End-to-end encrypted when opened through a peer session; plain for local CDP.
 pub type Socket = super::e2e::socket::SecureSocket;
 
+pub mod manager;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Provider {
