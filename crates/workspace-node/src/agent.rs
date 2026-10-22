@@ -53,6 +53,16 @@ pub enum Command {
         /// Also accept this Host (host[:port]) from a trusted reverse proxy.
         #[arg(long = "allow-host")]
         allow_host: Vec<String>,
+        /// Run an iroh relay for your devices (on by default with an https --public-url).
+        #[arg(long)]
+        relay: bool,
+        /// Public https origin of this device's relay, e.g. https://cranibox.example.com.
+        #[arg(long)]
+        public_url: Option<String>,
+        /// Public listener for the relay and read-only identity, e.g. 0.0.0.0:7378;
+        /// the interface stays on loopback.
+        #[arg(long)]
+        relay_listen: Option<std::net::SocketAddr>,
     },
     /// Print the sign-in link of this device's interface.
     UiUrl {

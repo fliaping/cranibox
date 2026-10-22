@@ -48,16 +48,29 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     // gateway connection is kept alongside, never required; `peer serve` keeps its
     // meaning of running without any Workspace.
     let service = match &args.command {
-        None => Some((None, Vec::new(), true)),
+        None => Some((None, Vec::new(), true, Default::default())),
         Some(agent::Command::Peer {
             command: crate::peer::Command::Serve,
-        }) => Some((None, Vec::new(), false)),
-        Some(agent::Command::Serve { listen, allow_host }) => {
-            Some((*listen, allow_host.clone(), true))
-        }
+        }) => Some((None, Vec::new(), false, Default::default())),
+        Some(agent::Command::Serve {
+            listen,
+            allow_host,
+            relay,
+            public_url,
+            relay_listen,
+        }) => Some((
+            *listen,
+            allow_host.clone(),
+            true,
+            crate::web::standalone::RelayFlags {
+                relay: *relay,
+                public_url: public_url.clone(),
+                listen: *relay_listen,
+            },
+        )),
         _ => None,
     };
-    if let Some((listen, allow_hosts, with_gateway)) = service {
+    if let Some((listen, allow_hosts, with_gateway, relay)) = service {
         let gateway = if !with_gateway {
             None
         } else if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
@@ -82,6 +95,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             listen,
             allow_hosts,
             gateway,
+            relay,
         ))
         .await;
     }

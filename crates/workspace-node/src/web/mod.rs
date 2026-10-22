@@ -2,6 +2,7 @@
 //! desktop window and the Workspace container; each host only supplies sessions.
 pub mod app_api;
 pub mod desktop;
+pub mod relay;
 pub mod standalone;
 pub mod terminal;
 

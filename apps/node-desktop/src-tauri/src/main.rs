@@ -312,6 +312,7 @@ fn main() -> anyhow::Result<()> {
                         token,
                         allow_hosts: Vec::new(),
                         shell: Some(shell),
+                        relay: None,
                     };
                     if let Err(error) = standalone::serve(local, listener, options, stop).await {
                         eprintln!("interface server: {error:#}");

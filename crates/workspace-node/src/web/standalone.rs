@@ -144,12 +144,25 @@ async fn bind(listen: Option<SocketAddr>) -> Result<tokio::net::TcpListener> {
     }
 }
 
+/// Optional relay of this device (`serve --relay --public-url … --relay-listen …`).
+#[derive(Clone, Default)]
+pub struct RelayFlags {
+    pub relay: bool,
+    /// `https://` origin devices dial for the relay and pairing links.
+    pub public_url: Option<String>,
+    /// Separate public listener carrying only the relay and read-only identity; the
+    /// interface itself stays on loopback. Without it the relay shares the interface
+    /// listener behind a reverse proxy.
+    pub listen: Option<SocketAddr>,
+}
+
 /// Run this device: the node core, its interface, and an optional legacy gateway link.
 pub async fn run(
     peers: std::path::PathBuf,
     listen: Option<SocketAddr>,
-    allow_hosts: Vec<String>,
+    mut allow_hosts: Vec<String>,
     gateway: Option<crate::settings::Settings>,
+    relay: RelayFlags,
 ) -> Result<()> {
     // Register for SIGTERM before starting services: a stop request that arrives while
     // the node restores its networks must still run the cleanup below.
@@ -165,6 +178,21 @@ pub async fn run(
         let _ = tokio::signal::ctrl_c().await;
         signal.cancel();
     });
+    // The node's iroh service reads the relay settings when it starts.
+    let embedded = super::relay::setup(
+        relay.relay,
+        false,
+        relay.public_url.as_deref().unwrap_or(""),
+    );
+    if relay.listen.is_none()
+        && let Some(host) = embedded
+            .public_url()
+            .and_then(|u| url::Url::parse(u).ok())
+            .and_then(|u| u.host_str().map(str::to_owned))
+    {
+        // The interface is reached through the same proxy as the relay.
+        allow_hosts.push(host);
+    }
     let local = Arc::new(LocalNode::start(peers.clone()).await?);
     let token = access_token(&peers)?;
     let listener = match bind(listen).await {
@@ -191,6 +219,27 @@ pub async fn run(
             "Cranibox device interface on http://{address} (run `cranibox-node ui-url` for the sign-in link)"
         );
     }
+    if let Some(address) = relay.listen.filter(|_| embedded.enabled()) {
+        let public = match tokio::net::TcpListener::bind(address).await {
+            Ok(listener) => listener,
+            Err(e) => {
+                let _ = local.shutdown().await;
+                return Err(e).with_context(|| format!("relay listen on {address}"));
+            }
+        };
+        let router = public_router(public_identity(&local, embedded.public_url()).await);
+        let (relay, shutdown) = (embedded.clone(), stop.clone());
+        tokio::spawn(async move {
+            if let Err(error) = relay
+                .serve(public, router, async move { shutdown.cancelled().await })
+                .await
+            {
+                eprintln!("relay listener: {error}");
+            }
+        });
+        eprintln!("iroh relay listening on {address}");
+    }
+    embedded.spawn_self_check();
     let ui = serve(
         local.clone(),
         listener,
@@ -198,6 +247,7 @@ pub async fn run(
             token,
             allow_hosts,
             shell: None,
+            relay: relay.listen.is_none().then(|| embedded.clone()),
         },
         stop.clone(),
     );
@@ -229,6 +279,8 @@ pub struct Options {
     /// Extra `host[:port]` values accepted from a trusted reverse proxy.
     pub allow_hosts: Vec<String>,
     pub shell: Option<Arc<dyn Shell>>,
+    /// Serve the relay paths in front of the interface (behind a reverse proxy).
+    pub relay: Option<super::relay::Embedded>,
 }
 
 /// Serve this device's interface on an already bound loopback listener until `stop`.
@@ -244,6 +296,7 @@ pub async fn serve(
         "the device interface only listens on loopback; use an SSH tunnel or trusted proxy"
     );
     let port = address.port();
+    let relay = options.relay.clone();
     let mut hosts = HashSet::new();
     let mut origins = HashSet::new();
     for host in ["127.0.0.1", "localhost", "[::1]"] {
@@ -278,11 +331,74 @@ pub async fn serve(
         shell: options.shell,
     };
     let shutdown = stop.clone();
-    let result = axum::serve(listener, router(state))
-        .with_graceful_shutdown(async move { shutdown.cancelled().await })
-        .await;
+    let shutdown = async move { shutdown.cancelled().await };
+    let result = match relay.filter(|r| r.enabled()) {
+        Some(relay) => relay.serve(listener, router(state), shutdown).await,
+        None => {
+            axum::serve(listener, router(state))
+                .with_graceful_shutdown(shutdown)
+                .await
+        }
+    };
     let _ = closing.send(true);
     result.context("device interface server")
+}
+
+/// What anyone may learn about this device from its public relay address: enough to
+/// recognise it before pairing, nothing that grants access.
+async fn public_identity(local: &LocalNode, public_url: Option<&str>) -> Value {
+    let identity = local
+        .manage_peers(agent_workspace_runtime::peers::Command::Identity)
+        .await
+        .unwrap_or_default();
+    json!({
+        "node_id": local.id,
+        "name": crate::device_info::local().name,
+        "fingerprint": identity["identity"]["fingerprint"],
+        "endpoint_id": identity["identity"]["public"]["signing_key"],
+        "relay": true,
+        "public_url": public_url,
+        "protocol": 1,
+    })
+}
+const PAIR_PAGE: &str = "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\">\
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\">\
+<title>Cranibox</title><body style=\"font:16px system-ui,'PingFang SC',sans-serif;max-width:560px;margin:15vh auto;padding:0 16px;line-height:1.6\">\
+<h1 style=\"font-size:22px\">在 Cranibox 中打开 · Open in Cranibox</h1>\
+<p>复制浏览器地址栏中的完整链接，在另一台设备的 Cranibox「添加设备」中粘贴。</p>\
+<p>Copy the full link from the address bar and paste it into Add device in Cranibox on your other device.</p></body></html>";
+/// The public listener: relay paths are handled in front of this router.
+fn public_router(identity: Value) -> Router {
+    Router::new()
+        .route("/healthz", get(|| async { Json(json!({"ok": true})) }))
+        .route(
+            "/.well-known/cranibox",
+            get(move || {
+                let identity = identity.clone();
+                async move { Json(identity) }
+            }),
+        )
+        .route(
+            "/pair",
+            get(|| async { ([("content-type", "text/html; charset=utf-8")], PAIR_PAGE) }),
+        )
+        .fallback(|| async { error(StatusCode::NOT_FOUND, "Not found") })
+        .layer(middleware::from_fn(public_headers))
+}
+async fn public_headers(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    for (key, value) in [
+        ("cache-control", "no-store"),
+        ("x-content-type-options", "nosniff"),
+        ("x-frame-options", "DENY"),
+        ("referrer-policy", "no-referrer"),
+    ] {
+        response
+            .headers_mut()
+            .insert(key, HeaderValue::from_static(value));
+    }
+    response
 }
 
 fn router(state: State) -> Router {
@@ -533,6 +649,7 @@ mod tests {
                 token: token.clone(),
                 allow_hosts: vec![],
                 shell: None,
+                relay: None,
             },
             stop.clone(),
         ));
