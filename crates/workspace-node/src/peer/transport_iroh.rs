@@ -750,6 +750,17 @@ impl Handle {
     pub fn pair_flows(&self) -> Vec<FlowView> {
         self.pairing.flows()
     }
+    /// Path of the live connection to a paired node, if one is open.
+    pub async fn peer_path(&self, node: &str) -> Option<cranibox_contracts::net::PathInfo> {
+        let id = self
+            .shared
+            .forwards
+            .lock()
+            .await
+            .get(node)
+            .map(|(forward, _)| forward.target().id)?;
+        self.shared.node.pool_path(&id).await
+    }
     pub async fn status(&self) -> Value {
         let targets: Vec<_> = self
             .shared

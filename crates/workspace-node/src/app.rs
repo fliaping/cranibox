@@ -23,7 +23,17 @@ pub struct Service {
     pair_seen: std::sync::Mutex<BTreeMap<String, u64>>,
     /// Local capability providers, created on first use.
     capabilities: std::sync::OnceLock<capabilities::Service>,
+    /// Recent reachability of paired devices that have no open connection.
+    reach: Arc<std::sync::Mutex<BTreeMap<String, Reach>>>,
 }
+#[derive(Clone, Copy)]
+struct Reach {
+    checked: std::time::Instant,
+    online: bool,
+    probing: bool,
+}
+/// How long a probe result stands before the device is probed again.
+const REACH_TTL: std::time::Duration = std::time::Duration::from_secs(15);
 pub fn error(status: u16, code: &str, message: impl Into<String>) -> AppError {
     AppError {
         status,
@@ -42,12 +52,51 @@ impl Service {
             agent_updates: tokio::sync::Mutex::new(()),
             pair_seen: Default::default(),
             capabilities: Default::default(),
+            reach: Default::default(),
         }
     }
     fn local(&self) -> Result<Arc<LocalNode>, AppError> {
         self.local
             .upgrade()
             .ok_or_else(|| unavailable("Device is stopping"))
+    }
+    /// Last known reachability of a paired device; refreshes it in the background with
+    /// an authenticated identity probe when the result is older than [`REACH_TTL`].
+    fn reachable(&self, node: &str) -> bool {
+        let mut cache = self.reach.lock().unwrap();
+        let entry = cache.get(node).copied();
+        let fresh = entry.is_some_and(|r| r.checked.elapsed() < REACH_TTL);
+        if !fresh && !entry.is_some_and(|r| r.probing) {
+            cache.insert(
+                node.to_owned(),
+                Reach {
+                    checked: entry.map_or_else(std::time::Instant::now, |r| r.checked),
+                    online: entry.is_some_and(|r| r.online),
+                    probing: true,
+                },
+            );
+            let (local, reach, node) = (self.local.clone(), self.reach.clone(), node.to_owned());
+            tokio::spawn(async move {
+                let online = match local.upgrade() {
+                    Some(local) => tokio::time::timeout(
+                        std::time::Duration::from_secs(5),
+                        local.manage_peers(peers::Command::Probe { node: node.clone() }),
+                    )
+                    .await
+                    .is_ok_and(|result| result.is_ok()),
+                    None => false,
+                };
+                reach.lock().unwrap().insert(
+                    node,
+                    Reach {
+                        checked: std::time::Instant::now(),
+                        online,
+                        probing: false,
+                    },
+                );
+            });
+        }
+        entry.is_some_and(|r| r.online)
     }
     async fn pairing(&self) -> Result<crate::peer::transport_iroh::Handle, AppError> {
         self.local()?.iroh().await.ok_or_else(|| {
@@ -298,23 +347,31 @@ impl AppApi for Service {
                 });
             }
         }
+        let iroh = local.iroh().await;
         for (node, grant) in config.grants {
             if devices.iter().any(|d| d.node_id == node) {
                 continue;
             }
+            // A guest pairing grants messages only; an owner device gets full access.
+            let guest = !(grant.permissions.exec && grant.permissions.terminals);
             let caps = serde_json::from_value(
                 serde_json::to_value(grant.permissions).map_err(unavailable)?,
             )
             .map_err(unavailable)?;
+            let path = match &iroh {
+                Some(iroh) => iroh.peer_path(&node).await,
+                None => None,
+            };
+            let online = path.is_some() || self.reachable(&node);
             devices.push(Device {
                 node_id: node.clone(),
                 name: node,
                 kind: DeviceKind::Unknown,
-                online: false,
-                path: PathKind::Unknown,
-                rtt_ms: None,
+                online,
+                path: path.map_or(PathKind::Unknown, |p| p.kind),
+                rtt_ms: path.and_then(|p| p.rtt_ms),
                 badges: vec![],
-                guest: true,
+                guest,
                 caps,
             });
         }
