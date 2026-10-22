@@ -39,9 +39,14 @@ pub enum Command {
     },
     Job {
         id: String,
+        /// Device running the job (needed without a Workspace gateway).
+        #[arg(long)]
+        node: Option<String>,
     },
     Cancel {
         id: String,
+        #[arg(long)]
+        node: Option<String>,
     },
     /// MCP stdio server using this device's own credentials.
     Mcp,
@@ -71,6 +76,43 @@ pub enum Command {
         listen: Option<std::net::SocketAddr>,
     },
 }
+/// Agent commands over this device's own peers (paired and same-identity devices).
+pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()> {
+    let fleet = client::Fleet::new(peers.clone());
+    match command {
+        Command::Nodes => client::print(fleet.nodes().await?),
+        Command::Job { id, node } => client::print(fleet.job(&id, node.as_deref(), false).await?),
+        Command::Cancel { id, node } => client::print(fleet.job(&id, node.as_deref(), true).await?),
+        Command::Mcp => client::fleet_mcp(peers).await?,
+        Command::Exec {
+            node,
+            cwd,
+            timeout_secs,
+            detach,
+            mut command,
+        } => {
+            let result = fleet
+                .execute(
+                    &node,
+                    ExecRequest {
+                        program: command.remove(0),
+                        args: command,
+                        cwd,
+                        env: Default::default(),
+                        timeout_secs,
+                    },
+                    detach,
+                )
+                .await?;
+            let success = detach || (result["outcome"] == "exited" && result["exit_code"] == 0);
+            client::print(result);
+            anyhow::ensure!(success, "remote command failed");
+        }
+        _ => anyhow::bail!("device commands use their local configuration"),
+    }
+    Ok(())
+}
+
 pub async fn run(settings: Settings, command: Command) -> Result<()> {
     let api = settings.api()?;
     match command {
@@ -82,8 +124,8 @@ pub async fn run(settings: Settings, command: Command) -> Result<()> {
             anyhow::bail!("device commands use their local configuration")
         }
         Command::Nodes => client::print(api.get("/api/v1/nodes").await?),
-        Command::Job { id } => client::print(api.get(&client::job_path(&id)?).await?),
-        Command::Cancel { id } => client::print(
+        Command::Job { id, .. } => client::print(api.get(&client::job_path(&id)?).await?),
+        Command::Cancel { id, .. } => client::print(
             api.post(
                 &format!("{}/cancel", client::job_path(&id)?),
                 serde_json::json!({}),

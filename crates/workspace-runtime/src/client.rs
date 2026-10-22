@@ -17,7 +17,7 @@ pub struct ApiOptions {
     pub allow_insecure: bool,
 }
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -955,6 +955,121 @@ async fn call(api: &Api, params: &Value) -> Result<Value> {
 pub async fn mcp(api: Api) -> Result<()> {
     mcp_service(McpBackend::Workspace(api)).await
 }
+
+/// Agent tools over this device's direct routes: every paired or same-identity device,
+/// with no Workspace gateway. Same tool names and schemas as the gateway server.
+pub struct Fleet {
+    path: std::path::PathBuf,
+    /// Job ID → node, for jobs started through this process.
+    jobs: std::sync::Mutex<std::collections::HashMap<String, String>>,
+}
+impl Fleet {
+    pub fn new(peers: std::path::PathBuf) -> Self {
+        Self {
+            path: peers,
+            jobs: Default::default(),
+        }
+    }
+    fn api(&self, node: &str) -> Result<Api> {
+        crate::peers::Store::new(self.path.clone())
+            .route(node)
+            .map_err(|_| anyhow::anyhow!("{node} is not one of this device's peers"))?
+            .api(node)
+    }
+    /// This device and every peer it has a route to, probed in parallel.
+    pub async fn nodes(&self) -> Result<Value> {
+        let config = crate::peers::config::Config::read(&self.path)?;
+        let probes = config.routes.keys().map(|node| async move {
+            let answer = match self.api(node) {
+                Ok(api) => tokio::time::timeout(Duration::from_secs(4), api.probe())
+                    .await
+                    .ok()
+                    .and_then(Result::ok),
+                Err(_) => None,
+            };
+            match answer {
+                Some(mut value) => {
+                    let mut entry = value["nodes"][0].take();
+                    entry["online"] = json!(true);
+                    entry
+                }
+                None => json!({"id": node, "name": node, "online": false}),
+            }
+        });
+        let mut nodes = vec![json!({"id": config.node_id, "this": true, "online": true})];
+        nodes.extend(futures_util::future::join_all(probes).await);
+        Ok(json!({"nodes": nodes}))
+    }
+    pub async fn execute(&self, node: &str, request: ExecRequest, detach: bool) -> Result<Value> {
+        let value = self.api(node)?.execute(node, request, detach).await?;
+        if let Some(id) = value["id"].as_str() {
+            let mut jobs = self.jobs.lock().unwrap();
+            if jobs.len() >= 1024 {
+                jobs.clear();
+            }
+            jobs.insert(id.to_owned(), node.to_owned());
+        }
+        Ok(value)
+    }
+    /// Read or cancel a job; `node` is needed for jobs started by another process.
+    pub async fn job(&self, id: &str, node: Option<&str>, cancel: bool) -> Result<Value> {
+        let path = job_path(id)?;
+        let node = match node {
+            Some(node) => node.to_owned(),
+            None => self
+                .jobs
+                .lock()
+                .unwrap()
+                .get(id)
+                .cloned()
+                .context("unknown job; pass the device with --node")?,
+        };
+        let api = self.api(&node)?;
+        if cancel {
+            api.post(&format!("{path}/cancel"), json!({})).await
+        } else {
+            api.get(&path).await
+        }
+    }
+    async fn call(&self, params: &Value) -> Result<Value> {
+        let name = params["name"].as_str().unwrap_or_default();
+        let args = params.get("arguments").cloned().unwrap_or(json!({}));
+        match name {
+            "workspace_nodes" => self.nodes().await,
+            "workspace_exec" => {
+                let mut args = args
+                    .as_object()
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("arguments must be an object"))?;
+                let node = args
+                    .remove("node")
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .ok_or_else(|| anyhow::anyhow!("node required"))?;
+                self.execute(&node, serde_json::from_value(Value::Object(args))?, true)
+                    .await
+            }
+            "workspace_job" | "workspace_cancel" => {
+                self.job(
+                    args["id"].as_str().unwrap_or_default(),
+                    None,
+                    name == "workspace_cancel",
+                )
+                .await
+            }
+            "workspace_projects" => {
+                let node = args["command"]["node"]
+                    .as_str()
+                    .context("name the device in command.node")?;
+                call(&self.api(node)?, params).await
+            }
+            _ => anyhow::bail!("unknown tool"),
+        }
+    }
+}
+/// The Agent's device tools without a gateway (see [`Fleet`]).
+pub async fn fleet_mcp(peers: std::path::PathBuf) -> Result<()> {
+    mcp_service(McpBackend::Fleet(Fleet::new(peers))).await
+}
 /// Local device messaging uses no Workspace administrator or relay credential.
 pub async fn messages_mcp(store: crate::peers::Store) -> Result<()> {
     mcp_service(McpBackend::Messages(store)).await
@@ -975,6 +1090,7 @@ pub async fn computer_mcp(store: crate::peers::Store, node: String) -> Result<()
 }
 enum McpBackend {
     Workspace(Api),
+    Fleet(Fleet),
     Messages(crate::peers::Store),
     Executions(crate::peers::Store),
     TaskWorker(crate::peers::tasks::worker::Worker),
@@ -983,7 +1099,7 @@ enum McpBackend {
 impl McpBackend {
     fn name(&self) -> &'static str {
         match self {
-            Self::Workspace(_) => "agent-workspace-nodes",
+            Self::Workspace(_) | Self::Fleet(_) => "agent-workspace-nodes",
             Self::Messages(_) => "cranibox-device-messages",
             Self::Executions(_) => "cranibox-device-runs",
             Self::TaskWorker(_) => "cranibox-task-worker",
@@ -992,7 +1108,7 @@ impl McpBackend {
     }
     async fn tools(&self) -> Value {
         match self {
-            Self::Workspace(_) => tools(),
+            Self::Workspace(_) | Self::Fleet(_) => tools(),
             Self::Executions(_) => crate::peers::executions::mcp::tools(),
             Self::TaskWorker(_) => crate::peers::tasks::worker::tools(),
             Self::Computer(computer) => computer.tools().await,
@@ -1019,6 +1135,7 @@ impl McpBackend {
     async fn call(&self, parameters: &Value) -> Result<Value> {
         match self {
             Self::Workspace(api) => call(api, parameters).await,
+            Self::Fleet(fleet) => fleet.call(parameters).await,
             Self::Executions(store) => store.execution_tool(parameters).await,
             Self::TaskWorker(worker) => worker.call(parameters).await,
             Self::Computer(computer) => computer.call(parameters).await,

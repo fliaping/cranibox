@@ -136,6 +136,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         }
         command => command,
     };
+    let command = command.expect("the device service is handled above");
     let settings = if args.server.is_some() || args.id.is_some() || args.token_file.is_some() {
         Settings {
             server: args
@@ -148,11 +149,13 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             name: args.name,
             allow_insecure: args.allow_insecure,
         }
-    } else {
+    } else if args.config.exists() {
         Settings::read(&args.config)?
+    } else {
+        // No Workspace gateway: the Agent reaches this device's own peers directly.
+        return agent::run_peers(peer_path, command).await;
     };
     settings.validate()?;
-    let command = command.expect("the device service is handled above");
     agent::run(settings, command).await
 }
 
@@ -195,7 +198,7 @@ mod tests {
             let args = Args::try_parse_from(["cranibox-node", operation, "job-123"]).unwrap();
             assert!(args.id.is_none());
             let parsed = match args.command.unwrap() {
-                agent::Command::Job { id } | agent::Command::Cancel { id } => id,
+                agent::Command::Job { id, .. } | agent::Command::Cancel { id, .. } => id,
                 other => panic!("unexpected command: {other:?}"),
             };
             assert_eq!(parsed, "job-123");
