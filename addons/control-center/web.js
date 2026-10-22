@@ -43110,6 +43110,7 @@ function Uw({ item: e, pending: t, act: n }) {
 					})
 				]
 			}),
+			e.id === "computer" && /* @__PURE__ */ (0, H.jsx)(Ww, {}),
 			e.error && /* @__PURE__ */ (0, H.jsxs)("p", {
 				className: "cx-error",
 				role: "alert",
@@ -43125,9 +43126,28 @@ function Uw({ item: e, pending: t, act: n }) {
 		]
 	});
 }
+function Ww() {
+	let { t: e } = mw(), [t, n] = (0, y.useState)(null);
+	return (0, y.useEffect)(() => {
+		ls("/api/spaces", { operation: "list" }).then((e) => n((e.spaces || []).filter((e) => e.phase === "ready").length), () => n(null));
+	}, []), t === null ? null : /* @__PURE__ */ (0, H.jsxs)("div", {
+		className: "cx-cap-section",
+		children: [/* @__PURE__ */ (0, H.jsx)("h4", { children: e("Agent 自己的电脑", "Agents' own computers") }), /* @__PURE__ */ (0, H.jsxs)("p", {
+			className: "cx-muted cx-small",
+			children: [
+				t ? e(t + " 个运行中的虚拟空间可作为 Agent 的电脑；无人值守的任务优先在那里操作，不占用你的屏幕。", t + (t === 1 ? " running virtual space is" : " running virtual spaces are") + " available as the agents' own computer; unattended work prefers it over your screen.") : e("创建虚拟空间后，Agent 可以在那里操作自己的桌面，不占用你的屏幕。", "Create a virtual space and agents can work on their own desktop there instead of your screen."),
+				" ",
+				/* @__PURE__ */ (0, H.jsx)(Cn, {
+					to: "/spaces",
+					children: e("虚拟空间", "Virtual spaces")
+				})
+			]
+		})]
+	});
+}
 //#endregion
 //#region src/app/DesktopAppSettings.tsx
-function Ww({ section: e }) {
+function Gw({ section: e }) {
 	let { t } = mw(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(!1);
 	async function g(e) {
 		s(!0), a("");
@@ -43269,23 +43289,23 @@ function Ww({ section: e }) {
 }
 //#endregion
 //#region src/app/targets.ts
-function Gw() {
+function Kw() {
 	let { snapshot: e } = ps(), t = e?.local_node?.id || "";
 	return (0, y.useCallback)((e) => Aw(e) ? t : Pm(e.node_id), [t]);
 }
 //#endregion
 //#region src/app/Home.tsx
-var Kw = [
+var qw = [
 	"terminals",
 	"desktop",
 	"computer",
 	"browser"
 ];
-function qw(e, t = "") {
+function Jw(e, t = "") {
 	return "/app/device/" + encodeURIComponent(e.node_id) + (t ? "/" + t : "");
 }
-function Jw({ device: e }) {
-	let { t } = mw(), n = ct(), { openTerminal: r } = rs(), i = Gw(), a = Aw(e), o = a || e.online;
+function Yw({ device: e }) {
+	let { t } = mw(), n = ct(), { openTerminal: r } = rs(), i = Kw(), a = Aw(e), o = a || e.online;
 	return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-device pa-card " + (o ? "" : "offline"),
 		label: e.name,
@@ -43301,7 +43321,7 @@ function Jw({ device: e }) {
 						className: "cx-grow",
 						children: [/* @__PURE__ */ (0, H.jsx)(Cn, {
 							className: "cx-device-name",
-							to: qw(e),
+							to: Jw(e),
 							children: /* @__PURE__ */ (0, H.jsx)("h3", { children: e.name })
 						}), /* @__PURE__ */ (0, H.jsxs)("div", {
 							className: "cx-device-meta",
@@ -43330,7 +43350,7 @@ function Jw({ device: e }) {
 			/* @__PURE__ */ (0, H.jsxs)("div", {
 				className: "cx-cap-badges",
 				"aria-label": t("能力", "Capabilities"),
-				children: [Kw.map((n) => {
+				children: [qw.map((n) => {
 					let r = Dw[n], i = e.caps[n] !== !1;
 					return /* @__PURE__ */ (0, H.jsxs)("span", {
 						className: "cx-cap " + (i ? "on" : "off"),
@@ -43360,7 +43380,7 @@ function Jw({ device: e }) {
 					/* @__PURE__ */ (0, H.jsxs)("button", {
 						className: "cx-btn small",
 						disabled: !o || e.caps.desktop === !1,
-						onClick: () => n(qw(e, "desktop")),
+						onClick: () => n(Jw(e, "desktop")),
 						children: [/* @__PURE__ */ (0, H.jsx)(Sa, {
 							size: 15,
 							"aria-hidden": "true"
@@ -43369,7 +43389,7 @@ function Jw({ device: e }) {
 					/* @__PURE__ */ (0, H.jsxs)("button", {
 						className: "cx-btn small",
 						disabled: !o || e.caps.browser === !1,
-						onClick: () => n(qw(e, "browser")),
+						onClick: () => n(Jw(e, "browser")),
 						children: [/* @__PURE__ */ (0, H.jsx)(Si, {
 							size: 15,
 							"aria-hidden": "true"
@@ -43380,7 +43400,7 @@ function Jw({ device: e }) {
 		]
 	});
 }
-function Yw() {
+function Xw() {
 	let { t: e, devices: t, setPairing: n } = mw(), r = t.filter((e) => !e.guest).sort((e, t) => Number(Aw(t)) - Number(Aw(e)) || Number(t.online) - Number(e.online)), i = t.filter((e) => e.guest);
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
 		/* @__PURE__ */ (0, H.jsx)(yw, {
@@ -43396,7 +43416,7 @@ function Yw() {
 			}),
 			children: /* @__PURE__ */ (0, H.jsxs)("div", {
 				className: "cx-device-grid",
-				children: [r.map((e) => /* @__PURE__ */ (0, H.jsx)(Jw, { device: e }, e.node_id)), /* @__PURE__ */ (0, H.jsxs)("button", {
+				children: [r.map((e) => /* @__PURE__ */ (0, H.jsx)(Yw, { device: e }, e.node_id)), /* @__PURE__ */ (0, H.jsxs)("button", {
 					className: "cx-add-device",
 					onClick: () => n(!0),
 					children: [
@@ -43418,7 +43438,7 @@ function Yw() {
 			description: e("访客只能使用你逐项允许的功能。", "Guests can use only what you allow, one capability at a time."),
 			children: /* @__PURE__ */ (0, H.jsx)("div", {
 				className: "cx-device-grid",
-				children: i.map((e) => /* @__PURE__ */ (0, H.jsx)(Jw, { device: e }, e.node_id))
+				children: i.map((e) => /* @__PURE__ */ (0, H.jsx)(Yw, { device: e }, e.node_id))
 			})
 		}),
 		!r.length && /* @__PURE__ */ (0, H.jsx)(Sw, {
@@ -43428,10 +43448,10 @@ function Yw() {
 		})
 	] });
 }
-function Xw() {
-	let { t: e, devices: t, approvals: n, status: r, setPairing: i, deviceName: a } = mw(), o = ct(), { openTerminal: s } = rs(), c = Gw(), l = t.filter((e) => !e.guest), u = t.filter((e) => !Aw(e)).filter((e) => e.online), d = u.filter((e) => e.path === "direct").length, f = u.map((e) => e.rtt_ms).filter((e) => typeof e == "number"), p = f.length ? Math.round(f.reduce((e, t) => e + t, 0) / f.length) : null, m = t.filter((e) => Aw(e) || e.online).sort((e, t) => Number(Aw(t)) - Number(Aw(e))), [h, g] = (0, y.useState)(""), _ = m.find((e) => e.node_id === h) || m[0];
+function Zw() {
+	let { t: e, devices: t, approvals: n, status: r, setPairing: i, deviceName: a } = mw(), o = ct(), { openTerminal: s } = rs(), c = Kw(), l = t.filter((e) => !e.guest), u = t.filter((e) => !Aw(e)).filter((e) => e.online), d = u.filter((e) => e.path === "direct").length, f = u.map((e) => e.rtt_ms).filter((e) => typeof e == "number"), p = f.length ? Math.round(f.reduce((e, t) => e + t, 0) / f.length) : null, m = t.filter((e) => Aw(e) || e.online).sort((e, t) => Number(Aw(t)) - Number(Aw(e))), [h, g] = (0, y.useState)(""), _ = m.find((e) => e.node_id === h) || m[0];
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
-		/* @__PURE__ */ (0, H.jsx)(Zw, {}),
+		/* @__PURE__ */ (0, H.jsx)(Qw, {}),
 		/* @__PURE__ */ (0, H.jsxs)("div", {
 			className: "cx-page-head",
 			children: [/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("h1", { children: e("首页", "Home") }), /* @__PURE__ */ (0, H.jsx)("p", { children: e("你的设备网络概况和常用操作。", "Your device network at a glance, and the things you do most.") })] }), /* @__PURE__ */ (0, H.jsx)("div", {
@@ -43561,7 +43581,7 @@ function Xw() {
 							/* @__PURE__ */ (0, H.jsxs)("button", {
 								className: "cx-btn",
 								disabled: !_ || Aw(_) || _.caps.desktop === !1,
-								onClick: () => _ && o(qw(_, "desktop")),
+								onClick: () => _ && o(Jw(_, "desktop")),
 								children: [/* @__PURE__ */ (0, H.jsx)(Sa, {
 									size: 16,
 									"aria-hidden": "true"
@@ -43570,7 +43590,7 @@ function Xw() {
 							/* @__PURE__ */ (0, H.jsxs)("button", {
 								className: "cx-btn",
 								disabled: !_ || _.caps.browser === !1,
-								onClick: () => _ && o(qw(_, "browser")),
+								onClick: () => _ && o(Jw(_, "browser")),
 								children: [/* @__PURE__ */ (0, H.jsx)(Si, {
 									size: 16,
 									"aria-hidden": "true"
@@ -43579,7 +43599,7 @@ function Xw() {
 							/* @__PURE__ */ (0, H.jsxs)("button", {
 								className: "cx-btn",
 								disabled: !_,
-								onClick: () => _ && o(qw(_)),
+								onClick: () => _ && o(Jw(_)),
 								children: [/* @__PURE__ */ (0, H.jsx)(Or, {
 									size: 16,
 									"aria-hidden": "true"
@@ -43605,7 +43625,7 @@ function Xw() {
 					style: { marginTop: 12 },
 					children: t.slice().sort((e, t) => Number(Aw(t)) - Number(Aw(e)) || Number(t.online) - Number(e.online)).slice(0, 6).map((t) => /* @__PURE__ */ (0, H.jsxs)(Cn, {
 						className: "cx-list-row",
-						to: qw(t),
+						to: Jw(t),
 						children: [
 							/* @__PURE__ */ (0, H.jsx)("span", {
 								className: "cx-card-icon",
@@ -43629,7 +43649,7 @@ function Xw() {
 		})
 	] });
 }
-function Zw() {
+function Qw() {
 	let { t: e, setPairing: t } = mw(), [n, r] = (0, y.useState)(() => {
 		try {
 			return localStorage.getItem("cranibox.onboarded") !== "1";
@@ -43697,7 +43717,7 @@ function Zw() {
 }
 //#endregion
 //#region src/app/Connections.tsx
-function Qw() {
+function $w() {
 	let { t: e, devices: t, setPairing: n } = mw();
 	return /* @__PURE__ */ (0, H.jsx)(yw, {
 		title: e("我的设备", "My devices"),
@@ -43714,7 +43734,7 @@ function Qw() {
 			className: "cx-list",
 			children: t.map((t) => /* @__PURE__ */ (0, H.jsxs)(Cn, {
 				className: "cx-list-row",
-				to: qw(t),
+				to: Jw(t),
 				children: [
 					/* @__PURE__ */ (0, H.jsx)("span", {
 						className: "cx-card-icon",
@@ -43752,7 +43772,7 @@ function Qw() {
 		}) })
 	});
 }
-function $w() {
+function eT() {
 	let { t: e, devices: t } = mw(), n = t.filter((e) => !Aw(e) && e.online), r = n.filter((e) => e.path === "direct").length, i = n.filter((e) => e.path === "relay").length;
 	return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-stack",
@@ -43796,7 +43816,7 @@ function $w() {
 		})]
 	});
 }
-function eT() {
+function tT() {
 	let { t: e, theme: t, setTheme: n, locale: r, setLocale: i } = mw(), a = [
 		[
 			"system",
@@ -43817,7 +43837,7 @@ function eT() {
 	return /* @__PURE__ */ (0, H.jsxs)("div", {
 		className: "cx-stack loose",
 		children: [
-			Xo() && /* @__PURE__ */ (0, H.jsx)(Ww, { section: "app" }),
+			Xo() && /* @__PURE__ */ (0, H.jsx)(Gw, { section: "app" }),
 			/* @__PURE__ */ (0, H.jsx)(gw, {
 				label: e("外观", "Appearance"),
 				children: /* @__PURE__ */ (0, H.jsxs)("div", {
@@ -43888,7 +43908,7 @@ function eT() {
 }
 //#endregion
 //#region src/devices/BrowserTargetPanel.tsx
-function tT({ client: e, node: t, language: n }) {
+function nT({ client: e, node: t, language: n }) {
 	let r = (e, t) => n.startsWith("zh") ? e : t, [i, a] = (0, y.useState)(!1), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(""), [u, d] = (0, y.useState)(), f = (0, y.useRef)(0), p = (0, y.useRef)(!0);
 	(0, y.useEffect)(() => (p.current = !0, () => {
 		p.current = !1, ++f.current;
@@ -43953,7 +43973,7 @@ function tT({ client: e, node: t, language: n }) {
 }
 //#endregion
 //#region src/app/DeviceDetail.tsx
-var nT = [
+var rT = [
 	"overview",
 	"terminal",
 	"desktop",
@@ -43961,9 +43981,9 @@ var nT = [
 	"projects",
 	"access"
 ];
-function rT() {
+function iT() {
 	let { t: e, devices: t, loading: n } = mw(), r = ut(), i = decodeURIComponent(r.id || ""), a = r.tab || "overview", o = t.find((e) => e.node_id === i);
-	if (!nT.includes(a)) return /* @__PURE__ */ (0, H.jsx)(Mt, {
+	if (!rT.includes(a)) return /* @__PURE__ */ (0, H.jsx)(Mt, {
 		to: "/app/device/" + encodeURIComponent(i),
 		replace: !0
 	});
@@ -44035,33 +44055,33 @@ function rT() {
 		}),
 		/* @__PURE__ */ (0, H.jsx)(bw, {
 			label: e("设备分区", "Device sections"),
-			items: nT.map((e) => ({
-				to: qw(o, e === "overview" ? "" : e),
+			items: rT.map((e) => ({
+				to: Jw(o, e === "overview" ? "" : e),
 				label: l[e]
 			}))
 		}),
-		a === "overview" && /* @__PURE__ */ (0, H.jsx)(aT, { device: o }),
-		a === "terminal" && /* @__PURE__ */ (0, H.jsx)(oT, { device: o }),
-		a === "desktop" && /* @__PURE__ */ (0, H.jsx)(sT, { device: o }),
-		a === "browser" && /* @__PURE__ */ (0, H.jsx)(lT, { device: o }),
-		a === "projects" && /* @__PURE__ */ (0, H.jsx)(uT, { device: o }),
-		a === "access" && /* @__PURE__ */ (0, H.jsx)(dT, { device: o })
+		a === "overview" && /* @__PURE__ */ (0, H.jsx)(oT, { device: o }),
+		a === "terminal" && /* @__PURE__ */ (0, H.jsx)(sT, { device: o }),
+		a === "desktop" && /* @__PURE__ */ (0, H.jsx)(cT, { device: o }),
+		a === "browser" && /* @__PURE__ */ (0, H.jsx)(uT, { device: o }),
+		a === "projects" && /* @__PURE__ */ (0, H.jsx)(dT, { device: o }),
+		a === "access" && /* @__PURE__ */ (0, H.jsx)(fT, { device: o })
 	] });
 }
-function iT(e, t) {
+function aT(e, t) {
 	if (!e) return "—";
 	let n = Math.max(0, Math.round(Date.now() / 1e3 - e));
 	return n < 60 ? t("刚刚", "just now") : n < 3600 ? t(Math.round(n / 60) + " 分钟前", Math.round(n / 60) + " min ago") : n < 86400 ? t(Math.round(n / 3600) + " 小时前", Math.round(n / 3600) + " h ago") : (/* @__PURE__ */ new Date(e * 1e3)).toLocaleString();
 }
-function aT({ device: e }) {
-	let { t } = mw(), n = ct(), { openTerminal: r } = rs(), i = Gw(), a = Aw(e), o = a || e.online, s = {
+function oT({ device: e }) {
+	let { t } = mw(), n = ct(), { openTerminal: r } = rs(), i = Kw(), a = Aw(e), o = a || e.online, s = {
 		terminals: () => r({
 			node: i(e),
 			create: !0
 		}),
-		desktop: () => n(qw(e, "desktop")),
-		browser: () => n(qw(e, "browser")),
-		computer: () => n(qw(e, "access"))
+		desktop: () => n(Jw(e, "desktop")),
+		browser: () => n(Jw(e, "browser")),
+		computer: () => n(Jw(e, "access"))
 	};
 	return /* @__PURE__ */ (0, H.jsxs)("div", {
 		className: "cx-detail-grid",
@@ -44093,7 +44113,7 @@ function aT({ device: e }) {
 					children: [
 						/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: t("连接路径", "Path") }), /* @__PURE__ */ (0, H.jsx)("dd", { children: a ? t("本机", "This device") : e.path === "direct" ? t("对等直连", "Direct peer connection") : e.path === "relay" ? t("经中继（端到端加密）", "Relayed (end-to-end encrypted)") : t("未知", "Unknown") })] }),
 						/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: t("延迟", "Latency") }), /* @__PURE__ */ (0, H.jsx)("dd", { children: a || e.rtt_ms == null ? "—" : e.rtt_ms + " ms" })] }),
-						/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: t("最近在线", "Last seen") }), /* @__PURE__ */ (0, H.jsx)("dd", { children: o ? t("现在", "Now") : iT(e.last_seen, t) })] })
+						/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: t("最近在线", "Last seen") }), /* @__PURE__ */ (0, H.jsx)("dd", { children: o ? t("现在", "Now") : aT(e.last_seen, t) })] })
 					]
 				})]
 			}),
@@ -44124,7 +44144,7 @@ function aT({ device: e }) {
 					]
 				})]
 			}),
-			Kw.map((n) => {
+			qw.map((n) => {
 				let r = Dw[n], i = e.caps[n] !== !1;
 				return /* @__PURE__ */ (0, H.jsxs)(gw, {
 					className: "cx-cap-tile",
@@ -44162,8 +44182,8 @@ function aT({ device: e }) {
 		]
 	});
 }
-function oT({ device: e }) {
-	let { t } = mw(), { openTerminal: n } = rs(), r = Gw(), i = e.caps.terminals !== !1, a = Aw(e) || e.online;
+function sT({ device: e }) {
+	let { t } = mw(), { openTerminal: n } = rs(), r = Kw(), i = e.caps.terminals !== !1, a = Aw(e) || e.online;
 	return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-stack",
 		children: [
@@ -44214,7 +44234,7 @@ function oT({ device: e }) {
 		]
 	});
 }
-function sT({ device: e }) {
+function cT({ device: e }) {
 	let { t, locale: n } = mw(), [r, i] = (0, y.useState)(!1);
 	if (Aw(e)) return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-stack",
@@ -44292,8 +44312,8 @@ function sT({ device: e }) {
 		})]
 	});
 }
-var cT = (e) => ls("/api/peers", e);
-function lT({ device: e }) {
+var lT = (e) => ls("/api/peers", e);
+function uT({ device: e }) {
 	let { t, locale: n } = mw();
 	return Aw(e) ? /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-stack",
@@ -44323,13 +44343,13 @@ function lT({ device: e }) {
 	}) : e.caps.browser === !1 ? /* @__PURE__ */ (0, H.jsx)(ww, {
 		tone: "warn",
 		children: t("这台设备没有共享浏览器给你。", "This device does not share its browser with you.")
-	}) : /* @__PURE__ */ (0, H.jsx)(gw, { children: /* @__PURE__ */ (0, H.jsx)(tT, {
-		client: cT,
+	}) : /* @__PURE__ */ (0, H.jsx)(gw, { children: /* @__PURE__ */ (0, H.jsx)(nT, {
+		client: lT,
 		node: e.node_id,
 		language: n
 	}) });
 }
-function uT({ device: e }) {
+function dT({ device: e }) {
 	let { locale: t } = mw(), { snapshot: n } = ps(), { openTerminal: r } = rs(), i = (0, y.useMemo)(() => ({
 		projects: (e) => ls("/api/projects", e),
 		terminals: (e, t) => ls("/api/terminal/sessions", {
@@ -44343,7 +44363,7 @@ function uT({ device: e }) {
 	}), [r]), a = Aw(e);
 	return /* @__PURE__ */ (0, H.jsx)(th, {
 		client: i,
-		direct: cT,
+		direct: lT,
 		language: t,
 		gatewayEnabled: !!n,
 		devices: a && n?.local_node ? [{
@@ -44355,7 +44375,7 @@ function uT({ device: e }) {
 		}] : []
 	});
 }
-function dT({ device: e }) {
+function fT({ device: e }) {
 	let { t, api: n, run: r, busy: i } = mw(), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)("loading"), [l, u] = (0, y.useState)(""), d = "/devices/" + encodeURIComponent(e.node_id) + "/grant", f = (0, y.useCallback)(async () => {
 		try {
 			o(await n.call("GET", d)), c("ready");
@@ -44461,7 +44481,7 @@ function dT({ device: e }) {
 					margin: 0,
 					padding: 0
 				},
-				children: Kw.map((n) => /* @__PURE__ */ (0, H.jsxs)("li", {
+				children: qw.map((n) => /* @__PURE__ */ (0, H.jsxs)("li", {
 					className: "cx-toggle-row",
 					children: [/* @__PURE__ */ (0, H.jsx)("span", { children: Ow(n, t) }), /* @__PURE__ */ (0, H.jsx)(_w, {
 						tone: e.caps[n] === !1 ? "" : "good",
@@ -44474,7 +44494,7 @@ function dT({ device: e }) {
 }
 //#endregion
 //#region src/devices/DirectListenerPanel.tsx
-function fT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function pT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = t.listener_runtime, [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(""), [g, _] = (0, y.useState)(!1), v = (0, y.useRef)(null), b = (0, y.useRef)(null), x = (0, y.useRef)(!0), S = (0, y.useId)(), C = (0, y.useId)(), w = (0, y.useId)();
 	(0, y.useEffect)(() => (x.current = !0, () => {
 		x.current = !1;
@@ -44624,7 +44644,7 @@ function fT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/BrowserSharingPanel.tsx
-function pT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function mT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, y.useId)(), c = t.browser?.address || "", [l, u] = (0, y.useState)(c), [d, f] = (0, y.useState)(), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(""), b = (0, y.useRef)(0), x = (0, y.useRef)(!0);
 	(0, y.useEffect)(() => (x.current = !0, () => {
 		x.current = !1, ++b.current;
@@ -44777,7 +44797,7 @@ function pT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/ComputerSharingPanel.tsx
-function mT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function hT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, y.useId)(), c = t.computer?.address || "", [l, u] = (0, y.useState)(c), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)("");
 	(0, y.useEffect)(() => {
 		u(c), m(void 0);
@@ -44909,7 +44929,7 @@ function mT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/ProjectCopyRootPanel.tsx
-function hT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function gT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, s = (0, y.useId)(), [c, l] = (0, y.useState)(t.copy_root || ""), [u, d] = (0, y.useState)(!1);
 	return (0, y.useEffect)(() => {
 		l(t.copy_root || "");
@@ -44960,7 +44980,7 @@ function hT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/DirectAccessPanel.tsx
-function gT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
+function _T({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, y.useState)(!1), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(!1), [b, x] = (0, y.useState)(!1), [S, C] = (0, y.useState)(!1), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), [O, k] = (0, y.useState)(!1), [A, j] = (0, y.useState)(!1), [M, N] = (0, y.useState)({}), [P, F] = (0, y.useState)({}), [I, ee] = (0, y.useState)(), [L, R] = (0, y.useState)(!1), [te, z] = (0, y.useState)(""), ne = (0, y.useRef)(null), re = (0, y.useRef)(null), ie = (0, y.useRef)(null), ae = (0, y.useRef)(null), oe = (0, y.useRef)(!0), se = (0, y.useRef)(0), ce = (0, y.useId)(), le = (0, y.useId)();
 	(0, y.useEffect)(() => (oe.current = !0, () => {
 		oe.current = !1, se.current++;
@@ -45110,7 +45130,15 @@ function gT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 					}), s ? o("收起授权表单", "Close grant form") : o("授权设备", "Grant device access")]
 				})]
 			}),
-			/* @__PURE__ */ (0, H.jsx)(fT, {
+			/* @__PURE__ */ (0, H.jsx)(pT, {
+				client: e,
+				catalog: t,
+				language: n,
+				busy: r,
+				run: i,
+				onCatalog: a
+			}),
+			/* @__PURE__ */ (0, H.jsx)(gT, {
 				client: e,
 				catalog: t,
 				language: n,
@@ -45127,14 +45155,6 @@ function gT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 				onCatalog: a
 			}),
 			/* @__PURE__ */ (0, H.jsx)(mT, {
-				client: e,
-				catalog: t,
-				language: n,
-				busy: r,
-				run: i,
-				onCatalog: a
-			}),
-			/* @__PURE__ */ (0, H.jsx)(pT, {
 				client: e,
 				catalog: t,
 				language: n,
@@ -45422,7 +45442,7 @@ function gT({ client: e, catalog: t, language: n, busy: r, run: i, onCatalog: a 
 }
 //#endregion
 //#region src/devices/DirectPathsPanel.tsx
-function _T({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a, t: o }) {
+function vT({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a, t: o }) {
 	let [s, c] = (0, y.useState)(!1), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(""), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(""), b = (0, y.useId)(), x = (0, y.useRef)(null), S = (0, y.useRef)(null), C = (0, y.useRef)(null), w = (0, y.useRef)(!1), T = (0, y.useRef)(!0), E = e.paths || [{
 		url: e.url,
 		allow_private_http: e.allow_private_http
@@ -45610,7 +45630,7 @@ function _T({ route: e, connection: t, client: n, busy: r, run: i, onCatalog: a,
 }
 //#endregion
 //#region src/devices/RoutePairing.tsx
-function vT({ route: e, client: t, language: n, busy: r, run: i, onCatalog: a }) {
+function yT({ route: e, client: t, language: n, busy: r, run: i, onCatalog: a }) {
 	let o = (e, t) => n.startsWith("zh") ? e : t, [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(""), d = e.identity;
 	if (!d) return /* @__PURE__ */ (0, H.jsx)("p", {
 		className: "direct-pairing",
@@ -45683,15 +45703,15 @@ function vT({ route: e, client: t, language: n, busy: r, run: i, onCatalog: a })
 }
 //#endregion
 //#region src/devices/DirectDevicesView.tsx
-var yT = {
+var bT = {
 	node: "",
 	url: "",
 	token: "",
 	allow_private_http: !1
-}, bT = (e) => e instanceof Error ? e.message : String(e), xT = "cranibox.direct.jobs";
-function ST() {
+}, xT = (e) => e instanceof Error ? e.message : String(e), ST = "cranibox.direct.jobs";
+function CT() {
 	try {
-		let e = JSON.parse(sessionStorage.getItem(xT) || "[]");
+		let e = JSON.parse(sessionStorage.getItem(ST) || "[]");
 		if (Array.isArray(e)) return e.filter((e) => typeof e?.id == "string" && typeof e?.node == "string").slice(-20).map((e) => ({
 			id: e.id,
 			node: e.node,
@@ -45700,8 +45720,8 @@ function ST() {
 	} catch {}
 	return [];
 }
-function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
-	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, y.useState)(), [o, s] = (0, y.useState)(""), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(yT), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(""), [g, _] = (0, y.useState)(!0), [v, b] = (0, y.useState)(!1), [x, S] = (0, y.useState)(""), [C, w] = (0, y.useState)(), [T, E] = (0, y.useState)(!1), [D, O] = (0, y.useState)(""), [k, A] = (0, y.useState)("[]"), [j, M] = (0, y.useState)(""), [N, P] = (0, y.useState)("60"), [F, I] = (0, y.useState)(ST), [ee, L] = (0, y.useState)(""), [R, te] = (0, y.useState)(""), [z, ne] = (0, y.useState)(0), re = (0, y.useRef)(!0), ie = (0, y.useRef)(!1), ae = (0, y.useRef)(0), oe = (0, y.useRef)(0), se = (0, y.useRef)(null), ce = i?.routes.find((e) => e.node === o) || i?.routes[0], le = F.filter((e) => e.node === ce?.node), ue = le.find((e) => e.id === ee) || le.at(-1), de = C?.node === ce?.node ? C : void 0, B = (e) => {
+function wT({ client: e, language: t = "en", onOpenTerminal: n }) {
+	let r = (e, n) => t.startsWith("zh") ? e : n, [i, a] = (0, y.useState)(), [o, s] = (0, y.useState)(""), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(bT), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(""), [g, _] = (0, y.useState)(!0), [v, b] = (0, y.useState)(!1), [x, S] = (0, y.useState)(""), [C, w] = (0, y.useState)(), [T, E] = (0, y.useState)(!1), [D, O] = (0, y.useState)(""), [k, A] = (0, y.useState)("[]"), [j, M] = (0, y.useState)(""), [N, P] = (0, y.useState)("60"), [F, I] = (0, y.useState)(CT), [ee, L] = (0, y.useState)(""), [R, te] = (0, y.useState)(""), [z, ne] = (0, y.useState)(0), re = (0, y.useRef)(!0), ie = (0, y.useRef)(!1), ae = (0, y.useRef)(0), oe = (0, y.useRef)(0), se = (0, y.useRef)(null), ce = i?.routes.find((e) => e.node === o) || i?.routes[0], le = F.filter((e) => e.node === ce?.node), ue = le.find((e) => e.id === ee) || le.at(-1), de = C?.node === ce?.node ? C : void 0, B = (e) => {
 		++oe.current, a(e), w(void 0), ++ae.current, E(!1), window.dispatchEvent(new Event("cranibox:peers-changed"));
 	}, fe = (0, y.useCallback)(async () => {
 		let t = ++oe.current;
@@ -45709,7 +45729,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 			let n = await e({ operation: "list" });
 			re.current && t === oe.current && (a(n), w(void 0), ++ae.current, E(!1), h(""));
 		} catch (e) {
-			re.current && t === oe.current && h(bT(e));
+			re.current && t === oe.current && h(xT(e));
 		} finally {
 			re.current && t === oe.current && _(!1);
 		}
@@ -45723,7 +45743,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 		c && se.current?.focus();
 	}, [c]), (0, y.useEffect)(() => {
 		try {
-			sessionStorage.setItem(xT, JSON.stringify(F.map(({ node: e, id: t }) => ({
+			sessionStorage.setItem(ST, JSON.stringify(F.map(({ node: e, id: t }) => ({
 				node: e,
 				id: t
 			}))));
@@ -45743,7 +45763,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 					if (t) return;
 					I((e) => e.map((e) => e.id === i && e.node === a ? n : e)), te(""), n.outcome === "running" && (r = setTimeout(o, 1e3));
 				} catch (e) {
-					t || te(bT(e));
+					t || te(xT(e));
 				} finally {
 					n = !1;
 				}
@@ -45768,7 +45788,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 			try {
 				await e();
 			} catch (e) {
-				re.current && h(bT(e));
+				re.current && h(xT(e));
 			} finally {
 				ie.current = !1, re.current && b(!1);
 			}
@@ -45782,7 +45802,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 				node: t,
 				url: u.url.trim()
 			});
-			re.current && (B(n), s(t), l(!1), d(yT), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
+			re.current && (B(n), s(t), l(!1), d(bT), S(r("连接已保存。检查连接后即可查看目标设备授予的能力。", "Connection saved. Check it to see the capabilities granted by the target.")));
 		});
 	}
 	async function he() {
@@ -45803,7 +45823,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 		} catch (e) {
 			re.current && n === ae.current && w({
 				node: t,
-				error: bT(e),
+				error: xT(e),
 				checked: Date.now()
 			});
 		} finally {
@@ -45847,7 +45867,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 					}), /* @__PURE__ */ (0, H.jsxs)("button", {
 						disabled: v,
 						onClick: () => {
-							l(!0), p(!1), d(yT);
+							l(!0), p(!1), d(bT);
 						},
 						children: [/* @__PURE__ */ (0, H.jsx)(Wa, {
 							size: 16,
@@ -45884,7 +45904,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 					"aria-hidden": "true"
 				}), x]
 			}),
-			i?.node_id && /* @__PURE__ */ (0, H.jsx)(gT, {
+			i?.node_id && /* @__PURE__ */ (0, H.jsx)(_T, {
 				client: e,
 				catalog: i,
 				language: t,
@@ -45903,7 +45923,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 							disabled: v,
 							"aria-label": r("关闭连接表单", "Close connection form"),
 							onClick: () => {
-								l(!1), d(yT);
+								l(!1), d(bT);
 							},
 							children: /* @__PURE__ */ (0, H.jsx)(Yo, {
 								size: 16,
@@ -45989,7 +46009,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 						disabled: v,
 						"aria-pressed": ce?.node === e.node,
 						onClick: () => {
-							s(e.node), L(""), l(!1), d(yT), ++ae.current, E(!1);
+							s(e.node), L(""), l(!1), d(bT), ++ae.current, E(!1);
 						},
 						children: [/* @__PURE__ */ (0, H.jsx)(br, {
 							size: 18,
@@ -46010,7 +46030,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 								}), T ? r("检查中…", "Checking…") : r("检查连接", "Check connection")]
 							})]
 						}),
-						/* @__PURE__ */ (0, H.jsx)(vT, {
+						/* @__PURE__ */ (0, H.jsx)(yT, {
 							route: ce,
 							client: e,
 							language: t,
@@ -46077,12 +46097,12 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 								})
 							]
 						}),
-						de?.peer?.browser && /* @__PURE__ */ (0, H.jsx)(tT, {
+						de?.peer?.browser && /* @__PURE__ */ (0, H.jsx)(nT, {
 							client: e,
 							node: ce.node,
 							language: t
 						}, ce.node),
-						/* @__PURE__ */ (0, H.jsx)(_T, {
+						/* @__PURE__ */ (0, H.jsx)(vT, {
 							route: ce,
 							connection: de?.connection,
 							client: e,
@@ -46220,7 +46240,7 @@ function CT({ client: e, language: t = "en", onOpenTerminal: n }) {
 }
 //#endregion
 //#region src/devices/NetworkInvitations.tsx
-function wT({ busy: e, t, submit: n }) {
+function TT({ busy: e, t, submit: n }) {
 	let r = (0, y.useId)(), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)("");
 	async function c(e) {
 		e.preventDefault(), await n(i.trim(), o.trim(), () => s(""));
@@ -46286,7 +46306,7 @@ function wT({ busy: e, t, submit: n }) {
 		]
 	});
 }
-function TT({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
+function ET({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: a, revoke: o }) {
 	let s = (0, y.useId)(), c = (0, y.useRef)(null), [l, u] = (0, y.useState)(() => {
 		if (e.length) return e.join("\n");
 		let n = window.location.hostname;
@@ -46428,7 +46448,7 @@ function TT({ entries: e, listenPort: t, invitations: n, busy: r, t: i, create: 
 }
 //#endregion
 //#region src/devices/TailscaleDiscovery.tsx
-function ET({ device: e, disabled: t, t: n, onSelect: r }) {
+function DT({ device: e, disabled: t, t: n, onSelect: r }) {
 	let i = (0, y.useId)(), [a, o] = (0, y.useState)(""), s = e.paths?.length ? e.paths : [e], c = s.find((e) => e.url === a) ?? s[0];
 	return /* @__PURE__ */ (0, H.jsxs)("li", { children: [/* @__PURE__ */ (0, H.jsxs)("div", { children: [
 		/* @__PURE__ */ (0, H.jsx)("strong", { children: e.name || e.address }),
@@ -46459,7 +46479,7 @@ function ET({ device: e, disabled: t, t: n, onSelect: r }) {
 		children: n("接入节点", "Connect node")
 	})] });
 }
-function DT({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
+function OT({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a }) {
 	let o = (e.ports ?? (e.port ? [e.port] : [])).join(", "), [s, c] = (0, y.useState)(o), [l, u] = (0, y.useState)(!1), [d, f] = (0, y.useState)(""), [p, m] = (0, y.useState)(""), h = (0, y.useRef)(!0), g = (0, y.useRef)(!1), _ = (0, y.useRef)(!1), v = (0, y.useRef)(null), b = (0, y.useId)(), x = (0, y.useRef)(null), S = (0, y.useRef)(e.enabled);
 	(0, y.useEffect)(() => (h.current = !0, () => {
 		h.current = !1;
@@ -46613,7 +46633,7 @@ function DT({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 			}),
 			!!e.devices.length && /* @__PURE__ */ (0, H.jsx)("ul", {
 				"aria-label": r("自动发现的节点", "Automatically discovered nodes"),
-				children: e.devices.map((e) => /* @__PURE__ */ (0, H.jsx)(ET, {
+				children: e.devices.map((e) => /* @__PURE__ */ (0, H.jsx)(DT, {
 					device: e,
 					disabled: n || l,
 					t: r,
@@ -46625,7 +46645,7 @@ function DT({ status: e, client: t, disabled: n, t: r, onChanged: i, onSelect: a
 }
 //#endregion
 //#region src/devices/TailscaleNodes.tsx
-function OT({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
+function kT({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, onConnected: o, onDiscoveryChanged: s }) {
 	let [c, l] = (0, y.useState)(""), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(""), [m, h] = (0, y.useState)(), [g, _] = (0, y.useState)(""), [v, b] = (0, y.useState)(!1), [x, S] = (0, y.useState)(""), C = (0, y.useRef)(!0), w = (0, y.useRef)(!1), T = (0, y.useRef)(null), E = (0, y.useRef)(null), D = (0, y.useRef)(null), O = e.find((e) => e.addresses.includes(c)), k = O?.online === !0;
 	(0, y.useEffect)(() => (C.current = !0, () => {
 		C.current = !1;
@@ -46668,7 +46688,7 @@ function OT({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 		}
 	}
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
-		t && /* @__PURE__ */ (0, H.jsx)(DT, {
+		t && /* @__PURE__ */ (0, H.jsx)(OT, {
 			status: t,
 			client: r,
 			disabled: i || v,
@@ -46820,7 +46840,7 @@ function OT({ devices: e, discovery: t, own: n, client: r, disabled: i, t: a, on
 }
 //#endregion
 //#region src/devices/TailscaleSetup.tsx
-function kT({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
+function AT({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, openLink: o }) {
 	let [s, c] = (0, y.useState)(), [l, u] = (0, y.useState)(!1), [d, f] = (0, y.useState)(0), [p, m] = (0, y.useState)(Date.now()), h = (0, y.useRef)(null), g = (0, y.useRef)(null), _ = e?.phase === "running", v = !!s?.available && p >= d;
 	if ((0, y.useEffect)(() => {
 		s && h.current?.focus();
@@ -46954,13 +46974,13 @@ function kT({ setup: e, systemState: t, busy: n, t: r, review: i, execute: a, op
 }
 //#endregion
 //#region src/devices/NetworkProvidersView.tsx
-var AT = (e) => e instanceof Error ? e.message : String(e);
-function jT(e) {
+var jT = (e) => e instanceof Error ? e.message : String(e);
+function MT(e) {
 	let t = e;
 	if (!t?.easytier || !Array.isArray(t.easytier.devices) || !t.tailscale || !Array.isArray(t.tailscale.devices)) throw Error("Network management is unavailable. Upgrade the node backend and retry.");
 	return t;
 }
-function MT(e) {
+function NT(e) {
 	try {
 		let t = new URL(e || "");
 		return t.protocol === "https:" && t.hostname === "login.tailscale.com" && !t.port && !t.username && !t.password && !t.hash ? t.href : void 0;
@@ -46968,16 +46988,16 @@ function MT(e) {
 		return;
 	}
 }
-function NT({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
+function PT({ client: e, language: t = "en", host: n = "local", openExternal: r }) {
 	let i = (e, n) => t.startsWith("zh") ? e : n, [a, o] = (0, y.useState)(), [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(""), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(!0), [_, v] = (0, y.useState)(), [b, x] = (0, y.useState)(""), [S, C] = (0, y.useState)("cranibox"), [w, T] = (0, y.useState)(""), [E, D] = (0, y.useState)(!1), [O, k] = (0, y.useState)(!1), [A, j] = (0, y.useState)("11010"), [M, N] = (0, y.useState)("invitation"), [P, F] = (0, y.useState)(""), I = (0, y.useId)(), ee = (0, y.useRef)(null), [L, R] = (0, y.useState)(""), [te, z] = (0, y.useState)(""), ne = (0, y.useRef)(!0), re = (0, y.useRef)(!1), ie = (0, y.useRef)(!1), ae = (0, y.useRef)(0), oe = (0, y.useRef)(null), se = (0, y.useRef)(null), ce = (0, y.useCallback)(async () => {
 		if (ie.current || re.current || document.hidden) return;
 		ie.current = !0;
 		let t = ++ae.current;
 		try {
-			let n = jT(await e({ operation: "status" }));
+			let n = MT(await e({ operation: "status" }));
 			ne.current && t === ae.current && (o(n), f(""));
 		} catch (e) {
-			ne.current && t === ae.current && f(AT(e));
+			ne.current && t === ae.current && f(jT(e));
 		} finally {
 			ie.current = !1, ne.current && t === ae.current && g(!1);
 		}
@@ -47003,9 +47023,9 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 					"tailscale_setup_plan",
 					"easy_tier_connect",
 					"easy_tier_invite"
-				].includes(t.operation) || o(jT(r)), n?.(r));
+				].includes(t.operation) || o(MT(r)), n?.(r));
 			} catch (e) {
-				ne.current && c(AT(e));
+				ne.current && c(jT(e));
 			} finally {
 				re.current = !1, ne.current && (m(!1), g(!1));
 			}
@@ -47049,13 +47069,13 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 			node: L,
 			token: te
 		}, (e) => {
-			o(jT(e.network)), z(""), R(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
+			o(MT(e.network)), z(""), R(""), u(i("已保存设备连接，可在下方检查能力、打开终端或到远程桌面页面访问。", "Device connection saved. Check its capabilities below, open a terminal or visit Remote desktops.")), window.dispatchEvent(new Event("cranibox:peers-changed")), window.dispatchEvent(new Event("cranibox:network-routes-changed"));
 		});
 	}
-	let B = a?.easytier, fe = a?.tailscale, pe = B?.phase === "running" ? i("后台运行中", "Running in background") : B?.phase === "installing" ? i("正在安装…", "Installing…") : B?.phase === "restarting" ? i("正在连接…", "Connecting…") : B?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), me = MT(fe?.login_url);
+	let B = a?.easytier, fe = a?.tailscale, pe = B?.phase === "running" ? i("后台运行中", "Running in background") : B?.phase === "installing" ? i("正在安装…", "Installing…") : B?.phase === "restarting" ? i("正在连接…", "Connecting…") : B?.phase === "failed" ? i("需要处理", "Needs attention") : i("未连接", "Disconnected"), me = NT(fe?.login_url);
 	function he(e, t) {
 		r && (e.preventDefault(), r(t).catch((e) => {
-			ne.current && c(AT(e));
+			ne.current && c(jT(e));
 		}));
 	}
 	return /* @__PURE__ */ (0, H.jsxs)("section", {
@@ -47187,7 +47207,7 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								onClick: () => N("manual"),
 								children: i("手动填写地址", "Enter addresses manually")
 							})]
-						}), M === "invitation" ? /* @__PURE__ */ (0, H.jsx)(wT, {
+						}), M === "invitation" ? /* @__PURE__ */ (0, H.jsx)(TT, {
 							busy: p,
 							t: i,
 							submit: (e, t, n) => le({
@@ -47368,7 +47388,7 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								role: "alert",
 								children: B.invitation_error
 							}),
-							n === "server" && /* @__PURE__ */ (0, H.jsx)(TT, {
+							n === "server" && /* @__PURE__ */ (0, H.jsx)(ET, {
 								entries: B.peers ?? (B.peer ? [B.peer] : []),
 								listenPort: B.listen_port,
 								invitations: B.invitations,
@@ -47379,7 +47399,7 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 									peers: e
 								}, (e) => {
 									let n = e;
-									o(jT(n.network)), t(n.invitation);
+									o(MT(n.network)), t(n.invitation);
 								}),
 								revoke: (e) => le({
 									operation: "easy_tier_revoke_invitation",
@@ -47453,7 +47473,7 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 							role: "alert",
 							children: fe.error
 						}),
-						/* @__PURE__ */ (0, H.jsx)(kT, {
+						/* @__PURE__ */ (0, H.jsx)(AT, {
 							setup: fe?.setup,
 							systemState: fe?.state || "Checking",
 							busy: p || !!fe?.login_pending,
@@ -47491,11 +47511,11 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 								})]
 							})]
 						}),
-						(fe?.state === "Running" || fe?.discovery?.enabled) && /* @__PURE__ */ (0, H.jsx)(OT, {
+						(fe?.state === "Running" || fe?.discovery?.enabled) && /* @__PURE__ */ (0, H.jsx)(kT, {
 							devices: fe.devices,
 							discovery: fe.discovery,
 							onDiscoveryChanged: (e) => {
-								++ae.current, o(jT(e)), f("");
+								++ae.current, o(MT(e)), f("");
 							},
 							own: a.node_id,
 							client: e,
@@ -47513,7 +47533,7 @@ function NT({ client: e, language: t = "en", host: n = "local", openExternal: r 
 }
 //#endregion
 //#region src/pages/Nodes.tsx
-function PT({ embedded: e = !1 }) {
+function FT({ embedded: e = !1 }) {
 	let { snapshot: t } = ps(), { openTerminal: n } = rs(), r = (0, y.useCallback)((e) => ls("/api/peers", e), []), i = (0, y.useCallback)((e) => ls("/api/network", e), []);
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
 		!e && /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [/* @__PURE__ */ (0, H.jsx)(ys, {
@@ -47524,7 +47544,7 @@ function PT({ embedded: e = !1 }) {
 				to: "/history",
 				children: U("任务历史", "Operation history")
 			}) : void 0
-		}), /* @__PURE__ */ (0, H.jsx)(Qw, {})] }),
+		}), /* @__PURE__ */ (0, H.jsx)($w, {})] }),
 		t?.local_node && /* @__PURE__ */ (0, H.jsxs)(vs, {
 			className: "node-host",
 			title: U("当前接入节点", "Connected node"),
@@ -47550,13 +47570,13 @@ function PT({ embedded: e = !1 }) {
 				children: U("浏览器通过这台设备访问工作空间。命令在这台设备执行；其他设备需获得授权后接入。", "Your browser accesses the workspace through this device. Commands run here; other devices need permission to connect.")
 			})]
 		}),
-		/* @__PURE__ */ (0, H.jsx)($w, {}),
-		/* @__PURE__ */ (0, H.jsx)(NT, {
+		/* @__PURE__ */ (0, H.jsx)(eT, {}),
+		/* @__PURE__ */ (0, H.jsx)(PT, {
 			client: i,
 			language: window.workspaceWeb.language,
 			host: "server"
 		}),
-		/* @__PURE__ */ (0, H.jsx)(CT, {
+		/* @__PURE__ */ (0, H.jsx)(wT, {
 			client: r,
 			language: window.workspaceWeb.language,
 			onOpenTerminal: (e) => n({
@@ -47568,31 +47588,31 @@ function PT({ embedded: e = !1 }) {
 }
 //#endregion
 //#region src/app/Network.tsx
-var FT = 720, IT = 460, LT = FT / 2, RT = IT / 2, zT = (e, t = 16) => e.length > t ? e.slice(0, t - 1) + "…" : e;
-function BT(e, t) {
+var IT = 720, LT = 460, RT = IT / 2, zT = LT / 2, BT = (e, t = 16) => e.length > t ? e.slice(0, t - 1) + "…" : e;
+function VT(e, t) {
 	return e.online ? [e.path === "direct" ? t("直连", "direct") : e.path === "relay" ? t("中继", "relay") : "", e.rtt_ms == null ? "" : e.rtt_ms + " ms"].filter(Boolean).join(" · ") : "";
 }
-function VT() {
+function HT() {
 	let { t: e, devices: t } = mw(), n = ct(), r = t.find(Aw), i = t.filter((e) => !Aw(e)).sort((e, t) => Number(t.online) - Number(e.online) || e.name.localeCompare(t.name)), a = (e) => e.online && e.path === "relay", o = i.filter(a), s = i.filter((e) => !a(e)), c = o.length > 0, l = {
 		x: Math.max(250, Math.min(320, 160 + i.length * 20)),
 		y: 165
 	}, u = {
-		x: LT,
-		y: RT - l.y * .42
+		x: RT,
+		y: zT - l.y * .42
 	}, d = (e, t, n) => e.map((r, i) => {
 		let a = (e.length === 1 ? (t + n) / 2 : t + (n - t) * i / (e.length - 1)) * Math.PI / 180;
 		return {
 			device: r,
-			x: LT + Math.cos(a) * l.x,
-			y: RT + Math.sin(a) * l.y
+			x: RT + Math.cos(a) * l.x,
+			y: zT + Math.sin(a) * l.y
 		};
-	}), f = c ? [...o.length === 1 ? d(o, 240, 240) : d(o, 205, 335), ...d(s, 25, 155)] : s.length === 1 ? d(s, 90, 90) : d(s, -90 + 180 / s.length, 270 - 180 / s.length), p = (e) => n(qw(e));
+	}), f = c ? [...o.length === 1 ? d(o, 240, 240) : d(o, 205, 335), ...d(s, 25, 155)] : s.length === 1 ? d(s, 90, 90) : d(s, -90 + 180 / s.length, 270 - 180 / s.length), p = (e) => n(Jw(e));
 	return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		className: "cx-netmap",
 		label: e("网络连接图", "Network map"),
 		children: [
 			/* @__PURE__ */ (0, H.jsxs)("svg", {
-				viewBox: `0 0 ${FT} ${IT}`,
+				viewBox: `0 0 ${IT} ${LT}`,
 				role: "img",
 				"aria-label": e("网络连接图：本机居中，连线表示与每台设备的连接方式", "Network map: this device in the middle, lines show how each device is reached"),
 				children: [
@@ -47600,8 +47620,8 @@ function VT() {
 						className: "cx-netmap-relay",
 						children: [
 							/* @__PURE__ */ (0, H.jsx)("line", {
-								x1: LT,
-								y1: RT,
+								x1: RT,
+								y1: zT,
 								x2: u.x,
 								y2: u.y
 							}),
@@ -47621,7 +47641,7 @@ function VT() {
 						]
 					}),
 					f.map(({ device: t, x: n, y: r }) => {
-						let i = t.online && t.path === "relay", a = t.online ? i ? "relay" : "direct" : "offline", o = BT(t, e), [s, c] = i ? [u.x, u.y] : [LT, RT];
+						let i = t.online && t.path === "relay", a = t.online ? i ? "relay" : "direct" : "offline", o = VT(t, e), [s, c] = i ? [u.x, u.y] : [RT, zT];
 						return /* @__PURE__ */ (0, H.jsxs)("g", {
 							className: "cx-netmap-edge " + a,
 							children: [/* @__PURE__ */ (0, H.jsx)("line", {
@@ -47648,22 +47668,22 @@ function VT() {
 						},
 						children: [
 							/* @__PURE__ */ (0, H.jsx)("circle", {
-								cx: LT,
-								cy: RT,
+								cx: RT,
+								cy: zT,
 								r: 30
 							}),
 							/* @__PURE__ */ (0, H.jsx)("text", {
 								className: "cx-netmap-initial",
-								x: LT,
+								x: RT,
 								y: 236,
 								textAnchor: "middle",
 								children: r.name.slice(0, 1).toUpperCase()
 							}),
 							/* @__PURE__ */ (0, H.jsx)("text", {
-								x: LT,
+								x: RT,
 								y: 280,
 								textAnchor: "middle",
-								children: zT(r.name, 22)
+								children: BT(r.name, 22)
 							})
 						]
 					}),
@@ -47673,7 +47693,7 @@ function VT() {
 							className: "cx-netmap-node " + (t.online ? "online" : "offline") + (t.guest ? " guest" : ""),
 							role: "link",
 							tabIndex: 0,
-							"aria-label": t.name + " · " + (t.online ? BT(t, e) || e("在线", "online") : e("离线", "offline")),
+							"aria-label": t.name + " · " + (t.online ? VT(t, e) || e("在线", "online") : e("离线", "offline")),
 							onClick: () => p(t),
 							onKeyDown: (e) => {
 								e.key === "Enter" && p(t);
@@ -47695,14 +47715,14 @@ function VT() {
 									x: n,
 									y: i ? r - 32 : r + 40,
 									textAnchor: "middle",
-									children: zT(t.name)
+									children: BT(t.name)
 								})
 							]
 						}, t.node_id);
 					}),
 					!i.length && /* @__PURE__ */ (0, H.jsx)("text", {
 						className: "cx-netmap-hint",
-						x: LT,
+						x: RT,
 						y: 330,
 						textAnchor: "middle",
 						children: e("配对另一台设备后，它会出现在这里。", "Pair another device and it appears here.")
@@ -47723,13 +47743,13 @@ function VT() {
 				children: i.map((t) => /* @__PURE__ */ (0, H.jsxs)("li", { children: [
 					t.name,
 					": ",
-					t.online ? BT(t, e) : e("离线", "offline")
+					t.online ? VT(t, e) : e("离线", "offline")
 				] }, t.node_id))
 			})
 		]
 	});
 }
-function HT() {
+function UT() {
 	let { api: e } = mw(), [t, n] = (0, y.useState)(null), [r, i] = (0, y.useState)(""), a = () => e.call("GET", "/identity").then((e) => {
 		n(e), i("");
 	}, (e) => i(e instanceof Error ? e.message : String(e)));
@@ -47742,11 +47762,11 @@ function HT() {
 		reload: a
 	};
 }
-function UT(e) {
+function WT(e) {
 	return navigator.clipboard.writeText(e).then(() => !0, () => !1);
 }
-function WT({ compact: e = !1 }) {
-	let { t } = mw(), { identity: n, error: r } = HT(), [i, a] = (0, y.useState)(!1);
+function GT({ compact: e = !1 }) {
+	let { t } = mw(), { identity: n, error: r } = UT(), [i, a] = (0, y.useState)(!1);
 	return /* @__PURE__ */ (0, H.jsxs)(gw, {
 		label: t("身份", "Identity"),
 		children: [/* @__PURE__ */ (0, H.jsxs)("div", {
@@ -47772,7 +47792,7 @@ function WT({ compact: e = !1 }) {
 				children: n.code
 			}), /* @__PURE__ */ (0, H.jsxs)("button", {
 				className: "cx-btn small",
-				onClick: () => void UT(n.code).then(a),
+				onClick: () => void WT(n.code).then(a),
 				children: [/* @__PURE__ */ (0, H.jsx)(Xr, {
 					size: 14,
 					"aria-hidden": "true"
@@ -47801,7 +47821,131 @@ function WT({ compact: e = !1 }) {
 		})]
 	});
 }
-function GT() {
+function KT() {
+	let { t: e } = mw(), [t, n] = (0, y.useState)(null), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(!1), [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(!1), d = (e) => {
+		e.iroh && (n(e.iroh), i({
+			lan: e.iroh.lan,
+			relays: e.iroh.relays.join("\n"),
+			n0: e.iroh.n0_fallback
+		}));
+	};
+	if ((0, y.useEffect)(() => {
+		ls("/api/network", { operation: "status" }).then(d, (e) => c(e instanceof Error ? e.message : String(e)));
+	}, []), !t || !r) return s ? /* @__PURE__ */ (0, H.jsx)(ww, {
+		tone: "info",
+		children: s
+	}) : null;
+	let f = r.lan !== t.lan || r.n0 !== t.n0_fallback || r.relays.split("\n").map((e) => e.trim()).filter(Boolean).join("\n") !== t.relays.join("\n");
+	async function p() {
+		o(!0), c(""), u(!1);
+		try {
+			d(await ls("/api/network", {
+				operation: "iroh_settings",
+				lan: r.lan,
+				n0_fallback: r.n0,
+				relays: r.relays.split("\n").map((e) => e.trim()).filter(Boolean)
+			})), u(!0);
+		} catch (e) {
+			c(e instanceof Error ? e.message : String(e));
+		} finally {
+			o(!1);
+		}
+	}
+	return /* @__PURE__ */ (0, H.jsxs)(gw, {
+		label: e("中继与发现", "Relays and discovery"),
+		children: [
+			/* @__PURE__ */ (0, H.jsxs)("div", {
+				className: "cx-card-head",
+				children: [/* @__PURE__ */ (0, H.jsx)("span", {
+					className: "cx-card-icon",
+					children: /* @__PURE__ */ (0, H.jsx)(co, {
+						size: 20,
+						"aria-hidden": "true"
+					})
+				}), /* @__PURE__ */ (0, H.jsxs)("div", {
+					className: "cx-grow",
+					children: [/* @__PURE__ */ (0, H.jsx)("h3", { children: e("中继与发现", "Relays and discovery") }), /* @__PURE__ */ (0, H.jsx)("p", {
+						className: "cx-muted cx-small",
+						children: e("直连失败时，设备经中继转发（仍端到端加密）。优先使用你自己的中继。", "When a direct connection fails, devices go through a relay (still end-to-end encrypted). Your own relays are tried first.")
+					})]
+				})]
+			}),
+			/* @__PURE__ */ (0, H.jsxs)("dl", {
+				className: "cx-facts",
+				style: { marginTop: 12 },
+				children: [/* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: e("本机中继", "This device's relay") }), /* @__PURE__ */ (0, H.jsx)("dd", { children: t.this_relay.enabled ? t.this_relay.public_url || e("运行中（未设置公网地址）", "Running (no public address)") : e("未开启", "Off") })] }), /* @__PURE__ */ (0, H.jsxs)("div", { children: [/* @__PURE__ */ (0, H.jsx)("dt", { children: e("从配对学到的中继", "Learned from pairing") }), /* @__PURE__ */ (0, H.jsx)("dd", {
+					className: "cx-mono",
+					children: t.learned_relays.length ? t.learned_relays.join(", ") : "—"
+				})] })]
+			}),
+			!t.this_relay.enabled && /* @__PURE__ */ (0, H.jsxs)("p", {
+				className: "cx-muted cx-small",
+				children: [
+					e("要让这台设备当中继：在有公网 HTTPS 入口的机器上运行 ", "To make this device a relay, run "),
+					/* @__PURE__ */ (0, H.jsx)("code", { children: "cranibox serve --relay --public-url https://…" }),
+					e("。", " on a machine with a public HTTPS address.")
+				]
+			}),
+			/* @__PURE__ */ (0, H.jsxs)("div", {
+				className: "cx-toggle-list",
+				style: { marginTop: 12 },
+				children: [/* @__PURE__ */ (0, H.jsx)(Tw, {
+					label: e("局域网发现", "Local network discovery"),
+					detail: e("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet."),
+					checked: r.lan,
+					disabled: a,
+					onChange: (e) => i({
+						...r,
+						lan: e
+					})
+				}), /* @__PURE__ */ (0, H.jsx)(Tw, {
+					label: e("使用公共中继作为后备", "Fall back to public relays"),
+					detail: e("自己的中继不可用时使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable."),
+					checked: r.n0,
+					disabled: a,
+					onChange: (e) => i({
+						...r,
+						n0: e
+					})
+				})]
+			}),
+			/* @__PURE__ */ (0, H.jsxs)("label", {
+				className: "cx-field",
+				style: { marginTop: 12 },
+				children: [e("自己的中继（每行一个）", "Your relays (one per line)"), /* @__PURE__ */ (0, H.jsx)("textarea", {
+					rows: 3,
+					spellCheck: !1,
+					placeholder: "https://box.example.com",
+					value: r.relays,
+					disabled: a,
+					onChange: (e) => i({
+						...r,
+						relays: e.target.value
+					})
+				})]
+			}),
+			/* @__PURE__ */ (0, H.jsxs)("div", {
+				className: "cx-between",
+				style: { marginTop: 12 },
+				children: [/* @__PURE__ */ (0, H.jsx)("small", {
+					className: "cx-muted",
+					children: l ? e("已保存，重启 Cranibox 后生效。", "Saved. Takes effect after Cranibox restarts.") : e("修改在重启 Cranibox 后生效。", "Changes take effect after Cranibox restarts.")
+				}), /* @__PURE__ */ (0, H.jsx)("button", {
+					className: "cx-btn primary",
+					disabled: a || !f,
+					onClick: () => void p(),
+					children: e("保存", "Save")
+				})]
+			}),
+			s && /* @__PURE__ */ (0, H.jsx)("p", {
+				className: "cx-error",
+				role: "alert",
+				children: s
+			})
+		]
+	});
+}
+function qT() {
 	let { t: e, devices: t, setPairing: n } = mw(), r = t.filter((e) => !Aw(e)), i = r.filter((e) => e.online);
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
 		/* @__PURE__ */ (0, H.jsxs)("div", {
@@ -47838,11 +47982,11 @@ function GT() {
 				/* @__PURE__ */ (0, H.jsx)(_w, { children: e("离线 ", "Offline ") + (r.length - i.length) })
 			]
 		}),
-		/* @__PURE__ */ (0, H.jsx)(VT, {}),
+		/* @__PURE__ */ (0, H.jsx)(HT, {}),
 		/* @__PURE__ */ (0, H.jsxs)("div", {
 			className: "cx-grid two",
 			style: { marginTop: 16 },
-			children: [/* @__PURE__ */ (0, H.jsx)(WT, { compact: !0 }), /* @__PURE__ */ (0, H.jsxs)(gw, {
+			children: [/* @__PURE__ */ (0, H.jsx)(GT, { compact: !0 }), /* @__PURE__ */ (0, H.jsxs)(gw, {
 				label: e("添加设备", "Add a device"),
 				children: [/* @__PURE__ */ (0, H.jsxs)("div", {
 					className: "cx-card-head",
@@ -47870,17 +48014,21 @@ function GT() {
 				})]
 			})]
 		}),
+		/* @__PURE__ */ (0, H.jsx)("div", {
+			style: { marginTop: 16 },
+			children: /* @__PURE__ */ (0, H.jsx)(KT, {})
+		}),
 		/* @__PURE__ */ (0, H.jsx)(yw, {
 			title: e("高级", "Advanced"),
 			description: e("连接路径、监听地址，以及 EasyTier / Tailscale 网络。", "Connection paths, listener, and EasyTier / Tailscale networks."),
-			children: /* @__PURE__ */ (0, H.jsx)(PT, { embedded: !0 })
+			children: /* @__PURE__ */ (0, H.jsx)(FT, { embedded: !0 })
 		})
 	] });
 }
 //#endregion
 //#region src/app/Identity.tsx
-function KT() {
-	let { t: e, api: t, devices: n } = mw(), { identity: r, setIdentity: i } = HT(), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)(!1), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)([]), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)("");
+function JT() {
+	let { t: e, api: t, devices: n } = mw(), { identity: r, setIdentity: i } = UT(), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)(!1), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)([]), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)("");
 	async function b(e) {
 		m(!0), g(""), v("");
 		try {
@@ -47895,7 +48043,7 @@ function KT() {
 	return /* @__PURE__ */ (0, H.jsxs)("div", {
 		className: "cx-stack loose",
 		children: [
-			/* @__PURE__ */ (0, H.jsx)(WT, {}),
+			/* @__PURE__ */ (0, H.jsx)(GT, {}),
 			/* @__PURE__ */ (0, H.jsxs)(gw, {
 				label: e("恢复码", "Recovery code"),
 				children: [/* @__PURE__ */ (0, H.jsxs)("div", {
@@ -47929,7 +48077,7 @@ function KT() {
 							className: "cx-actions",
 							children: [/* @__PURE__ */ (0, H.jsxs)("button", {
 								className: "cx-btn",
-								onClick: () => void UT(a).then(c),
+								onClick: () => void WT(a).then(c),
 								children: [/* @__PURE__ */ (0, H.jsx)(Xr, {
 									size: 14,
 									"aria-hidden": "true"
@@ -48038,11 +48186,11 @@ function KT() {
 		]
 	});
 }
-function qT() {
+function YT() {
 	let { t: e } = mw();
 	return Xo() ? /* @__PURE__ */ (0, H.jsx)("div", {
 		className: "cx-stack loose",
-		children: /* @__PURE__ */ (0, H.jsx)(Ww, { section: "agents" })
+		children: /* @__PURE__ */ (0, H.jsx)(Gw, { section: "agents" })
 	}) : /* @__PURE__ */ (0, H.jsxs)(gw, {
 		label: e("Agent 接入", "Agent access"),
 		children: [/* @__PURE__ */ (0, H.jsxs)("div", {
@@ -48072,7 +48220,7 @@ function qT() {
 }
 //#endregion
 //#region src/app/Inbox.tsx
-function JT() {
+function XT() {
 	let { t: e, api: t, approvals: n, busy: r, run: i, deviceName: a } = mw(), [o, s] = (0, y.useState)([]);
 	(0, y.useEffect)(() => {
 		let e = !0, n = () => t.call("GET", "/tasks").then((t) => {
@@ -48133,7 +48281,7 @@ function JT() {
 }
 //#endregion
 //#region src/app/Models.tsx
-function YT() {
+function ZT() {
 	let { t: e, agents: t, models: n, busy: r, run: i, api: a } = mw(), o = n.filter((e) => e.availability.kind !== "unavailable");
 	return /* @__PURE__ */ (0, H.jsx)("div", {
 		className: "cx-list",
@@ -48190,7 +48338,7 @@ function YT() {
 		}, t.id))
 	});
 }
-function XT({ chatUrl: e, adding: t, setAdding: n }) {
+function QT({ chatUrl: e, adding: t, setAdding: n }) {
 	let { t: r, accounts: i, devices: a, thisDevice: o, agents: s, busy: c, run: l, api: u } = mw(), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(null), h = s.find((e) => e.id === "deepseek-harness"), g = a.filter((e) => !e.guest), _ = (e, t) => l(() => u.call("POST", "/models/accounts/" + e + "/enable", t));
 	return /* @__PURE__ */ (0, H.jsxs)(H.Fragment, { children: [
 		h?.installed && /* @__PURE__ */ (0, H.jsx)(yw, {
@@ -48335,15 +48483,15 @@ function XT({ chatUrl: e, adding: t, setAdding: n }) {
 		}),
 		/* @__PURE__ */ (0, H.jsx)(yw, {
 			title: r("各 Agent 用哪个模型", "Models for your agents"),
-			children: /* @__PURE__ */ (0, H.jsx)(YT, {})
+			children: /* @__PURE__ */ (0, H.jsx)(ZT, {})
 		}),
-		t && /* @__PURE__ */ (0, H.jsx)(ZT, {
+		t && /* @__PURE__ */ (0, H.jsx)($T, {
 			provider: p,
 			onClose: () => n(!1)
 		})
 	] });
 }
-function ZT({ provider: e, onClose: t }) {
+function $T({ provider: e, onClose: t }) {
 	let { t: n, api: r, presets: i, refresh: a, openExternal: o, run: s, busy: c } = mw(), [l, u] = (0, y.useState)("signin"), [d, f] = (0, y.useState)(e || "codex"), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(""), [b, x] = (0, y.useState)(""), [S, C] = (0, y.useState)(""), [w, T] = (0, y.useState)(null), [E, D] = (0, y.useState)(""), [O, k] = (0, y.useState)(""), [A, j] = (0, y.useState)(!1), M = A || c;
 	async function N(e) {
 		e.preventDefault(), j(!0), k("");
@@ -48534,7 +48682,7 @@ function ZT({ provider: e, onClose: t }) {
 }
 //#endregion
 //#region src/app/Pairing.tsx
-function QT({ onPaired: e }) {
+function eE({ onPaired: e }) {
 	let { api: t, t: n, refresh: r, setNotice: i } = mw(), [a, o] = (0, y.useState)("owner_device"), [s, c] = (0, y.useState)(null), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(null), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(null);
 	(0, y.useEffect)(() => {
 		if (!_) return;
@@ -48698,18 +48846,18 @@ function QT({ onPaired: e }) {
 		})
 	] });
 }
-function $T() {
+function tE() {
 	let { t: e, pairing: t, setPairing: n } = mw();
 	return t ? /* @__PURE__ */ (0, H.jsx)(Ew, {
 		title: e("添加设备", "Add device"),
 		t: e,
 		onClose: () => n(!1),
-		children: /* @__PURE__ */ (0, H.jsx)(QT, { onPaired: () => n(!1) })
+		children: /* @__PURE__ */ (0, H.jsx)(eE, { onPaired: () => n(!1) })
 	}) : null;
 }
 //#endregion
 //#region src/app/App.tsx
-var eE = [
+var nE = [
 	"/overview",
 	"/network",
 	"/services",
@@ -48719,13 +48867,13 @@ var eE = [
 	"/diagnostics",
 	"/history"
 ];
-function tE(e) {
+function rE(e) {
 	return [
 		{
 			path: "/app/home",
 			section: "home",
 			title: (e) => e("首页", "Home"),
-			element: /* @__PURE__ */ (0, H.jsx)(Xw, {})
+			element: /* @__PURE__ */ (0, H.jsx)(Zw, {})
 		},
 		{
 			path: "/app/devices",
@@ -48733,7 +48881,7 @@ function tE(e) {
 			title: (e) => e("设备", "Devices"),
 			heading: !0,
 			description: (e) => e("你的每台设备：在线状态、连接方式与能力。", "Every device you own: status, connection and capabilities."),
-			element: /* @__PURE__ */ (0, H.jsx)(Yw, {})
+			element: /* @__PURE__ */ (0, H.jsx)(Xw, {})
 		},
 		{
 			path: "/desktop",
@@ -48745,7 +48893,7 @@ function tE(e) {
 			path: "/nodes",
 			section: "network",
 			title: (e) => e("网络", "Network"),
-			element: /* @__PURE__ */ (0, H.jsx)(GT, {})
+			element: /* @__PURE__ */ (0, H.jsx)(qT, {})
 		},
 		{
 			path: "/spaces",
@@ -48767,7 +48915,7 @@ function tE(e) {
 			title: (e) => e("审批", "Approvals"),
 			heading: !0,
 			description: (e) => e("每一个重要决定都先经过你：配对、Agent 工具、屏幕控制。", "Every important decision comes to you first: pairing, agent tools, screen control."),
-			element: /* @__PURE__ */ (0, H.jsx)(JT, {})
+			element: /* @__PURE__ */ (0, H.jsx)(XT, {})
 		},
 		{
 			path: "/tasks",
@@ -48806,7 +48954,7 @@ function tE(e) {
 			title: (e) => e("通用", "General"),
 			heading: !0,
 			description: (e) => e("外观、语言、自启动与隐私。", "Appearance, language, startup and privacy."),
-			element: /* @__PURE__ */ (0, H.jsx)(eT, {})
+			element: /* @__PURE__ */ (0, H.jsx)(tT, {})
 		},
 		{
 			path: "/app/this",
@@ -48822,7 +48970,7 @@ function tE(e) {
 			title: (e) => e("身份与安全", "Identity & security"),
 			heading: !0,
 			description: (e) => e("身份码、恢复码，以及移除丢失的设备。", "Identity code, recovery code, and removing a lost device."),
-			element: /* @__PURE__ */ (0, H.jsx)(KT, {})
+			element: /* @__PURE__ */ (0, H.jsx)(JT, {})
 		},
 		{
 			path: "/app/agent-access",
@@ -48830,7 +48978,7 @@ function tE(e) {
 			title: (e) => e("Agent 接入", "Agent access"),
 			heading: !0,
 			description: (e) => e("让 Codex、Claude Code 等 Agent 使用你的设备。", "Let Codex, Claude Code and other agents use your devices."),
-			element: /* @__PURE__ */ (0, H.jsx)(qT, {})
+			element: /* @__PURE__ */ (0, H.jsx)(YT, {})
 		},
 		{
 			path: "/overview",
@@ -48890,7 +49038,7 @@ function tE(e) {
 		}
 	];
 }
-var nE = [
+var iE = [
 	{
 		id: "home",
 		to: "/app/home",
@@ -48940,7 +49088,7 @@ var nE = [
 		label: (e) => e("本机设置", "Settings")
 	}
 ];
-function rE(e, t, n, r) {
+function aE(e, t, n, r) {
 	return e === "devices" ? [{
 		to: "/app/devices",
 		label: t("设备", "Devices")
@@ -48990,7 +49138,7 @@ function rE(e, t, n, r) {
 		}] : []
 	] : [];
 }
-function iE() {
+function oE() {
 	let e = at(), t = ct(), n = rs();
 	return (0, y.useEffect)(() => {
 		let r = new URLSearchParams(e.search);
@@ -49000,8 +49148,8 @@ function iE() {
 		}), t("/app/home", { replace: !0 });
 	}, []), null;
 }
-function aE({ chatUrl: e = "/proxy/3080/" }) {
-	let t = mw(), { t: n, approvals: r, status: i, loading: a, error: o, notice: s, setNotice: c, refresh: l, thisDevice: u, theme: d, setTheme: f, locale: p, setLocale: m } = t, h = ps(), g = at(), _ = ct(), [v, b] = (0, y.useState)(!1), [x, S] = (0, y.useState)(!1), [C, w] = (0, y.useState)(!1), T = (0, y.useRef)(null), E = (0, y.useRef)(null), D = (0, y.useRef)(null), O = h.available === !0, k = tE(/* @__PURE__ */ (0, H.jsx)(XT, {
+function sE({ chatUrl: e = "/proxy/3080/" }) {
+	let t = mw(), { t: n, approvals: r, status: i, loading: a, error: o, notice: s, setNotice: c, refresh: l, thisDevice: u, theme: d, setTheme: f, locale: p, setLocale: m } = t, h = ps(), g = at(), _ = ct(), [v, b] = (0, y.useState)(!1), [x, S] = (0, y.useState)(!1), [C, w] = (0, y.useState)(!1), T = (0, y.useRef)(null), E = (0, y.useRef)(null), D = (0, y.useRef)(null), O = h.available === !0, k = rE(/* @__PURE__ */ (0, H.jsx)(QT, {
 		chatUrl: e,
 		adding: C,
 		setAdding: w
@@ -49028,7 +49176,7 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 			document.removeEventListener("keydown", n), r.removeEventListener("change", i);
 		};
 	}, [v]);
-	let P = j ? [] : rE(N, n, O, r.length), F = [
+	let P = j ? [] : aE(N, n, O, r.length), F = [
 		{
 			to: "/overview",
 			label: n("概览", "Overview")
@@ -49061,7 +49209,7 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 			to: "/history",
 			label: n("操作历史", "History")
 		}
-	], I = eE.includes(A), ee = nE.find((e) => e.id === N), L = fw(d) === "dark";
+	], I = nE.includes(A), ee = iE.find((e) => e.id === N), L = fw(d) === "dark";
 	function R(e) {
 		return e.workspace && !O ? h.available === null ? /* @__PURE__ */ (0, H.jsx)(Cw, { label: n("正在连接工作区…", "Connecting to the workspace…") }) : /* @__PURE__ */ (0, H.jsx)(Sw, {
 			icon: vr,
@@ -49125,7 +49273,7 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 					/* @__PURE__ */ (0, H.jsx)("nav", {
 						className: "cx-nav",
 						"aria-label": n("主导航", "Main navigation"),
-						children: nE.map((e) => /* @__PURE__ */ (0, H.jsxs)(Cn, {
+						children: iE.map((e) => /* @__PURE__ */ (0, H.jsxs)(Cn, {
 							to: e.to,
 							className: "cx-nav-link",
 							onClick: () => {
@@ -49354,11 +49502,11 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 								}, e.path)),
 								/* @__PURE__ */ (0, H.jsx)(Nt, {
 									path: "/app/device/:id/:tab?",
-									element: /* @__PURE__ */ (0, H.jsx)(rT, {})
+									element: /* @__PURE__ */ (0, H.jsx)(iT, {})
 								}),
 								/* @__PURE__ */ (0, H.jsx)(Nt, {
 									path: "/terminal",
-									element: /* @__PURE__ */ (0, H.jsx)(iE, {})
+									element: /* @__PURE__ */ (0, H.jsx)(oE, {})
 								}),
 								/* @__PURE__ */ (0, H.jsx)(Nt, {
 									path: "/app/advanced",
@@ -49388,7 +49536,7 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 			}),
 			/* @__PURE__ */ (0, H.jsx)(iw, { suspended: v }),
 			/* @__PURE__ */ (0, H.jsx)(As, {}),
-			/* @__PURE__ */ (0, H.jsx)($T, {}),
+			/* @__PURE__ */ (0, H.jsx)(tE, {}),
 			x && /* @__PURE__ */ (0, H.jsxs)(Ew, {
 				title: n("当前状态", "Current status"),
 				t: n,
@@ -49419,7 +49567,7 @@ function aE({ chatUrl: e = "/proxy/3080/" }) {
 }
 //#endregion
 //#region src/terminal/TerminalStandalone.tsx
-function oE() {
+function cE() {
 	let { openTerminal: e } = rs();
 	return (0, y.useEffect)(() => {
 		let t = () => {
@@ -49441,7 +49589,7 @@ function oE() {
 }
 //#endregion
 //#region src/terminal/WebTerminalEnvironment.tsx
-var sE = async (e, t) => {
+var lE = async (e, t) => {
 	let { ticket: n } = await ls("/api/terminal/ticket", {
 		...e,
 		...Im(e.node)
@@ -49470,7 +49618,7 @@ var sE = async (e, t) => {
 		}
 	};
 };
-function cE({ children: e }) {
+function uE({ children: e }) {
 	let { snapshot: t, available: n } = ps(), r = !!t || n === !1, [i, a] = (0, y.useState)([]);
 	(0, y.useEffect)(() => {
 		let e = !0, t = 0, n = async () => {
@@ -49504,23 +49652,23 @@ function cE({ children: e }) {
 			localNode: t?.local_node?.id,
 			targets: s,
 			manage: o,
-			connect: sE
+			connect: lE
 		},
 		children: e
 	});
 }
 //#endregion
 //#region src/main.tsx
-var lE = lw(window.workspaceWeb.csrf), uE = location.hash.slice(1);
-/^[a-z]+$/.test(uE) && history.replaceState(null, "", "#/" + uE);
-function dE() {
+var dE = lw(window.workspaceWeb.csrf), fE = location.hash.slice(1);
+/^[a-z]+$/.test(fE) && history.replaceState(null, "", "#/" + fE);
+function pE() {
 	return /* @__PURE__ */ (0, H.jsx)(hw, {
-		api: lE,
+		api: dE,
 		language: window.workspaceWeb.language,
 		onLocale: () => location.reload(),
 		openExternal: Xo() ? (e) => Zo("open_external", { url: e }) : void 0,
-		children: $o() ? /* @__PURE__ */ (0, H.jsx)(oE, {}) : /* @__PURE__ */ (0, H.jsx)(aE, {})
+		children: $o() ? /* @__PURE__ */ (0, H.jsx)(cE, {}) : /* @__PURE__ */ (0, H.jsx)(sE, {})
 	});
 }
-(0, Fn.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, H.jsx)(Sn, { children: /* @__PURE__ */ (0, H.jsx)(is, { children: /* @__PURE__ */ (0, H.jsx)(ms, { children: /* @__PURE__ */ (0, H.jsx)(cE, { children: /* @__PURE__ */ (0, H.jsx)(dE, {}) }) }) }) }));
+(0, Fn.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, H.jsx)(Sn, { children: /* @__PURE__ */ (0, H.jsx)(is, { children: /* @__PURE__ */ (0, H.jsx)(ms, { children: /* @__PURE__ */ (0, H.jsx)(uE, { children: /* @__PURE__ */ (0, H.jsx)(pE, {}) }) }) }) }));
 //#endregion

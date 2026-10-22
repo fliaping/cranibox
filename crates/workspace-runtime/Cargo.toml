@@ -7,7 +7,7 @@ rust-version = "1.89"
 
 [features]
 default = ["client"]
-client = ["dep:clap", "dep:reqwest", "dep:base64", "dep:futures-util", "dep:tokio-tungstenite", "dep:ed25519-dalek", "dep:snow", "dep:chacha20poly1305", "dep:data-encoding", "dep:hpke", "dep:rand08", "dep:zeroize"]
+client = ["dep:reqwest", "dep:base64", "dep:futures-util", "dep:tokio-tungstenite", "dep:ed25519-dalek", "dep:snow", "dep:chacha20poly1305", "dep:data-encoding", "dep:hpke", "dep:rand08", "dep:zeroize"]
 
 [dependencies]
 cranibox-agents = { path = "../cranibox-agents" }
@@ -15,7 +15,6 @@ anyhow = "1"
 cranibox-contracts = { path = "../cranibox-contracts" }
 base64 = { version = "0.22", optional = true }
 chacha20poly1305 = { version = "0.10", optional = true }
-clap = { version = "4", features = ["derive", "env"], optional = true }
 data-encoding = { version = "2", optional = true }
 ed25519-dalek = { version = "2.2", optional = true }
 fs2 = "0.4"

@@ -503,6 +503,7 @@ mod output_tests {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    #[cfg(target_os = "linux")]
     use std::collections::BTreeMap;
     #[cfg(target_os = "linux")]
     #[tokio::test]

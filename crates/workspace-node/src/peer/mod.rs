@@ -179,6 +179,13 @@ pub enum Command {
         #[arg(long)]
         command: String,
     },
+    /// Add Computer Use to an existing grant, keeping its credential.
+    Allow {
+        #[arg(long)]
+        node: String,
+        #[arg(long)]
+        computer: bool,
+    },
     /// Share an existing loopback Chromium CDP browser, or the Chrome profile whose
     /// remote debugging is allowed (`--profile`). Omit both to disable.
     Browser {
@@ -745,6 +752,18 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 })
                 .await?,
         ),
+        Command::Allow { node, computer } => {
+            ensure!(computer, "choose what to allow (--computer)");
+            let value = Config::update(&path, |c| {
+                let grant = c
+                    .grants
+                    .get_mut(&node)
+                    .context("this device has no grant for that node")?;
+                grant.permissions.computer = true;
+                Ok(())
+            })?;
+            client::print(value.public_view())
+        }
         Command::Browser { address, profile } => client::print(
             agent_workspace_runtime::peers::Store::new(path.clone())
                 .manage(agent_workspace_runtime::peers::Command::BrowserSharing {

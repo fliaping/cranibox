@@ -90,6 +90,12 @@ pub enum Command {
         node: String,
         token: String,
     },
+    /// Own relays, the public n0 fallback and LAN discovery; applied at the next start.
+    IrohSettings {
+        lan: bool,
+        relays: Vec<String>,
+        n0_fallback: bool,
+    },
 }
 enum Action {
     Manage(Command),
@@ -306,7 +312,16 @@ impl Manager {
             "network":self.spec.easytier.as_ref().map(|s|&s.network),"peer":self.spec.easytier.as_ref().and_then(|s|s.entries().first()),
             "peers":self.spec.easytier.as_ref().map(|s|s.entries()).unwrap_or_default(),
             "invitations":invitations.unwrap_or_default(),"invitation_error":invitation_error,
-            "listen_port":self.spec.easytier.as_ref().and_then(|s|s.listen_port),"devices":self.devices,"connections":configured},"tailscale":tailscale})
+            "listen_port":self.spec.easytier.as_ref().and_then(|s|s.listen_port),"devices":self.devices,"connections":configured},"tailscale":tailscale,
+            "iroh":self.iroh_status()})
+    }
+    fn iroh_status(&self) -> Value {
+        let settings = self.spec.iroh.clone().unwrap_or_default();
+        let mut value = crate::peer::transport_iroh::relay_status(&self.peers);
+        value["lan"] = json!(settings.lan);
+        value["relays"] = json!(settings.relays);
+        value["n0_fallback"] = json!(settings.n0_fallback);
+        value
     }
     async fn dispatch(&mut self, action: Action) -> Result<Value> {
         match action {
@@ -532,6 +547,27 @@ impl Manager {
                 self.tailscale_requested = Some(Instant::now());
                 self.next_poll = Instant::now();
             }
+            Command::IrohSettings {
+                lan,
+                relays,
+                n0_fallback,
+            } => {
+                ensure!(
+                    self.state_valid,
+                    "Restore networks.json before changing network settings."
+                );
+                let relays = validate_relays(relays)?;
+                ensure!(
+                    n0_fallback || !relays.is_empty(),
+                    "Keep the public relays or add your own: devices behind NAT need a relay."
+                );
+                let mut saved = self.spec.clone();
+                let mut iroh = saved.iroh.clone().unwrap_or_default();
+                (iroh.lan, iroh.relays, iroh.n0_fallback) = (lan, relays, n0_fallback);
+                saved.iroh = Some(iroh);
+                saved.write(&self.spec_path)?;
+                self.spec = saved;
+            }
             Command::TailscaleDiscover { address, port } => {
                 return tailscale_nodes::discover(address, port, &self.own_id).await;
             }
@@ -754,4 +790,35 @@ impl Manager {
         self.error = Some(message);
         self.next_retry = Instant::now() + Duration::from_secs(1u64 << self.retries);
     }
+}
+
+/// `https://` relay origins (plain `http://` only on loopback), at most eight, deduplicated.
+fn validate_relays(relays: Vec<String>) -> Result<Vec<String>> {
+    let mut seen = Vec::new();
+    for relay in relays {
+        let relay = relay.trim().trim_end_matches('/').to_owned();
+        if relay.is_empty() || seen.contains(&relay) {
+            continue;
+        }
+        let url = url::Url::parse(&relay).context("Enter relay addresses as https:// URLs.")?;
+        let loopback = url.host_str().is_some_and(|h| {
+            h == "localhost"
+                || h.trim_matches(['[', ']'])
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
+        });
+        ensure!(
+            (url.scheme() == "https" || (url.scheme() == "http" && loopback))
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && relay.len() <= 512,
+            "Enter relay addresses as https:// URLs without credentials."
+        );
+        seen.push(relay);
+    }
+    ensure!(seen.len() <= 8, "Use at most 8 relays.");
+    Ok(seen)
 }

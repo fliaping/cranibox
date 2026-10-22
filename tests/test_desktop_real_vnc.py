@@ -13,6 +13,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -78,10 +79,18 @@ process.stdout.write(Buffer.from(response).toString('hex'));
         self.read(name_size)
         return True
 
-    def frame(self):
+    def frame(self, attempts=10):
         pixel_format = struct.pack('!BBBBHHHBBB3x', 32, 24, 0, 1, 255, 255, 255, 16, 8, 0)
         self.send(b'\0\0\0\0' + pixel_format)
         self.send(struct.pack('!BBHi', 2, 0, 1, 0))  # Only raw rectangles.
+        # A freshly (re)started server can send its first full frame before the
+        # compositor has drawn the background; ask again before failing.
+        for attempt in range(attempts):
+            if self.background_frame(final=attempt == attempts - 1):
+                return
+            time.sleep(0.3)
+
+    def background_frame(self, final):
         self.send(struct.pack('!BBHHHH', 3, 0, 0, 0, self.width, self.height))
         self.test.assertEqual(self.read(2), b'\0\0')
         count = struct.unpack('!H', self.read(2))[0]
@@ -94,7 +103,10 @@ process.stdout.write(Buffer.from(response).toString('hex'));
             self.test.assertLessEqual(y + height, self.height)
             pixels += self.read(width * height * 4)
         # The isolated desktop's background is #2468ac (little-endian BGRX).
-        self.test.assertGreater(pixels.count(bytes.fromhex('ac682400')), 320 * 240 // 2)
+        shown = pixels.count(bytes.fromhex('ac682400'))
+        if final:
+            self.test.assertGreater(shown, 320 * 240 // 2)
+        return shown > 320 * 240 // 2
 
     def input(self):
         self.send(struct.pack('!BBHH', 5, 1, 87, 69))

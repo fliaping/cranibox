@@ -41,6 +41,31 @@ impl Ports {
         })
     }
 }
+/// Point the space's node at its in-container desktop bridge and allow the managing
+/// device to use it, keeping that device's existing credential.
+async fn give_agent_computer(runner: &Runner, space: &Space) -> Result<()> {
+    const NODE: &str = "/usr/local/lib/agent-workspace/cranibox-node";
+    const SETTINGS: &str = "/config/.config/cranibox-node/settings.json";
+    let container = space.container();
+    for command in [
+        vec!["computer", "--address", SPACE_COMPUTER],
+        vec!["allow", "--node", &space.owner, "--computer"],
+    ] {
+        let mut line = vec![
+            "exec",
+            "-u",
+            "1000:1000",
+            &container,
+            NODE,
+            "--config",
+            SETTINGS,
+            "peer",
+        ];
+        line.extend(command);
+        runner.run(&args(&line), None, 30).await?;
+    }
+    Ok(())
+}
 fn args(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
 }
@@ -335,11 +360,11 @@ impl Store {
         };
         let api = route.api(&space.node)?;
         // A running container is not enough: verify the actual node identity and grant.
-        tokio::time::timeout(Duration::from_secs(600), async {
+        let nodes = tokio::time::timeout(Duration::from_secs(600), async {
             loop {
                 if let Ok(value) = api.get("/api/v1/nodes").await {
                     ensure!(value["nodes"].as_array().is_some_and(|nodes| nodes.len() == 1 && nodes[0]["id"].as_str() == Some(&space.node)), "the space reports an unexpected node identity");
-                    return Ok::<_,anyhow::Error>(());
+                    return Ok::<_,anyhow::Error>(value);
                 }
                 tokio::time::sleep(Duration::from_secs(2)).await;
             }
@@ -349,6 +374,13 @@ impl Store {
             config.routes.insert(space.node.clone(), route);
             Ok(())
         })?;
+        // Spaces created before they became the Agent's own computer get it on their next
+        // start. Best effort: an older image without `peer allow` keeps working as before.
+        if nodes["nodes"][0]["computer"] != true
+            && let Err(error) = give_agent_computer(&runner, &space).await
+        {
+            eprintln!("space {id}: Computer Use not enabled: {error:#}");
+        }
         self.stage(id, "ready")?;
         Ok(())
     }

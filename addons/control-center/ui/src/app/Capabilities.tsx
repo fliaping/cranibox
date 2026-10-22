@@ -2,6 +2,7 @@ import { CircleAlert, Download, ExternalLink, Globe, Play, RefreshCw, ShieldChec
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { notAvailable, type Capabilities as CapabilityList, type Capability, type CapabilityAction, type InstallPlan, type PermissionState } from "../personal/api";
+import { request } from "../workspace";
 import { useApp } from "./store";
 import { Alert, capabilityIcons, Card, Empty, Loading, Pill, Sheet, Switch, type Translate } from "./ui";
 
@@ -101,6 +102,19 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
       <Switch label={t("允许我的其他设备使用", "Available to my other devices")} detail={item.sharing.enabled && item.sharing.address ? <span className="cx-mono">{item.sharing.address}</span> : undefined}
         checked={item.sharing.enabled} disabled={busy || !(item.sharing.enabled ? has("disable") : has("enable"))} onChange={on => void act(item, on ? "enable" : "disable")} />
       <p className="cx-muted cx-small">{t("每台设备能否使用，在该设备详情的「授权」中单独设置。", "Choose which devices may use it on each device's Access tab.")}</p></div>
+    {item.id === "computer" && <AgentComputers />}
     {item.error && <p className="cx-error" role="alert"><CircleAlert size={14} aria-hidden="true" /> {item.error}</p>}
   </Card>;
+}
+/** Besides this screen, agents can use their own computers: running virtual spaces. */
+function AgentComputers() {
+  const { t } = useApp();
+  const [running, setRunning] = useState<number | null>(null);
+  useEffect(() => { void request("/api/spaces", { operation: "list" }).then((value: { spaces?: { phase: string }[] }) => setRunning((value.spaces || []).filter(space => space.phase === "ready").length), () => setRunning(null)); }, []);
+  if (running === null) return null;
+  return <div className="cx-cap-section"><h4>{t("Agent 自己的电脑", "Agents' own computers")}</h4>
+    <p className="cx-muted cx-small">{running
+      ? t(running + " 个运行中的虚拟空间可作为 Agent 的电脑；无人值守的任务优先在那里操作，不占用你的屏幕。", running + (running === 1 ? " running virtual space is" : " running virtual spaces are") + " available as the agents' own computer; unattended work prefers it over your screen.")
+      : t("创建虚拟空间后，Agent 可以在那里操作自己的桌面，不占用你的屏幕。", "Create a virtual space and agents can work on their own desktop there instead of your screen.")}
+      {" "}<Link to="/spaces">{t("虚拟空间", "Virtual spaces")}</Link></p></div>;
 }

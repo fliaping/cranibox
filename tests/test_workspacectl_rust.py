@@ -100,16 +100,6 @@ class ControlTests(unittest.TestCase):
         (self.root / "proxyctl/bin/caddy").touch()
         return url
 
-    def test_web_runtime_configuration_requires_loopback_origin(self):
-        value = json.loads(self.cli('web', 'configure', '--runtime-url', 'http://127.0.0.1:9190').stdout)
-        self.assertEqual(value['runtimeUrl'], 'http://127.0.0.1:9190')
-        config = self.root / '.config/agent-workspace/web.json'
-        before = config.read_text()
-        for url in ['https://127.0.0.1:9190', 'http://example.com', 'http://127.0.0.1:9190/other', 'http://user:secret@127.0.0.1:9190']:
-            self.cli('web', 'configure', '--runtime-url', url, ok=False)
-            self.assertEqual(config.read_text(), before)
-        self.assertEqual(config.stat().st_mode & 0o777, 0o600)
-
     def test_help_and_inspection_need_no_python(self):
         self.env["PATH"] = ""
         self.assertIn("Rust", self.cli("--help").stdout)
@@ -120,20 +110,6 @@ class ControlTests(unittest.TestCase):
                          ["deepseek-harness", "codex", "claude-code", "pi", "hermes", "openclaw"])
         self.assertEqual([row["id"] for row in value["agents"] if row["selected"]],
                          ["deepseek-harness"])
-
-    def test_runtime_installer_falls_back_from_incomplete_cached_source(self):
-        (self.root / "source/scripts").mkdir(parents=True)
-        self.python("bash", "from pathlib import Path; import sys\np = Path(sys.argv[1])\nassert p.is_file(), p\nprint(p.name)")
-        self.assertEqual(self.cli("runtime", "install", "--no-start").stdout.strip(),
-                         "install-workspace-runtime.sh")
-
-    def test_explicit_installer_source_is_validated(self):
-        self.env["AGENT_WORKSPACE_CTL_SOURCE_DIR"] = str(self.root / "override")
-        result = self.cli("runtime", "install", ok=False)
-        self.assertIn("install-workspace-runtime.sh", result.stderr)
-        script = self.write("override/scripts/install-workspace-runtime.sh", "# isolated installer")
-        self.python("bash", "import sys; print(sys.argv[1])")
-        self.assertEqual(self.cli("runtime", "install").stdout.strip(), str(script))
 
     def test_snapshot_matches_existing_json_contract(self):
         try:
@@ -207,9 +183,11 @@ class ControlTests(unittest.TestCase):
         stat = Path(f"/proc/{pid}/stat")
         self.assertTrue(not stat.exists() or stat.read_text().split()[2] == "Z", "probe descendant survived timeout")
 
-    def test_remote_arguments_and_exit_code_pass_through(self):
-        runtime = self.python("workspace-runtime", "import json,sys\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)")
-        self.env["AGENT_WORKSPACE_RUNTIME_BIN"] = str(runtime)
+    def test_device_arguments_and_exit_code_pass_through(self):
+        # Device commands run in the node, over its paired peers; the gateway is gone.
+        node = self.python("cranibox-node", "import json,sys\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)")
+        self.env["CRANIBOX_NODE_BIN"] = str(node)
+        self.assertNotEqual(self.cli("runtime", "status", ok=False).returncode, 0)
         result = self.cli("node", "exec", "one", "--", "program", "--json", ok=False)
         self.assertEqual(result.returncode, 7)
         self.assertEqual(json.loads(result.stdout), ["exec", "one", "--", "program", "--json"])

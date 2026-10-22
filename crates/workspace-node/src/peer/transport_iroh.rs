@@ -63,6 +63,17 @@ pub fn configure_hub(options: HubOptions) {
 fn hub_options() -> Option<HubOptions> {
     HUB.get().and_then(|h| h.lock().unwrap().clone())
 }
+/// Relays learned from pairings and this device's own relay, for the Network page.
+pub(crate) fn relay_status(peers: &Path) -> Value {
+    let hub = hub_options();
+    json!({
+        "learned_relays": Learned::read(peers).relays,
+        "this_relay": {
+            "enabled": hub.as_ref().is_some_and(|h| h.relay.is_some()),
+            "public_url": hub.and_then(|h| h.public_url),
+        },
+    })
+}
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

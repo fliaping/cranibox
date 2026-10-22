@@ -372,3 +372,33 @@ async fn real_three_node_network_entry_failover() {
     c.shutdown().await.unwrap();
     b.shutdown().await.unwrap();
 }
+
+#[test]
+fn relays_are_https_origins_deduplicated_and_bounded() {
+    assert_eq!(
+        validate_relays(vec![
+            " https://box.example.com/ ".into(),
+            "https://box.example.com".into(),
+            "".into()
+        ])
+        .unwrap(),
+        ["https://box.example.com"]
+    );
+    assert!(validate_relays(vec!["http://127.0.0.1:3340".into()]).is_ok());
+    for bad in [
+        "http://box.example.com",
+        "https://user:pw@box.example.com",
+        "https://box.example.com/?x=1",
+        "ftp://box",
+    ] {
+        assert!(validate_relays(vec![bad.into()]).is_err(), "{bad}");
+    }
+    assert!(
+        validate_relays(
+            (0..9)
+                .map(|i| format!("https://r{i}.example.com"))
+                .collect()
+        )
+        .is_err()
+    );
+}

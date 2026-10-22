@@ -310,8 +310,7 @@ impl Route {
         let api = Api::direct(
             ApiOptions {
                 url: self.url.clone(),
-                token_file: Some(self.token_file.clone()),
-                credentials: PathBuf::new(),
+                token_file: self.token_file.clone(),
                 allow_insecure: self.allow_insecure,
             },
             target.into(),

@@ -1,11 +1,12 @@
-import { Copy, Fingerprint, KeyRound, Lock, Plus, Radio } from "lucide-react";
+import { Copy, Fingerprint, KeyRound, Lock, Plus, Radio, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Device, Identity } from "../personal/api";
 import { Nodes } from "../pages/Nodes";
+import { request } from "../workspace";
 import { devicePath } from "./Home";
 import { useApp } from "./store";
-import { Card, isThis, Pill, Section, type Translate } from "./ui";
+import { Alert, Card, isThis, Pill, Section, Switch, type Translate } from "./ui";
 
 const WIDTH = 720, HEIGHT = 460, CX = WIDTH / 2, CY = HEIGHT / 2;
 const short = (text: string, size = 16) => text.length > size ? text.slice(0, size - 1) + "…" : text;
@@ -101,6 +102,49 @@ export function IdentityCard({ compact = false }: { compact?: boolean }) {
     </> : <p className="cx-muted cx-small" role={error ? undefined : "status"}>{error || t("正在读取身份…", "Loading identity…")}</p>}
   </Card>;
 }
+type IrohStatus = { lan: boolean; relays: string[]; n0_fallback: boolean; learned_relays: string[]; this_relay: { enabled: boolean; public_url: string | null } };
+/** Which relays this device uses, whether it serves one, and local network discovery. */
+export function RelaySettings() {
+  const { t } = useApp();
+  const [status, setStatus] = useState<IrohStatus | null>(null), [draft, setDraft] = useState<{ lan: boolean; relays: string; n0: boolean } | null>(null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
+  const adopt = (value: { iroh?: IrohStatus }) => {
+    if (!value.iroh) return;
+    setStatus(value.iroh);
+    setDraft({ lan: value.iroh.lan, relays: value.iroh.relays.join("\n"), n0: value.iroh.n0_fallback });
+  };
+  useEffect(() => { void request("/api/network", { operation: "status" }).then(adopt, problem => setError(problem instanceof Error ? problem.message : String(problem))); }, []);
+  if (!status || !draft) return error ? <Alert tone="info">{error}</Alert> : null;
+  const changed = draft.lan !== status.lan || draft.n0 !== status.n0_fallback || draft.relays.split("\n").map(v => v.trim()).filter(Boolean).join("\n") !== status.relays.join("\n");
+  async function save() {
+    setBusy(true); setError(""); setSaved(false);
+    try {
+      adopt(await request("/api/network", { operation: "iroh_settings", lan: draft!.lan, n0_fallback: draft!.n0, relays: draft!.relays.split("\n").map(v => v.trim()).filter(Boolean) }));
+      setSaved(true);
+    } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
+  }
+  return <Card label={t("中继与发现", "Relays and discovery")}>
+    <div className="cx-card-head"><span className="cx-card-icon"><Server size={20} aria-hidden="true" /></span>
+      <div className="cx-grow"><h3>{t("中继与发现", "Relays and discovery")}</h3>
+        <p className="cx-muted cx-small">{t("直连失败时，设备经中继转发（仍端到端加密）。优先使用你自己的中继。", "When a direct connection fails, devices go through a relay (still end-to-end encrypted). Your own relays are tried first.")}</p></div></div>
+    <dl className="cx-facts" style={{ marginTop: 12 }}>
+      <div><dt>{t("本机中继", "This device's relay")}</dt><dd>{status.this_relay.enabled ? (status.this_relay.public_url || t("运行中（未设置公网地址）", "Running (no public address)")) : t("未开启", "Off")}</dd></div>
+      <div><dt>{t("从配对学到的中继", "Learned from pairing")}</dt><dd className="cx-mono">{status.learned_relays.length ? status.learned_relays.join(", ") : "—"}</dd></div>
+    </dl>
+    {!status.this_relay.enabled && <p className="cx-muted cx-small">{t("要让这台设备当中继：在有公网 HTTPS 入口的机器上运行 ", "To make this device a relay, run ")}<code>cranibox serve --relay --public-url https://…</code>{t("。", " on a machine with a public HTTPS address.")}</p>}
+    <div className="cx-toggle-list" style={{ marginTop: 12 }}>
+      <Switch label={t("局域网发现", "Local network discovery")} detail={t("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet.")} checked={draft.lan} disabled={busy} onChange={lan => setDraft({ ...draft, lan })} />
+      <Switch label={t("使用公共中继作为后备", "Fall back to public relays")} detail={t("自己的中继不可用时使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable.")} checked={draft.n0} disabled={busy} onChange={n0 => setDraft({ ...draft, n0 })} />
+    </div>
+    <label className="cx-field" style={{ marginTop: 12 }}>{t("自己的中继（每行一个）", "Your relays (one per line)")}
+      <textarea rows={3} spellCheck={false} placeholder="https://box.example.com" value={draft.relays} disabled={busy} onChange={event => setDraft({ ...draft, relays: event.target.value })} /></label>
+    <div className="cx-between" style={{ marginTop: 12 }}>
+      <small className="cx-muted">{saved ? t("已保存，重启 Cranibox 后生效。", "Saved. Takes effect after Cranibox restarts.") : t("修改在重启 Cranibox 后生效。", "Changes take effect after Cranibox restarts.")}</small>
+      <button className="cx-btn primary" disabled={busy || !changed} onClick={() => void save()}>{t("保存", "Save")}</button>
+    </div>
+    {error && <p className="cx-error" role="alert">{error}</p>}
+  </Card>;
+}
 export function NetworkPage() {
   const { t, devices, setPairing } = useApp();
   const peers = devices.filter(device => !isThis(device));
@@ -124,6 +168,7 @@ export function NetworkPage() {
         <div className="cx-actions" style={{ marginTop: 12 }}><button className="cx-btn" onClick={() => setPairing(true)}>{t("开始配对", "Start pairing")}</button></div>
       </Card>
     </div>
+    <div style={{ marginTop: 16 }}><RelaySettings /></div>
     <Section title={t("高级", "Advanced")} description={t("连接路径、监听地址，以及 EasyTier / Tailscale 网络。", "Connection paths, listener, and EasyTier / Tailscale networks.")}>
       <Nodes embedded />
     </Section>

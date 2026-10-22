@@ -372,12 +372,12 @@ fn main() -> anyhow::Result<()> {
                     }
                     if let Some(tray) = handle.tray_by_id("node") {
                         let _ = tray.set_tooltip(Some(cranibox_node_desktop::notify::tooltip(
-                            &status, held,
+                            status, held,
                         )));
                         // Linux tray hosts ignore tooltips; show the count next to the icon.
                         let _ = tray.set_title(cranibox_node_desktop::notify::title(held));
                     }
-                    let _ = status_item.set_text(&status);
+                    let _ = status_item.set_text(status);
                     let _ = held_menu.set_text(cranibox_node_desktop::notify::menu_label(held));
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }

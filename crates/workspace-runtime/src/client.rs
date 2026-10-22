@@ -1,19 +1,10 @@
 use crate::{config, protocol::*};
-use clap::Args;
 use std::path::PathBuf;
-#[derive(Args, Clone)]
+/// A route to one peer: its origin and the credential this device was granted.
+#[derive(Clone)]
 pub struct ApiOptions {
-    #[arg(
-        long,
-        env = "AGENT_WORKSPACE_RUNTIME_URL",
-        default_value = "http://127.0.0.1:9090"
-    )]
     pub url: String,
-    #[arg(long, env = "AGENT_WORKSPACE_RUNTIME_TOKEN_FILE")]
-    pub token_file: Option<PathBuf>,
-    #[arg(long, default_value_os_t = config::default_credentials())]
-    pub credentials: PathBuf,
-    #[arg(long)]
+    pub token_file: PathBuf,
     pub allow_insecure: bool,
 }
 
@@ -84,7 +75,6 @@ impl std::error::Error for PathsUnavailable {}
 pub struct Api {
     options: ApiOptions,
     client: reqwest::Client,
-    mesh: bool,
     target: Option<String>,
     endpoints: Vec<crate::peers::config::Endpoint>,
     e2e: Option<Box<E2e>>,
@@ -107,7 +97,7 @@ static LEGACY: std::sync::LazyLock<
 > = std::sync::LazyLock::new(Default::default);
 const LEGACY_RECHECK: Duration = Duration::from_secs(120);
 impl Api {
-    pub fn new(options: ApiOptions) -> Result<Self> {
+    fn new(options: ApiOptions) -> Result<Self> {
         let url = config::check_url(&options.url, false, options.allow_insecure)?;
         anyhow::ensure!(
             url.path() == "/",
@@ -127,21 +117,15 @@ impl Api {
         Ok(Self {
             options,
             client,
-            mesh: false,
             target: None,
             endpoints,
             e2e: None,
         })
     }
-    pub fn mesh(options: ApiOptions) -> Result<Self> {
-        let mut api = Self::new(options)?;
-        api.mesh = true;
-        Ok(api)
-    }
     /// Direct calls name the expected target before any operation can run.
     pub fn direct(options: ApiOptions, target: String) -> Result<Self> {
         anyhow::ensure!(valid_node_id(&target), "invalid target node ID");
-        let mut api = Self::mesh(options)?;
+        let mut api = Self::new(options)?;
         api.target = Some(target);
         Ok(api)
     }
@@ -395,10 +379,7 @@ impl Api {
         if let Some(lease) = &endpoint.local_forward_lock {
             crate::peers::local_forward::ensure_running(lease)?;
         }
-        match &self.options.token_file {
-            Some(path) => config::read_token(path),
-            None => Ok(config::Credentials::read(&self.options.credentials)?.controller_token),
-        }
+        config::read_token(&self.options.token_file)
     }
     pub(crate) fn with_paths(
         mut self,
@@ -508,8 +489,7 @@ impl Api {
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
         url.set_scheme(scheme)
             .map_err(|_| anyhow::anyhow!("invalid terminal URL"))?;
-        let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
-        url.set_path(&format!("{prefix}/nodes/{node}/terminal/ws"));
+        url.set_path(&format!("/api/v1/mesh/nodes/{node}/terminal/ws"));
         url.query_pairs_mut()
             .append_pair("session", session)
             .append_pair("cols", &cols.to_string())
@@ -660,8 +640,7 @@ impl Api {
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
         url.set_scheme(scheme)
             .map_err(|_| anyhow::anyhow!("invalid desktop URL"))?;
-        let prefix = if self.mesh { "/api/v1/mesh" } else { "/api/v1" };
-        url.set_path(&format!("{prefix}/nodes/{node}/desktop/ws"));
+        url.set_path(&format!("/api/v1/mesh/nodes/{node}/desktop/ws"));
         let mut request = url.as_str().into_client_request()?;
         let cipher = self
             .authorize_stream(&mut request, endpoint, url.path())
@@ -761,11 +740,7 @@ impl Api {
                 format!(
                     "{}{}",
                     endpoint.url.trim_end_matches('/'),
-                    if self.mesh {
-                        path.replacen("/api/v1", "/api/v1/mesh", 1)
-                    } else {
-                        path.into()
-                    }
+                    path.replacen("/api/v1", "/api/v1/mesh", 1)
                 ),
             )
             .bearer_auth(self.token(endpoint)?);
