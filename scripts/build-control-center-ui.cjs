@@ -21,12 +21,12 @@ for (const language of ['en', 'zh-cn']) {
     // xterm's DOM renderer generates styles for cell geometry and ANSI colors.
     // Its public API cannot apply a nonce; only styles allow inline content.
     '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; frame-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
-    '<meta name="color-scheme" content="dark light"><title>Cranibox · Agent Workspace</title>\n' +
+    '<meta name="color-scheme" content="light dark"><title>Cranibox</title>\n' +
     '<link rel="icon" href="data:,"><link rel="stylesheet" href="/web.css">\n' +
-    '<script nonce="__WORKSPACE_NONCE__">try{document.documentElement.dataset.theme=localStorage.getItem("workspace.theme")==="light"?"light":"dark"}catch{}</script>\n' +
+    '<script nonce="__WORKSPACE_NONCE__">try{var s=localStorage.getItem("cranibox.theme");document.documentElement.dataset.theme=s==="light"||s==="dark"?s:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}</script>\n' +
     '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +
-    '<noscript>' + (zh ? '请启用 JavaScript 后使用控制中心。' : 'Enable JavaScript to use the control center.') + '</noscript>\n' +
-    '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;</script>\n' +
+    '<noscript>' + (zh ? '请启用 JavaScript 后使用 Cranibox。' : 'Enable JavaScript to use Cranibox.') + '</noscript>\n' +
+    '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;try{var l=localStorage.getItem("cranibox.language");if(l==="en"||l==="zh-cn")window.workspaceWeb.language=l;document.documentElement.lang=window.workspaceWeb.language}catch{}</script>\n' +
     '<script nonce="__WORKSPACE_NONCE__" src="/web.js" type="module"></script>\n</body></html>\n';
   fs.writeFileSync(path.join(output, 'index.' + language + '.html'), html);
 }

@@ -1,6 +1,7 @@
 <div align="center">
   <h1>Cranibox</h1>
-  <p><b>随时、随地、任意设备 —— 自托管、可信任的 Agent 大脑</b></p>
+  <p><b>设备互联的 Agent 工作台</b></p>
+  <p>你的每台设备，都是 Agent 的工作台：终端、桌面、浏览器与 Computer Use，端到端加密、对等直连。</p>
   <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace，GitHub 仓库已更名为 cranibox，镜像名暂不变。</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;

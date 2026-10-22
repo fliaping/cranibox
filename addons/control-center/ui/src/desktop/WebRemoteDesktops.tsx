@@ -5,7 +5,7 @@ import type { DesktopConnector } from './transport';
 import { RemoteDesktopsView } from './RemoteDesktopsView';
 import type { DesktopServiceCommand } from './DesktopServicePanel';
 
-const connect: DesktopConnector = async (target, signal) => {
+export const webDesktopConnector: DesktopConnector = async (target, signal) => {
   signal?.throwIfAborted();
   // Read the response even after navigation so a just-issued lease can be released.
   const { ticket } = await request('/api/desktop/ticket', target);
@@ -21,5 +21,5 @@ export function WebRemoteDesktops() {
   const { snapshot } = useWorkspace();
   const client = useCallback((command: DirectCommand) => request('/api/peers', command), []);
   const serviceClient = useCallback((command: DesktopServiceCommand) => request('/api/desktop/service', command), []);
-  return <RemoteDesktopsView relayNodes={snapshot?.remote_nodes?.nodes} client={client} serviceClient={serviceClient} connect={connect} language={document.documentElement.lang} onAccess={() => { location.hash = '/nodes'; }} local={snapshot?.local_node ? { id: snapshot.local_node.id, name: snapshot.access?.hostname || 'Workspace' } : undefined} />;
+  return <RemoteDesktopsView relayNodes={snapshot?.remote_nodes?.nodes} client={client} serviceClient={serviceClient} connect={webDesktopConnector} language={document.documentElement.lang} onAccess={() => { location.hash = '/nodes'; }} local={snapshot?.local_node ? { id: snapshot.local_node.id, name: snapshot.access?.hostname || 'Workspace' } : undefined} />;
 }

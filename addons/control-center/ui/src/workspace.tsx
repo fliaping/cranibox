@@ -3,13 +3,16 @@ import type { PollState,Snapshot } from './types';
 import { useTerminalWindow } from './terminal/TerminalWindowContext';
 
 const config = window.workspaceWeb;
+export function nodeEdition() { return (config.edition || config.mode) === 'node'; }
+export function languagePreference() { try { return localStorage.getItem('cranibox.language'); } catch { return null; } }
 export const zh = config.language.startsWith('zh');
-export const t = (cn: string, en: string) => zh ? cn : en;
+export const t = (cn: string, en: string) => config.language.startsWith('zh') ? cn : en;
+export class RequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 export async function request(route: string, body: unknown) {
   const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
-  if (response.status === 401) throw Error(t('会话已过期，请刷新页面。', 'Session expired. Reload this page.'));
-  const value = await response.json();
-  if (!response.ok) throw Error(value.error || String(response.status));
+  if (response.status === 401) throw new RequestError(t('会话已过期，请刷新页面。', 'Session expired. Reload this page.'), 401);
+  const value = await response.json().catch(() => ({}));
+  if (!response.ok) throw new RequestError(value.error || value.message || String(response.status), response.status);
   return value;
 }
 export function safeUrl(value: string, base = config.workspaceUrl) {
@@ -21,6 +24,8 @@ export function openUrl(value: string) {
 }
 type LocalDialog = { title: string; command: string } | null;
 interface Workspace {
+  /** Container workspace consoles exist only when the server reports a snapshot. */
+  available: boolean | null;
   state: PollState; snapshot?: Snapshot; error: string; notice: { message: string; url?: string } | null;
   submitting: boolean; locked: boolean; outputOpen: boolean; setOutputOpen: (value: boolean) => void;
   localDialog: LocalDialog; setLocalDialog: (value: LocalDialog) => void;
@@ -37,16 +42,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
   const [outputOpen, setOutputOpen] = useState(false);
   const [localDialog, setLocalDialog] = useState<LocalDialog>(null);
+  const [available, setAvailable] = useState<boolean | null>(nodeEdition() ? false : null);
   const pollRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const actionPending = useRef(false);
   useEffect(() => {
+    if (nodeEdition()) return;
     let active = true, polling = false, queued = false, cursor = config.cursor, live = false, connecting = false;
     let timer: ReturnType<typeof setTimeout>, reconnect: ReturnType<typeof setTimeout>;
     let controller: AbortController | undefined;
     function apply(next: PollState) {
       if (!active) return;
       cursor = next.cursor;
-      if (next.snapshot?.locale?.current && next.snapshot.locale.current !== config.language) { location.reload(); return; }
+      if (next.snapshot?.locale?.current && next.snapshot.locale.current !== config.language && !languagePreference()) { location.reload(); return; }
+      if (next.snapshot) setAvailable(true);
       setState(previous => ({ ...previous, ...next, snapshot: next.snapshot || previous.snapshot, snapshotAt: next.snapshotAt || previous.snapshotAt, output: next.outputDelta !== undefined ? (next.outputReset ? next.outputDelta : (previous.output || '') + next.outputDelta).slice(-128 * 1024) : next.output ?? previous.output }));
       setError(next.error || '');
       for (const event of next.events || []) {
@@ -63,7 +71,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       try {
         const next: PollState = await request('/api/poll', { cursor, refresh: force });
         if (!live) apply(next); delay = next.busy || next.refreshing || !next.snapshot ? 1000 : 15000;
-      } catch (problem) { if (active) setError(problem instanceof Error ? problem.message : String(problem)); }
+      } catch (problem) {
+        // A node without the container workspace has no poll route: stop asking.
+        if (problem instanceof RequestError && (problem.status === 404 || problem.status === 405)) { active = false; setAvailable(false); controller?.abort(); return; }
+        if (active) setError(problem instanceof Error ? problem.message : String(problem));
+      }
       finally {
         polling = false;
         if (active) { const forced = queued; queued = false; if (forced || !live) timer = setTimeout(() => void poll(forced), forced ? 0 : document.hidden ? 30000 : delay); }
@@ -74,6 +86,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       connecting = true; controller = new AbortController();
       try {
         const response = await fetch('/api/events', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: '{}', signal: controller.signal });
+        if (response.status === 404 || response.status === 405) { setAvailable(false); active = false; return; }
         if (!response.ok || !response.body) throw Error(t('实时连接不可用，使用自动刷新。', 'Live connection unavailable; using automatic refresh.'));
         live = true; clearTimeout(timer);
         const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -120,5 +133,5 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void request('/api/action', { type, ...extra }).then(() => pollRef.current()).catch(problem => setNotice({ message: problem.message })).finally(() => { actionPending.current = false; setSubmitting(false); });
   }, [openTerminal]);
   const cancel = () => { void request('/api/cancel', {}).then(() => pollRef.current()).catch(problem => setNotice({ message: problem.message })); };
-  return <Context.Provider value={{ state, snapshot: state.snapshot || undefined, error, notice, submitting, locked: state.busy || submitting, outputOpen, setOutputOpen, localDialog, setLocalDialog, action, refresh: () => void pollRef.current(true), cancel, notify: message => setNotice({ message }), dismissNotice: () => setNotice(null) }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ available, state, snapshot: state.snapshot || undefined, error, notice, submitting, locked: state.busy || submitting, outputOpen, setOutputOpen, localDialog, setLocalDialog, action, refresh: () => void pollRef.current(true), cancel, notify: message => setNotice({ message }), dismissNotice: () => setNotice(null) }}>{children}</Context.Provider>;
 }

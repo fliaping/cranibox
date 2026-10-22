@@ -1,6 +1,7 @@
 <div align="center">
   <h1>Cranibox</h1>
-  <p><b>Anytime, anywhere, every device — a self-hosted, trusted Agent Brain</b></p>
+  <p><b>The agent workspace across your devices</b></p>
+  <p>Every device you own, ready for your agents: terminal, desktop, browser and Computer Use, end-to-end encrypted over direct peer connections.</p>
   <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; the GitHub repository is now cranibox, while image names remain unchanged.</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;

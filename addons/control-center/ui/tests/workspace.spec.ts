@@ -72,10 +72,10 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   await createTerminal(page, 'Navigation task');
   const connection = sockets.at(-1)!;
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('link', { name: 'Overview', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
   await expect(page.locator('.xterm')).toHaveCount(1);
   expect(connection.isClosed()).toBe(false);
-  await page.getByRole('button', { name: 'Terminal', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(activePane(page).locator('.status')).toContainText('Connected');
   await endTerminal(page, 'Navigation task');
   expect(errors).toEqual([]);
@@ -118,7 +118,7 @@ test('floating terminal moves, resizes and keeps a running command connected whi
     if (request.url().endsWith('/api/terminal/sessions') && request.method() === 'POST') operations.push(request.postDataJSON()?.operation);
   });
   await page.goto('/#/services');
-  await page.getByRole('button', { name: 'Terminal', exact: true }).click();
+  await page.getByRole('button', { name: 'Open terminal window', exact: true }).click();
   await expect(page).toHaveURL(/#\/services$/);
   await createTerminal(page, 'Floating task');
   const floating = page.locator('#floating-terminal');
@@ -148,7 +148,8 @@ test('floating terminal moves, resizes and keeps a running command connected whi
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
   await expect(floating).toBeHidden();
   await expect(page.getByRole('button', { name: 'Restore terminal window', exact: true })).toBeFocused();
-  await page.getByRole('link', { name: 'Agents', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Agents & models' }).click();
+  await page.getByRole('link', { name: 'Workspace agents', exact: true }).click();
   await expect(page.locator('main h1')).toHaveText('Agents');
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('MINIMIZED_TASK_DONE');
@@ -184,7 +185,8 @@ test('overview, Agent and remote node actions open terminals in place and restor
   await expect(activePane(page).locator('.status')).toContainText('Connected');
   await endTerminal(page, (await page.getByRole('tab', { selected: true }).textContent())!);
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('link', { name: 'Agents', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Agents & models' }).click();
+  await page.getByRole('link', { name: 'Workspace agents', exact: true }).click();
   await page.locator('.agent-card').filter({ hasText: 'Codex' }).getByRole('button', { name: 'Launch Agent', exact: true }).click();
   await expect(page).toHaveURL(/#\/agents$/);
   await expect(activePane(page).locator('.status')).toContainText('Connected');
@@ -197,7 +199,8 @@ test('overview, Agent and remote node actions open terminals in place and restor
   await expect(activePane(page).locator('.status')).toContainText('Connected');
   await endTerminal(page, 'Codex');
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('link', { name: 'Remote nodes', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Devices & network', exact: true }).click();
   await page.locator('.list-row').filter({ hasText: 'Preview Linux node' }).getByRole('button', { name: 'Terminal', exact: true }).click();
   await expect(page).toHaveURL(/#\/nodes$/);
   await expect(page.getByRole('combobox', { name: 'Target', exact: true })).toHaveValue('preview-node');
@@ -212,7 +215,7 @@ test('mobile command composer protects IME input, exposes shortcuts and manages 
     try { const data = JSON.parse(String(event.payload)); if (data.type === 'input') inputs.push(data.data); } catch { /* Other frames. */ }
   }));
   await page.goto('/#/terminal');
-  await expect(page.locator('.sidebar')).toBeHidden();
+  await expect(page.locator('.cx-sidebar')).toBeHidden();
   await createTerminal(page, 'Mobile task');
   const command = activePane(page).getByRole('textbox', { name: 'Command input', exact: true });
   await command.fill("printf '%s%s\\n' 手机 _INPUT_OK");
@@ -289,8 +292,9 @@ test('local and remote tabs keep their connections while switching nodes and nav
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('LOCAL_CONNECTED');
   await page.getByRole('tab', { name: 'Remote logs', exact: true }).click();
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('link', { name: 'Remote nodes', exact: true }).click();
-  await expect(page.locator('main h1')).toHaveText('Remote nodes');
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Devices & network', exact: true }).click();
+  await expect(page.locator('main h1')).toHaveText('Devices & network');
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Remote logs', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('REMOTE_CONNECTED');
@@ -373,9 +377,9 @@ test('service search and theme persist through status updates and reload', async
   await expect(search).toBeFocused();
   await expect(search).toHaveValue('bridge');
   await expect(page.locator('.service-item')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('main h1')).toHaveText('Services');
   await page.getByRole('button', { name: /^Not running/ }).click();
   await expect(page.locator('.service-item')).toHaveCount(2);
@@ -391,17 +395,17 @@ test('mobile navigation traps keyboard focus and restores its trigger', async ({
   await expect(page.locator('main h1')).toBeVisible();
   const trigger = page.getByRole('button', { name: 'Open navigation' });
   await trigger.click();
-  const navigation = page.getByRole('dialog', { name: 'Workspace navigation' });
+  const navigation = page.getByRole('dialog', { name: 'Navigation' });
   await expect(navigation).toBeVisible();
-  await expect(page.locator('.workspace-shell')).toHaveAttribute('inert');
-  await navigation.getByRole('link', { name: 'Diagnostics' }).focus();
+  await expect(page.locator('.cx-main')).toHaveAttribute('inert');
+  await navigation.getByRole('link', { name: 'This device' }).focus();
   await page.keyboard.press('Tab');
   await expect(navigation.getByRole('link', { name: /Cranibox/ })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await navigation.getByRole('link', { name: 'Network', exact: true }).click();
-  await expect(page.locator('main h1')).toHaveText('Network & access');
+  await navigation.getByRole('link', { name: 'This device', exact: true }).click();
+  await expect(page.locator('main h1')).toHaveText('Capabilities & permissions');
   await expect(page.locator('main')).toBeFocused();
 });
 
