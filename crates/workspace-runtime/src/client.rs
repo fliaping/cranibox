@@ -1081,10 +1081,13 @@ pub async fn executions_mcp(store: crate::peers::Store) -> Result<()> {
 pub async fn task_worker_mcp(worker: crate::peers::tasks::worker::Worker) -> Result<()> {
     mcp_service(McpBackend::TaskWorker(worker)).await
 }
-pub async fn computer_mcp(store: crate::peers::Store, node: String) -> Result<()> {
+pub async fn computer_mcp(
+    store: crate::peers::Store,
+    targets: Vec<crate::peers::computer::Target>,
+) -> Result<()> {
     mcp_service(McpBackend::Computer(crate::peers::computer::Mcp {
         store,
-        node,
+        targets,
     }))
     .await
 }

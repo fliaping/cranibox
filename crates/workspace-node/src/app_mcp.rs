@@ -10,7 +10,8 @@ pub async fn run(path: PathBuf, data: PathBuf, service: &str) -> Result<()> {
     let config = Config::read(&path)?;
     match service {
         "computer" => {
-            agent_workspace_runtime::client::computer_mcp(Store::new(path), config.node_id).await
+            let targets = computer_targets(&path, &config.node_id);
+            agent_workspace_runtime::client::computer_mcp(Store::new(path), targets).await
         }
         "browser" => super::peer::browser_proxy::run(path, config.node_id, true).await,
         "devices" => {
@@ -25,6 +26,37 @@ pub async fn run(path: PathBuf, data: PathBuf, service: &str) -> Result<()> {
         }
         _ => anyhow::bail!("unknown Cranibox MCP service"),
     }
+}
+
+/// This device's real desktop first, then the Agent's own computers: running
+/// virtual spaces this device manages (each provisioned with its desktop bridge).
+fn computer_targets(
+    path: &Path,
+    node: &str,
+) -> Vec<agent_workspace_runtime::peers::computer::Target> {
+    use agent_workspace_runtime::peers::computer::Target;
+    let mut targets = vec![Target {
+        node: node.into(),
+        label: format!(
+            "this device's desktop ({})",
+            crate::device_info::local().name
+        ),
+        virtual_space: false,
+    }];
+    if let Ok(catalog) = crate::spaces::Store::new(path.to_path_buf()).shared_catalog(node) {
+        targets.extend(
+            catalog
+                .spaces
+                .into_iter()
+                .filter(|s| s.phase == "running")
+                .map(|s| Target {
+                    node: s.node,
+                    label: format!("virtual space \"{}\"", s.name),
+                    virtual_space: true,
+                }),
+        );
+    }
+    targets
 }
 
 async fn frame(input: &mut (impl AsyncBufRead + Unpin)) -> Result<Option<Vec<u8>>> {

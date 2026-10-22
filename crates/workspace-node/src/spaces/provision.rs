@@ -119,6 +119,8 @@ fn create_args(space: &Space, installation: Uuid, env: &str, network: Option<&st
     result.push(space.image.clone());
     result
 }
+/// `agent-desktop-bridge` inside the space image.
+const SPACE_COMPUTER: &str = "127.0.0.1:8765";
 const SEED: &str = r#"set -eu
 directory=/config/.config/cranibox-node
 install -d -m 700 -o 1000 -g 1000 "$directory"
@@ -214,8 +216,11 @@ impl Store {
                 }
             }
             self.stage(id, "creating")?;
+            // The space is the Agent's own computer: its desktop bridge (loopback inside
+            // the container) serves Computer Use to the managing device only.
             let peer_config = json!({"version":1,"node_id":space.node,"listener":{"address":"0.0.0.0:9020","allow_insecure":true},"desktop":null,"desktop_epoch":0,
-                "grants":{(space.owner.clone()):{"token":space.token,"permissions":{"exec":true,"terminals":true,"projects":true,"desktop":false}}},"routes":{}});
+                "computer":{"address":SPACE_COMPUTER},
+                "grants":{(space.owner.clone()):{"token":space.token,"permissions":{"exec":true,"terminals":true,"projects":true,"desktop":false,"computer":true}}},"routes":{}});
             runner
                 .run(
                     &args(&[

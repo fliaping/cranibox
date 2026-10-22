@@ -453,34 +453,99 @@ impl Store {
 }
 
 /// This MCP process is bound to one explicit target and has no remote resume operation.
+/// A screen the Agent may drive: the device's real desktop or a virtual space's.
+#[derive(Clone, Debug)]
+pub struct Target {
+    pub node: String,
+    pub label: String,
+    /// The Agent's own computer (a virtual space), not the person's real screen.
+    pub virtual_space: bool,
+}
 pub struct Mcp {
     pub store: Store,
-    pub node: String,
+    pub targets: Vec<Target>,
 }
 impl Mcp {
-    pub async fn tools(&self) -> Value {
-        let probe = self.store.route(&self.node).and_then(|r| r.api(&self.node));
-        let available = match probe {
-            Ok(api) => api.probe().await.is_ok_and(|v| {
-                v["nodes"].as_array().is_some_and(|nodes| {
-                    nodes
-                        .iter()
-                        .any(|n| n["id"] == self.node && n["computer"] == true)
-                })
-            }),
-            Err(_) => false,
+    async fn available(&self, node: &str) -> bool {
+        let Ok(api) = self.store.route(node).and_then(|r| r.api(node)) else {
+            return false;
         };
-        if !available {
+        api.probe().await.is_ok_and(|v| {
+            v["nodes"].as_array().is_some_and(|nodes| {
+                nodes
+                    .iter()
+                    .any(|n| n["id"] == node && n["computer"] == true)
+            })
+        })
+    }
+    async fn live(&self) -> Vec<&Target> {
+        let checks = self.targets.iter().map(|t| self.available(&t.node));
+        let up = futures_util::future::join_all(checks).await;
+        self.targets
+            .iter()
+            .zip(up)
+            .filter_map(|(t, up)| up.then_some(t))
+            .collect()
+    }
+    pub async fn tools(&self) -> Value {
+        let live = self.live().await;
+        if live.is_empty() {
             return json!([]);
         }
-        json!([{"name":"device_computer","description":format!("Computer Use on {}. Separate grant required. Start with status. acquire returns a short lease required for input; renew or release it explicitly. emergency_stop can only be resumed locally. Input is never retried.",self.node),
-            "inputSchema":{"type":"object","properties":{"operation":{"enum":["status","acquire","renew","release","action","emergency_stop"]},"ttl_secs":{"type":"integer","minimum":1,"maximum":300},"lease":{"type":"string","format":"uuid"},"action":{"type":"object","description":"Typed bridge action: screenshot; zoom {region:[x1,y1,x2,y2]}; cursor_position; window_list; mouse_move/left_click/right_click/middle_click/double_click {coordinate:[x,y],coordinate_space:pixels|normalized}; left_click_drag {start_coordinate,coordinate}; scroll {scroll_direction:up|down|left|right,scroll_amount:1..100,coordinate?}; type/key {text}; window_focus {window_id}. No held inputs, arbitrary URLs or remote resume."}},"required":["operation"],"additionalProperties":false}}])
+        let mut properties = json!({"operation":{"enum":["status","acquire","renew","release","action","emergency_stop"]},"ttl_secs":{"type":"integer","minimum":1,"maximum":300},"lease":{"type":"string","format":"uuid"},"action":{"type":"object","description":"Typed bridge action: screenshot; zoom {region:[x1,y1,x2,y2]}; cursor_position; window_list; mouse_move/left_click/right_click/middle_click/double_click {coordinate:[x,y],coordinate_space:pixels|normalized}; left_click_drag {start_coordinate,coordinate}; scroll {scroll_direction:up|down|left|right,scroll_amount:1..100,coordinate?}; type/key {text}; window_focus {window_id}. No held inputs, arbitrary URLs or remote resume."}});
+        let mut required = vec!["operation"];
+        let place = if let [only] = live.as_slice() {
+            only.label.clone()
+        } else {
+            let list = live
+                .iter()
+                .map(|t| {
+                    format!(
+                        "{} = {}{}",
+                        t.node,
+                        t.label,
+                        if t.virtual_space {
+                            " (your own virtual computer)"
+                        } else {
+                            " (the person's real screen)"
+                        }
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            properties["target"] = json!({"enum":live.iter().map(|t| &t.node).collect::<Vec<_>>(),
+                "description":format!("Which screen to use: {list}. Prefer your own virtual computer for unattended work; use the real screen only when the task needs the person's apps or sessions.")});
+            required.push("target");
+            "the selected target".into()
+        };
+        json!([{"name":"device_computer","description":format!("Computer Use on {place}. Separate grant required. Start with status. acquire returns a short lease required for input; renew or release it explicitly. emergency_stop can only be resumed locally. Input is never retried."),
+            "inputSchema":{"type":"object","properties":properties,"required":required,"additionalProperties":false}}])
     }
     pub async fn call(&self, parameters: &Value) -> Result<Value> {
         ensure!(parameters["name"] == "device_computer", "unknown tool");
-        let request: Request = serde_json::from_value(parameters["arguments"].clone())
-            .context("invalid Computer Use command")?;
-        let mut value = self.store.computer(&self.node, request).await?;
+        let mut arguments = parameters["arguments"].clone();
+        let target = arguments
+            .as_object_mut()
+            .and_then(|a| a.remove("target"))
+            .map(|t| t.as_str().map(str::to_owned).context("invalid target"))
+            .transpose()?;
+        let node = match target {
+            Some(node) => {
+                &self
+                    .targets
+                    .iter()
+                    .find(|t| t.node == node)
+                    .context("unknown Computer Use target")?
+                    .node
+            }
+            None => {
+                ensure!(self.targets.len() == 1, "choose a Computer Use target");
+                &self.targets[0].node
+            }
+        };
+        let request: Request =
+            serde_json::from_value(arguments).context("invalid Computer Use command")?;
+        let mut value = self.store.computer(node, request).await?;
         let image = value["result"]
             .as_object_mut()
             .and_then(|v| v.remove("data"));
@@ -528,6 +593,33 @@ mod tests {
                 .is_err()
         );
         assert!(validate_image(&json!({"data":STANDARD.encode(b"not-png")})).is_err());
+    }
+    #[tokio::test]
+    async fn the_agent_names_one_of_the_offered_targets() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = |node: &str, virtual_space| Target {
+            node: node.into(),
+            label: node.into(),
+            virtual_space,
+        };
+        let mcp = Mcp {
+            store: Store::new(dir.path().join("peers.json")),
+            targets: vec![target("desk", false), target("space", true)],
+        };
+        let call = |arguments: Value| json!({"name":"device_computer","arguments":arguments});
+        let missing = mcp.call(&call(json!({"operation":"status"}))).await;
+        assert!(format!("{:#}", missing.unwrap_err()).contains("choose"));
+        let unknown = mcp
+            .call(&call(json!({"operation":"status","target":"elsewhere"})))
+            .await;
+        assert!(format!("{:#}", unknown.unwrap_err()).contains("unknown Computer Use target"));
+        // A known target gets as far as routing (no route in this empty store).
+        let routed = mcp
+            .call(&call(json!({"operation":"status","target":"space"})))
+            .await;
+        assert!(!format!("{:#}", routed.unwrap_err()).contains("target"));
+        // Nothing reachable: no tool is offered.
+        assert_eq!(mcp.tools().await, json!([]));
     }
     #[test]
     fn provider_kind_defaults_to_the_http_bridge_and_keeps_old_bytes() {

@@ -1000,7 +1000,11 @@ async fn call(path: &Path, node: &str, action: Action) -> Result<()> {
         Action::ComputerMcp => {
             client::computer_mcp(
                 agent_workspace_runtime::peers::Store::new(path.into()),
-                node.into(),
+                vec![agent_workspace_runtime::peers::computer::Target {
+                    node: node.into(),
+                    label: node.into(),
+                    virtual_space: false,
+                }],
             )
             .await?;
             return Ok(());
