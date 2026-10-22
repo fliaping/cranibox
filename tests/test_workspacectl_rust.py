@@ -394,7 +394,8 @@ class ControlTests(unittest.TestCase):
         path = self.root / "bin/workspacectl"
         path.parent.mkdir()
         path.symlink_to(ROOT / "scripts/workspacectl")
-        env = {**self.env, "PATH": "/usr/bin:/bin", "AGENT_WORKSPACE_CTL_BIN": str(BINARY)}
+        # A Workspace image ships a built-in cranibox; keep this test about the plain installer.
+        env = {**self.env, "PATH": "/usr/bin:/bin", "AGENT_WORKSPACE_CTL_BIN": str(BINARY), "AGENT_WORKSPACE_BUILTIN_DIR": str(self.root / "no-builtin")}
         result = subprocess.run(["/bin/bash", str(ROOT / "scripts/install-workspacectl.sh")], env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(path.is_symlink())

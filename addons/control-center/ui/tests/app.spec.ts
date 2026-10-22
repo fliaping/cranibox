@@ -107,6 +107,8 @@ test('capabilities page shows providers, permissions, sharing and reviews instal
 });
 
 test('capabilities page explains when the node does not offer it yet', async ({ page }) => {
+  // Older nodes answer 404 for the capability API.
+  await page.route('**/api/v1/app/capabilities', route => route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"not_found","message":"Not found"}' }));
   await ready(page, '/app/this');
   await expect(page.getByRole('heading', { name: 'Capability management is not available on this node yet' })).toBeVisible();
 });

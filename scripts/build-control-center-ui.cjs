@@ -26,7 +26,9 @@ for (const language of ['en', 'zh-cn']) {
     '<script nonce="__WORKSPACE_NONCE__">try{var s=localStorage.getItem("cranibox.theme");document.documentElement.dataset.theme=s==="light"||s==="dark"?s:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}</script>\n' +
     '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +
     '<noscript>' + (zh ? '请启用 JavaScript 后使用 Cranibox。' : 'Enable JavaScript to use Cranibox.') + '</noscript>\n' +
-    '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;try{var l=localStorage.getItem("cranibox.language");if(l==="en"||l==="zh-cn")window.workspaceWeb.language=l;document.documentElement.lang=window.workspaceWeb.language}catch{}</script>\n' +
+    // Keep the configuration alone in its script; tools read it as window.workspaceWeb=…;</script>.
+    '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;</script>\n' +
+    '<script nonce="__WORKSPACE_NONCE__">try{var l=localStorage.getItem("cranibox.language");if(l==="en"||l==="zh-cn")window.workspaceWeb.language=l;document.documentElement.lang=window.workspaceWeb.language}catch{}</script>\n' +
     '<script nonce="__WORKSPACE_NONCE__" src="/web.js" type="module"></script>\n</body></html>\n';
   fs.writeFileSync(path.join(output, 'index.' + language + '.html'), html);
 }
