@@ -30,7 +30,14 @@ export type Device = {
   badges: string[];
   guest: boolean;
   caps: Record<string, boolean>;
+  /** e.g. "macOS 26.6". */
+  os_version?: string | null;
+  /** Hardware model, e.g. "Mac16,8". */
+  model?: string | null;
+  /** Unix seconds when the device last answered. */
+  last_seen?: number | null;
 };
+export type Identity = { code: string; owner_pub: string; recovery: boolean; epoch: number | null; members: number };
 export type Approval = {
   id: string;
   kind: string;

@@ -1,4 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { inShell, shellCall } from '../app/shell';
+
+/** The desktop app's separate terminal window (opened with `?window=terminal`). */
+export const isTerminalWindow = () => new URLSearchParams(location.search).get('window') === 'terminal';
 
 export type TerminalSelection = { node: string; id: string };
 export type TerminalLaunch = { node?: string; session?: string; command?: string; cwd?: string; name?: string; create?: boolean };
@@ -30,6 +34,8 @@ export function TerminalWindowProvider({ children }: { children: ReactNode }) {
   const serial = useRef(0);
   useEffect(() => { try { sessionStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* Storage is optional. */ } }, [state]);
   const openTerminal = useCallback((options: TerminalLaunch = {}) => {
+    // In the desktop app, terminals open in their own native window with tabs.
+    if (inShell() && !isTerminalWindow()) { void shellCall('open_terminal', { ...options }).catch(() => undefined); return; }
     setState(previous => ({ mode: 'open', selection: options.node !== undefined || options.session ? { node: options.node || '', id: options.session || '' } : previous.selection }));
     if (options.create || options.command || options.session) setLaunch({ ...options, serial: ++serial.current });
   }, []);

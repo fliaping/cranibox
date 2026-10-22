@@ -71,3 +71,4 @@
   .terminal-composer { margin: 0 8px 4px; padding: 2px; }
   .terminal-composer textarea { padding-block: 6px; }
 }
+.terminal-window.is-standalone { border: 0; border-radius: 0; box-shadow: none; }

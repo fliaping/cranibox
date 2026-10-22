@@ -83,7 +83,7 @@ impl Launcher {
             command.push_str(&desktop_quote(&arg));
         }
         format!(
-            "[Desktop Entry]\nType=Application\nVersion=1.0\nName=Cranibox Node\nExec={command}\nStartupNotify=false\nTerminal=false\n"
+            "[Desktop Entry]\nType=Application\nVersion=1.0\nName=Cranibox\nExec={command}\nStartupNotify=false\nTerminal=false\n"
         )
     }
 }

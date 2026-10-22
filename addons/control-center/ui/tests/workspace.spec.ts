@@ -73,7 +73,7 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   await createTerminal(page, 'Navigation task');
   const connection = sockets.at(-1)!;
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Settings' }).click();
   await expect(page.locator('.xterm')).toHaveCount(1);
   expect(connection.isClosed()).toBe(false);
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
@@ -285,9 +285,8 @@ test('local and remote tabs keep their connections while switching nodes and nav
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('LOCAL_CONNECTED');
   await page.getByRole('tab', { name: 'Remote logs', exact: true }).click();
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'This device' }).click();
-  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Devices & network', exact: true }).click();
-  await expect(page.locator('main h1')).toHaveText('Devices & network');
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Network' }).click();
+  await expect(page.locator('main h1')).toHaveText('Network');
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Remote logs', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('REMOTE_CONNECTED');
@@ -391,14 +390,14 @@ test('mobile navigation traps keyboard focus and restores its trigger', async ({
   const navigation = page.getByRole('dialog', { name: 'Navigation' });
   await expect(navigation).toBeVisible();
   await expect(page.locator('.cx-main')).toHaveAttribute('inert');
-  await navigation.getByRole('link', { name: 'This device' }).focus();
+  await navigation.getByRole('link', { name: 'Settings' }).focus();
   await page.keyboard.press('Tab');
   await expect(navigation.getByRole('link', { name: /Cranibox/ })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await navigation.getByRole('link', { name: 'This device', exact: true }).click();
-  await expect(page.locator('main h1')).toHaveText('Capabilities & permissions');
+  await navigation.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.locator('main h1')).toHaveText('General');
   await expect(page.locator('main')).toBeFocused();
 });
 
@@ -503,4 +502,30 @@ test('cancelled local operation appears in history and metrics use actual servic
   await page.goto('/#/performance');
   await expect(page.locator('.metric-value').first()).toContainText('MiB');
   await expect(page.getByText('Memory and CPU measure the unified server', { exact: false })).toBeVisible();
+});
+
+test('IME commits reach the shell exactly once, also from IMEs that xterm misses', async ({ page }) => {
+  await page.goto('/#/terminal');
+  await createTerminal(page, 'IME task');
+  const area = activePane(page).locator('.xterm-helper-textarea');
+  await area.focus();
+  await area.evaluate((element: HTMLTextAreaElement) => {
+    // A well-behaved IME: the committed text lands in xterm's textarea.
+    element.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
+    element.value += 'echo IME_中';
+    element.dispatchEvent(new CompositionEvent('compositionend', { data: 'echo IME_中' }));
+  });
+  await page.waitForTimeout(100);
+  await area.evaluate((element: HTMLTextAreaElement) => {
+    // An IME that commits without touching the textarea (seen with some macOS IMEs).
+    element.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
+    element.dispatchEvent(new CompositionEvent('compositionend', { data: '文_END' }));
+  });
+  await page.waitForTimeout(100);
+  await page.keyboard.press('Enter');
+  const screen = activePane(page).locator('.xterm-accessibility');
+  await expect(screen).toContainText('IME_中文_END');
+  await expect(screen).not.toContainText('中中');
+  await expect(screen).not.toContainText('文_END文_END');
+  await endTerminal(page, 'IME task');
 });

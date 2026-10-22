@@ -16,8 +16,8 @@ pub async fn held(path: PathBuf) -> u64 {
 /// Tray tooltip for the node status and the approval queue.
 pub fn tooltip(status: &str, held: u64) -> String {
     match held {
-        0 => format!("Cranibox Node — {status}"),
-        n => format!("Cranibox Node — {status} · {n} 条消息待批准 / {n} awaiting approval"),
+        0 => format!("Cranibox — {status}"),
+        n => format!("Cranibox — {status} · {n} 条消息待批准 / {n} awaiting approval"),
     }
 }
 
@@ -40,7 +40,7 @@ mod tests {
     use super::*;
     #[test]
     fn tooltip_mentions_the_queue_only_when_messages_wait() {
-        assert_eq!(tooltip("运行中", 0), "Cranibox Node — 运行中");
+        assert_eq!(tooltip("运行中", 0), "Cranibox — 运行中");
         assert!(tooltip("运行中", 2).ends_with("2 条消息待批准 / 2 awaiting approval"));
         assert!(menu_label(0).contains("没有待批准"));
         assert!(menu_label(3).starts_with("3 条消息待批准"));

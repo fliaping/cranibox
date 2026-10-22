@@ -23,7 +23,7 @@ pub enum Command {
     },
     /// List devices accessible to this device's Agent.
     Nodes,
-    /// Execute on a device in the same trust group.
+    /// Execute on a paired or same-identity device.
     Exec {
         #[arg(long)]
         node: String,
@@ -38,7 +38,7 @@ pub enum Command {
     },
     Job {
         id: String,
-        /// Device running the job (needed without a Workspace gateway).
+        /// Device running the job.
         #[arg(long)]
         node: Option<String>,
     },

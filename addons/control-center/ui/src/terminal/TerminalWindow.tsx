@@ -37,7 +37,8 @@ export function TerminalWindowToggle() {
   return <button id="terminal-window-toggle" className={'terminal-window-toggle' + (terminal.mode !== 'closed' ? ' has-terminals' : '')} aria-label={minimized ? t('恢复终端窗口', 'Restore terminal window') : t('打开终端窗口', 'Open terminal window')} title={(terminal.title ? terminal.title + ' · ' : '') + (minimized ? t('点击恢复终端', 'Restore terminal') : t('终端', 'Terminal'))} aria-expanded={terminal.mode === 'open'} aria-controls="floating-terminal" onClick={() => terminal.openTerminal()}><Terminal size={18} aria-hidden="true" /><span className="terminal-window-toggle-label">{t('终端', 'Terminal')}</span>{terminal.mode !== 'closed' && <span className="terminal-window-count">{terminal.count}</span>}{minimized && <span className="terminal-window-minimized-dot" aria-hidden="true" />}</button>;
 }
 
-export function TerminalWindow({ suspended = false }: { suspended?: boolean }) {
+/** `standalone`: the desktop app's own terminal window, filled edge to edge. */
+export function TerminalWindow({ suspended = false, standalone = false }: { suspended?: boolean; standalone?: boolean }) {
   const terminal = useTerminalWindow(), { t, available } = useTerminalEnvironment();
   const [rect, setRect] = useState(savedRect), [area, setArea] = useState(viewport), [maximized, setMaximized] = useState(false), [moving, setMoving] = useState(false);
   const gesture = useRef<{ pointer: number; edge: string; startX: number; startY: number; rect: Rect } | null>(null);
@@ -86,22 +87,22 @@ export function TerminalWindow({ suspended = false }: { suspended?: boolean }) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
   function preset(width: number, height: number) { setMaximized(false); setRect(defaultRect(width, height)); }
-  if (terminal.mode === 'closed' || !available) return null;
-  const size = area.mobile || maximized ? area : constrain(rect, area);
-  const hidden = terminal.mode === 'minimized' || suspended;
-  return <div ref={windowRef} id="floating-terminal" role="dialog" aria-modal="false" aria-labelledby="terminal-window-title" tabIndex={-1} hidden={hidden} inert={hidden} className={'terminal-window' + (moving ? ' is-moving' : '') + (maximized ? ' is-maximized' : '')} style={{ left: size.x, top: size.y, width: size.width, height: size.height }}>
+  if ((terminal.mode === 'closed' && !standalone) || !available) return null;
+  const size = standalone ? { x: 0, y: 0, width: innerWidth, height: innerHeight } : area.mobile || maximized ? area : constrain(rect, area);
+  const hidden = !standalone && (terminal.mode === 'minimized' || suspended);
+  return <div ref={windowRef} id="floating-terminal" role="dialog" aria-modal="false" aria-labelledby="terminal-window-title" tabIndex={-1} hidden={hidden} inert={hidden} className={'terminal-window' + (moving ? ' is-moving' : '') + (maximized || standalone ? ' is-maximized' : '') + (standalone ? ' is-standalone' : '')} style={{ left: size.x, top: size.y, width: size.width, height: size.height }}>
     <header className="terminal-window-head">
       <button className="terminal-window-drag" aria-label={t('移动终端窗口，使用方向键调整位置', 'Move terminal window, use arrow keys to adjust position')} title={t('拖动移动 · 方向键移动 · 双击最大化', 'Drag to move · Arrow keys to move · Double click to maximize')} onPointerDown={event => start(event, 'move')} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onDoubleClick={() => setMaximized(value => !value)} onKeyDown={event => {
         if (area.mobile || maximized || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
         event.preventDefault(); const step = event.shiftKey ? 32 : 8;
         setRect(previous => constrain({ ...previous, x: previous.x + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), y: previous.y + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0) }, area));
       }}><Terminal size={18} aria-hidden="true" /><strong id="terminal-window-title">{t('终端', 'Terminal')}</strong><span>{terminal.title || t('持久会话', 'Persistent sessions')}</span></button>
-      <div className="terminal-window-actions">
+      {!standalone && <div className="terminal-window-actions">
         <TerminalMenu label={t('终端窗口布局', 'Terminal window layout')}><button role="menuitem" disabled={area.mobile} onClick={() => preset(700, 520)}>{t('紧凑窗口', 'Compact window')}</button><button role="menuitem" disabled={area.mobile} onClick={() => preset(1100, 690)}>{t('标准窗口', 'Standard window')}</button><button role="menuitem" disabled={area.mobile} onClick={() => preset(1320, 820)}>{t('大窗口', 'Large window')}</button><button role="menuitem" disabled={area.mobile} onClick={() => { setMaximized(false); setRect(defaultRect(rect.width, rect.height)); }}>{t('居中', 'Center window')}</button><button role="menuitem" disabled={area.mobile} onClick={() => { setMaximized(false); setRect(constrain({ ...rect, x: area.x, y: area.y }, area)); }}>{t('靠左', 'Align left')}</button><button role="menuitem" disabled={area.mobile} onClick={() => { setMaximized(false); setRect(constrain({ ...rect, x: area.x + area.width - rect.width, y: area.y }, area)); }}>{t('靠右', 'Align right')}</button></TerminalMenu>
         <button aria-label={t('最小化终端窗口', 'Minimize terminal window')} title={t('最小化到右上角，保持连接', 'Minimize to the top right, keep connections')} onClick={terminal.minimize}><Minus size={18} aria-hidden="true" /></button>
         <button className="terminal-window-maximize" aria-label={maximized ? t('还原终端窗口', 'Restore terminal size') : t('最大化终端窗口', 'Maximize terminal window')} title={maximized ? t('还原', 'Restore size') : t('最大化', 'Maximize')} onClick={() => setMaximized(value => !value)}>{maximized ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}</button>
         <button aria-label={t('关闭终端窗口', 'Close terminal window')} title={t('关闭窗口，保留后台会话', 'Close window, keep sessions running')} onClick={terminal.close}><X size={18} aria-hidden="true" /></button>
-      </div>
+      </div>}
     </header>
     <div className="terminal-window-body"><TerminalPage visible={!hidden} /></div>
     {!area.mobile && !maximized && ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(edge => <button key={edge} className={'terminal-window-resize edge-' + edge} tabIndex={edge === 'se' ? 0 : -1} aria-hidden={edge === 'se' ? undefined : true} aria-label={edge === 'se' ? t('调整终端窗口大小，使用方向键调整', 'Resize terminal window, use arrow keys to adjust') : undefined} title={edge === 'se' ? t('拖动调整大小 · 方向键调整', 'Drag or use arrow keys to resize') : undefined} onPointerDown={event => start(event, edge)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onKeyDown={event => {

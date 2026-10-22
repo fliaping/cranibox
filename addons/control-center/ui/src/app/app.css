@@ -249,3 +249,53 @@
 @media (prefers-reduced-motion: reduce) { .cx-spin { animation: none; } .cx-sidebar { transition: none; } }
 @media (max-width: 1100px) { .cx-app { background: linear-gradient(to right, var(--sidebar) 219px, var(--border) 219px, var(--border) 220px, var(--bg) 220px); } }
 @media (max-width: 860px) { .cx-app { background: var(--bg); } }
+
+/* Home overview */
+.cx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: var(--space-3); margin-bottom: var(--space-6); }
+.cx-stat { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: var(--space-3); align-items: center; padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--text); }
+.cx-stat:hover { border-color: var(--border-strong); }
+.cx-stat svg { grid-row: span 2; width: 22px; height: 22px; color: var(--accent-text); }
+.cx-stat strong { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.cx-stat strong small { font-size: var(--text-sm); font-weight: 500; color: var(--muted); }
+.cx-stat span { font-size: var(--text-xs); color: var(--muted); }
+.cx-quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: var(--space-2); margin-top: var(--space-3); }
+.cx-welcome { margin-bottom: var(--space-6); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+
+/* Network map */
+.cx-netmap svg { display: block; width: 100%; height: auto; max-height: 440px; }
+.cx-netmap-edge line, .cx-netmap-relay line { stroke-width: 2; }
+.cx-netmap-edge.direct line { stroke: var(--good); }
+.cx-netmap-edge.relay line, .cx-netmap-relay line { stroke: var(--warn); stroke-dasharray: 7 5; }
+.cx-netmap-edge.offline line { stroke: var(--border-strong); stroke-dasharray: 2 5; }
+.cx-netmap-edge text { font-size: 12px; fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.cx-netmap-relay rect { fill: var(--warn-bg); stroke: var(--warn); }
+.cx-netmap-relay text { font-size: 12px; font-weight: 600; fill: var(--warn); }
+.cx-netmap-node { cursor: pointer; outline: none; }
+.cx-netmap-node circle { fill: var(--surface-raised); stroke: var(--border-strong); stroke-width: 2; transition: stroke .15s; }
+.cx-netmap-node.online circle { stroke: var(--good); }
+.cx-netmap-node.guest circle { stroke-dasharray: 4 3; }
+.cx-netmap-node.self circle { fill: var(--accent); stroke: var(--accent); }
+.cx-netmap-node.self .cx-netmap-initial { fill: var(--on-accent); }
+.cx-netmap-node:hover circle, .cx-netmap-node:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
+.cx-netmap-node text { font-size: 13px; fill: var(--text); }
+.cx-netmap-node .cx-netmap-initial { font-size: 15px; font-weight: 700; }
+.cx-netmap-node.offline text { fill: var(--muted); }
+.cx-netmap-hint { font-size: 13px; fill: var(--muted); }
+.cx-netmap-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: center; font-size: var(--text-xs); color: var(--muted); }
+.cx-netmap-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cx-netmap-legend i { display: inline-block; width: 22px; border-top: 2px solid var(--good); }
+.cx-netmap-legend i.relay { border-top: 2px dashed var(--warn); }
+.cx-netmap-legend i.offline { border-top: 2px dotted var(--border-strong); }
+.cx-identity-code { font: 600 var(--text-sm) var(--mono); letter-spacing: .04em; overflow-wrap: anywhere; padding: 6px 10px; border-radius: var(--radius); background: var(--surface-raised); }
+
+/* Top bar language switch */
+.cx-lang { width: auto; padding: 0 8px; gap: 4px; display: inline-flex; align-items: center; font-size: var(--text-xs); font-weight: 600; }
+
+/* Device detail cards */
+.cx-detail-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.cx-detail-grid > .cx-card + .cx-card { margin-top: 0; }
+.cx-detail-grid > .cx-card:nth-child(-n+2) { grid-column: span 2; }
+.cx-detail-grid .cx-facts { margin-top: var(--space-3); }
+.cx-cap-tile { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3); }
+@media (max-width: 640px) { .cx-detail-grid > .cx-card:nth-child(-n+2) { grid-column: auto; } }
+.cx-stack > .cx-card + .cx-card { margin-top: 0; }

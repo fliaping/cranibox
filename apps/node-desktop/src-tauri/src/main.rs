@@ -105,6 +105,45 @@ async fn quit_app(app: tauri::AppHandle, state: Arc<AppState>) {
     app.exit(0);
 }
 
+static TERMINAL_LAUNCHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Terminals open in one native window with tabs; later requests add tabs to it.
+fn open_terminal(app: &tauri::AppHandle, sign_in: &str, body: &Value) -> anyhow::Result<()> {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    for key in ["node", "session", "command", "cwd"] {
+        if let Some(value) = body[key]
+            .as_str()
+            .filter(|v| !v.is_empty() && v.len() <= 4096)
+        {
+            query.append_pair(key, value);
+        }
+    }
+    if body["create"].as_bool() == Some(true) {
+        query.append_pair("create", "1");
+    }
+    // A fresh counter makes every request a hash change, even for the same target.
+    let serial = TERMINAL_LAUNCHES.fetch_add(1, Ordering::Relaxed);
+    query.append_pair("n", &serial.to_string());
+    let hash = format!("#/launch?{}", query.finish());
+    if let Some(window) = app.get_webview_window("terminal") {
+        window.eval(format!("location.hash = {}", serde_json::to_string(&hash)?))?;
+        let _ = window.unminimize();
+        window.show()?;
+        window.set_focus()?;
+        return Ok(());
+    }
+    // Same origin as the main window, so its sign-in cookie applies.
+    let mut url = url::Url::parse(sign_in)?;
+    url.set_path("/");
+    url.set_query(Some("window=terminal"));
+    url.set_fragment(Some(&hash[1..]));
+    tauri::WebviewWindowBuilder::new(app, "terminal", tauri::WebviewUrl::External(url))
+        .title("Terminal · Cranibox")
+        .inner_size(1100.0, 700.0)
+        .min_inner_size(520.0, 320.0)
+        .build()?;
+    Ok(())
+}
+
 /// Native operations offered to this window's page through `/api/shell`.
 struct NativeShell {
     app: tauri::AppHandle,
@@ -131,6 +170,18 @@ impl Shell for NativeShell {
             }
             "open_external" => {
                 open_browser(body["url"].as_str().unwrap_or_default()).await?;
+                Ok(json!({}))
+            }
+            "open_terminal" => {
+                let base = self
+                    .state
+                    .service
+                    .lock()
+                    .await
+                    .url
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("the interface is not running"))?;
+                open_terminal(&self.app, &base, &body)?;
                 Ok(json!({}))
             }
             "hide" => {

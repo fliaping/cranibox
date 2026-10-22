@@ -9,7 +9,8 @@ import { Shell } from './app/App';
 import { AppProvider } from './app/store';
 import { inShell, shellCall } from './app/shell';
 import { httpApi } from './personal/api';
-import { TerminalWindowProvider } from './terminal/TerminalWindowContext';
+import { TerminalStandalone } from './terminal/TerminalStandalone';
+import { isTerminalWindow, TerminalWindowProvider } from './terminal/TerminalWindowContext';
 import { WebTerminalEnvironment } from './terminal/WebTerminalEnvironment';
 import { WorkspaceProvider } from './workspace';
 
@@ -19,6 +20,6 @@ const legacy = location.hash.slice(1);
 if (/^[a-z]+$/.test(legacy)) history.replaceState(null, '', '#/' + legacy);
 function Root() {
   // Language is a per-browser preference applied before any module reads the config.
-  return <AppProvider api={api} language={window.workspaceWeb.language} onLocale={() => location.reload()} openExternal={inShell() ? url => shellCall('open_external', { url }) : undefined}><Shell /></AppProvider>;
+  return <AppProvider api={api} language={window.workspaceWeb.language} onLocale={() => location.reload()} openExternal={inShell() ? url => shellCall('open_external', { url }) : undefined}>{isTerminalWindow() ? <TerminalStandalone /> : <Shell />}</AppProvider>;
 }
 createRoot(document.getElementById('root')!).render(<HashRouter><TerminalWindowProvider><WorkspaceProvider><WebTerminalEnvironment><Root /></WebTerminalEnvironment></WorkspaceProvider></TerminalWindowProvider></HashRouter>);

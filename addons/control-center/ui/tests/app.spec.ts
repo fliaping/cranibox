@@ -17,28 +17,33 @@ const capabilities = {
 
 test('one navigation: home shows peers, approvals and no hub wording', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('dialog')).toContainText('Welcome to Cranibox');
-  await page.getByRole('button', { name: 'Use on this device first', exact: true }).click();
-  await page.getByRole('button', { name: 'Add later, go home', exact: true }).click();
+  // First-run guidance is an inline card: it never blocks the page.
+  const welcome = page.getByRole('region', { name: 'Welcome to Cranibox', exact: true });
+  await expect(welcome).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await welcome.getByRole('button', { name: 'Dismiss welcome' }).click();
   await page.reload();
-  await expect(page.locator('main h1')).toHaveText('Every device you own, ready for your agents');
+  await expect(welcome).toHaveCount(0);
+  await expect(page.locator('main h1')).toHaveText('Home');
+  await expect(page.getByRole('region', { name: 'Network summary' })).toContainText('devices online');
   await expect(page.locator('.cx-brand small')).toHaveText('The agent workspace across your devices');
   await expect(page).toHaveTitle(/Cranibox/);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  for (const name of ['Home', 'Inbox', 'Agents & models', 'This device']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
+  for (const name of ['Home', 'Devices', 'Network', 'Virtual spaces', 'Projects & sessions', 'Inbox', 'Agents & models', 'Settings']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/\bHub\b|常驻节点|Advanced/);
+  await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
+  await nav.getByRole('link', { name: 'Devices' }).click();
   const server = page.getByRole('region', { name: 'Home server', exact: true });
   await expect(server).toContainText('Relayed · 38 ms');
   await expect(server).toContainText('Computer Use');
   await expect(page.getByRole('region', { name: 'Studio', exact: true })).toContainText('Offline');
-  await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
+  await nav.getByRole('link', { name: 'Home' }).click();
   await page.getByRole('link', { name: 'Review' }).click();
   await expect(page).toHaveURL(/#\/app\/inbox$/);
 });
 
 test('device detail has overview, desktop, browser and access tabs', async ({ page }) => {
-  await ready(page, '/app/home');
+  await ready(page, '/app/devices');
   await page.getByRole('region', { name: 'Home server', exact: true }).getByRole('button', { name: 'Desktop', exact: true }).click();
   await expect(page).toHaveURL(/#\/app\/device\/node-0a1b[0-9a-f]+\/desktop$/);
   await expect(page.locator('main h1')).toHaveText('Home server');
@@ -47,7 +52,8 @@ test('device detail has overview, desktop, browser and access tabs', async ({ pa
   await tabs.getByRole('link', { name: 'Browser', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Target browser', exact: true })).toBeVisible();
   await tabs.getByRole('link', { name: 'Overview', exact: true }).click();
-  await expect(page.locator('.cx-facts')).toContainText('Relayed (still end-to-end encrypted)');
+  await expect(page.getByRole('region', { name: 'Connection', exact: true })).toContainText('Relayed (end-to-end encrypted)');
+  await expect(page.getByRole('region', { name: 'System', exact: true })).toContainText('Device ID');
 });
 
 test('per-device grants use the grant contract in both directions', async ({ page }) => {
@@ -119,7 +125,7 @@ test('device pairing uses the invitation and SAS confirmation contract', async (
   await page.getByRole('button', { name: 'Create QR code and link', exact: true }).click();
   const link = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   expect(link.startsWith('cranibox://pair/')).toBe(true);
-  await page.getByLabel('Pairing link', { exact: true }).fill(link);
+  await page.getByLabel('Pairing link or server address', { exact: true }).fill(link);
   await page.getByRole('button', { name: 'Continue to verification', exact: true }).click();
   await expect(page.locator('.cx-sas code')).toHaveText(/[0-9]{4}-[0-9]{4}-[0-9]{4}/);
   const confirmed = page.waitForRequest(request => request.url().includes('/confirm') && request.method() === 'POST');
@@ -177,11 +183,16 @@ test('settings switch theme and language for every page and fit 360px', async ({
   await page.getByRole('button', { name: 'Dark', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('combobox', { name: 'Language' }).selectOption('zh-cn');
-  await expect(page.locator('main h1')).toHaveText('设置');
+  await expect(page.locator('main h1')).toHaveText('通用');
   await page.goto('/#/app/home');
-  await expect(page.locator('main h1')).toHaveText('你的每台设备，都是 Agent 的工作台');
+  await expect(page.locator('main h1')).toHaveText('首页');
+  // The top bar switches back without opening settings.
+  await page.getByRole('button', { name: '切换到 English' }).click();
+  await expect(page.locator('main h1')).toHaveText('Home');
+  await page.getByRole('button', { name: 'Switch to 中文' }).click();
+  await expect(page.locator('main h1')).toHaveText('首页');
   await page.getByRole('button', { name: '打开导航' }).click();
-  await expect(page.getByRole('dialog', { name: '导航' }).getByRole('link', { name: '本机', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '导航' }).getByRole('link', { name: '本机设置', exact: true })).toBeVisible();
   await page.evaluate(() => localStorage.removeItem('cranibox.language'));
 });
 
@@ -190,8 +201,10 @@ test('workspace consoles live under This device and old bookmarks keep working',
   await expect(page).toHaveURL(/#\/overview$/);
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Services');
   await page.goto('/#/app/devices');
-  await expect(page).toHaveURL(/#\/nodes$/);
-  await expect(page.locator('main h1')).toHaveText('Devices & network');
+  await expect(page.locator('main h1')).toHaveText('Devices');
+  await page.goto('/#/nodes');
+  await expect(page.locator('main h1')).toHaveText('Network');
+  await expect(page.getByRole('region', { name: 'Network map' })).toBeVisible();
 });
 
 test('desktop app settings use the shell API and confirm before quitting', async ({ page }) => {
@@ -212,13 +225,14 @@ test('desktop app settings use the shell API and confirm before quitting', async
   await app.getByText('Start at login').click();
   await expect.poll(() => operations.at(-1)).toEqual({ operation: 'autostart', enabled: true });
   await expect(app.getByRole('switch', { name: /Start at login/ })).toBeChecked();
+  await app.getByRole('button', { name: 'Quit Cranibox' }).click();
+  await page.getByRole('dialog', { name: 'Quit Cranibox?' }).getByRole('button', { name: 'Cancel' }).click();
+  expect(operations.some(item => item.operation === 'quit')).toBe(false);
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agent access' }).click();
   const mcp = page.getByRole('region', { name: 'Agent access (MCP config)', exact: true });
   await mcp.getByRole('checkbox', { name: 'Include managed run tools' }).check();
   await mcp.getByRole('button', { name: 'Generate configuration' }).click();
   await expect(mcp.getByLabel('MCP configuration')).toContainText('"mcpServers"');
   expect(operations.at(-1)).toEqual({ operation: 'mcp_config', include_runs: true });
-  await app.getByRole('button', { name: 'Quit Cranibox' }).click();
-  await page.getByRole('dialog', { name: 'Quit Cranibox?' }).getByRole('button', { name: 'Cancel' }).click();
-  expect(operations.some(item => item.operation === 'quit')).toBe(false);
   await expect(page.getByRole('link', { name: 'Workspace', exact: true })).toHaveCount(0);
 });

@@ -66,14 +66,24 @@ export function TerminalPane({ entry, visible, online, machine, onClose, onRenam
     const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', scrollback: 3000, screenReaderMode: true, minimumContrastRatio: 4.5, theme: { background: '#0f141c', foreground: '#f1f5f9', cursor: '#a3e635', selectionBackground: '#303d50' } });
     const fitted = new FitAddon(); term.loadAddon(fitted); term.open(host.current!); terminal.current = term; fit.current = fitted;
     const send = (value: Parameters<TerminalConnection['send']>[0]) => socket.current?.send(value);
-    const input = term.onData(data => send({ type: 'input', data }));
+    let delivered = 0;
+    const input = term.onData(data => { delivered++; send({ type: 'input', data }); });
+    // Some IMEs (notably third-party ones in macOS WebKit) end a composition without
+    // xterm producing data. xterm reads committed text on a 0 ms timer after
+    // compositionend; ours runs after it and forwards the text only if xterm stayed silent.
+    const field = term.textarea;
+    const composed = (event: CompositionEvent) => {
+      const text = event.data, before = delivered;
+      if (text) window.setTimeout(() => { if (delivered === before) { delivered++; send({ type: 'input', data: text }); } }, 0);
+    };
+    field?.addEventListener('compositionend', composed);
     const resized = term.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }));
     let frame = 0;
     const resize = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { if (host.current?.clientWidth && host.current?.clientHeight) fitted.fit(); }); };
     const observer = new ResizeObserver(resize); observer.observe(host.current!); resize();
     const fullscreenChanged = () => setFullscreen(document.fullscreenElement === pane.current);
     document.addEventListener('fullscreenchange', fullscreenChanged);
-    return () => { alive.current = false; detach(); observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('fullscreenchange', fullscreenChanged); input.dispose(); resized.dispose(); term.dispose(); terminal.current = null; fit.current = null; };
+    return () => { alive.current = false; detach(); observer.disconnect(); cancelAnimationFrame(frame); document.removeEventListener('fullscreenchange', fullscreenChanged); field?.removeEventListener('compositionend', composed); input.dispose(); resized.dispose(); term.dispose(); terminal.current = null; fit.current = null; };
   }, [detach]);
   useEffect(() => { if (online && wanted.current) void attach(); else if (!online) detach(false); }, [online, attach, detach]);
   useEffect(() => {

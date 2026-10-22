@@ -1,6 +1,6 @@
-import { ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal } from "lucide-react";
+import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { webDesktopConnector } from "../desktop/WebRemoteDesktops";
 import { VncViewer } from "../desktop/VncViewer";
 import { BrowserTargetPanel } from "../devices/BrowserTargetPanel";
@@ -13,7 +13,7 @@ import { request, useWorkspace } from "../workspace";
 import { deviceCaps, devicePath } from "./Home";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
-import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Section, Switch, Tabs } from "./ui";
+import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Switch, Tabs, type Translate } from "./ui";
 
 const tabs = ["overview", "terminal", "desktop", "browser", "projects", "access"] as const;
 type Tab = (typeof tabs)[number];
@@ -24,11 +24,11 @@ export function DeviceDetail() {
   const id = decodeURIComponent(params.id || ""), tab = (params.tab || "overview") as Tab;
   const device = devices.find(item => item.node_id === id);
   if (!tabs.includes(tab)) return <Navigate to={"/app/device/" + encodeURIComponent(id)} replace />;
-  if (!device) return loading ? null : <Empty icon={Plug} title={t("找不到这台设备", "Device not found")} actions={<Link className="cx-btn" to="/app/home">{t("返回首页", "Back to home")}</Link>}>{t("它可能已被移除，或尚未与本机配对。", "It may have been removed, or it is not paired with this device yet.")}</Empty>;
+  if (!device) return loading ? null : <Empty icon={Plug} title={t("找不到这台设备", "Device not found")} actions={<Link className="cx-btn" to="/app/devices">{t("全部设备", "All devices")}</Link>}>{t("它可能已被移除，或尚未与本机配对。", "It may have been removed, or it is not paired with this device yet.")}</Empty>;
   const local = isThis(device), reachable = local || device.online;
   const labels: Record<Tab, string> = { overview: t("概览", "Overview"), terminal: t("终端", "Terminal"), desktop: t("桌面", "Desktop"), browser: t("浏览器", "Browser"), projects: t("项目与会话", "Projects & sessions"), access: t("授权", "Access") };
   return <>
-    <Link className="cx-btn ghost small" to="/app/home"><ArrowLeft size={15} aria-hidden="true" />{t("全部设备", "All devices")}</Link>
+    <Link className="cx-btn ghost small" to="/app/devices"><ArrowLeft size={15} aria-hidden="true" />{t("全部设备", "All devices")}</Link>
     <div className="cx-device-head">
       <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={26} /></span>
       <div className="cx-grow">
@@ -46,28 +46,54 @@ export function DeviceDetail() {
     {tab === "access" && <AccessTab device={device} />}
   </>;
 }
+function since(seconds: number | null | undefined, t: Translate) {
+  if (!seconds) return "—";
+  const age = Math.max(0, Math.round(Date.now() / 1000 - seconds));
+  if (age < 60) return t("刚刚", "just now");
+  if (age < 3600) return t(Math.round(age / 60) + " 分钟前", Math.round(age / 60) + " min ago");
+  if (age < 86400) return t(Math.round(age / 3600) + " 小时前", Math.round(age / 3600) + " h ago");
+  return new Date(seconds * 1000).toLocaleString();
+}
 function Overview({ device }: { device: Device }) {
   const { t } = useApp();
-  const local = isThis(device);
-  return <>
-    <Card>
+  const navigate = useNavigate(), { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
+  const local = isThis(device), reachable = local || device.online;
+  const open: Record<string, () => void> = {
+    terminals: () => openTerminal({ node: terminalNode(device), create: true }),
+    desktop: () => navigate(devicePath(device, "desktop")),
+    browser: () => navigate(devicePath(device, "browser")),
+    computer: () => navigate(devicePath(device, "access")),
+  };
+  return <div className="cx-detail-grid">
+    <Card label={t("连接", "Connection")} className="cx-detail-status">
+      <div className="cx-card-head"><span className={"cx-card-icon " + (reachable ? "" : "muted")}><Activity size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("连接", "Connection")}</h3></div>
+        <Pill tone={reachable ? "good" : ""}>{reachable ? t("在线", "Online") : t("离线", "Offline")}</Pill></div>
       <dl className="cx-facts">
-        <div><dt>{t("状态", "Status")}</dt><dd>{local || device.online ? t("在线", "Online") : t("离线", "Offline")}</dd></div>
-        <div><dt>{t("连接路径", "Connection path")}</dt><dd>{local ? t("本机", "This device") : device.path === "direct" ? t("对等直连", "Direct peer connection") : device.path === "relay" ? t("经中继转发（仍端到端加密）", "Relayed (still end-to-end encrypted)") : t("未知", "Unknown")}</dd></div>
-        <div><dt>{t("延迟", "Latency")}</dt><dd>{device.rtt_ms !== null ? device.rtt_ms + " ms" : "—"}</dd></div>
+        <div><dt>{t("连接路径", "Path")}</dt><dd>{local ? t("本机", "This device") : device.path === "direct" ? t("对等直连", "Direct peer connection") : device.path === "relay" ? t("经中继（端到端加密）", "Relayed (end-to-end encrypted)") : t("未知", "Unknown")}</dd></div>
+        <div><dt>{t("延迟", "Latency")}</dt><dd>{local ? "—" : device.rtt_ms != null ? device.rtt_ms + " ms" : "—"}</dd></div>
+        <div><dt>{t("最近在线", "Last seen")}</dt><dd>{reachable ? t("现在", "Now") : since(device.last_seen, t)}</dd></div>
+      </dl>
+    </Card>
+    <Card label={t("系统", "System")}>
+      <div className="cx-card-head"><span className="cx-card-icon"><DeviceIcon kind={device.kind} size={20} /></span><div className="cx-grow"><h3>{t("系统", "System")}</h3></div></div>
+      <dl className="cx-facts">
+        <div><dt>{t("系统版本", "OS")}</dt><dd>{device.os_version || "—"}</dd></div>
+        <div><dt>{t("机型", "Model")}</dt><dd>{device.model || "—"}</dd></div>
         <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : device.guest ? t("访客设备", "Guest device") : t("你的设备", "Your device")}</dd></div>
         <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{device.node_id}</dd></div>
       </dl>
     </Card>
-    <Section title={t("能力", "Capabilities")} description={local ? t("在「本机 › 能力与权限」中安装、启动和共享。", "Install, start and share them under This device › Capabilities.") : t("可以在这台设备上使用的功能。", "What you can use on this device.")}>
-      <div className="cx-grid">{deviceCaps.map(cap => {
-        const Icon = capabilityIcons[cap], on = device.caps[cap] !== false;
-        const tab = cap === "terminals" ? "terminal" : cap === "computer" ? "access" : cap;
-        return <Card key={cap}><div className="cx-card-head"><span className={"cx-card-icon " + (on ? "" : "muted")}><Icon size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{capabilityName(cap, t)}</h3><small className="cx-muted">{on ? t("可用", "Available") : t("未授权", "Not allowed")}</small></div>
-          {local && cap !== "terminals" ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link> : <Link className="cx-btn small" to={devicePath(device, tab)}>{cap === "computer" ? t("授权", "Access") : t("打开", "Open")}</Link>}</div></Card>;
-      })}</div>
-    </Section>
-  </>;
+    {deviceCaps.map(cap => {
+      const Icon = capabilityIcons[cap], on = device.caps[cap] !== false;
+      return <Card key={cap} className="cx-cap-tile" label={capabilityName(cap, t)}>
+        <div className="cx-card-head"><span className={"cx-card-icon " + (on ? "" : "muted")}><Icon size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{capabilityName(cap, t)}</h3><small className="cx-muted">{on ? t("可用", "Available") : t("未授权", "Not allowed")}</small></div></div>
+        <div className="cx-actions">
+          {local && cap !== "terminals" ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link>
+            : <button className="cx-btn small primary" disabled={!on || !reachable} onClick={open[cap]}>{cap === "computer" ? t("授权", "Access") : cap === "terminals" ? t("打开终端", "Open terminal") : t("打开", "Open")}</button>}
+        </div>
+      </Card>;
+    })}
+  </div>;
 }
 function TerminalTab({ device }: { device: Device }) {
   const { t } = useApp();
