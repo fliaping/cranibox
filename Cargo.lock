@@ -1194,7 +1194,7 @@ dependencies = [
 
 [[package]]
 name = "cranibox"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "agent-workspace-runtime",
  "agent-workspace-services",
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "cranibox-node-desktop"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "agent-workspace-runtime",
  "anyhow",
