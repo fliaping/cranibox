@@ -37,12 +37,19 @@ pub async fn handle(services: Services, request: Request) -> Response {
                 .into_response();
         }
     }
-    let path = request
-        .uri()
-        .path()
-        .strip_prefix("/api/v1/app")
-        .unwrap_or_default()
-        .to_owned();
+    let Some(path) = decode_path(
+        request
+            .uri()
+            .path()
+            .strip_prefix("/api/v1/app")
+            .unwrap_or_default(),
+    ) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"code":"invalid","message":"Invalid path"})),
+        )
+            .into_response();
+    };
     if path == "/events" && request.method() == Method::GET {
         let local = services.local.clone();
         let events = stream::unfold(
@@ -96,5 +103,53 @@ pub async fn handle(services: Services, request: Request) -> Response {
             Json(error),
         )
             .into_response(),
+    }
+}
+
+/// Percent-decode each path segment, as browsers encode IDs such as `pair:…` with
+/// `encodeURIComponent`. A segment may not decode to `/` or invalid UTF-8, so encoding
+/// can never change which route a request reaches.
+fn decode_path(path: &str) -> Option<String> {
+    let segments = path
+        .split('/')
+        .map(|segment| {
+            let bytes = segment.as_bytes();
+            let mut out = Vec::with_capacity(bytes.len());
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'%' {
+                    let hex = std::str::from_utf8(bytes.get(i + 1..i + 3)?).ok()?;
+                    out.push(u8::from_str_radix(hex, 16).ok()?);
+                    i += 3;
+                } else {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+            let decoded = String::from_utf8(out).ok()?;
+            (!decoded.contains('/')).then_some(decoded)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(segments.join("/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_path;
+
+    #[test]
+    fn approval_ids_are_decoded_without_changing_routes() {
+        assert_eq!(
+            decode_path("/approvals/pair%3Aabc").as_deref(),
+            Some("/approvals/pair:abc")
+        );
+        assert_eq!(decode_path("/status").as_deref(), Some("/status"));
+        assert_eq!(decode_path("/approvals/a%2Fb"), None, "no encoded slash");
+        assert_eq!(decode_path("/approvals/%ZZ"), None);
+        assert_eq!(
+            decode_path("/approvals/%E4%B8%AD").as_deref(),
+            Some("/approvals/中")
+        );
+        assert_eq!(decode_path("/approvals/%FF"), None, "invalid UTF-8");
     }
 }
