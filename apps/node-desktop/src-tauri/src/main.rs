@@ -108,7 +108,10 @@ async fn open_browser(url: &str) -> anyhow::Result<()> {
     let status = tokio::time::timeout(std::time::Duration::from_secs(10), command.status())
         .await
         .map_err(|_| anyhow::anyhow!("Opening the browser timed out"))??;
-    anyhow::ensure!(status.success(), "The system browser could not open this link");
+    anyhow::ensure!(
+        status.success(),
+        "The system browser could not open this link"
+    );
     Ok(())
 }
 async fn quit_app(app: tauri::AppHandle, state: Arc<AppState>) {
@@ -170,11 +173,12 @@ impl Shell for NativeShell {
                 });
                 Ok(json!({}))
             }
-            "mcp_config" => Ok(cranibox_node_desktop::launch::Launcher::current()?
-                .mcp_config(
+            "mcp_config" => Ok(
+                cranibox_node_desktop::launch::Launcher::current()?.mcp_config(
                     &settings::default_path(),
                     body["include_runs"].as_bool().unwrap_or(false),
-                )),
+                ),
+            ),
             _ => anyhow::bail!("unknown operation"),
         }
     }

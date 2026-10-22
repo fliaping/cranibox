@@ -157,8 +157,7 @@ pub async fn run(
     let stop = control.stop.clone();
     let signal = stop.clone();
     #[cfg(unix)]
-    let mut terminate =
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     tokio::spawn(async move {
         #[cfg(unix)]
         tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
