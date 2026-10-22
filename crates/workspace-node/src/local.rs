@@ -214,7 +214,7 @@ impl LocalNode {
         takeover: bool,
     ) -> Result<Terminal> {
         let mut pty = self.engine.attach(session, cols, rows, takeover).await?;
-        let (input, mut incoming) = mpsc::channel::<Input>(32);
+        let (input, mut incoming) = mpsc::channel::<Input>(256);
         let (outgoing, output) = mpsc::channel(32);
         let task = tokio::spawn(async move {
             for data in pty.take_replay() {

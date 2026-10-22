@@ -97,7 +97,7 @@ impl Session {
         drop(pair.slave);
         let killer = child.clone_killer();
         let pid = child.process_id();
-        let (input, commands) = mpsc::sync_channel::<Vec<u8>>(32);
+        let (input, commands) = mpsc::sync_channel::<Vec<u8>>(256);
         let (sender, output) = async_mpsc::channel(32);
         #[cfg(windows)]
         let (cursor_ready, cursor_wait) = mpsc::channel();

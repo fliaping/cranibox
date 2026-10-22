@@ -147,7 +147,7 @@ impl Engine {
                     Session::open(80, 24, Some(cwd), Some(home))
                 })
                 .await??;
-                let (commands, receiver) = mpsc::channel(32);
+                let (commands, receiver) = mpsc::channel(256);
                 let (status, exited) = watch::channel(None);
                 // The actor holds only a weak sender, so dropping the manager
                 // and all attachments closes its control queue and ends the shell.
