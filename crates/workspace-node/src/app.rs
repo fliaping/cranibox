@@ -1,5 +1,6 @@
 //! One App API implementation shared by the browser and native IPC.
 mod capabilities;
+mod known;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
 use cranibox_contracts::{
@@ -78,12 +79,21 @@ impl Service {
             let (local, reach, node) = (self.local.clone(), self.reach.clone(), node.to_owned());
             tokio::spawn(async move {
                 let online = match local.upgrade() {
-                    Some(local) => tokio::time::timeout(
+                    Some(local) => match tokio::time::timeout(
                         std::time::Duration::from_secs(5),
                         local.manage_peers(peers::Command::Probe { node: node.clone() }),
                     )
                     .await
-                    .is_ok_and(|result| result.is_ok()),
+                    {
+                        Ok(Ok(answer)) => {
+                            let now = cranibox_llm::auth::now();
+                            let _ = known::update(local.config_path(), &node, |k| {
+                                k.learn(&answer, now)
+                            });
+                            true
+                        }
+                        _ => false,
+                    },
                     None => false,
                 };
                 reach.lock().unwrap().insert(
@@ -201,6 +211,22 @@ impl Service {
     }
     pub async fn device_update(&self, node: &str, input: Value) -> Result<(), AppError> {
         let local = self.local()?;
+        if let Some(name) = input.get("name") {
+            let name = name
+                .as_str()
+                .map(str::trim)
+                .ok_or_else(|| error(400, "invalid", "Name must be text"))?;
+            if name.chars().count() > 64 {
+                return Err(error(400, "invalid", "Use at most 64 characters"));
+            }
+            known::update(local.config_path(), node, |k| {
+                k.alias = (!name.is_empty()).then(|| name.to_owned());
+            })
+            .map_err(unavailable)?;
+            if input.get("caps").is_none() && input.get("revoke").is_none() {
+                return Ok(());
+            }
+        }
         let owner = self.models.roster.is_owner_node(node);
         if input["revoke"] == true {
             if node == local.id {
@@ -300,6 +326,9 @@ impl AppApi for Service {
     async fn devices(&self) -> Result<Vec<Device>, AppError> {
         let local = self.local()?;
         let config = Config::read(local.config_path()).map_err(unavailable)?;
+        let known = known::load(local.config_path());
+        let now = cranibox_llm::auth::now();
+        let this = crate::device_info::local();
         let mut devices = Vec::new();
         if let Some(roster) = self.models.roster.current() {
             for member in roster.members {
@@ -328,22 +357,52 @@ impl AppApi for Service {
                     llm: true,
                     vault: true,
                 };
+                let remembered = known.get(&member.node_id).cloned().unwrap_or_default();
+                let online = own
+                    || (path.is_some()
+                        && self.models.router.health.get(&member.node_id).available());
                 devices.push(Device {
                     node_id: member.node_id.clone(),
-                    name: member.name,
-                    kind: if member.role == cranibox_contracts::roster::Role::Hub {
+                    name: if own {
+                        remembered
+                            .alias
+                            .clone()
+                            .unwrap_or_else(|| this.name.clone())
+                    } else {
+                        remembered.alias.clone().unwrap_or(member.name)
+                    },
+                    kind: if own {
+                        known::Known {
+                            kind: Some(this.kind.into()),
+                            ..Default::default()
+                        }
+                        .kind()
+                    } else if member.role == cranibox_contracts::roster::Role::Hub {
                         DeviceKind::Server
                     } else {
-                        DeviceKind::Desktop
+                        remembered.kind()
                     },
-                    online: own
-                        || (path.is_some()
-                            && self.models.router.health.get(&member.node_id).available()),
+                    online,
                     path: path.as_ref().map_or(PathKind::Unknown, |p| p.kind),
                     rtt_ms: path.and_then(|p| p.rtt_ms),
                     badges,
                     guest: false,
                     caps,
+                    os_version: if own {
+                        this.os_version.clone()
+                    } else {
+                        remembered.os_version
+                    },
+                    model: if own {
+                        this.model.clone()
+                    } else {
+                        remembered.model
+                    },
+                    last_seen: if online {
+                        Some(now)
+                    } else {
+                        remembered.last_seen
+                    },
                 });
             }
         }
@@ -363,16 +422,24 @@ impl AppApi for Service {
                 None => None,
             };
             let online = path.is_some() || self.reachable(&node);
+            let remembered = known.get(&node).cloned().unwrap_or_default();
             devices.push(Device {
-                node_id: node.clone(),
-                name: node,
-                kind: DeviceKind::Unknown,
+                name: remembered.display(&node),
+                kind: remembered.kind(),
+                node_id: node,
                 online,
                 path: path.map_or(PathKind::Unknown, |p| p.kind),
                 rtt_ms: path.and_then(|p| p.rtt_ms),
                 badges: vec![],
                 guest,
                 caps,
+                os_version: remembered.os_version,
+                model: remembered.model,
+                last_seen: if online {
+                    Some(now)
+                } else {
+                    remembered.last_seen
+                },
             });
         }
         Ok(devices)

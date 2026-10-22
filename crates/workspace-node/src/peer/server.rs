@@ -271,9 +271,11 @@ fn check_permission(caller: &Caller, terminals: bool) -> Result<(), Failure> {
     }
 }
 async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> Json<Value> {
+    let info = crate::device_info::local();
     Json(
-        json!({"nodes":[{"id":app.node,"name":app.node,"online":true,"os":std::env::consts::OS,
-        "arch":std::env::consts::ARCH,"terminal":caller.grant.permissions.terminals,
+        json!({"nodes":[{"id":app.node,"name":info.name,"online":true,"os":info.os,
+        "os_version":info.os_version,"model":info.model,"kind":info.kind,
+        "arch":info.arch,"terminal":caller.grant.permissions.terminals,
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,
         "projects":caller.grant.permissions.projects,"desktop":caller.grant.permissions.desktop && Config::read(&app.path).is_ok_and(|c| c.desktop.is_some()),
         "computer":caller.grant.permissions.computer && Config::read(&app.path).is_ok_and(|c| c.computer.is_some()),

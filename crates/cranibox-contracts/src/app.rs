@@ -124,6 +124,15 @@ pub struct Device {
     pub badges: Vec<Badge>,
     pub guest: bool,
     pub caps: DeviceCaps,
+    /// e.g. `macOS 26.6`, `Debian GNU/Linux 13 (trixie)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_version: Option<String>,
+    /// Hardware model, e.g. `Mac16,8`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Unix seconds when the device last answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_seen: Option<u64>,
 }
 
 /// `POST /api/v1/app/pair/invite`.

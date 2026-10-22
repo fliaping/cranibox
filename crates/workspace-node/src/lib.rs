@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod cli;
 pub mod desktop_service;
+pub mod device_info;
 pub mod local;
 mod messages;
 pub mod network;
