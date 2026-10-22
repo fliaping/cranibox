@@ -52,6 +52,7 @@ dependencies = [
  "portable-pty",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "uuid",
  "windows-sys 0.61.2",

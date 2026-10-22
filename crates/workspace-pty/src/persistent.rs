@@ -255,13 +255,42 @@ impl Drop for Attachment {
     }
 }
 
+struct Attached {
+    id: String,
+    output: mpsc::Sender<Event>,
+    /// Output that did not fit the queue yet, delivered in order once it drains.
+    backlog: Vec<u8>,
+}
+impl Attached {
+    /// Queue `data` after any backlog. `false`: the viewer is gone or so far behind
+    /// that it must reattach and catch up from the replay history.
+    fn deliver(&mut self, data: Vec<u8>) -> bool {
+        self.backlog.extend_from_slice(&data);
+        while !self.backlog.is_empty() {
+            let take = self.backlog.len().min(32 * 1024);
+            match self.output.try_reserve() {
+                Ok(permit) => {
+                    permit.send(Event::Output(self.backlog.drain(..take).collect()));
+                }
+                Err(mpsc::error::TrySendError::Full(())) => {
+                    return self.backlog.len() <= REPLAY_BYTES;
+                }
+                Err(mpsc::error::TrySendError::Closed(())) => return false,
+            }
+        }
+        true
+    }
+}
+
 async fn own_session(
     mut pty: Session,
     mut commands: mpsc::Receiver<Control>,
     sender: mpsc::WeakSender<Control>,
     exited: watch::Sender<Option<u32>>,
 ) {
-    let mut attachment: Option<(String, mpsc::Sender<Event>)> = None;
+    let mut attachment: Option<Attached> = None;
+    // Bursts beyond the attachment's queue wait here instead of dropping the viewer.
+    let mut flush = tokio::time::interval(std::time::Duration::from_millis(25));
     let mut history: VecDeque<Vec<u8>> = VecDeque::new();
     let mut bytes = 0;
     let mut end_reply = None;
@@ -270,7 +299,7 @@ async fn own_session(
             command = commands.recv() => match command {
                 Some(Control::Attach { cols, rows, takeover, reply }) => {
                     if reply.is_closed() { continue; }
-                    if attachment.as_ref().is_some_and(|(_, output)| !output.is_closed()) && !takeover {
+                    if attachment.as_ref().is_some_and(|a| !a.output.is_closed()) && !takeover {
                         let _ = reply.send(Err(anyhow::anyhow!("session already attached; take over to reconnect")));
                         continue;
                     }
@@ -286,21 +315,21 @@ async fn own_session(
                     let mut replay: Vec<_> = history.chunks(32 * 1024).map(<[u8]>::to_vec).collect();
                     // Also signal successful attachment when the shell is silent.
                     if replay.is_empty() { replay.push(Vec::new()); }
-                    attachment = Some((id.clone(), output));
+                    attachment = Some(Attached { id: id.clone(), output, backlog: Vec::new() });
                     let _ = reply.send(Ok(Attachment { id, commands: sender, replay, output: receiver }));
                 }
                 Some(Control::Input { attachment: id, data }) => {
-                    if attachment.as_ref().is_some_and(|(current, _)| current == &id) && pty.write(data).is_err() {
+                    if attachment.as_ref().is_some_and(|a| a.id == id) && pty.write(data).is_err() {
                         attachment = None;
                     }
                 }
                 Some(Control::Resize { attachment: id, cols, rows }) => {
-                    if attachment.as_ref().is_some_and(|(current, _)| current == &id) && pty.resize(cols, rows).is_err() {
+                    if attachment.as_ref().is_some_and(|a| a.id == id) && pty.resize(cols, rows).is_err() {
                         attachment = None;
                     }
                 }
                 Some(Control::Detach { attachment: id }) => {
-                    if attachment.as_ref().is_some_and(|(current, _)| current == &id) { attachment = None; }
+                    if attachment.as_ref().is_some_and(|a| a.id == id) { attachment = None; }
                 }
                 Some(Control::End { reply }) => { end_reply = Some(reply); break 0; }
                 None => break 0,
@@ -313,21 +342,74 @@ async fn own_session(
                         if let Some(oldest) = history.pop_front() { bytes -= oldest.len(); }
                     }
                     // Slow or disconnected browsers must never stop reading the PTY.
-                    if attachment.as_ref().is_some_and(|(_, output)| output.try_send(Event::Output(data)).is_err()) {
+                    if attachment.as_mut().is_some_and(|a| !a.deliver(data)) {
                         attachment = None;
                     }
                 }
                 Some(Event::Exit(code)) => break code,
                 None => break 1,
             },
+            _ = flush.tick(), if attachment.as_ref().is_some_and(|a| !a.backlog.is_empty()) => {
+                if attachment.as_mut().is_some_and(|a| !a.deliver(Vec::new())) {
+                    attachment = None;
+                }
+            }
         }
     };
     drop(pty);
     exited.send_replace(Some(code));
-    if let Some((_, output)) = attachment {
-        let _ = output.try_send(Event::Exit(code));
+    if let Some(mut attached) = attachment {
+        attached.deliver(Vec::new());
+        let _ = attached.output.try_send(Event::Exit(code));
     }
     if let Some(reply) = end_reply {
         let _ = reply.send(());
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// A viewer that falls behind during an output burst keeps its attachment: the
+    /// burst is delivered in order and later input still reaches the shell.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn output_burst_keeps_the_attachment_and_its_input() {
+        let home = tempfile::tempdir().unwrap();
+        // SAFETY: tests in this module do not read SHELL concurrently.
+        unsafe { std::env::set_var("SHELL", "/bin/sh") };
+        let engine = Engine::new(home.path().to_path_buf());
+        let created = engine
+            .manage(Manage::Create {
+                name: "burst".into(),
+                cwd: None,
+            })
+            .await
+            .unwrap();
+        let id = created["session"]["id"].as_str().unwrap().to_owned();
+        let mut attachment = engine.attach(&id, 80, 24, false).await.unwrap();
+        attachment.write(b"seq 1 30000\r".to_vec()).unwrap();
+        // Do not read while the shell prints far more than the queue holds.
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        attachment.write(b"echo DONE_$((40+2))\r".to_vec()).unwrap();
+        let mut seen = String::new();
+        let found = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            while let Some(event) = attachment.output.recv().await {
+                if let Event::Output(data) = event {
+                    seen.push_str(&String::from_utf8_lossy(&data));
+                    if seen.contains("DONE_42") {
+                        return true;
+                    }
+                }
+            }
+            false
+        })
+        .await;
+        assert_eq!(found, Ok(true), "input after a burst was lost");
+        assert!(
+            seen.contains("\n30000"),
+            "the burst arrived complete and in order"
+        );
+        engine.manage(Manage::End { id }).await.unwrap();
     }
 }
