@@ -227,7 +227,10 @@ pub async fn run(
                 return Err(e).with_context(|| format!("relay listen on {address}"));
             }
         };
-        let router = public_router(public_identity(&local, embedded.public_url()).await);
+        let router = public_router(
+            public_identity(&local, embedded.public_url()).await,
+            local.pair_requests.clone(),
+        );
         let (relay, shutdown) = (embedded.clone(), stop.clone());
         tokio::spawn(async move {
             if let Err(error) = relay
@@ -369,8 +372,35 @@ const PAIR_PAGE: &str = "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf
 <p>复制浏览器地址栏中的完整链接，在另一台设备的 Cranibox「添加设备」中粘贴。</p>\
 <p>Copy the full link from the address bar and paste it into Add device in Cranibox on your other device.</p></body></html>";
 /// The public listener: relay paths are handled in front of this router.
-fn public_router(identity: Value) -> Router {
+fn public_router(identity: Value, requests: Arc<crate::pair_url::Requests>) -> Router {
+    let create = requests.clone();
     Router::new()
+        .route(
+            "/pair/request",
+            axum::routing::post(move |body: Json<crate::pair_url::Request>| {
+                let requests = create.clone();
+                async move {
+                    match requests.create(body.0) {
+                        Ok(id) => Json(json!({"request_id": id})).into_response(),
+                        Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+                    }
+                }
+            }),
+        )
+        .route(
+            "/pair/request/{id}",
+            axum::routing::post(
+                move |axum::extract::Path(id): axum::extract::Path<String>, body: Json<Value>| {
+                    let requests = requests.clone();
+                    async move {
+                        match requests.status(&id, body["secret"].as_str().unwrap_or_default()) {
+                            Ok(value) => Json(value).into_response(),
+                            Err(e) => error(StatusCode::NOT_FOUND, format!("{e:#}")),
+                        }
+                    }
+                },
+            ),
+        )
         .route("/healthz", get(|| async { Json(json!({"ok": true})) }))
         .route(
             "/.well-known/cranibox",
@@ -384,6 +414,7 @@ fn public_router(identity: Value) -> Router {
             get(|| async { ([("content-type", "text/html; charset=utf-8")], PAIR_PAGE) }),
         )
         .fallback(|| async { error(StatusCode::NOT_FOUND, "Not found") })
+        .layer(axum::extract::DefaultBodyLimit::max(4096))
         .layer(middleware::from_fn(public_headers))
 }
 async fn public_headers(request: Request, next: Next) -> Response {

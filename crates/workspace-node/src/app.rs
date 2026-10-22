@@ -26,6 +26,10 @@ pub struct Service {
     capabilities: std::sync::OnceLock<capabilities::Service>,
     /// Recent reachability of paired devices that have no open connection.
     reach: Arc<std::sync::Mutex<BTreeMap<String, Reach>>>,
+    /// Requests this device sent to servers: request ID → (server, polling secret).
+    server_requests: std::sync::Mutex<BTreeMap<String, (url::Url, String)>>,
+    /// Devices approved through a server-address request; their pairing confirms itself.
+    auto_confirm: Arc<std::sync::Mutex<std::collections::BTreeSet<String>>>,
 }
 #[derive(Clone, Copy)]
 struct Reach {
@@ -54,6 +58,8 @@ impl Service {
             pair_seen: Default::default(),
             capabilities: Default::default(),
             reach: Default::default(),
+            server_requests: Default::default(),
+            auto_confirm: Default::default(),
         }
     }
     fn local(&self) -> Result<Arc<LocalNode>, AppError> {
@@ -107,6 +113,121 @@ impl Service {
             });
         }
         entry.is_some_and(|r| r.online)
+    }
+    /// `POST /pair/server {url}`: pair through a server's public address or pairing link.
+    pub async fn pair_server(&self, url: &str) -> Result<Value, AppError> {
+        let invalid = |e: anyhow::Error| error(400, "invalid", format!("{e:#}"));
+        let (base, link) = crate::pair_url::classify(url).map_err(invalid)?;
+        if let Some(link) = link {
+            let accepted = self.pair_accept(PairAcceptReq { link }).await?;
+            return serde_json::to_value(accepted).map_err(unavailable);
+        }
+        let server = crate::pair_url::server_identity(&base)
+            .await
+            .map_err(invalid)?;
+        let local = self.local()?;
+        if server["node_id"] == local.id.as_str() {
+            return Err(error(400, "invalid", "That address is this device"));
+        }
+        let identity = local
+            .manage_peers(peers::Command::Identity)
+            .await
+            .map_err(unavailable)?;
+        let me = serde_json::json!({
+            "node_id": local.id,
+            "name": crate::device_info::local().name,
+            "fingerprint": identity["identity"]["fingerprint"],
+            "endpoint_id": identity["identity"]["public"]["signing_key"],
+        });
+        let (id, secret) = crate::pair_url::request(&base, me.clone())
+            .await
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?;
+        let mut requests = self.server_requests.lock().unwrap();
+        while requests.len() >= 8 {
+            let Some(oldest) = requests.keys().next().cloned() else {
+                break;
+            };
+            requests.remove(&oldest);
+        }
+        requests.insert(id.clone(), (base, secret));
+        Ok(serde_json::json!({
+            "request_id": id,
+            "server": {"name": server["name"], "node_id": server["node_id"], "fingerprint": server["fingerprint"]},
+            "fingerprint": me["fingerprint"],
+        }))
+    }
+    /// `GET /pair/server/{id}`: once the server's owner approves, pair with its invitation.
+    pub async fn pair_server_status(&self, id: &str) -> Result<Value, AppError> {
+        let (base, secret) = self
+            .server_requests
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| error(404, "not_found", "Pairing request not found"))?;
+        let status = crate::pair_url::poll(&base, id, &secret)
+            .await
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?;
+        match status["state"].as_str() {
+            Some("approved") => {
+                self.server_requests.lock().unwrap().remove(id);
+                let link = status["link"].as_str().unwrap_or_default().to_owned();
+                let accepted = self.pair_accept(PairAcceptReq { link }).await?;
+                let mut value = serde_json::to_value(accepted).map_err(unavailable)?;
+                value["state"] = "accepted".into();
+                Ok(value)
+            }
+            Some(state @ ("pending" | "rejected")) => Ok(serde_json::json!({"state": state})),
+            _ => Err(error(
+                409,
+                "pairing_failed",
+                "Unexpected answer from the server",
+            )),
+        }
+    }
+    /// The owner approved a server-address request: invite that device and confirm its
+    /// pairing automatically (the approval is the owner's consent).
+    async fn approve_server_request(&self, id: &str, approve: bool) -> Result<(), AppError> {
+        let local = self.local()?;
+        if !approve {
+            local
+                .pair_requests
+                .decide(id, crate::pair_url::State::Rejected)
+                .ok_or_else(|| error(404, "not_found", "Approval expired or already decided"))?;
+            return Ok(());
+        }
+        let iroh = self.pairing().await?;
+        let invite = iroh
+            .pair_invite(PairInviteReq {
+                purpose: cranibox_contracts::net::PairPurpose::OwnerDevice,
+            })
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?;
+        let request = local
+            .pair_requests
+            .decide(id, crate::pair_url::State::Approved { link: invite.link })
+            .ok_or_else(|| error(404, "not_found", "Approval expired or already decided"))?;
+        let node = request.node_id;
+        self.auto_confirm.lock().unwrap().insert(node.clone());
+        let auto = self.auto_confirm.clone();
+        tokio::spawn(async move {
+            let deadline = std::time::Instant::now()
+                + std::time::Duration::from_secs(crate::pair_url::REQUEST_TTL_SECS);
+            while std::time::Instant::now() < deadline {
+                if let Some(flow) = iroh.pair_flows().into_iter().find(|f| {
+                    f.side == Side::Inviter
+                        && f.state == FlowState::Comparing
+                        && f.peer_node_id == node
+                }) {
+                    let _ = iroh
+                        .pair_confirm(&flow.flow_id, PairConfirmReq { matches: true })
+                        .await;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+            auto.lock().unwrap().remove(&node);
+        });
+        Ok(())
     }
     async fn pairing(&self) -> Result<crate::peer::transport_iroh::Handle, AppError> {
         self.local()?.iroh().await.ok_or_else(|| {
@@ -521,10 +642,15 @@ impl AppApi for Service {
         }
         // The joiner confirms in its pairing sheet; the inviter confirms here.
         if let Some(iroh) = local.iroh().await {
+            let auto = self.auto_confirm.lock().unwrap().clone();
             let flows: Vec<_> = iroh
                 .pair_flows()
                 .into_iter()
-                .filter(|f| f.side == Side::Inviter && f.state == FlowState::Comparing)
+                .filter(|f| {
+                    f.side == Side::Inviter
+                        && f.state == FlowState::Comparing
+                        && !auto.contains(&f.peer_node_id)
+                })
                 .collect();
             let mut seen = self.pair_seen.lock().unwrap();
             seen.retain(|id, _| flows.iter().any(|f| &f.flow_id == id));
@@ -551,6 +677,26 @@ impl AppApi for Service {
                 });
             }
         }
+        // Devices asking to join through this device's public address.
+        for entry in local.pair_requests.pending() {
+            cards.push(ApprovalCard {
+                id: format!("pairreq:{}", entry.id),
+                kind: ApprovalKind::Pairing,
+                from_node: Some(entry.request.node_id.clone()),
+                on_node: local.id.clone(),
+                agent: None,
+                title_key: "approval.pair_request".into(),
+                title_args: BTreeMap::from([
+                    ("device".into(), entry.request.name.clone()),
+                    ("code".into(), entry.request.fingerprint.clone()),
+                ]),
+                detail: None,
+                risk: Risk::Medium,
+                created_at: entry.created_at,
+                expires_at: Some(entry.created_at + crate::pair_url::REQUEST_TTL_SECS),
+                actions: vec![ApprovalAction::AllowOnce, ApprovalAction::Deny],
+            });
+        }
         cards.extend(
             cranibox_agents::approvals::pending(&self.env()?, &local.id).map_err(unavailable)?,
         );
@@ -569,6 +715,11 @@ impl AppApi for Service {
         if id.starts_with("agent:") {
             return cranibox_agents::approvals::decide(&self.env()?, id, req.decision)
                 .map_err(|e| error(409, "approval_conflict", e.to_string()));
+        }
+        if let Some(request) = id.strip_prefix("pairreq:") {
+            return self
+                .approve_server_request(request, req.decision != ApprovalAction::Deny)
+                .await;
         }
         if let Some(flow) = id.strip_prefix("pair:") {
             let matches = req.decision != ApprovalAction::Deny;
@@ -816,6 +967,20 @@ async fn route(
     }
     fn output<T: serde::Serialize>(value: T) -> Result<Value, AppError> {
         serde_json::to_value(value).map_err(unavailable)
+    }
+    if let Some(rest) = path.strip_prefix("/pair/server") {
+        let service = service
+            .as_ref()
+            .ok_or_else(|| error(503, "unavailable", "Demo devices cannot pair"))?;
+        return match (method, rest.strip_prefix('/')) {
+            ("POST", None) if rest.is_empty() => {
+                service
+                    .pair_server(body["url"].as_str().unwrap_or_default())
+                    .await
+            }
+            ("GET", Some(id)) => service.pair_server_status(id).await,
+            _ => Err(error(405, "invalid", "Unknown pairing request")),
+        };
     }
     match (method, path) {
         ("GET", "/status") => output(api.status().await?),

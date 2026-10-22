@@ -6,6 +6,7 @@ pub mod local;
 mod messages;
 pub mod network;
 pub mod node;
+pub mod pair_url;
 pub mod peer;
 mod project_sync;
 pub mod settings;

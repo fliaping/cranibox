@@ -81,7 +81,10 @@ pub async fn spawn(config: crate::Config) -> anyhow::Result<Handle> {
         ),
         "only 127.0.0.1 and ::1 may be bound"
     );
+    use cranibox_contracts::llm::LLM_ADDR;
+    let well_known = LLM_ADDR.parse::<SocketAddr>().map(|a| a.port()).ok();
     let mut listeners = Vec::new();
+    let mut taken = false;
     for address in &config.listen {
         match TcpListener::bind(address).await {
             Ok(listener) => listeners.push(listener),
@@ -92,10 +95,27 @@ pub async fn spawn(config: crate::Config) -> anyhow::Result<Handle> {
                         error.kind(),
                         std::io::ErrorKind::AddrNotAvailable | std::io::ErrorKind::Unsupported
                     ) => {}
+            // Another node or program owns the well-known port on this machine.
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AddrInUse
+                    && Some(address.port()) == well_known =>
+            {
+                taken = true;
+            }
             Err(error) => {
                 return Err(anyhow::Error::new(error).context(format!("listen on {address}")));
             }
         }
+    }
+    if taken {
+        // Never split clients between this proxy and another one on the same port.
+        listeners.clear();
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        eprintln!(
+            "model proxy: {LLM_ADDR} is in use by another program; serving on {} instead",
+            listener.local_addr()?
+        );
+        listeners.push(listener);
     }
     anyhow::ensure!(!listeners.is_empty(), "no loopback address is available");
     let management = config.run_dir.join(LLM_MGMT_SOCKET);

@@ -30,6 +30,8 @@ pub struct LocalNode {
     task_worker: crate::task_worker::Service,
     project_sync: crate::project_sync::Service,
     identity_lock: Mutex<Option<std::fs::File>>,
+    /// Pairing requests received on this device's public relay address.
+    pub pair_requests: Arc<crate::pair_url::Requests>,
 }
 impl LocalNode {
     pub async fn start(path: PathBuf) -> Result<Self> {
@@ -100,6 +102,7 @@ impl LocalNode {
             stop,
             peer: Mutex::new(Some(peer)),
             identity_lock: Mutex::new(Some(lock)),
+            pair_requests: Arc::default(),
         })
     }
     pub async fn app(self: &Arc<Self>) -> Result<Arc<crate::app::Service>> {
