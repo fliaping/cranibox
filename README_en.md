@@ -1,35 +1,90 @@
 <div align="center">
   <h1>Cranibox</h1>
-  <p><b>The agent workspace across your devices</b></p>
-  <p>Every device you own, ready for your agents: terminal, desktop, browser and Computer Use, end-to-end encrypted over direct peer connections.</p>
-  <p><sub>Cranibox = cranium + box. Formerly Agent Workspace; the GitHub repository is now cranibox, while image names remain unchanged.</sub></p>
+  <p><b>An Agent workbench across your devices</b></p>
+  <p>Every device you own becomes a workbench for your Agents: terminal, desktop, browser and Computer Use, end-to-end encrypted and peer to peer.</p>
+  <p><sub>Cranibox = cranium + box. The project was formerly Agent Workspace; the workspace image keeps its name for now (<code>xuping/agent-workspace</code>).</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
   </p>
   <p>
+    <a href="https://github.com/fliaping/cranibox/releases/latest"><img src="https://img.shields.io/github/v/release/fliaping/cranibox?label=release" alt="Latest release"></a>
     <a href="https://hub.docker.com/r/xuping/agent-workspace"><img src="https://img.shields.io/docker/pulls/xuping/agent-workspace" alt="Docker Pulls"></a>
     <a href="https://hub.docker.com/r/xuping/agent-workspace/tags"><img src="https://img.shields.io/docker/v/xuping/agent-workspace/ubuntu-xfce?label=ubuntu-xfce" alt="Docker image version"></a>
   </p>
 </div>
 
-Every device, including this workspace, runs the same Cranibox node; devices pair peer to
-peer over iroh. See [the device network](docs/iroh-network.md).
-
 ---
 
-Cranibox is a braincase for your AI agents that you host yourself: one container on your server, NAS, or WSL2 host where Codex, Claude Code, and Hermes get a real desktop, browser, and terminal, and you reach it from the browser on any device.
+Cranibox connects your computers, servers and containers into a device network of your own, so AI Agents can work on any of them: open a terminal, see and drive the desktop, and use the browser you are already signed in to.
 
-- **Every device** — the Selkies desktop and code-server open in any browser, phone, tablet, or laptop; join Tailscale with one command for private HTTPS without opening public ports
-- **Your data stays yours** — a single `/config` volume holds agents, logins, MCP, Skills, and settings; back up or move it by copying one folder
+- **Every device is an equal peer** — Windows, macOS, Linux and the workspace container run the same Cranibox node, with no central server; devices connect directly over iroh (QUIC) with hole punching and fall back to a relay, end-to-end encrypted throughout
+- **One identity, many devices** — no account to register. The first device creates the identity, new devices join when paired, and devices of the same identity see each other; the recovery code is only for removing a lost device
+- **One entry point for Agents** — `cranibox nodes|exec|mcp` and the MCP tools run commands, open terminals, and drive browsers and desktops on any device that granted access
+- **You keep the data and the permissions** — a remote command has only the permissions of the account running the target node; each device decides what it grants to whom and can revoke it at any time
+
+## Install
+
+Download from [Releases](https://github.com/fliaping/cranibox/releases/latest):
+
+| Form | Files | For |
+|------|-------|-----|
+| Desktop app | macOS `.dmg`, Windows `.exe`, Linux `.deb` / `.AppImage` | Everyday computers: tray icon, start at login, a native terminal window |
+| Command line | `cranibox-macos-arm64`, `cranibox-linux-x86_64`, `cranibox-windows-x86_64.exe` | Servers, NAS and headless machines: the same interface in a browser, and it can serve as a relay |
+| Workspace image | `xuping/agent-workspace:ubuntu-xfce` and others | A Linux computer for your Agents with a desktop, browser and toolchain; see [Deploy the workspace image](#deploy-the-workspace-image) |
+
+Checksums are in `SHA256SUMS` in the same release.
+
+Command line:
+
+```bash
+cranibox                 # run this device's node; the interface listens on loopback only (default 127.0.0.1:7377)
+cranibox ui-url          # print the interface link with a one-time sign-in token
+cranibox nodes           # list devices your Agents can use
+cranibox exec --node <NodeID> -- uname -a
+cranibox mcp             # the same operations as an MCP stdio server
+```
+
+Open a remote server's interface through an SSH tunnel: `ssh -L 7377:127.0.0.1:7377 server`. To make it a relay for your devices, add
+`--public-url https://relay.example.com` (behind a reverse proxy) or `--relay-listen 0.0.0.0:7378` (a direct listener that serves only the relay and the read-only identity; the interface stays on loopback). See [the device network](docs/iroh-network.md) and [desktop client and device mesh](docs/node-desktop-and-device-mesh.md).
+
+### Add a device
+
+On the Network page, choose Add device, then either:
+
+- **Pairing link**: create a `cranibox://` link or QR code on an existing device and paste it on the new one;
+- **Server address**: on the new device, enter the address of a server running the command-line version (for example `https://relay.example.com`), then compare the fingerprint and approve it in the server's Inbox.
+
+Once paired, the device appears on the network map with its path (direct or relayed), latency and last-seen time.
+
+## Features
+
+- **Network and devices** — a live network map shows whether each device is reached directly or through a relay, and its latency; device details show connection, system and capabilities as cards; known devices on the LAN are discovered automatically
+- **Browser Use with the Chrome you already use** — no extension: Cranibox connects to your current Chrome over the Chrome DevTools Protocol (Chrome 144+, enabled once at `chrome://inspect/#remote-debugging`) and works with your signed-in sessions; Chrome asks you to approve each connection. A separate managed browser is also available; see [Browser Use](docs/browser-use.md)
+- **Computer Use with two targets** — your real desktop (cua-driver on macOS, with approval for sensitive actions) or the Agent's own computer (the desktop inside a virtual space); with more than one target the Agent must name one; see [Computer Use](docs/computer-use.md)
+- **Remote desktop and terminal** — view and control the desktops of devices that granted access; the terminal has tabs, opens in its own native window in the desktop app and as a floating window on the web, and works with CJK input methods; see [remote desktops](docs/remote-desktops.md)
+- **Virtual spaces** — isolated Linux workspaces on this device, built from the workspace image; Agents use their terminal, browser and desktop, and data is kept when a space is stopped or archived; see [virtual spaces](docs/virtual-spaces.md)
+- **Projects and sessions** — project folders and terminal sessions from every device in one place, so you can return to the original shell; file copies between devices and non-interactive Agent runs; see [projects and sessions](docs/project-session-catalog.md)
+- **Inbox, messages and tasks** — pairing requests and Agent approvals and questions in one Inbox; messages and delegated tasks between devices, retried while a device is offline; see [device messages](docs/device-messages.md) and [device tasks](docs/device-tasks.md)
+- **Agents and models** — manage local Agents, models and MCP configuration; the desktop app can add Cranibox to the MCP configuration of installed Agents in one click
+- **Settings** — General (language, theme, start at login), Capabilities, Identity & security (identity code, recovery code, removing a lost device) and Agent access; switch between Chinese and English from the top bar
+- **Other networks, optionally** — EasyTier and Tailscale remain as advanced options; see [device networks](docs/device-networks.md)
+
+The workspace image's own capabilities (Selkies browser desktop, code-server and Control Center, managed Chromium, desktop Computer Use, the `.deb` installer, Docker modes, GPU acceleration, toolchain and single-volume persistence) are described under [Workspace image](#workspace-image) below.
+
+## Workspace image
+
+The workspace image is a Linux computer for your Agents: a container on your server, NAS or WSL2 host where Codex, Claude Code and Hermes get a real desktop, browser and terminal, reachable from the browser on any device. It includes the Cranibox node and joins your other devices as a peer; virtual spaces are built from it.
+
+- **Every device** — the Selkies desktop and code-server open in any browser, phone, tablet or laptop; join Tailscale with one command for private HTTPS without opening public ports
+- **Your data stays yours** — a single `/config` volume holds agents, logins, MCP, Skills and settings; back up or move it by copying one folder
 - **Trusted boundaries** — managed Chromium CDP listens only on container loopback `127.0.0.1:9222`; desktop Computer Use has an emergency stop; `.deb` installs show the risk and wait for your approval
-- **Agents know their home** — built-in `AGENTS.md` / `CLAUDE.md` and `workspacectl` tell agents where state lives and how to check services, ports, and logs
+- **Agents know their home** — built-in `AGENTS.md` / `CLAUDE.md` and `workspacectl` tell agents where state lives and how to check services, ports and logs
+- **Full toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv and tmux, with NVIDIA / Intel / AMD GPU acceleration; Docker can be off, DinD, or the host socket
 
-Under the hood it is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming). One `/config` volume persists the desktop, code-server, Agents, MCP servers, Skills, and custom services, making it suitable for running Codex, Claude Code, Hermes, and other AI agents on a server, NAS, or WSL2 host.
+It is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming), with XFCE (default), LXQt or KDE.
 
-See the [implementation, test evidence and handoff record (updated 2026-10-19, Chinese)](docs/implementation-handoff-2026-10-18.md) for current capabilities and unfinished work.
-
-## Screenshots
+### Screenshots
 
 Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click to enlarge):
 
@@ -51,32 +106,6 @@ Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click
     <td align="center" width="50%"><a href="images/screenshots/control-center-diagnostics.png"><img src="images/screenshots/control-center-diagnostics.png" width="420" alt="Control Center · Diagnostics"></a><br><sub>Control Center · Diagnostics</sub></td>
   </tr>
 </table>
-
-## Features
-
-- **Ready-to-run Agents** — Choose Codex, Claude Code, Hermes, DeepSeek Harness, or OpenClaw on first boot; Codex and Claude Code also receive their official code-server extensions
-- **Unified bilingual Control Center** — Manage Agents, the managed browser, global MCP servers and Skills, services, desktop, networking, and diagnostics in one place; switching language also switches code-server
-- **Browser Control Center** — Rust HTTP backend with a React UI, themes and mobile support; see [installation and access](docs/web-control-center.md)
-- **Peer device network** — Windows/macOS/Linux devices pair with this workspace and each other over iroh (direct, LAN or relayed); Agents use `cranibox nodes|exec|mcp` across paired and same-identity devices. See [the device network](docs/iroh-network.md)
-- **Direct node foundation** — Persistent node IDs, target-owned grants, and independent HTTP/WebSocket access let CLI/MCP execute commands and reattach shells without a running Workspace. Shared Web/Tauri device controls manage direct routes, capability checks, and background command jobs; [setup and limits](docs/direct-node-peers.md).
-- **Device messages** — A shared Web/Tauri inbox and outbox supports durable text, threaded replies, explicit receipt acknowledgements, offline retries and restart recovery. Agents can use an independent MCP without the Workspace relay; [usage and limits](docs/device-messages.md).
-- **Cross-device collaboration tasks** — Shared Web/Tauri controls provide durable delegation, explicit Agent claims, progress, worker questions and durable offline replies, final reports, cooperative cancellation and attempt history. Reconnection retains the original attempt; reports need no reverse connection. Available through an independent MCP; receivers can separately opt into trusted background task workers; [usage and limits](docs/device-tasks.md).
-- **Agent session directory** — Agents register and renew through local CLI/MCP. Web/Tauri show public reports and target tasks by session UUID; expired reports do not stop claimed work. [Usage and limits](docs/agent-sessions.md).
-- **Device networking** — Shared Web/Tauri controls manage userspace EasyTier, join through a Workspace address and short-lived invitation, support multiple entry addresses, discover nodes, save authorized connections and restore them after a node restart. Existing system Tailscale provides status, official login, and identity checks and authorized connections for a selected online device; [usage and current limits](docs/device-networks.md). New connections can select among explicitly configured paths. Public-key pairing, network-wide catalog distribution and seamless migration of existing connections remain in the [network design](docs/decentralized-node-network-design.md).
-- **Cross-device desktops** — A shared Web/Tauri noVNC viewer uses authorized Rust direct connections or WebSocket relay, including outbound-only nodes without inbound ports. Linux/X11 and compatible wlroots Wayland sessions support managed VNC; other environments connect existing VNC servers. Includes display, keyboard, mouse, fullscreen and reconnection; [usage and limits](docs/remote-desktops.md).
-- **Virtual spaces** — Guided container runtime setup creates independent Linux workspaces with shared projects and terminals, retaining data across stop and archive; [platform support and limits](docs/virtual-spaces.md).
-- **Native user service management** — Rust compatibility CLI and s6 supervision, with oneshot initialization; see [implementation and migration limits](docs/native-services-and-web.md)
-- **Lightweight standalone Web UI** — Manage the workspace without loading code-server, with a React interface, light/dark themes, and a responsive layout; see [setup and secure access](docs/web-control-center.md)
-- **Agent-friendly environment control** — Native Rust `workspacectl` provides a stable interface for services, logs, ports, routes, and optional capabilities; [build and migration scope](docs/workspacectl-rust.md)
-- **Projects and sessions** — A shared Web/Tauri page combines the catalogs of authorized paired devices, registers working copies, and creates, links or reopens the original shells. Optional background catalog synchronization continues after the page closes; unavailable devices retain read-only snapshots. Reviewed, chunked working-file copies work between the local device and a direct node in either direction, or between two direct remote nodes, with durable target receipts to recover outcomes after disconnection. See [usage and limits](docs/project-session-catalog.md). [Non-interactive background Agent execution](docs/agent-executions.md) is available; running-session migration remains in the [delivery plan](docs/distributed-agent-workspace-design.md)
-- **Selkies browser desktop** — Full Linux desktop in the browser over HTTPS (Selkies streams over WebSocket) with XFCE (default), LXQt, or KDE
-- **Managed Agent browser** — The default desktop Chromium uses a persistent managed profile so Agents can operate the same window, tabs, and signed-in session without repeated prompts
-- **Desktop Computer Use** — Agents can capture and operate the same Selkies desktop with pointer, keyboard, scroll, drag, window focus, and emergency stop tools
-- **Desktop package installer** — Double-click a `.deb` in the file manager to inspect its metadata, confirm the risk, resolve dependencies, and install it
-- **Explicit Docker boundary** — Disable Docker, use isolated DinD, or deliberately mount the host Docker socket
-- **Optional remote networking** — SSH tunnels, custom domains with Caddy, and Tailscale userspace networking without `NET_ADMIN`
-- **Complete development toolchain** — Node.js 22, Go 1.22, Rust, Python 3, Homebrew, uv, and tmux, with NVIDIA / Intel / AMD GPU acceleration
-- **Single-volume persistence** — Tools, sign-in state, configuration, caches, and custom services live under `/config`, with optional China mirrors
 
 ## What Is Ready After Deployment?
 
@@ -184,7 +213,7 @@ flowchart TB
 
 </details>
 
-## Quick Start
+## Deploy the Workspace Image
 
 ### Secure Remote Start (Recommended)
 

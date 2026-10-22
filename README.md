@@ -2,12 +2,13 @@
   <h1>Cranibox</h1>
   <p><b>设备互联的 Agent 工作台</b></p>
   <p>你的每台设备，都是 Agent 的工作台：终端、桌面、浏览器与 Computer Use，端到端加密、对等直连。</p>
-  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace，GitHub 仓库已更名为 cranibox，镜像名暂不变。</sub></p>
+  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace；工作区镜像名暂不变（<code>xuping/agent-workspace</code>）。</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
   </p>
   <p>
+    <a href="https://github.com/fliaping/cranibox/releases/latest"><img src="https://img.shields.io/github/v/release/fliaping/cranibox?label=release" alt="Latest release"></a>
     <a href="https://hub.docker.com/r/xuping/agent-workspace"><img src="https://img.shields.io/docker/pulls/xuping/agent-workspace" alt="Docker Pulls"></a>
     <a href="https://hub.docker.com/r/xuping/agent-workspace/tags"><img src="https://img.shields.io/docker/v/xuping/agent-workspace/ubuntu-xfce?label=ubuntu-xfce" alt="Docker image version"></a>
   </p>
@@ -15,18 +16,75 @@
 
 ---
 
-Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务器、NAS 或 WSL2 上的容器，Codex、Claude Code、Hermes 在里面拥有真实的桌面、浏览器和终端，你用任何设备的浏览器就能随时接入。
+Cranibox 把你的电脑、服务器和容器连成一张属于你自己的设备网络，让 AI Agent 能在其中任何一台设备上工作：开终端、看和操作桌面、用你已登录的浏览器。
+
+- **每台设备都是对等节点** — Windows、macOS、Linux 和工作区容器运行同一个 Cranibox 节点，没有中心服务器；设备之间经 iroh（QUIC）打洞直连，失败时经 relay 中转，全程端到端加密
+- **一个身份，多台设备** — 无需注册账号。第一台设备创建身份，新设备配对后自动加入，同一身份的设备互相可见；恢复码只用于设备丢失时移除它
+- **Agent 一个入口用遍所有设备** — `cranibox nodes|exec|mcp` 和 MCP 工具可以在任何已授权设备上执行命令、打开终端、操作浏览器和桌面
+- **数据和权限都在你手里** — 远程命令只拥有目标设备上运行账号的权限；每台设备自己决定授予谁哪些能力，随时可撤销
+
+## 安装
+
+从 [Releases](https://github.com/fliaping/cranibox/releases/latest) 下载：
+
+| 形态 | 文件 | 适合 |
+|------|------|------|
+| 桌面客户端 | macOS `.dmg`、Windows `.exe`、Linux `.deb` / `.AppImage` | 日常使用的电脑：托盘常驻、登录自启动、独立终端窗口 |
+| 命令行版 | `cranibox-macos-arm64`、`cranibox-linux-x86_64`、`cranibox-windows-x86_64.exe` | 服务器、NAS、无桌面环境：同一套界面经浏览器访问，可兼作 relay |
+| 工作区镜像 | `xuping/agent-workspace:ubuntu-xfce` 等 | 给 Agent 一台带桌面、浏览器和开发环境的 Linux 电脑，见[部署工作区镜像](#部署工作区镜像) |
+
+文件校验值见同一 Release 中的 `SHA256SUMS`。
+
+命令行版：
+
+```bash
+cranibox                 # 运行本机节点，界面只监听回环地址（默认 127.0.0.1:7377）
+cranibox ui-url          # 输出带一次性登录令牌的界面链接
+cranibox nodes           # 列出 Agent 可以使用的设备
+cranibox exec --node <NodeID> -- uname -a
+cranibox mcp             # 以 MCP stdio 服务器方式提供同样的能力
+```
+
+远程服务器用 SSH 隧道打开界面：`ssh -L 7377:127.0.0.1:7377 server`。要让它兼作你设备的 relay，加上
+`--public-url https://relay.example.com`（经反向代理）或 `--relay-listen 0.0.0.0:7378`（直接监听，只提供 relay 与只读身份，界面仍只在回环）。详见[设备组网](docs/iroh-network.md)和[客户端与设备组网](docs/node-desktop-and-device-mesh.md)。
+
+### 添加设备
+
+在“网络”页点“添加设备”，二选一：
+
+- **配对链接**：在已有设备上生成 `cranibox://` 链接或二维码，在新设备上粘贴；
+- **服务器地址**：在新设备上填写运行命令行版的服务器地址（如 `https://relay.example.com`），然后在服务器的“待办”里核对指纹并批准。
+
+配对成功后，设备出现在网络图中，显示直连或中继、延迟和最近在线时间。
+
+## 核心特性
+
+- **网络与设备** — 网络连接图实时显示每台设备经直连还是 relay、延迟多少；设备详情以卡片展示连接、系统信息和各项能力；局域网内的已知设备自动发现
+- **Browser Use：用你正在使用的 Chrome** — 不装扩展，直接经 Chrome DevTools Protocol 连接你当前的 Chrome（Chrome 144+，在 `chrome://inspect/#remote-debugging` 开启一次），带着登录状态工作；每次连接由 Chrome 弹窗请你同意。也可以改用独立的托管浏览器，见 [Browser Use](docs/browser-use.md)
+- **Computer Use：两种目标** — 操作你的真实桌面（macOS 经 cua-driver，敏感操作需批准），或操作 Agent 自己的电脑（虚拟空间里的桌面）；有多个目标时 Agent 需要明确指定，见 [Computer Use](docs/computer-use.md)
+- **远程桌面与终端** — 在界面里查看和操作已授权设备的桌面；终端支持多标签，桌面客户端中在独立原生窗口打开，网页版是悬浮窗，中文输入法可正常使用；见[跨设备桌面](docs/remote-desktops.md)
+- **虚拟空间** — 在本机创建隔离的 Linux 工作区（基于工作区镜像），Agent 可以使用其中的终端、浏览器和桌面，停止或归档时保留数据；见[虚拟空间](docs/virtual-spaces.md)
+- **项目与会话** — 汇总各设备上的项目目录和终端会话，随时找回原来的 Shell；支持设备间文件复制和非交互 Agent 后台执行；见[项目与会话](docs/project-session-catalog.md)
+- **待办、消息与任务** — 配对请求、Agent 的审批与提问集中在待办中处理；设备之间可以收发消息、委托任务，离线时自动重试；见[设备消息](docs/device-messages.md)、[跨设备任务](docs/device-tasks.md)
+- **Agent 与模型** — 统一管理本机 Agent、模型与 MCP 配置；桌面客户端可一键把 Cranibox 写入已安装 Agent 的 MCP 配置
+- **本机设置** — 通用（语言、主题、自启动）、能力与权限、身份与安全（身份码、恢复码、移除丢失的设备）、Agent 接入；顶栏随时切换中英文
+- **可选的其他组网** — EasyTier 与 Tailscale 作为高级选项保留，见[设备自动组网](docs/device-networks.md)
+
+工作区镜像本身的能力（Selkies 浏览器桌面、code-server 与控制中心、托管 Chromium、桌面 Computer Use、`.deb` 安装器、Docker 模式、GPU 加速、开发工具链、单卷持久化等）见下方[工作区镜像](#工作区镜像)。
+
+## 工作区镜像
+
+工作区镜像是给 Agent 准备的一台 Linux 电脑：一个跑在你的服务器、NAS 或 WSL2 上的容器，Codex、Claude Code、Hermes 在里面拥有真实的桌面、浏览器和终端，你用任何设备的浏览器就能接入。镜像内置 Cranibox 节点，和你的其他设备对等组网；虚拟空间也基于它创建。
 
 - **任意设备访问** — 桌面（Selkies）和 code-server 都在浏览器里打开，手机、平板、电脑均可；可一条命令接入 Tailscale，用带证书的私有 HTTPS 地址访问，无需开放公网端口
 - **数据只在你手里** — 一个 `/config` 数据卷保存 Agent、登录态、MCP、Skills 和配置，备份或迁移只需复制它
 - **可信任的边界** — 托管 Chromium 的 CDP 只监听容器回环 `127.0.0.1:9222`；桌面 Computer Use 带紧急停止；安装 `.deb` 前先展示风险并需确认
 - **Agent 认识自己的家** — 内置 `AGENTS.md` / `CLAUDE.md` 和 `workspacectl`，Agent 知道状态存在哪、如何查看服务、端口和日志
+- **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv、tmux，支持 NVIDIA / Intel / AMD GPU 加速；Docker 可关闭、使用 DinD 或挂载宿主机 Socket
 
-技术上它基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）构建。一个 `/config` 数据卷即可持久化桌面、code-server、Agent、MCP、Skills 和自定义服务，适合在服务器、NAS 或 WSL2 上长期运行 Codex、Claude Code、Hermes 等 AI Agent。
+技术上它基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）构建，桌面可选 XFCE（默认）、LXQt 或 KDE。
 
-当前实现、测试证据和未完成项见 [功能与交接记录（更新于 2026-10-19）](docs/implementation-handoff-2026-10-18.md)。
-
-## 界面截图
+### 界面截图
 
 以下截图来自真实运行的 `ubuntu-xfce` 镜像（`remote-up.sh` 部署，点击可查看原图）：
 
@@ -48,32 +106,6 @@ Cranibox 是你自己部署的 AI Agent “脑壳”：一个跑在你的服务�
     <td align="center" width="50%"><a href="images/screenshots/control-center-diagnostics.png"><img src="images/screenshots/control-center-diagnostics.png" width="420" alt="控制中心 · 诊断"></a><br><sub>控制中心 · 诊断</sub></td>
   </tr>
 </table>
-
-## 核心特性
-
-- **Agent 开箱即用** — 首次启动可选 Codex、Claude Code、Hermes、DeepSeek Harness 或 OpenClaw；Codex 和 Claude Code 会同时安装官方 code-server 扩展
-- **统一双语控制中心** — 一处管理 Agent、托管浏览器、全局 MCP 与 Skills、服务、桌面、网络和诊断；中英文切换会同步 code-server
-- **轻量独立 Web 管理页** — Rust HTTP 后端与 React 前端，浏览器访问，支持明暗主题和移动端，见 [安装与安全访问](docs/web-control-center.md)
-- **原生用户服务管理** — Rust 兼容入口与 s6 监督服务；初始化任务使用 oneshot，见 [实现与迁移边界](docs/native-services-and-web.md)
-- **Agent 可直接操作环境** — Rust `workspacectl` 提供稳定接口，用于检查服务、日志、端口、路由和可选能力；[构建与迁移范围](docs/workspacectl-rust.md)
-- **对等设备网络** — Windows/macOS/Linux 设备与本工作区及彼此经 iroh 配对（直连、局域网或中继）；Agent 用 `cranibox nodes|exec|mcp` 访问已配对和同一身份的设备，见 [设备组网](docs/iroh-network.md)
-- **托盘客户端与设备组网** — Windows/macOS/Linux 独立 GUI 客户端，关闭窗口保持后台连接，支持登录自启动；同组设备的 Agent 使用各自节点身份互访，连接入口可选 Tailscale 私网或公网 WSS 中继，见 [客户端与设备组网](docs/node-desktop-and-device-mesh.md)
-- **节点直连基础** — 持久 NodeID、目标本地授权与独立 HTTP/WebSocket，CLI/MCP 在 Workspace 停止后仍能执行命令和连接原 Shell，Web/Tauri 共享设备页可管理直连连接、授权检查及后台命令任务；[配置与边界](docs/direct-node-peers.md)
-- **设备间消息** — Web/Tauri 共用持久收发箱，支持线程回复、显式收件确认、离线重试及重启恢复；Agent 可通过独立 MCP 使用，不依赖 Workspace 中继；[使用与边界](docs/device-messages.md)
-- **跨设备协作任务** — Web/Tauri 共用任务页面，支持持久委托、Agent 明确领取、进度、执行提问与离线回复、最终结果、合作取消与尝试历史；断网恢复保留原尝试，目标无需反向连接。可通过独立 MCP 使用，接收端可另外启用按设备授权的后台自动接单；[使用与边界](docs/device-tasks.md)
-- **Agent 会话目录** — Agent 通过本机 CLI/MCP 主动登记与续期，Web/Tauri 查看公开状态并按会话 UUID 定向委托；登记过期不自动终止工作，[使用与边界](docs/agent-sessions.md)
-- **设备自动组网** — Web/Tauri 共用 EasyTier 安装、用户态组网、节点发现和授权连接，支持 Workspace 地址加短期邀请接入、多个入网地址和节点重启恢复；同时支持系统 Tailscale 状态、官方登录，以及按在线设备核对 NodeID 并保存授权连接；[使用与当前边界](docs/device-networks.md)。已支持显式多路径的新连接选路；公钥配对、全网目录分发与既有连接无缝迁移仍按[对等组网设计](docs/decentralized-node-network-design.md)推进
-- **跨设备桌面** — Web/Tauri 共用 noVNC 查看器，通过 Rust 直连或 WebSocket 中继访问授权桌面；仅出站接入的节点无需开放入站端口，Linux/X11 与兼容 wlroots 的 Wayland 会话支持托管 VNC，其他环境接入已有 VNC；支持画面、键鼠、全屏与重连；[使用与边界](docs/remote-desktops.md)
-- **虚拟空间** — 引导检测与安装容器环境，创建独立 Linux 工作区，接入统一项目和终端，停止与归档保留数据；[平台支持与边界](docs/virtual-spaces.md)
-- **项目与会话** — Web/Tauri 共用项目页面，汇总已授权配对设备的目录，注册工作副本，创建、关联和找回原 Shell；可按设备启用后台目录增量同步，关闭页面后继续，离线保留只读快照。支持本机与直连节点双向、以及两个直连远端之间经清单确认的分块工作文件复制，断网后查询目标回执恢复结果，[使用与边界](docs/project-session-catalog.md)。已支持[非交互 Agent 后台执行](docs/agent-executions.md)；运行会话迁移仍按[设计与交付顺序](docs/distributed-agent-workspace-design.md)推进
-- **Selkies 浏览器桌面** — 通过 HTTPS 在浏览器中访问完整 Linux 桌面（Selkies 经 WebSocket 串流）；可选 XFCE（默认）、LXQt 或 KDE
-- **Agent 托管浏览器** — 桌面默认 Chromium 使用持久化托管用户目录，Agent 可直接操作同一窗口、标签页和登录会话，无需每次确认
-- **桌面 Computer Use** — Agent 可截图并操作 Selkies 正在显示的同一个桌面，支持鼠标、键盘、滚动、拖拽、窗口聚焦和紧急停止
-- **桌面软件包安装器** — 在文件管理器中双击 `.deb` 即可检查软件包信息、确认风险并自动解析依赖后安装
-- **灵活的 Docker 权限边界** — 可关闭 Docker、使用容器内 DinD，或显式挂载宿主机 Docker Socket
-- **可选远程网络** — 支持 SSH 隧道、自定义域名 + Caddy 和无需 `NET_ADMIN` 的 Tailscale 自组网
-- **完整开发工具链** — Node.js 22、Go 1.22、Rust、Python 3、Homebrew、uv、tmux，并支持 NVIDIA / Intel / AMD GPU 加速
-- **单卷持久化** — 工具、登录状态、配置、缓存和自定义服务全部持久化到 `/config`；支持一键切换国内镜像
 
 ## 开箱即用范围
 
@@ -183,7 +215,7 @@ flowchart TB
 
 </details>
 
-## 快速开始
+## 部署工作区镜像
 
 ### 安全远程启动（推荐）
 
@@ -473,10 +505,9 @@ Agent 的登录信息和配置写入 `HOME=/config`，因此随唯一的 `/confi
 会话重复确认。容器内配置过 Chrome DevTools MCP 的 Agent 可以读取和操作全部标签页、
 Cookie 与登录会话，因此该模式适用于可信 Agent 的单用户工作区。
 
-跨设备浏览器操作使用独立的 [Browser Use 授权](docs/browser-use.md)：目标明确共享本机 Chromium CDP，
-调用方运行目标绑定的官方 Chrome DevTools MCP。Web/Tauri 共用配置、状态和紧急停止界面；
-旧授权默认关闭，停止跨重启保留，只允许目标管理者恢复。它可经已有 EasyTier/Tailscale 直连路由使用，
-当前不走旧网关中继，也不自动安装或启动浏览器。
+跨设备浏览器操作使用独立的 [Browser Use 授权](docs/browser-use.md)：目标设备明确共享浏览器（用户正在使用的 Chrome 或托管浏览器），
+调用方经 iroh 对等连接使用目标绑定的 Chrome DevTools MCP。Web/Tauri 共用配置、状态和紧急停止界面；
+停止跨重启保留，只允许目标管理者恢复。
 
 原生桌面应用通过 `/config/bin/agent-desktop-mcp` 使用 Computer Use。该能力要求桌面运行在
 Wayland 模式（`PIXELFLUX_WAYLAND=true` 且 `PIXELFLUX_CU=8764`）：新镜像默认满足，
