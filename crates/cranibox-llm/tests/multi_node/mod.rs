@@ -12,6 +12,8 @@ fn roster() -> Arc<MockRoster> {
         version: 1,
         owner_pub: "test-owner".into(),
         epoch: 1,
+        owner_cert: None,
+        owner_keys: Default::default(),
         sig: "fixture".into(),
         members: (1..=3)
             .map(|n| {

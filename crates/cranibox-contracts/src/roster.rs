@@ -50,8 +50,39 @@ pub struct Roster {
     /// Monotonic; every membership change increments it.
     pub epoch: u64,
     pub members: Vec<RosterMember>,
+    /// The recovery key's authorization of `owner_pub`; once present, the identity is
+    /// the recovery key and the owner key may be rotated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_cert: Option<OwnerCert>,
+    /// After a rotation: the new owner key sealed to each remaining member
+    /// (`SealedOwnerKey` JSON by NodeId), so every owner device can sign again.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub owner_keys: std::collections::BTreeMap<String, serde_json::Value>,
     /// ed25519 signature by the owner key, hex. Empty while unsigned.
     pub sig: String,
+}
+
+/// Signature domain of [`OwnerCert`].
+pub const OWNER_CERT_DOMAIN: &[u8] = b"cranibox-owner-cert-v1\0";
+
+/// The recovery key authorizes one owner key. A higher `serial` replaces a lower one.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct OwnerCert {
+    /// Recovery ed25519 public key, hex: the identity itself.
+    pub recovery_pub: String,
+    pub owner_pub: String,
+    pub serial: u64,
+    /// ed25519 signature by the recovery key, hex.
+    pub sig: String,
+}
+impl OwnerCert {
+    /// The exact bytes the recovery key signs (`sig` is cleared first).
+    pub fn signing_message(&self) -> Vec<u8> {
+        let mut unsigned = self.clone();
+        unsigned.sig.clear();
+        crate::canonical::signing_message(OWNER_CERT_DOMAIN, &unsigned)
+            .expect("certificate serializes")
+    }
 }
 
 impl Roster {

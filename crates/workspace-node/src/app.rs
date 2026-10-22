@@ -982,11 +982,28 @@ async fn route(
             _ => Err(error(405, "invalid", "Unknown pairing request")),
         };
     }
-    if (method, path) == ("GET", "/identity") {
+    if let Some(rest) = path.strip_prefix("/identity") {
         let service = service
             .as_ref()
             .ok_or_else(|| error(503, "unavailable", "Demo devices have no identity"))?;
-        return Ok(service.models.identity());
+        let conflict = |e: anyhow::Error| error(409, "identity", format!("{e:#}"));
+        return match (method, rest) {
+            ("GET", "") => Ok(service.models.identity()),
+            ("POST", "/recovery") => {
+                let code = service.models.create_recovery().map_err(conflict)?;
+                Ok(serde_json::json!({"code": code, "identity": service.models.identity()}))
+            }
+            ("POST", "/rotate") => {
+                let remove: Vec<String> =
+                    serde_json::from_value(body["remove"].clone()).unwrap_or_default();
+                service
+                    .models
+                    .rotate_owner(body["code"].as_str().unwrap_or_default(), &remove)
+                    .map_err(conflict)?;
+                Ok(service.models.identity())
+            }
+            _ => Err(error(405, "invalid", "Unknown identity operation")),
+        };
     }
     match (method, path) {
         ("GET", "/status") => output(api.status().await?),

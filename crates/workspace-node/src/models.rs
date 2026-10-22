@@ -34,7 +34,66 @@ pub fn live(peers: &Path) -> Option<Arc<Models>> {
     live_models().lock().unwrap().get(peers)?.upgrade()
 }
 
-/// `cbo-xxxx-xxxx-xxxx-xxxx`: short, stable code of an owner identity (its public key).
+fn hex32(bytes: &[u8; 32]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+/// The recovery signing key behind a recovery code's seed.
+fn recovery_key(seed: &[u8; 32]) -> ed25519_dalek::SigningKey {
+    use sha2::Digest;
+    let digest = sha2::Sha256::digest([b"cranibox-recovery-key-v1\0".as_slice(), seed].concat());
+    ed25519_dalek::SigningKey::from_bytes(&digest.into())
+}
+fn sign_cert(
+    recovery: &ed25519_dalek::SigningKey,
+    owner_pub: &str,
+    serial: u64,
+) -> cranibox_contracts::roster::OwnerCert {
+    use ed25519_dalek::Signer;
+    let mut cert = cranibox_contracts::roster::OwnerCert {
+        recovery_pub: hex32(recovery.verifying_key().as_bytes()),
+        owner_pub: owner_pub.to_owned(),
+        serial,
+        sig: String::new(),
+    };
+    cert.sig = recovery
+        .sign(&cert.signing_message())
+        .to_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    cert
+}
+/// 56 base32 characters in groups of four: the seed plus a 4-character checksum.
+fn recovery_code(seed: &[u8; 32]) -> String {
+    use sha2::Digest;
+    let check = sha2::Sha256::digest([b"cranibox-recovery-check\0".as_slice(), seed].concat());
+    let text = data_encoding::BASE32_NOPAD.encode(&[seed.as_slice(), &check[..3]].concat());
+    text.as_bytes()
+        .chunks(4)
+        .map(|c| std::str::from_utf8(c).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+fn parse_recovery_code(code: &str) -> Result<zeroize::Zeroizing<[u8; 32]>> {
+    use sha2::Digest;
+    let text: String = code
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    let bytes = data_encoding::BASE32_NOPAD
+        .decode(text.as_bytes())
+        .map_err(|_| anyhow::anyhow!("That is not a recovery code"))?;
+    ensure!(bytes.len() == 35, "That is not a recovery code");
+    let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+    seed.copy_from_slice(&bytes[..32]);
+    let check =
+        sha2::Sha256::digest([b"cranibox-recovery-check\0".as_slice(), seed.as_slice()].concat());
+    ensure!(check[..3] == bytes[32..], "The recovery code has a typo");
+    Ok(seed)
+}
+
+/// `cbo-xxxx-xxxx-xxxx-xxxx`: short, stable code of an identity (its recovery or owner key).
 pub fn identity_code(owner_pub: &str) -> String {
     use sha2::Digest;
     let digest =
@@ -309,8 +368,26 @@ impl Models {
         }
         let remote: cranibox_contracts::roster::Roster = serde_json::from_slice(&bytes)?;
         let local = self.roster.current().context("no roster")?;
-        // Verify even an equal epoch; a peer may never introduce a different owner.
-        agent_workspace_runtime::peers::roster::verify(&remote, &local.owner_pub)?;
+        // Verify even an equal epoch; a peer may only introduce a different owner with a
+        // newer certificate from this identity's recovery key.
+        match self.roster.check(&remote) {
+            Ok(true) => return self.install_roster(remote),
+            Ok(false) => {}
+            // The peer still runs a roster from before our rotation: send it ours.
+            Err(_) if remote.owner_pub != local.owner_pub && local.owner_cert.is_some() => {
+                let request = axum::http::Request::post(&url)
+                    .header("content-type", "application/json")
+                    .body(BoxBody::full(serde_json::to_vec(&local)?))?;
+                let response = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    self.router.transport.request(&node.to_owned(), request),
+                )
+                .await??;
+                ensure!(response.status().is_success(), "roster rejected");
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        }
         if remote.epoch > local.epoch {
             self.install_roster(remote)?;
         } else if local.epoch > remote.epoch {
@@ -354,16 +431,87 @@ impl Models {
         }
         Ok(models)
     }
-    /// This device's identity code and roster summary.
+    /// This device's identity code and roster summary. Once a recovery code exists the
+    /// identity is the recovery key, so the code survives owner-key rotations.
     pub fn identity(&self) -> serde_json::Value {
         let owner = self.roster.owner();
+        let recovery = self.roster.identity();
         let roster = self.roster.current();
         serde_json::json!({
-            "code": identity_code(&owner),
+            "code": identity_code(recovery.as_deref().unwrap_or(&owner)),
             "owner_pub": owner,
+            "recovery": recovery.is_some(),
             "epoch": roster.as_ref().map(|r| r.epoch),
             "members": roster.map_or(0, |r| r.members.len()),
         })
+    }
+    /// Create this identity's recovery code (shown once). The recovery key certifies the
+    /// current owner key and never stays on any device.
+    pub fn create_recovery(&self) -> Result<String> {
+        ensure!(
+            self.roster.identity().is_none(),
+            "this identity already has a recovery code"
+        );
+        let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+        rand::RngCore::fill_bytes(&mut rand::rng(), seed.as_mut());
+        let recovery = recovery_key(&seed);
+        let owner = OwnerKey::load_or_create(&self.owner_path)?;
+        let roster = self.roster.current().context("no roster")?;
+        let cert = sign_cert(&recovery, &owner.public(), 1);
+        self.roster.pin_identity(&cert.recovery_pub)?;
+        self.roster
+            .issue_with(&owner, roster.members, Some(cert), Default::default())?;
+        Ok(recovery_code(&seed))
+    }
+    /// Lost a device: with the recovery code, replace the owner key, remove `remove`
+    /// from the identity and hand the new key to every remaining member.
+    pub fn rotate_owner(&self, code: &str, remove: &[String]) -> Result<()> {
+        let seed = parse_recovery_code(code)?;
+        let recovery = recovery_key(&seed);
+        let recovery_pub = hex32(recovery.verifying_key().as_bytes());
+        ensure!(
+            self.roster.identity().as_deref() == Some(recovery_pub.as_str()),
+            "this recovery code belongs to another identity"
+        );
+        ensure!(
+            !remove.iter().any(|n| n == self.vault.node()),
+            "cannot remove this device"
+        );
+        let roster = self.roster.current().context("no roster")?;
+        let serial = roster.owner_cert.as_ref().map_or(0, |c| c.serial) + 1;
+        let staged = self.owner_path.with_extension("key.new");
+        let _ = std::fs::remove_file(&staged);
+        let key = OwnerKey::load_or_create(&staged)?;
+        let cert = sign_cert(&recovery, &key.public(), serial);
+        let members: Vec<_> = roster
+            .members
+            .into_iter()
+            .filter(|m| !remove.contains(&m.node_id))
+            .collect();
+        let mut sealed = std::collections::BTreeMap::new();
+        for member in members.iter().filter(|m| m.node_id != self.vault.node()) {
+            sealed.insert(
+                member.node_id.clone(),
+                serde_json::to_value(key.seal_for(member)?)?,
+            );
+        }
+        let removed = self.roster.issue_with(&key, members, Some(cert), sealed)?;
+        if self.owner_path.exists() {
+            std::fs::rename(
+                &self.owner_path,
+                self.owner_path.with_extension("key.rotated"),
+            )?;
+        }
+        std::fs::rename(&staged, &self.owner_path)?;
+        Config::update(&self.path, |c| {
+            for node in &removed {
+                c.grants.remove(node);
+                c.routes.remove(node);
+            }
+            Ok(())
+        })?;
+        self.vault.rotate_for_roster()?;
+        Ok(())
     }
     /// Secret this device shares with a fellow roster member: both derive it from the
     /// vault keys listed in the signed roster, so nothing is exchanged.
@@ -537,7 +685,28 @@ impl Models {
     }
     pub fn install_roster(&self, roster: cranibox_contracts::roster::Roster) -> Result<()> {
         let removed_self = roster.member(self.vault.node()).is_none();
+        let new_owner = (roster.owner_pub != self.roster.owner()).then(|| roster.owner_pub.clone());
+        let sealed = roster.owner_keys.get(self.vault.node()).cloned();
         let removed = self.roster.install(roster)?;
+        // After a certified rotation, take the new owner key sealed to this device.
+        if let (Some(owner), Some(sealed)) = (new_owner, sealed) {
+            let sealed: agent_workspace_runtime::peers::roster::SealedOwnerKey =
+                serde_json::from_value(sealed)?;
+            let aside = self.owner_path.with_extension("key.rotated");
+            if self.owner_path.exists() {
+                std::fs::rename(&self.owner_path, &aside)?;
+            }
+            if let Err(error) = OwnerKey::install_sealed(
+                &self.owner_path,
+                &owner,
+                self.vault.node(),
+                &self.vault_private,
+                &sealed,
+            ) {
+                let _ = std::fs::rename(&aside, &self.owner_path);
+                eprintln!("roster: could not take the rotated owner key: {error:#}");
+            }
+        }
         Config::update(&self.path, |c| {
             for node in &removed {
                 c.grants.remove(node);
@@ -629,5 +798,30 @@ mod tests {
                 .x25519_pub,
             key
         );
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[test]
+    fn recovery_codes_round_trip_and_catch_typos() {
+        let seed = [9u8; 32];
+        let code = recovery_code(&seed);
+        assert_eq!(code.split('-').count(), 14);
+        assert_eq!(*parse_recovery_code(&code.to_lowercase()).unwrap(), seed);
+        let mut typo: Vec<char> = code.chars().collect();
+        typo[0] = if typo[0] == 'A' { 'B' } else { 'A' };
+        assert!(parse_recovery_code(&typo.into_iter().collect::<String>()).is_err());
+        assert!(parse_recovery_code("not a code").is_err());
+    }
+
+    #[test]
+    fn identity_code_is_stable_and_short() {
+        let code = identity_code(&"ab".repeat(32));
+        assert!(code.starts_with("cbo-") && code.len() == 23);
+        assert_eq!(code, identity_code(&"ab".repeat(32)));
+        assert_ne!(code, identity_code(&"cd".repeat(32)));
     }
 }

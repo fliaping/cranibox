@@ -14,6 +14,18 @@ use std::{
 use tokio::sync::watch;
 pub use transfer::SealedOwnerKey;
 
+/// The recovery key's signature on an owner certificate.
+pub fn verify_cert(cert: &OwnerCert) -> Result<()> {
+    let key = VerifyingKey::from_bytes(&unhex::<32>(&cert.recovery_pub)?)?;
+    key.verify_strict(
+        &cert.signing_message(),
+        &Signature::from_bytes(&unhex::<64>(&cert.sig)?),
+    )
+    .context("owner certificate signature is invalid")?;
+    unhex::<32>(&cert.owner_pub)?;
+    Ok(())
+}
+
 pub fn verify(roster: &Roster, owner: &str) -> Result<()> {
     ensure!(
         roster.version == ROSTER_VERSION && roster.epoch > 0,
@@ -66,8 +78,10 @@ pub fn verify(roster: &Roster, owner: &str) -> Result<()> {
 }
 pub struct RosterStore {
     path: PathBuf,
-    /// The pinned identity; replaced only by [`RosterStore::adopt`].
+    /// The pinned owner key; replaced by [`RosterStore::adopt`] or a certified rotation.
     owner: RwLock<String>,
+    /// The pinned recovery key (the identity), once the owner created a recovery code.
+    identity: RwLock<Option<String>>,
     current: RwLock<Option<Roster>>,
     changed: watch::Sender<u64>,
 }
@@ -84,8 +98,13 @@ impl RosterStore {
             Err(e) => return Err(e.into()),
         };
         let epoch = current.as_ref().map_or(0, |r| r.epoch);
+        let identity = fs::read_to_string(path.with_extension("identity"))
+            .ok()
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty());
         Ok(Self {
             path,
+            identity: RwLock::new(identity),
             owner: RwLock::new(owner),
             current: RwLock::new(current),
             changed: watch::channel(epoch).0,
@@ -108,8 +127,65 @@ impl RosterStore {
         }
         crate::config::write_private(&pin, owner.as_bytes(), false)
     }
+    /// Whether `roster` may replace the current one: signed by the pinned owner, or by a
+    /// new owner carrying a newer certificate from the pinned recovery key. Returns
+    /// `true` for such an owner rotation.
+    pub fn check(&self, roster: &Roster) -> Result<bool> {
+        let owner = self.owner();
+        let identity = self.identity();
+        let serial = self
+            .current()
+            .and_then(|r| r.owner_cert)
+            .map_or(0, |c| c.serial);
+        if roster.owner_pub == owner {
+            verify(roster, &owner)?;
+            if let (Some(identity), Some(cert)) = (&identity, &roster.owner_cert) {
+                ensure!(
+                    &cert.recovery_pub == identity && cert.owner_pub == owner,
+                    "owner certificate is for another identity"
+                );
+                verify_cert(cert)?;
+            }
+            return Ok(false);
+        }
+        let identity = identity.context("roster owner changed")?;
+        let cert = roster
+            .owner_cert
+            .as_ref()
+            .context("roster owner changed without a certificate")?;
+        ensure!(
+            cert.recovery_pub == identity && cert.owner_pub == roster.owner_pub,
+            "owner certificate is for another identity"
+        );
+        ensure!(cert.serial > serial, "stale owner certificate");
+        verify_cert(cert)?;
+        verify(roster, &roster.owner_pub)?;
+        Ok(true)
+    }
+    /// The pinned recovery key (hex), if this identity has a recovery code.
+    pub fn identity(&self) -> Option<String> {
+        self.identity.read().ok()?.clone()
+    }
+    /// Pin the recovery key named by a certificate the current owner holds.
+    pub fn pin_identity(&self, recovery_pub: &str) -> Result<()> {
+        unhex::<32>(recovery_pub)?;
+        if let Some(pinned) = self.identity() {
+            ensure!(pinned == recovery_pub, "a different recovery key is pinned");
+            return Ok(());
+        }
+        crate::config::write_private(
+            &self.path.with_extension("identity"),
+            recovery_pub.as_bytes(),
+            true,
+        )?;
+        *self
+            .identity
+            .write()
+            .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? = Some(recovery_pub.to_owned());
+        Ok(())
+    }
     pub fn install(&self, roster: Roster) -> Result<Vec<String>> {
-        verify(&roster, &self.owner())?;
+        let rotation = self.check(&roster)?;
         let mut guard = self
             .current
             .write()
@@ -133,6 +209,34 @@ impl RosterStore {
         if let Some(old) = disk.as_ref() {
             verify(old, &self.owner())?;
             ensure!(roster.epoch > old.epoch, "stale roster epoch");
+        }
+        // The trusted owner vouches for its recovery key the first time it shows a
+        // certificate (`check` already verified it); later rotations need that key.
+        if !rotation
+            && self.identity().is_none()
+            && let Some(cert) = &roster.owner_cert
+        {
+            crate::config::write_private(
+                &self.path.with_extension("identity"),
+                cert.recovery_pub.as_bytes(),
+                true,
+            )?;
+            *self
+                .identity
+                .write()
+                .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? =
+                Some(cert.recovery_pub.clone());
+        }
+        if rotation {
+            crate::config::write_private(
+                &self.path.with_extension("owner"),
+                roster.owner_pub.as_bytes(),
+                true,
+            )?;
+            *self
+                .owner
+                .write()
+                .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? = roster.owner_pub.clone();
         }
         let removed = disk
             .as_ref()
@@ -187,6 +291,29 @@ impl RosterStore {
         lock.lock_exclusive()?;
         crate::config::write_private(&self.path, &serde_json::to_vec_pretty(&roster)?, true)?;
         crate::config::write_private(&self.path.with_extension("owner"), owner.as_bytes(), true)?;
+        let identity = match &roster.owner_cert {
+            Some(cert) => {
+                ensure!(
+                    cert.owner_pub == owner,
+                    "owner certificate is for another key"
+                );
+                verify_cert(cert)?;
+                crate::config::write_private(
+                    &self.path.with_extension("identity"),
+                    cert.recovery_pub.as_bytes(),
+                    true,
+                )?;
+                Some(cert.recovery_pub.clone())
+            }
+            None => {
+                let _ = fs::remove_file(self.path.with_extension("identity"));
+                None
+            }
+        };
+        *self
+            .identity
+            .write()
+            .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? = identity;
         let epoch = roster.epoch;
         *pinned = owner.to_owned();
         *guard = Some(roster);
@@ -194,7 +321,23 @@ impl RosterStore {
         Ok(())
     }
     pub fn issue(&self, key: &OwnerKey, members: Vec<RosterMember>) -> Result<Vec<String>> {
-        ensure!(key.public() == self.owner(), "wrong owner key");
+        let cert = self.current().and_then(|r| r.owner_cert);
+        self.issue_with(key, members, cert, Default::default())
+    }
+    /// Sign a roster with `key`: the current owner, or a new owner certified by `cert`
+    /// (a rotation, with the new key sealed to members in `owner_keys`).
+    pub fn issue_with(
+        &self,
+        key: &OwnerKey,
+        members: Vec<RosterMember>,
+        cert: Option<OwnerCert>,
+        owner_keys: std::collections::BTreeMap<String, serde_json::Value>,
+    ) -> Result<Vec<String>> {
+        ensure!(
+            key.public() == self.owner()
+                || cert.as_ref().is_some_and(|c| c.owner_pub == key.public()),
+            "wrong owner key"
+        );
         let epoch = self
             .current()
             .map_or(0, |r| r.epoch)
@@ -202,9 +345,11 @@ impl RosterStore {
             .context("roster epoch exhausted")?;
         let mut roster = Roster {
             version: ROSTER_VERSION,
-            owner_pub: self.owner(),
+            owner_pub: key.public(),
             epoch,
             members,
+            owner_cert: cert,
+            owner_keys,
             sig: String::new(),
         };
         roster.sig = hex(&key.0.sign(&roster.signing_message()).to_bytes());
@@ -297,5 +442,113 @@ mod tests {
         roster.epoch += 1;
         assert!(store.install(roster).is_err());
         assert_eq!(RosterStore::load(path).unwrap().current().unwrap().epoch, 1);
+    }
+}
+
+#[cfg(test)]
+mod rotation_tests {
+    use super::*;
+    use ed25519_dalek::Signer;
+
+    fn member(n: u8) -> RosterMember {
+        let signing = SigningKey::from_bytes(&[n; 32]);
+        RosterMember {
+            node_id: format!("node-{:032x}", n),
+            signing_key: hex(signing.verifying_key().as_bytes()),
+            x25519_pub: hex(&[n.wrapping_add(100); 32]),
+            role: Role::Node,
+            priority: 128,
+            is_claude_node: false,
+            name: format!("Device {n}"),
+            added_at: 1,
+            identity: None,
+        }
+    }
+    fn cert(recovery: &SigningKey, owner: &OwnerKey, serial: u64) -> OwnerCert {
+        let mut cert = OwnerCert {
+            recovery_pub: hex(recovery.verifying_key().as_bytes()),
+            owner_pub: owner.public(),
+            serial,
+            sig: String::new(),
+        };
+        cert.sig = hex(&recovery.sign(&cert.signing_message()).to_bytes());
+        cert
+    }
+
+    #[test]
+    fn only_the_recovery_key_can_replace_the_owner() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("roster.json");
+        let old = OwnerKey::load_or_create(&dir.path().join("old.key")).unwrap();
+        RosterStore::pin(&path, &old.public()).unwrap();
+        let store = RosterStore::load(path.clone()).unwrap();
+        store
+            .issue(&old, vec![member(1), member(2), member(3)])
+            .unwrap();
+        let new = OwnerKey::load_or_create(&dir.path().join("new.key")).unwrap();
+        // Without a pinned recovery key the owner can never change.
+        let rogue = RosterStore::load(path.clone()).unwrap();
+        assert!(
+            rogue
+                .issue_with(&new, vec![member(1)], None, Default::default())
+                .is_err()
+        );
+
+        let recovery = SigningKey::from_bytes(&[42u8; 32]);
+        store
+            .pin_identity(&hex(recovery.verifying_key().as_bytes()))
+            .unwrap();
+        store
+            .issue_with(
+                &old,
+                vec![member(1), member(2), member(3)],
+                Some(cert(&recovery, &old, 1)),
+                Default::default(),
+            )
+            .unwrap();
+        // A certificate from another recovery key is refused.
+        let thief = SigningKey::from_bytes(&[7u8; 32]);
+        assert!(
+            store
+                .issue_with(
+                    &new,
+                    vec![member(1)],
+                    Some(cert(&thief, &new, 2)),
+                    Default::default()
+                )
+                .is_err()
+        );
+        // The real recovery key rotates the owner and drops a lost device.
+        let removed = store
+            .issue_with(
+                &new,
+                vec![member(1), member(2)],
+                Some(cert(&recovery, &new, 2)),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(removed, vec![member(3).node_id]);
+        assert_eq!(store.owner(), new.public());
+        assert_eq!(
+            fs::read_to_string(path.with_extension("owner")).unwrap(),
+            new.public()
+        );
+        // The old owner key (kept by the lost device) can no longer issue rosters...
+        assert!(
+            store
+                .issue(&old, vec![member(1), member(2), member(3)])
+                .is_err()
+        );
+        // ...nor can an old certificate be replayed.
+        let mut replay = store.current().unwrap();
+        replay.owner_pub = old.public();
+        replay.owner_cert = Some(cert(&recovery, &old, 1));
+        replay.epoch += 1;
+        replay.sig = hex(&old.0.sign(&replay.signing_message()).to_bytes());
+        assert!(store.check(&replay).is_err(), "stale certificate");
+        // A restart keeps the pins.
+        let reopened = RosterStore::load(path).unwrap();
+        assert_eq!(reopened.owner(), new.public());
+        assert!(reopened.identity().is_some());
     }
 }
