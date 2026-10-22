@@ -125,10 +125,9 @@ pub fn check_url(value: &str, websocket: bool, allow_insecure: bool) -> Result<u
     Ok(url)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod identity_tests {
     use super::*;
-    #[cfg(unix)]
     #[test]
     fn private_writes_restrict_creation_and_replacement_and_preserve_no_clobber() {
         use std::os::unix::fs::PermissionsExt;

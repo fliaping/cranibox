@@ -116,10 +116,9 @@ def web(unified=False):
         after = process(harness.web.pid)
         elapsed = time.monotonic() - started
         metrics = harness.post('/api/metrics', {})[1]
-        return {'status': 'measured', 'scope': 'Actual isolated Rust Web + gateway + Linux node; 4 SSE consumers and 80 full polls during the same 4-second log operation; SSE bytes include initial sync; HTTP headers excluded; CPU includes both methods',
-                'unified_server': unified, 'server_process_count': 1 if unified else 2,
-                'web_process_rss_kib': after['rss_kib'], 'gateway_process_rss_kib': process(harness.server.pid)['rss_kib'],
-                'node_process_rss_kib': process(harness.node.pid)['rss_kib'], 'full_poll_bytes': poll_bytes,
+        return {'status': 'measured', 'scope': 'Actual isolated Rust Web host with its embedded node; 4 SSE consumers and 80 full polls during the same 4-second log operation; SSE bytes include initial sync; HTTP headers excluded; CPU includes both methods',
+                'unified_server': unified, 'server_process_count': 1,
+                'web_process_rss_kib': after['rss_kib'], 'full_poll_bytes': poll_bytes,
                 'sse_bytes': sum(stream.bytes for stream in streams), 'seconds': round(elapsed, 3),
                 'web_cpu_percent': round(100 * (after['ticks'] - before['ticks']) / os.sysconf('SC_CLK_TCK') / elapsed, 2),
                 'metrics': metrics}
