@@ -350,6 +350,7 @@ impl MockAppApi {
                     item.sharing = CapabilitySharing {
                         enabled: false,
                         address: None,
+                        mode: None,
                     };
                 }
             }
@@ -360,12 +361,21 @@ impl MockAppApi {
                     permission.state = PermissionState::Granted;
                 }
             }
+            CapabilityAction::UseProfile => {
+                item.provider.running = false;
+                item.sharing = CapabilitySharing {
+                    enabled: true,
+                    address: None,
+                    mode: Some("profile".into()),
+                };
+            }
             CapabilityAction::OpenSettings | CapabilityAction::Refresh => {}
         }
         if id == CapabilityId::Browser && item.provider.running {
             item.sharing = CapabilitySharing {
                 enabled: true,
                 address: Some("127.0.0.1:9333".into()),
+                mode: Some("managed".into()),
             };
         }
         item.actions = mock_actions(item);
@@ -426,6 +436,11 @@ fn mock_actions(item: &CapabilityItem) -> Vec<CapabilityAction> {
         CapabilityId::Browser => {
             if item.provider.installed {
                 actions.push(if item.provider.running { Stop } else { Start });
+            }
+            if item.sharing.mode.as_deref() == Some("profile") {
+                actions.push(Disable);
+            } else {
+                actions.push(UseProfile);
             }
         }
     }

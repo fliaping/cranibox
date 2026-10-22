@@ -75,6 +75,13 @@ class RealBrowserTests(unittest.TestCase):
         return value
 
     def test_browser_mcp_controls_real_target_and_stops_without_replay(self):
+        self.run_acceptance(profile_mode=False)
+
+    def test_browser_mcp_follows_the_profile_devtools_active_port(self):
+        # Chrome 144+ with remote debugging allowed records its endpoint the same way.
+        self.run_acceptance(profile_mode=True)
+
+    def run_acceptance(self, profile_mode):
         executable = os.environ.get('CRANIBOX_TEST_CHROMIUM') or shutil.which('chromium') or shutil.which('google-chrome')
         self.assertTrue(executable, 'Set CRANIBOX_TEST_CHROMIUM to an installed Chromium executable')
         profile = self.root / 'browser-profile'
@@ -110,7 +117,7 @@ class RealBrowserTests(unittest.TestCase):
         self.cli(self.b, 'grant', '--allow-unverified', '--node', self.caller, '--output-token', self.token_path, '--browser')
         self.token = self.token_path.read_text().strip()
         self.cli(self.a, 'connect', '--node', self.target, '--url', f'http://127.0.0.1:{self.port}', '--credential-file', self.token_path)
-        self.cli(self.b, 'browser', '--address', f'127.0.0.1:{port}'); self.start()
+        self.cli(self.b, 'browser', *(['--profile', profile] if profile_mode else ['--address', f'127.0.0.1:{port}'])); self.start()
         log = (self.root / 'mcp.log').open('wb'); self.logs.append(log)
         self.mcp = subprocess.Popen([str(NODE), '--config', str(self.a), 'peer', 'call', '--node', self.target, 'browser-mcp'],
                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)

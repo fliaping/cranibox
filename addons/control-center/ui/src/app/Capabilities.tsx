@@ -1,4 +1,4 @@
-import { CircleAlert, Download, ExternalLink, Play, RefreshCw, ShieldCheck, Square } from "lucide-react";
+import { CircleAlert, Download, ExternalLink, Globe, Play, RefreshCw, ShieldCheck, Square } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { notAvailable, type Capabilities as CapabilityList, type Capability, type CapabilityAction, type InstallPlan, type PermissionState } from "../personal/api";
@@ -85,8 +85,11 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
         {has("install_plan") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "install_plan")}><Download size={14} aria-hidden="true" />{t("安装…", "Install…")}</button>}
         {has("start") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "start")}><Play size={14} aria-hidden="true" />{t("启动", "Start")}</button>}
         {has("stop") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "stop")}><Square size={14} aria-hidden="true" />{t("停止", "Stop")}</button>}
+        {has("use_profile") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "use_profile")}><Globe size={14} aria-hidden="true" />{t("使用我的 Chrome（保留登录）", "Use my Chrome (signed in)")}</button>}
+        {item.id === "browser" && has("open_settings") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "open_settings")}><ExternalLink size={14} aria-hidden="true" />{t("打开远程调试设置", "Open remote debugging setting")}</button>}
         {has("refresh") && <button className="cx-btn small ghost" disabled={busy} onClick={() => void act(item, "refresh")}><RefreshCw size={14} aria-hidden="true" />{t("刷新", "Refresh")}</button>}
       </div></div>
+    {item.id === "browser" && item.sharing.mode === "profile" && <p className="cx-muted cx-small">{t("Agent 使用你正在用的 Chrome；每次连接 Chrome 会弹窗请你允许。", "Agents use the Chrome you are signed in to; Chrome asks you to allow each connection.")}</p>}
     {item.permissions.length > 0 && <div className="cx-cap-section"><h4>{t("系统权限", "System permissions")}</h4>
       {item.permissions.map(permission => <div className="cx-between" key={permission.id}><span>{permissionName(permission.id, t)}</span><Pill tone={permissionTone[permission.state]}>{permissionState(permission.state, t)}</Pill></div>)}
       {missing.length > 0 && <div className="cx-actions">

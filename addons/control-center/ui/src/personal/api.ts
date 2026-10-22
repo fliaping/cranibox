@@ -89,6 +89,7 @@ export type CapabilityAction =
   | "disable"
   | "request_permissions"
   | "open_settings"
+  | "use_profile"
   | "refresh";
 export type Capability = {
   id: CapabilityId | string;
@@ -100,7 +101,7 @@ export type Capability = {
     detail?: string | null;
   };
   permissions: { id: "screen_recording" | "accessibility" | string; state: PermissionState }[];
-  sharing: { enabled: boolean; address?: string | null };
+  sharing: { enabled: boolean; address?: string | null; mode?: "profile" | "managed" | "address" | null };
   actions: CapabilityAction[];
   error?: string | null;
 };

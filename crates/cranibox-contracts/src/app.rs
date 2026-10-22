@@ -309,6 +309,9 @@ pub enum CapabilityAction {
     Disable,
     RequestPermissions,
     OpenSettings,
+    /// Browser only: share the owner's everyday Chrome (signed-in sessions) instead
+    /// of the separate managed browser.
+    UseProfile,
     Refresh,
 }
 
@@ -350,6 +353,9 @@ pub struct CapabilitySharing {
     pub enabled: bool,
     /// Loopback provider address, when the provider has one.
     pub address: Option<String>,
+    /// Browser: `profile` (the owner's Chrome), `managed` or `address`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

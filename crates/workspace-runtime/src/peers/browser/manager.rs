@@ -199,9 +199,7 @@ impl Manager {
         }
         // A configured address from the previous run is ours until the restart moves it.
         if let Some(spec) = &self.spec {
-            let previous = Provider {
-                address: (Ipv4Addr::LOCALHOST, spec.port).into(),
-            };
+            let previous = Provider::at((Ipv4Addr::LOCALHOST, spec.port).into());
             if Config::read(&self.peers).is_ok_and(|c| c.browser.as_ref() == Some(&previous)) {
                 self.shared = Some(previous);
             }
@@ -261,7 +259,7 @@ impl Manager {
         json!({"candidates":candidates,"browser":self.spec.as_ref().map(|s| &s.browser).or(candidates.first().map(|c| &c.id)),
             "executable":self.spec.as_ref().map(|s| &s.executable).or(candidates.first().map(|c| &c.path)),
             "enabled":self.spec.is_some(),"running":self.child.is_some(),"ready":ready,
-            "address":self.shared.as_ref().map(|p| p.address),"version":self.version,"profile":self.profile,
+            "address":self.shared.as_ref().and_then(Provider::address),"version":self.version,"profile":self.profile,
             "phase":if ready {"running"} else if self.spec.is_some() && self.retries < MAX_RETRIES {"starting"} else if self.error.is_some() {"failed"} else {"stopped"},
             "error":self.error,"restart_attempts":self.retries})
     }
@@ -290,7 +288,7 @@ impl Manager {
                     port: self.spec.as_ref().map_or(0, |s| s.port),
                 };
                 let (child, provider, version) = launch(&spec, &self.profile).await?;
-                spec.port = provider.address.port();
+                spec.port = provider.address().map_or(spec.port, |a| a.port());
                 let saved = self
                     .write_spec(Some(&spec))
                     .and_then(|_| self.share(&provider));
@@ -399,7 +397,7 @@ impl Manager {
         match launch(&spec, &self.profile).await {
             Ok((child, provider, version)) => {
                 let mut spec = spec;
-                spec.port = provider.address.port();
+                spec.port = provider.address().map_or(spec.port, |a| a.port());
                 match self
                     .write_spec(Some(&spec))
                     .and_then(|_| self.share(&provider))
@@ -439,9 +437,7 @@ async fn launch(spec: &Spec, profile: &Path) -> Result<(Child, Provider, Option<
         std::fs::set_permissions(profile, std::fs::Permissions::from_mode(0o700))?;
     }
     let port = free_port(spec.port)?;
-    let provider = Provider {
-        address: SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
-    };
+    let provider = Provider::at(SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
     let mut child = Process::new(&spec.executable)
         .arg(format!("--user-data-dir={}", profile.display()))
         .arg("--remote-debugging-address=127.0.0.1")
@@ -600,7 +596,7 @@ mod tests {
         assert_eq!(started["version"], "FakeChrome/1.0");
         let address: SocketAddr = serde_json::from_value(started["address"].clone()).unwrap();
         let config = Config::read(&peers).unwrap();
-        assert_eq!(config.browser, Some(Provider { address }));
+        assert_eq!(config.browser, Some(Provider::at(address)));
         assert_eq!(config.browser_epoch, epoch + 1);
         let args = std::fs::read_to_string(&log).unwrap();
         for expected in [
@@ -624,7 +620,7 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&log).unwrap().lines().count(), 2);
         assert_eq!(
             Config::read(&peers).unwrap().browser,
-            Some(Provider { address })
+            Some(Provider::at(address))
         );
 
         let stopped = service.manage(Command::Stop {}).await.unwrap();
@@ -633,7 +629,7 @@ mod tests {
             (Some(false), Some(false))
         );
         assert!(Config::read(&peers).unwrap().browser.is_none());
-        assert!(Provider { address }.discover().await.is_err());
+        assert!(Provider::at(address).discover().await.is_err());
         assert!(!root.path().join("browser-service.json").exists());
         let _ = stop.send(());
         service.shutdown().await;

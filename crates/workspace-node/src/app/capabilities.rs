@@ -7,7 +7,7 @@ use agent_workspace_runtime::{
     config as secrets,
     peers::{
         self,
-        browser::manager,
+        browser::{self, Provider, manager},
         computer::{self, ProviderKind, cua},
         config::{Config, Desktop, DesktopProtocol},
     },
@@ -443,6 +443,44 @@ impl Service {
                     .await
                     .map_err(failed)?;
             }
+            (CapabilityId::Browser, UseProfile) => {
+                let (kind, dir) = pick_profile()
+                    .ok_or_else(|| conflict("Install Google Chrome 144 or later first."))?;
+                if profile_major(&dir).is_some_and(|v| v < MIN_PROFILE_CHROME) {
+                    return Err(conflict(format!(
+                        "Update the browser to Chrome {MIN_PROFILE_CHROME} or later, then retry."
+                    )));
+                }
+                if browser::active_port(&dir).is_err() {
+                    let _ = open_inspect(kind).await;
+                    return Err(conflict(format!(
+                        "In your browser, allow remote debugging at {INSPECT_URL}, keep the browser open, then retry."
+                    )));
+                }
+                if host
+                    .browser(manager::Command::Status {})
+                    .await
+                    .is_ok_and(|s| s["enabled"] == true)
+                {
+                    host.browser(manager::Command::Stop {})
+                        .await
+                        .map_err(failed)?;
+                }
+                host.peers(peers::Command::BrowserSharing {
+                    browser: Some(Provider::Profile { user_data_dir: dir }),
+                })
+                .await
+                .map_err(failed)?;
+            }
+            (CapabilityId::Browser, OpenSettings) => {
+                let kind = match &Config::read(&path).ok().and_then(|c| c.browser) {
+                    Some(Provider::Profile { user_data_dir }) => profile_kind(user_data_dir),
+                    _ => "chrome",
+                };
+                open_inspect(kind)
+                    .await
+                    .map_err(|_| conflict(format!("Open {INSPECT_URL} in your browser.")))?;
+            }
             (CapabilityId::Browser, Disable) => {
                 host.peers(peers::Command::BrowserSharing { browser: None })
                     .await
@@ -490,6 +528,7 @@ impl Service {
         let sharing = CapabilitySharing {
             enabled: shared.is_some(),
             address: shared.map(|d| d.address.to_string()),
+            mode: None,
         };
         if cfg!(target_os = "macos") {
             let on = desktop_service::rfb(SCREEN_SHARING).await.is_ok();
@@ -603,6 +642,7 @@ impl Service {
                 sharing: CapabilitySharing {
                     enabled: true,
                     address: provider.address.map(|a| a.to_string()),
+                    mode: None,
                 },
                 actions: vec![Disable, Refresh],
                 error: status
@@ -676,6 +716,7 @@ impl Service {
             sharing: CapabilitySharing {
                 enabled,
                 address: None,
+                mode: None,
             },
             actions,
             error: if missing {
@@ -697,11 +738,48 @@ impl Service {
             .as_array()
             .is_some_and(|c| !c.is_empty());
         let managed = status["enabled"] == true;
+        if let Some(Provider::Profile { user_data_dir }) = &config.browser {
+            // The owner's own Chrome: signed in, prompts for each new controller.
+            let found = config.browser.as_ref().unwrap().discover().await;
+            let mut actions = vec![Disable];
+            if found.is_err() {
+                actions.push(OpenSettings);
+            }
+            actions.push(Refresh);
+            return CapabilityItem {
+                id: CapabilityId::Browser,
+                provider: CapabilityProvider {
+                    kind: profile_kind(user_data_dir).into(),
+                    installed: true,
+                    running: found.is_ok(),
+                    version: found
+                        .as_ref()
+                        .ok()
+                        .and_then(|(m, _)| m["version"].as_str().map(str::to_owned)),
+                    detail: Some(user_data_dir.display().to_string()),
+                },
+                permissions: vec![],
+                sharing: CapabilitySharing {
+                    enabled: true,
+                    address: None,
+                    mode: Some("profile".into()),
+                },
+                actions,
+                error: found.err().map(|_| {
+                    format!(
+                        "Open Chrome and allow remote debugging at {INSPECT_URL}; Chrome asks you to approve each new controller."
+                    )
+                }),
+            };
+        }
         let mut actions = vec![];
         if managed {
             actions.push(Stop);
         } else if installed {
             actions.push(Start);
+        }
+        if !browser::profile_candidates().is_empty() {
+            actions.push(UseProfile);
         }
         if config.browser.is_some() && !managed {
             actions.push(Disable);
@@ -726,12 +804,67 @@ impl Service {
             permissions: vec![],
             sharing: CapabilitySharing {
                 enabled: config.browser.is_some(),
-                address: config.browser.as_ref().map(|b| b.address.to_string()),
+                address: config
+                    .browser
+                    .as_ref()
+                    .and_then(Provider::address)
+                    .map(|a| a.to_string()),
+                mode: config
+                    .browser
+                    .as_ref()
+                    .map(|_| if managed { "managed" } else { "address" }.into()),
             },
             actions,
             error: status["error"].as_str().map(str::to_owned),
         }
     }
+}
+/// Chrome's switch that lets local programs attach to the everyday profile.
+const INSPECT_URL: &str = "chrome://inspect/#remote-debugging";
+/// Chrome 144 added the remote-debugging permission for the default profile.
+const MIN_PROFILE_CHROME: u32 = 144;
+fn profile_kind(dir: &Path) -> &'static str {
+    browser::profile_candidates()
+        .into_iter()
+        .find(|(_, p)| p == dir)
+        .map_or("chrome", |(kind, _)| kind)
+}
+/// The profile to share: one with remote debugging already on, else the first.
+fn pick_profile() -> Option<(&'static str, PathBuf)> {
+    let candidates = browser::profile_candidates();
+    candidates
+        .iter()
+        .find(|(_, p)| browser::active_port(p).is_ok())
+        .or(candidates.first())
+        .cloned()
+}
+fn profile_major(dir: &Path) -> Option<u32> {
+    std::fs::read_to_string(dir.join("Last Version"))
+        .ok()?
+        .trim()
+        .split('.')
+        .next()?
+        .parse()
+        .ok()
+}
+/// Ask the running browser to open its remote-debugging page; Chromium forwards a
+/// command-line URL to the open window, also for internal pages.
+async fn open_inspect(kind: &str) -> Result<()> {
+    let id = kind.split('-').next().unwrap_or(kind);
+    let candidate = manager::detect()
+        .into_iter()
+        .find(|c| c.id == id)
+        .context("browser executable not found")?;
+    let mut child = Command::new(&candidate.path)
+        .arg(INSPECT_URL)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+    });
+    Ok(())
 }
 fn terminal(config: &Config) -> CapabilityItem {
     CapabilityItem {
@@ -747,6 +880,7 @@ fn terminal(config: &Config) -> CapabilityItem {
         sharing: CapabilitySharing {
             enabled: config.grants.values().any(|g| g.permissions.terminals),
             address: None,
+            mode: None,
         },
         actions: vec![CapabilityAction::Refresh],
         error: None,
@@ -890,7 +1024,14 @@ mod tests {
         }
         let browser = &value["items"][3];
         assert_eq!(browser["provider"]["installed"], false);
-        assert_eq!(browser["actions"], json!(["refresh"]));
+        // `use_profile` depends on the everyday browser profiles of whoever runs this.
+        let actions: Vec<_> = browser["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|a| *a != "use_profile")
+            .collect();
+        assert_eq!(actions, [&json!("refresh")]);
         // Actions that do not apply now are refused before anything runs.
         let refused = service
             .act(
@@ -914,9 +1055,9 @@ mod tests {
         assert_eq!(item["id"], "terminal");
         // An externally configured browser can be unshared from here.
         host.peers(peers::Command::BrowserSharing {
-            browser: Some(peers::browser::Provider {
-                address: "127.0.0.1:9222".parse().unwrap(),
-            }),
+            browser: Some(peers::browser::Provider::at(
+                "127.0.0.1:9222".parse().unwrap(),
+            )),
         })
         .await
         .unwrap();

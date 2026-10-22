@@ -179,10 +179,13 @@ pub enum Command {
         #[arg(long)]
         command: String,
     },
-    /// Share an existing loopback Chromium CDP browser. Omit --address to disable.
+    /// Share an existing loopback Chromium CDP browser, or the Chrome profile whose
+    /// remote debugging is allowed (`--profile`). Omit both to disable.
     Browser {
-        #[arg(long)]
+        #[arg(long, conflicts_with = "profile")]
         address: Option<SocketAddr>,
+        #[arg(long)]
+        profile: Option<PathBuf>,
     },
     /// Owner-only browser status, emergency stop or resume as typed JSON.
     BrowserOwner {
@@ -742,12 +745,20 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
                 })
                 .await?,
         ),
-        Command::Browser { address } => client::print(
+        Command::Browser { address, profile } => client::print(
             agent_workspace_runtime::peers::Store::new(path.clone())
                 .manage(agent_workspace_runtime::peers::Command::BrowserSharing {
-                    browser: address.map(|address| {
-                        agent_workspace_runtime::peers::browser::Provider { address }
-                    }),
+                    browser: match (address, profile) {
+                        (Some(address), _) => Some(
+                            agent_workspace_runtime::peers::browser::Provider::at(address),
+                        ),
+                        (None, Some(dir)) => {
+                            Some(agent_workspace_runtime::peers::browser::Provider::Profile {
+                                user_data_dir: std::path::absolute(dir)?,
+                            })
+                        }
+                        (None, None) => None,
+                    },
                 })
                 .await?,
         ),
