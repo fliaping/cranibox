@@ -151,6 +151,21 @@ pub async fn run(
     allow_hosts: Vec<String>,
     gateway: Option<crate::settings::Settings>,
 ) -> Result<()> {
+    // Register for SIGTERM before starting services: a stop request that arrives while
+    // the node restores its networks must still run the cleanup below.
+    let control = crate::node::Control::default();
+    let stop = control.stop.clone();
+    let signal = stop.clone();
+    #[cfg(unix)]
+    let mut terminate =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+        #[cfg(not(unix))]
+        let _ = tokio::signal::ctrl_c().await;
+        signal.cancel();
+    });
     let local = Arc::new(LocalNode::start(peers.clone()).await?);
     let token = access_token(&peers)?;
     let listener = match bind(listen).await {
@@ -177,13 +192,6 @@ pub async fn run(
             "Cranibox device interface on http://{address} (run `cranibox-node ui-url` for the sign-in link)"
         );
     }
-    let control = crate::node::Control::default();
-    let stop = control.stop.clone();
-    let signal = stop.clone();
-    tokio::spawn(async move {
-        agent_workspace_runtime::shutdown_signal().await;
-        signal.cancel();
-    });
     let ui = serve(
         local.clone(),
         listener,
