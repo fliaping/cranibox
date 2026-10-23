@@ -70,9 +70,10 @@ async function stop(code = 0) {
   await fs.rm(directory, { recursive: true, force: true });
   process.exit(code);
 }
-function start(command, args) {
+// The server and the simulated device are one program; `device` marks the latter.
+function start(command, args, device = false) {
   const environment = { ...process.env, CRANIBOX_APP_MOCK: "1", PATH: directory + path.delimiter + (process.env.PATH || '') };
-  const child = spawn(command, args, { stdio: 'inherit', env: command === node ? { ...environment, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : environment });
+  const child = spawn(command, args, { stdio: 'inherit', env: device ? { ...environment, HOME: directory, CRANIBOX_HERDR_BIN: path.join(directory, 'missing-node-herdr') } : environment });
   processes.push(child);
   child.on('error', error => { console.error(error.message); void stop(1); });
   child.on('exit', code => { if (!stopping) void stop(code || 1); });
@@ -104,7 +105,7 @@ try {
   peer(previewConfig, ['grant', '--allow-unverified', '--node', host, '--desktop', '--terminals', '--exec', '--projects', '--output-token', grant]);
   peer(previewConfig, ['listen', '--address', '127.0.0.1:' + previewPort]);
   const preview = JSON.parse(peer(previewConfig, ['identity'])).node_id;
-  start(node, ['--config', previewConfig, 'peer', 'serve']);
+  start(node, ['--config', previewConfig, 'peer', 'serve'], true);
   peer(path.join(directory, '.config/cranibox/settings.json'), ['connect', '--node', preview, '--url', 'http://127.0.0.1:' + previewPort, '--credential-file', grant]);
   // Tests read the preview device's NodeID from here.
   await fs.writeFile(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), preview);
