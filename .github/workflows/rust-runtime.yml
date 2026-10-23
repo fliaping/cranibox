@@ -111,7 +111,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           set -euo pipefail
-          app=target/release/bundle/macos/Cranibox.app
+          # Check what ships: the app inside the disk image.
+          dmg=$(ls target/release/bundle/dmg/*.dmg | head -1)
+          mount=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg" >/dev/null
+          trap 'hdiutil detach "$mount" >/dev/null' EXIT
+          app="$mount/Cranibox.app"
           codesign --verify --deep --strict "$app"
           codesign -dv --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Authority|TeamIdentifier|Signature'
           codesign -d -r- "$app"
