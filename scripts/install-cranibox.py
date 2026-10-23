@@ -1,5 +1,6 @@
 """Atomic server installation with persistent backups and rollback of service state."""
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import tempfile
 import uuid
 
 
-def install(root, binary, ensure, start):
+def install(root, binary, ensure, start, builtin):
     if any(c in str(root) for c in '\n\r"\\%'):
         raise ValueError('Unsupported config root for service unit')
     core = root / 'bin/cranibox'
@@ -64,7 +65,8 @@ def install(root, binary, ensure, start):
             manager(old_manager, 'disable', runtime_unit.name)
         if start and unit.exists() and old_manager.exists():
             manager(old_manager, 'stop', unit.name)
-        if not ensure or not core.exists():
+        # --ensure keeps the installed program unless the caller chose another one.
+        if not ensure or not core.exists() or binary.resolve() != core.resolve():
             save(core)
             core.parent.mkdir(parents=True, exist_ok=True)
             fd, name = tempfile.mkstemp(prefix='.cranibox-', dir=core.parent)
@@ -76,8 +78,25 @@ def install(root, binary, ensure, start):
             finally:
                 if os.path.exists(name):
                     os.unlink(name)
+        if builtin.exists() and binary.resolve() == builtin.resolve():
+            state = root / '.local/state/cranibox/builtin.sha256'
+            save(state)
+            state.write_text(hashlib.sha256(binary.read_bytes()).hexdigest())
         for name in ('workspacectl', 'workspace-services'):
             link(root / 'bin' / name, core)
+        # The node CLI is cranibox; its former name is not kept.
+        for alias in (root / 'bin/cranibox-node', root / '.local/bin/cranibox-node'):
+            if alias.is_symlink():
+                save(alias)
+                alias.unlink()
+        # This server hosts the device node; a second node on the same identity conflicts.
+        node_unit = unit.with_name('cranibox-node.service')
+        if node_unit.exists() and f'{root}/.config/cranibox-node/settings.json' in node_unit.read_text() and 'cranibox' in node_unit.read_text():
+            if old_manager.exists():
+                manager(old_manager, 'stop', node_unit.name, check=False)
+                manager(old_manager, 'disable', node_unit.name, check=False)
+            save(node_unit)
+            node_unit.unlink()
         # The legacy gateway alias is gone; leave other files of that name alone.
         if (root / 'bin/workspace-runtime').is_symlink() and os.readlink(root / 'bin/workspace-runtime') == str(core):
             save(root / 'bin/workspace-runtime')
@@ -136,4 +155,4 @@ WantedBy=default.target
 
 
 if __name__ == '__main__':
-    install(Path(sys.argv[1]).absolute(), Path(sys.argv[2]).absolute(), sys.argv[3] == 'true', sys.argv[4] == 'true')
+    install(Path(sys.argv[1]).absolute(), Path(sys.argv[2]).absolute(), sys.argv[3] == 'true', sys.argv[4] == 'true', Path(sys.argv[5]))

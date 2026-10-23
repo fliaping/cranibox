@@ -1,5 +1,6 @@
 """Boot the image's built-in control plane in an isolated persistent volume."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -191,6 +192,24 @@ class BootstrapTests(unittest.TestCase):
         for name in ('runtime', 'web'):
             self.assertEqual(self.manager('is-enabled', 'agent-workspace-' + name).stdout.strip(), 'enabled')
             self.assertEqual(self.manager('is-active', 'agent-workspace-' + name).stdout.strip(), 'active')
+
+    def test_rebuilt_image_replaces_an_older_program_and_retires_the_separate_node(self):
+        self.bootstrap()
+        core = self.home / 'bin/cranibox'
+        # An older program left in the volume by a previous image, plus the former node setup.
+        core.unlink()
+        core.write_text('#!/bin/sh\necho "cranibox 0.1.0"\n')
+        core.chmod(0o755)
+        alias = self.home / '.local/bin/cranibox-node'
+        alias.symlink_to(self.home / 'opt/cranibox/bin/cranibox')
+        node_unit = self.units / 'cranibox-node.service'
+        node_unit.write_text(f'[Service]\nExecStart={self.home}/opt/cranibox/bin/cranibox --config {self.home}/.config/cranibox-node/settings.json serve\n')
+        self.bootstrap()
+        self.assertEqual(core.read_bytes(), (BINARIES / 'cranibox').read_bytes())
+        self.assertFalse(alias.is_symlink())
+        self.assertFalse(node_unit.exists())
+        self.assertEqual((self.home / '.local/state/cranibox/builtin.sha256').read_text(),
+                         hashlib.sha256(core.read_bytes()).hexdigest())
 
 
 if __name__ == '__main__':
