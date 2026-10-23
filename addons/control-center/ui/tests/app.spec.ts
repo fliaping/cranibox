@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 async function ready(page: Page, path: string) {
+  // Skips the first-launch setup guide.
   await page.addInitScript(() => localStorage.setItem('cranibox.onboarded', '1'));
   await page.goto('/#' + path);
   await expect(page.locator('main h1').first()).toBeVisible();
@@ -16,23 +17,23 @@ const capabilities = {
 };
 
 test('one navigation: home shows peers, approvals and no hub wording', async ({ page }) => {
-  await page.goto('/');
-  // First-run guidance is an inline card: it never blocks the page.
-  const welcome = page.getByRole('region', { name: 'Welcome to Cranibox', exact: true });
-  await expect(welcome).toBeVisible();
+  // The setup guide opens by itself on nodes that send preferences; it never blocks.
+  await page.goto('/#/app/setup');
+  await expect(page.locator('main h1')).toHaveText('Set up Cranibox');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await welcome.getByRole('button', { name: 'Dismiss welcome' }).click();
+  await page.getByRole('button', { name: 'Skip setup' }).click();
+  await expect(page).toHaveURL(/#\/app\/home$/);
   await page.reload();
-  await expect(welcome).toHaveCount(0);
   await expect(page.locator('main h1')).toHaveText('Home');
   await expect(page.getByRole('region', { name: 'Network summary' })).toContainText('devices online');
   await expect(page.locator('.cx-brand small')).toHaveText('The agent workspace across your devices');
   await expect(page).toHaveTitle(/Cranibox/);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  for (const name of ['Home', 'Devices', 'Network', 'Virtual spaces', 'Projects & sessions', 'Inbox', 'Agents & models', 'Settings']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
+  for (const name of ['Home', 'Devices & network', 'Virtual spaces', 'Projects & sessions', 'Inbox', 'Agents & models', 'Settings']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/\bHub\b|常驻节点|Advanced/);
   await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
-  await nav.getByRole('link', { name: 'Devices' }).click();
+  await nav.getByRole('link', { name: 'Devices & network' }).click();
+  await expect(page.getByRole('region', { name: 'Network map' })).toBeVisible();
   const server = page.getByRole('region', { name: 'Home server', exact: true });
   await expect(server).toContainText('Relayed · 38 ms');
   await expect(server).toContainText('Computer Use');
@@ -75,7 +76,39 @@ test('guest access falls back to device capabilities when grants are unavailable
   const mine = page.getByRole('region', { name: 'What it can do on this device', exact: true });
   await expect(mine.getByRole('switch', { name: 'Messages', exact: true })).toBeChecked();
   await expect(mine.getByRole('switch', { name: 'Model access', exact: true })).toHaveCount(0);
-  await expect(mine.getByRole('button', { name: 'Revoke access', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Device sections' }).getByRole('link', { name: 'Overview', exact: true }).click();
+  const remove = page.getByRole('region', { name: 'Remove device', exact: true });
+  await expect(remove).toContainText('Revoke every permission of this guest device');
+  await remove.getByRole('button', { name: 'Remove…' }).click();
+  // A guest has no identity key, so no recovery-code warning.
+  await expect(remove.getByRole('link', { name: 'Remove with recovery code' })).toHaveCount(0);
+  const removed = page.waitForRequest(request => request.method() === 'PUT' && /\/devices\/node-3d4e/.test(request.url()));
+  await remove.getByRole('button', { name: /^Remove Alex/ }).click();
+  expect((await removed).postDataJSON()).toEqual({ revoke: true });
+});
+
+test('removing one of my devices points lost devices to the recovery code', async ({ page }) => {
+  await ready(page, '/app/device/node-0a1b2c3d4e5f60718293a4b5c6d7e8f9');
+  const remove = page.getByRole('region', { name: 'Remove device', exact: true });
+  await remove.getByRole('button', { name: 'Remove…' }).click();
+  await expect(remove).toContainText('lost or stolen');
+  await expect(remove.getByRole('link', { name: 'Remove with recovery code' })).toHaveAttribute('href', '#/app/identity');
+});
+
+test('setup guide asks for every permission in one pass', async ({ page }) => {
+  const calls: string[] = [];
+  await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: { ...capabilities, items: capabilities.items.map(item => item.id === 'computer' ? { ...item, provider: { ...item.provider, installed: true }, actions: ['enable', 'request_permissions', 'open_settings', 'refresh'] } : item) } }));
+  await page.route('**/api/v1/app/capabilities/*/*', route => {
+    const [, , , , , id, action] = new URL(route.request().url()).pathname.split('/');
+    calls.push(id + ':' + action);
+    return route.fulfill({ json: {} });
+  });
+  await page.goto('/#/app/setup');
+  await expect(page.locator('main h1')).toHaveText('Set up Cranibox');
+  await page.getByRole('button', { name: 'Turn on all' }).click();
+  await expect.poll(() => calls).toEqual(['computer:request_permissions', 'computer:enable', 'desktop:enable', 'browser:start']);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { name: /Your identity/ })).toBeVisible();
 });
 
 test('capabilities page shows providers, permissions, sharing and reviews install plans', async ({ page }) => {
@@ -121,7 +154,7 @@ test('capabilities page explains when the node does not offer it yet', async ({ 
 
 test('device pairing uses the invitation and SAS confirmation contract', async ({ page }) => {
   await ready(page, '/nodes');
-  await page.getByRole('button', { name: 'Add device', exact: true }).click();
+  await page.getByRole('button', { name: 'Start pairing', exact: true }).click();
   await page.getByRole('button', { name: 'Create QR code and link', exact: true }).click();
   const link = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   expect(link.startsWith('cranibox://pair/')).toBe(true);
@@ -201,10 +234,12 @@ test('workspace consoles live under This device and old bookmarks keep working',
   await expect(page).toHaveURL(/#\/overview$/);
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Services');
   await page.goto('/#/app/devices');
-  await expect(page.locator('main h1')).toHaveText('Devices');
-  await page.goto('/#/nodes');
-  await expect(page.locator('main h1')).toHaveText('Network');
+  await expect(page.locator('main h1')).toHaveText('Devices & network');
   await expect(page.getByRole('region', { name: 'Network map' })).toBeVisible();
+  await page.goto('/#/nodes');
+  await expect(page.locator('main h1')).toHaveText('Network settings');
+  await page.goto('/#/desktop');
+  await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Desktop');
 });
 
 test('desktop app settings use the shell API and confirm before quitting', async ({ page }) => {

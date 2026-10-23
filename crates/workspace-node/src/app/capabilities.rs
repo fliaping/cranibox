@@ -112,6 +112,9 @@ struct Setup {
 }
 /// The exact command `install` runs, as shown for review.
 pub fn install_command() -> Result<String> {
+    if cua::embedded::active() {
+        return Ok(cua::embedded::plan().join("\n"));
+    }
     ensure!(
         !cfg!(windows),
         "Install cua-driver on Windows with its PowerShell installer (https://cua.ai/docs/cua-driver/quickstart)."
@@ -167,10 +170,15 @@ impl Setup {
             created: Instant::now(),
             command: command.clone(),
         });
+        let (commands, url) = if cua::embedded::active() {
+            (cua::embedded::plan(), cua::embedded::url())
+        } else {
+            (vec![command], cua::INSTALL_URL.into())
+        };
         Ok(InstallPlan {
             plan_id: id,
-            commands: vec![command],
-            url: Some(cua::INSTALL_URL.into()),
+            commands,
+            url: Some(url),
             expires_at,
         })
     }
@@ -239,6 +247,9 @@ impl Drop for Setup {
     }
 }
 async fn install(command: String) -> Result<()> {
+    if cua::embedded::active() {
+        return cua::embedded::install().await;
+    }
     // A user-level installer: it may outlive a stopped node, like other system installers.
     let mut child = Command::new("/bin/bash")
         .args(["-c", &command])
@@ -702,7 +713,12 @@ impl Service {
         CapabilityItem {
             id: CapabilityId::Computer,
             provider: CapabilityProvider {
-                kind: "cua".into(),
+                kind: if cua::embedded::active() {
+                    "cua-embedded"
+                } else {
+                    "cua"
+                }
+                .into(),
                 installed: program.is_some(),
                 running,
                 version,
@@ -720,7 +736,11 @@ impl Service {
             },
             actions,
             error: if missing {
-                Some("Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver.".into())
+                Some(if cua::embedded::active() {
+                    "Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again.".into()
+                } else {
+                    "Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver.".into()
+                })
             } else if installing {
                 None
             } else {

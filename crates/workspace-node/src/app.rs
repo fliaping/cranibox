@@ -1,6 +1,7 @@
 //! One App API implementation shared by the browser and native IPC.
 mod capabilities;
 mod known;
+pub mod preferences;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
 use cranibox_contracts::{
@@ -360,6 +361,9 @@ impl Service {
                         Ok(())
                     })
                     .map_err(unavailable)?;
+                let models = self.models.clone();
+                let node = node.to_owned();
+                tokio::spawn(async move { models.notify_removed(&node).await });
             } else {
                 local
                     .manage_peers(peers::Command::Revoke { node: node.into() })
@@ -980,6 +984,20 @@ async fn route(
             }
             ("GET", Some(id)) => service.pair_server_status(id).await,
             _ => Err(error(405, "invalid", "Unknown pairing request")),
+        };
+    }
+    if path == "/preferences" {
+        let service = service
+            .as_ref()
+            .ok_or_else(|| error(503, "unavailable", "Demo devices keep no preferences"))?;
+        let peers = service.local()?.config_path().to_path_buf();
+        return match method {
+            "GET" => output(preferences::read(&peers)),
+            "PUT" => output(
+                preferences::update(&peers, &body)
+                    .map_err(|e| error(400, "invalid", format!("{e:#}")))?,
+            ),
+            _ => Err(error(405, "invalid", "GET or PUT required")),
         };
     }
     if let Some(rest) = path.strip_prefix("/identity") {

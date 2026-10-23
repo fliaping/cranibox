@@ -1,4 +1,4 @@
-import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Monitor, Moon, Network, RefreshCw, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, RefreshCw, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Overlays } from "../overlays";
@@ -23,19 +23,20 @@ import { NetworkPage } from "./Network";
 import { Approvals } from "./Inbox";
 import { Models } from "./Models";
 import { PairingSheet } from "./Pairing";
-import { resolvedTheme, useApp } from "./store";
+import { SetupGuide } from "./Setup";
+import { resolvedTheme, stored, useApp } from "./store";
 import { Alert, Empty, Loading, PageHead, Sheet, StatusButton, SubTabs, Tabs, type TabItem, type Translate } from "./ui";
 import "./app.css";
 
-type SectionId = "home" | "devices" | "network" | "spaces" | "projects" | "inbox" | "models" | "settings";
+type SectionId = "home" | "devices" | "spaces" | "projects" | "inbox" | "models" | "settings";
 type Page = { path: string; section: SectionId; title: (t: Translate) => string; description?: (t: Translate) => string; element: ReactNode; heading?: boolean; workspace?: boolean };
-const workspacePaths = ["/overview", "/network", "/services", "/resources", "/browser", "/performance", "/diagnostics", "/history"];
+const workspacePaths = ["/overview", "/desktop", "/network", "/services", "/resources", "/browser", "/performance", "/diagnostics", "/history"];
 function pages(models: ReactNode): Page[] {
   return [
-    { path: "/app/home", section: "home", title: t => t("首页", "Home"), element: <Home /> },
-    { path: "/app/devices", section: "devices", title: t => t("设备", "Devices"), heading: true, description: t => t("你的每台设备：在线状态、连接方式与能力。", "Every device you own: status, connection and capabilities."), element: <Devices /> },
-    { path: "/desktop", section: "devices", title: t => t("远程桌面", "Remote desktops"), element: <Desktop /> },
-    { path: "/nodes", section: "network", title: t => t("网络", "Network"), element: <NetworkPage /> },
+    { path: "/app/home", section: "home", title: t => t("首页", "Home"), element: needsSetup() ? <Navigate to="/app/setup" replace /> : <Home /> },
+    { path: "/app/setup", section: "home", title: t => t("设置向导", "Setup guide"), element: <SetupGuide /> },
+    { path: "/app/devices", section: "devices", title: t => t("设备", "Devices"), element: <Devices /> },
+    { path: "/nodes", section: "devices", title: t => t("网络设置", "Network settings"), element: <NetworkPage /> },
     { path: "/spaces", section: "spaces", title: t => t("虚拟空间", "Virtual spaces"), heading: true, description: t => t("在设备上创建隔离的工作空间，带桌面和编辑器；也是 Agent 自己的电脑。", "Isolated workspaces with their own desktop and editor, created on your devices — your agents' own computers."), element: <Spaces /> },
     { path: "/projects", section: "projects", title: t => t("项目与会话", "Projects & sessions"), element: <Projects /> },
     { path: "/app/inbox", section: "inbox", title: t => t("审批", "Approvals"), heading: true, description: t => t("每一个重要决定都先经过你：配对、Agent 工具、屏幕控制。", "Every important decision comes to you first: pairing, agent tools, screen control."), element: <Approvals /> },
@@ -48,6 +49,7 @@ function pages(models: ReactNode): Page[] {
     { path: "/app/identity", section: "settings", title: t => t("身份与安全", "Identity & security"), heading: true, description: t => t("身份码、恢复码，以及移除丢失的设备。", "Identity code, recovery code, and removing a lost device."), element: <IdentitySettings /> },
     { path: "/app/agent-access", section: "settings", title: t => t("Agent 接入", "Agent access"), heading: true, description: t => t("让 Codex、Claude Code 等 Agent 使用你的设备。", "Let Codex, Claude Code and other agents use your devices."), element: <AgentAccess /> },
     { path: "/overview", section: "settings", title: t => t("工作区", "Workspace"), element: <><WorkspaceOnboarding /><Overview /></>, workspace: true },
+    { path: "/desktop", section: "settings", title: t => t("工作区桌面", "Workspace desktop"), element: <Desktop />, workspace: true },
     { path: "/network", section: "settings", title: t => t("域名与路由", "Domains & routes"), element: <DomainsPage />, workspace: true },
     { path: "/services", section: "settings", title: t => t("服务", "Services"), element: <Services />, workspace: true },
     { path: "/resources", section: "settings", title: () => "MCP & Skills", element: <Resources />, workspace: true },
@@ -59,8 +61,7 @@ function pages(models: ReactNode): Page[] {
 }
 const sections: { id: SectionId; to: string; icon: LucideIcon; label: (t: Translate) => string }[] = [
   { id: "home", to: "/app/home", icon: House, label: t => t("首页", "Home") },
-  { id: "devices", to: "/app/devices", icon: Monitor, label: t => t("设备", "Devices") },
-  { id: "network", to: "/nodes", icon: Network, label: t => t("网络", "Network") },
+  { id: "devices", to: "/app/devices", icon: Network, label: t => t("设备与网络", "Devices & network") },
   { id: "spaces", to: "/spaces", icon: Container, label: t => t("虚拟空间", "Virtual spaces") },
   { id: "projects", to: "/projects", icon: FolderGit2, label: t => t("项目与会话", "Projects & sessions") },
   { id: "inbox", to: "/app/inbox", icon: Inbox, label: t => t("待办", "Inbox") },
@@ -68,11 +69,23 @@ const sections: { id: SectionId; to: string; icon: LucideIcon; label: (t: Transl
   { id: "settings", to: "/app/settings", icon: SettingsIcon, label: t => t("本机设置", "Settings") },
 ];
 function sectionTabs(section: SectionId, t: Translate, workspace: boolean, approvals: number): TabItem[] {
-  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/desktop", label: t("远程桌面", "Remote desktops") }];
+  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/nodes", label: t("网络设置", "Network settings") }];
   if (section === "inbox") return [{ to: "/app/inbox", label: t("审批", "Approvals"), count: approvals }, { to: "/tasks", label: t("任务", "Tasks") }, { to: "/messages", label: t("消息", "Messages") }];
   if (section === "models") return workspace ? [{ to: "/app/models", label: t("模型与 Agent", "Models & agents") }, { to: "/agents", label: t("工作区 Agent", "Workspace agents") }] : [];
   if (section === "settings") return [{ to: "/app/settings", label: t("通用", "General") }, { to: "/app/this", label: t("能力与权限", "Capabilities") }, { to: "/app/identity", label: t("身份与安全", "Identity & security") }, { to: "/app/agent-access", label: t("Agent 接入", "Agent access") }, ...(workspace ? [{ to: "/overview", label: t("工作区", "Workspace") }] : [])];
   return [];
+}
+/** First launch on a node that remembers preferences (browser storage covers demo nodes). */
+function needsSetup() {
+  return window.workspaceWeb?.preferences?.onboarded === false && stored("cranibox.onboarded", "") !== "1";
+}
+/** How the other devices are reached right now, for the sidebar footer. */
+function pathSummary(devices: ReturnType<typeof useApp>["devices"], t: Translate) {
+  const online = devices.filter(device => !device.badges.includes("this") && device.online);
+  if (!online.length) return t("暂无其他设备在线", "no other device online");
+  const relayed = online.filter(device => device.path === "relay").length;
+  if (!relayed) return t("全部直连", "all direct");
+  return relayed === online.length ? t("经中继", "via relay") : t(`${online.length - relayed} 直连 · ${relayed} 中继`, `${online.length - relayed} direct · ${relayed} relayed`);
 }
 function TerminalRoute() {
   const location = useLocation(), navigate = useNavigate(), terminal = useTerminalWindow();
@@ -115,7 +128,7 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
     return () => { document.removeEventListener("keydown", key); wide.removeEventListener("change", resized); };
   }, [menu]);
   const tabs = device ? [] : sectionTabs(section, t, hasWorkspace, approvals.length);
-  const workspaceTabs: TabItem[] = [{ to: "/overview", label: t("概览", "Overview") }, { to: "/services", label: t("服务", "Services") }, { to: "/network", label: t("域名与路由", "Domains & routes") }, { to: "/resources", label: "MCP & Skills" }, { to: "/browser", label: t("托管浏览器", "Managed browser") }, { to: "/performance", label: t("性能", "Performance") }, { to: "/diagnostics", label: t("诊断", "Diagnostics") }, { to: "/history", label: t("操作历史", "History") }];
+  const workspaceTabs: TabItem[] = [{ to: "/overview", label: t("概览", "Overview") }, { to: "/desktop", label: t("桌面", "Desktop") }, { to: "/services", label: t("服务", "Services") }, { to: "/network", label: t("域名与路由", "Domains & routes") }, { to: "/resources", label: "MCP & Skills" }, { to: "/browser", label: t("托管浏览器", "Managed browser") }, { to: "/performance", label: t("性能", "Performance") }, { to: "/diagnostics", label: t("诊断", "Diagnostics") }, { to: "/history", label: t("操作历史", "History") }];
   const inWorkspace = workspacePaths.includes(path);
   const currentSection = sections.find(item => item.id === section)!;
   const dark = resolvedTheme(theme) === "dark";
@@ -138,7 +151,7 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
       </nav>
       <div className="cx-sidebar-foot">
         <div className="cx-row"><span className={"cx-dot " + (thisDevice ? "online" : "")} aria-hidden="true" /><strong>{thisDevice?.name || workspace.snapshot?.access?.hostname || "Cranibox"}</strong></div>
-        <span className="cx-row"><Lock size={13} aria-hidden="true" />{t("端到端加密 · 对等直连", "End-to-end encrypted · peer to peer")}</span>
+        <span className="cx-row"><Lock size={13} aria-hidden="true" />{t("端到端加密", "End-to-end encrypted")} · {pathSummary(app.devices, t)}</span>
         {workspace.snapshot?.revision && <span className="cx-revision sidebar-revision">{t("版本 ", "Revision ")}{workspace.snapshot.revision}</span>}
       </div>
     </aside>

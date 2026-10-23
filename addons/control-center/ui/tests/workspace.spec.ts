@@ -285,8 +285,8 @@ test('local and remote tabs keep their connections while switching nodes and nav
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('LOCAL_CONNECTED');
   await page.getByRole('tab', { name: 'Remote logs', exact: true }).click();
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Network' }).click();
-  await expect(page.locator('main h1')).toHaveText('Network');
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Devices & network' }).click();
+  await expect(page.locator('main h1')).toHaveText('Devices & network');
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Remote logs', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('REMOTE_CONNECTED');

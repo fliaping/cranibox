@@ -1,11 +1,12 @@
-import { Activity, Bell, ChevronRight, Gauge, Globe, Lock, Monitor, Network, Plus, Sparkles, SquareTerminal, X } from "lucide-react";
+import { Activity, Bell, ChevronRight, Gauge, Globe, Lock, Monitor, Network, Plus, Sparkles, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Device } from "../personal/api";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
-import { store, useApp } from "./store";
+import { useApp } from "./store";
 import { approvalTitle, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Section } from "./ui";
 import { useTerminalNode } from "./targets";
+import { NetworkMap } from "./Network";
 
 export const deviceCaps = ["terminals", "desktop", "computer", "browser"] as const;
 export function devicePath(device: Device, tab = "") {
@@ -40,9 +41,19 @@ export function Devices() {
   const { t, devices, setPairing } = useApp();
   const mine = devices.filter(device => !device.guest).sort((a, b) => Number(isThis(b)) - Number(isThis(a)) || Number(b.online) - Number(a.online));
   const guests = devices.filter(device => device.guest);
+  const online = devices.filter(device => !isThis(device) && device.online);
   return <>
+    <div className="cx-page-head"><div><h1>{t("设备与网络", "Devices & network")}</h1><p>{t("你的每台设备，以及它们现在怎么连在一起。设备之间优先对等直连，打洞失败时经中继转发；两种路径都端到端加密。", "Every device you own, and how they are connected right now. Devices connect directly when they can and fall back to a relay; both paths are end-to-end encrypted.")}</p></div>
+      <div className="cx-actions"><button className="cx-btn primary" onClick={() => setPairing(true)}><Plus size={16} aria-hidden="true" />{t("添加设备", "Add device")}</button></div></div>
+    <div className="cx-actions" style={{ marginBottom: 16 }}>
+      <Pill tone="good" icon={Lock}>{t("端到端加密", "End-to-end encrypted")}</Pill>
+      <Pill tone="good">{t("直连 ", "Direct ") + online.filter(device => device.path === "direct").length}</Pill>
+      <Pill tone={online.some(device => device.path === "relay") ? "warn" : ""}>{t("中继 ", "Relayed ") + online.filter(device => device.path === "relay").length}</Pill>
+      <Pill>{t("离线 ", "Offline ") + devices.filter(device => !isThis(device) && !device.online).length}</Pill>
+    </div>
+    {devices.length > 1 && <NetworkMap />}
     <Section title={t("我的设备", "My devices")} description={t("点击设备查看终端、桌面、浏览器、项目与授权。", "Open a device for its terminal, desktop, browser, projects and access.")}
-      actions={<button className="cx-btn primary" onClick={() => setPairing(true)}><Plus size={16} aria-hidden="true" />{t("添加设备", "Add device")}</button>}>
+>
       <div className="cx-device-grid">
         {mine.map(device => <DeviceCard key={device.node_id} device={device} />)}
         <button className="cx-add-device" onClick={() => setPairing(true)}><Plus size={26} aria-hidden="true" />{t("添加设备", "Add device")}<small className="cx-muted">{t("扫码、粘贴邀请链接或服务器地址", "Scan a QR code, or paste a link or server address")}</small></button>
@@ -68,13 +79,12 @@ export function Home() {
   const [target, setTarget] = useState("");
   const selected = reachable.find(device => device.node_id === target) || reachable[0];
   return <>
-    <Welcome />
     <div className="cx-page-head"><div><h1>{t("首页", "Home")}</h1><p>{t("你的设备网络概况和常用操作。", "Your device network at a glance, and the things you do most.")}</p></div>
       <div className="cx-actions"><button className="cx-btn primary" onClick={() => setPairing(true)}><Plus size={17} aria-hidden="true" />{t("添加设备", "Add device")}</button></div></div>
     <section className="cx-stats" aria-label={t("网络概况", "Network summary")}>
       <Link className="cx-stat" to="/app/devices"><Network aria-hidden="true" /><strong>{mine.filter(device => isThis(device) || device.online).length}<small> / {mine.length}</small></strong><span>{t("设备在线", "devices online")}</span></Link>
-      <Link className="cx-stat" to="/nodes"><Activity aria-hidden="true" /><strong>{online.length ? direct + " / " + online.length : "—"}</strong><span>{t("对等直连", "direct connections")}</span></Link>
-      <Link className="cx-stat" to="/nodes"><Gauge aria-hidden="true" /><strong>{latency === null ? "—" : latency + " ms"}</strong><span>{t("平均延迟", "average latency")}</span></Link>
+      <Link className="cx-stat" to="/app/devices"><Activity aria-hidden="true" /><strong>{online.length ? direct + " / " + online.length : "—"}</strong><span>{t("对等直连", "direct connections")}</span></Link>
+      <Link className="cx-stat" to="/app/devices"><Gauge aria-hidden="true" /><strong>{latency === null ? "—" : latency + " ms"}</strong><span>{t("平均延迟", "average latency")}</span></Link>
       <Link className="cx-stat" to="/app/inbox"><Bell aria-hidden="true" /><strong>{approvals.length}</strong><span>{t("待你确认", "waiting for you")}</span></Link>
       <Link className="cx-stat" to="/app/models"><Sparkles aria-hidden="true" /><strong>{status?.models_available ?? "—"}</strong><span>{t("可用模型", "models available")}</span></Link>
     </section>
@@ -108,22 +118,4 @@ export function Home() {
       </Card>
     </div>
   </>;
-}
-/** First-run guidance that never blocks the page (a dialog would trap focus and input). */
-function Welcome() {
-  const { t, setPairing } = useApp();
-  const [open, setOpen] = useState(() => { try { return localStorage.getItem("cranibox.onboarded") !== "1"; } catch { return false; } });
-  if (!open) return null;
-  const finish = () => { store("cranibox.onboarded", "1"); setOpen(false); };
-  return <Card className="cx-welcome" label={t("欢迎使用 Cranibox", "Welcome to Cranibox")}>
-    <div className="cx-card-head"><span className="cx-card-icon"><Lock size={20} aria-hidden="true" /></span>
-      <div className="cx-grow"><h3>{t("欢迎使用 Cranibox", "Welcome to Cranibox")}</h3>
-        <p className="cx-muted">{t("把你的每台设备连成一个 Agent 工作台：终端、桌面、浏览器与 Computer Use 都能跨设备使用。设备之间端到端加密、对等直连；重要操作始终先问你。",
-          "Turn every device you own into one workspace for your agents: terminal, desktop, browser and Computer Use across devices. Devices connect peer to peer with end-to-end encryption, and important actions always ask you first.")}</p></div>
-      <button className="cx-icon-btn" aria-label={t("关闭欢迎", "Dismiss welcome")} onClick={finish}><X size={16} aria-hidden="true" /></button></div>
-    <div className="cx-actions" style={{ marginTop: 12 }}>
-      <button className="cx-btn primary" onClick={() => { finish(); setPairing(true); }}><Plus size={15} aria-hidden="true" />{t("连接另一台设备", "Connect another device")}</button>
-      <Link className="cx-btn" to="/app/models" onClick={finish}><Sparkles size={15} aria-hidden="true" />{t("添加模型订阅", "Add a model subscription")}</Link>
-    </div>
-  </Card>;
 }

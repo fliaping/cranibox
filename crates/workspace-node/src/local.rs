@@ -66,6 +66,9 @@ impl LocalNode {
                 return Err(error);
             }
         };
+        if let Some(dir) = path.parent() {
+            agent_workspace_runtime::peers::computer::cua::embedded::configure(dir);
+        }
         let desktop_service = crate::desktop_service::Service::start(path.clone(), stop.clone());
         let browser_service = agent_workspace_runtime::peers::browser::manager::Service::start(
             path.clone(),
@@ -253,6 +256,8 @@ impl LocalNode {
     }
     pub async fn shutdown(&self) -> Result<()> {
         self.stop.cancel();
+        // The embedded Computer Use driver is this app's child; it ends with the node.
+        agent_workspace_runtime::peers::computer::cua::embedded::stop_daemon();
         let iroh = self.iroh.lock().await.take();
         tokio::join!(
             async {

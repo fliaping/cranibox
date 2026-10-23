@@ -95,6 +95,7 @@ struct State {
     hosts: Arc<HashSet<String>>,
     origins: Arc<HashSet<String>>,
     node: String,
+    peers: std::path::PathBuf,
     shell: Option<Arc<dyn Shell>>,
 }
 
@@ -314,6 +315,7 @@ pub async fn serve(
         closed,
     );
     let node = local.id.clone();
+    let local_peers = local.config_path().to_path_buf();
     services.set_local(local);
     let state = State {
         services,
@@ -322,6 +324,7 @@ pub async fn serve(
         hosts: Arc::new(hosts),
         origins: Arc::new(origins),
         node,
+        peers: local_peers,
         shell: options.shell,
     };
     let shutdown = stop.clone();
@@ -622,7 +625,12 @@ async fn page_response(
         return sign_in_required(StatusCode::UNAUTHORIZED);
     };
     let csrf = state.sessions.csrf(&session).await.unwrap_or_default();
-    let language = language(headers);
+    let preferences = crate::app::preferences::read(&state.peers);
+    let language = match preferences.language.as_deref() {
+        Some("zh-cn") => "zh-cn",
+        Some("en") => "en",
+        _ => language(headers),
+    };
     let config = json!({
         "csrf": csrf,
         "workspaceUrl": "",
@@ -632,6 +640,7 @@ async fn page_response(
         "edition": "node",
         "node": state.node,
         "shell": state.shell.is_some(),
+        "preferences": preferences,
     });
     (
         [("content-type", "text/html; charset=utf-8")],
@@ -723,6 +732,20 @@ mod tests {
             "the access token never reaches the page"
         );
         let csrf = html.split("\"csrf\":\"").nth(1).unwrap()[..64].to_owned();
+        // A saved language wins over the browser's: the desktop app's origin (port)
+        // changes every launch, so browser storage cannot remember it.
+        crate::app::preferences::update(&peers, &serde_json::json!({"language": "en"})).unwrap();
+        let html = client
+            .get(format!("{base}/app/devices"))
+            .header("cookie", &cookie)
+            .header("accept-language", "zh-CN,zh;q=0.9")
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert!(html.contains("\"language\":\"en\"") && html.contains("\"preferences\":{"));
 
         let identity = |csrf: Option<&str>, origin: Option<&str>| {
             let mut request = client

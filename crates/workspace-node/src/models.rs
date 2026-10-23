@@ -346,6 +346,13 @@ impl Models {
         .await;
         Ok(())
     }
+    /// Tell a device just removed from the identity, so it stops acting as a member
+    /// instead of waiting for a sync that will never come. Best effort.
+    pub async fn notify_removed(&self, node: &str) {
+        if let Err(error) = self.exchange_roster(node).await {
+            eprintln!("roster: could not tell {node} it was removed: {error:#}");
+        }
+    }
     async fn exchange_roster(&self, node: &str) -> Result<()> {
         use cranibox_contracts::net::{BoxBody, routes};
         use futures_util::StreamExt;
@@ -715,6 +722,14 @@ impl Models {
             Ok(())
         })?;
         if removed_self {
+            // No longer a member: put the owner key aside so this device cannot sign
+            // the identity's roster any more.
+            if self.owner_path.exists() {
+                std::fs::rename(
+                    &self.owner_path,
+                    self.owner_path.with_extension("key.removed"),
+                )?;
+            }
             self.stop.cancel();
         } else {
             self.vault.rotate_for_roster()?;

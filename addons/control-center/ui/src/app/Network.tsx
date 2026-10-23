@@ -1,4 +1,4 @@
-import { Copy, Fingerprint, KeyRound, Lock, Plus, Radio, Server } from "lucide-react";
+import { Copy, Fingerprint, KeyRound, Radio, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Device, Identity } from "../personal/api";
@@ -6,7 +6,7 @@ import { Nodes } from "../pages/Nodes";
 import { request } from "../workspace";
 import { devicePath } from "./Home";
 import { useApp } from "./store";
-import { Alert, Card, isThis, Pill, Section, Switch, type Translate } from "./ui";
+import { Alert, Card, isThis, PageHead, Pill, Section, Switch, type Translate } from "./ui";
 
 const WIDTH = 720, HEIGHT = 460, CX = WIDTH / 2, CY = HEIGHT / 2;
 const short = (text: string, size = 16) => text.length > size ? text.slice(0, size - 1) + "…" : text;
@@ -145,21 +145,12 @@ export function RelaySettings() {
     {error && <p className="cx-error" role="alert">{error}</p>}
   </Card>;
 }
+/** Identity, relays and other networks: how this device takes part in the network. */
 export function NetworkPage() {
-  const { t, devices, setPairing } = useApp();
-  const peers = devices.filter(device => !isThis(device));
-  const online = peers.filter(device => device.online);
+  const { t, setPairing } = useApp();
   return <>
-    <div className="cx-page-head"><div><h1>{t("网络", "Network")}</h1><p>{t("设备之间优先对等直连，打洞失败时经中继转发；两种路径都端到端加密。", "Devices connect directly when they can and fall back to a relay. Both paths are end-to-end encrypted.")}</p></div>
-      <div className="cx-actions"><button className="cx-btn primary" onClick={() => setPairing(true)}><Plus size={16} aria-hidden="true" />{t("添加设备", "Add device")}</button></div></div>
-    <div className="cx-actions" style={{ marginBottom: 16 }}>
-      <Pill tone="good" icon={Lock}>{t("端到端加密", "End-to-end encrypted")}</Pill>
-      <Pill tone="good">{t("直连 ", "Direct ") + online.filter(device => device.path === "direct").length}</Pill>
-      <Pill tone={online.some(device => device.path === "relay") ? "warn" : ""}>{t("中继 ", "Relayed ") + online.filter(device => device.path === "relay").length}</Pill>
-      <Pill>{t("离线 ", "Offline ") + (peers.length - online.length)}</Pill>
-    </div>
-    <NetworkMap />
-    <div className="cx-grid two" style={{ marginTop: 16 }}>
+    <PageHead title={t("网络设置", "Network settings")} description={t("身份码、中继，以及 EasyTier / Tailscale 等其他网络。设备与连接图在「设备」中。", "Identity code, relays, and other networks such as EasyTier or Tailscale. Devices and the network map are under Devices.")} />
+    <div className="cx-grid two">
       <IdentityCard compact />
       <Card label={t("添加设备", "Add a device")}>
         <div className="cx-card-head"><span className="cx-card-icon"><Radio size={20} aria-hidden="true" /></span>

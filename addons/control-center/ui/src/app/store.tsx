@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Account, Agent, Api, Approval, Device, Model, Pill, Preset } from "../personal/api";
 import type { Translate } from "./ui";
+import type { Preferences } from "../types";
 
 export function stored(key: string, fallback: string) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -9,6 +10,13 @@ export function store(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* Browser storage is optional. */ }
 }
 export type Theme = "light" | "dark" | "system";
+/** Remember interface choices on the node; older servers without the route just ignore them. */
+export async function savePreferences(api: Api, change: Preferences) {
+  try {
+    const saved = await api.call<Preferences>("PUT", "/preferences", change);
+    if (window.workspaceWeb) window.workspaceWeb.preferences = saved;
+  } catch { /* Browser storage still holds the choice. */ }
+}
 export function resolvedTheme(theme: Theme) {
   return theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
 }
@@ -32,7 +40,7 @@ export function useApp() {
 }
 export function AppProvider({ api, language, openExternal, onLocale, children }: { api: Api; language: string; openExternal?: (url: string) => Promise<unknown>; onLocale?: (locale: string) => void; children: ReactNode }) {
   const [locale, setLocaleState] = useState(language);
-  const [theme, setThemeState] = useState<Theme>(() => stored("cranibox.theme", "system") as Theme);
+  const [theme, setThemeState] = useState<Theme>(() => window.workspaceWeb?.preferences?.theme || stored("cranibox.theme", "system") as Theme);
   const t = useCallback<Translate>((zh, en) => (locale.startsWith("zh") ? zh : en), [locale]);
   const [status, setStatus] = useState<Pill | null>(null), [devices, setDevices] = useState<Device[]>([]),
     [approvals, setApprovals] = useState<Approval[]>([]), [agents, setAgents] = useState<Agent[]>([]),
@@ -84,14 +92,18 @@ export function AppProvider({ api, language, openExternal, onLocale, children }:
   const setLocale = useCallback((next: string) => {
     store("cranibox.language", next);
     setLocaleState(next);
-    onLocale?.(next);
-  }, [onLocale]);
+    void savePreferences(api, { language: next === "en" ? "en" : "zh-cn" }).finally(() => onLocale?.(next));
+  }, [api, onLocale]);
+  const setTheme = useCallback((next: Theme) => {
+    setThemeState(next);
+    void savePreferences(api, { theme: next });
+  }, [api]);
   const value = useMemo<AppState>(() => {
     // Hub-era servers may still send a "hub" badge; peers are equal, so it is ignored.
     const peers = devices.map(device => ({ ...device, badges: device.badges.filter(badge => badge !== "hub") }));
     const thisDevice = peers.find(device => device.badges.includes("this"));
     return {
-      api, t, locale, setLocale, theme, setTheme: setThemeState, status, devices: peers, approvals, agents, models, accounts, presets,
+      api, t, locale, setLocale, theme, setTheme, status, devices: peers, approvals, agents, models, accounts, presets,
       loading, error, busy, notice, setNotice, setError, refresh, run, thisDevice, pairing, setPairing,
       deviceName: node => peers.find(device => device.node_id === node)?.name || node,
       openExternal: async url => {
@@ -100,6 +112,6 @@ export function AppProvider({ api, language, openExternal, onLocale, children }:
         else window.open(url, "_blank", "noopener,noreferrer");
       },
     };
-  }, [api, t, locale, setLocale, theme, status, devices, approvals, agents, models, accounts, presets, loading, error, busy, notice, refresh, run, openExternal, pairing]);
+  }, [api, t, locale, setLocale, theme, setTheme, status, devices, approvals, agents, models, accounts, presets, loading, error, busy, notice, refresh, run, openExternal, pairing]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

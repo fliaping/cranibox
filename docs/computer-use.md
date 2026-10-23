@@ -2,6 +2,15 @@
 
 2026-10-18：节点新增独立的 Computer Use 权限、直连 API、目标绑定 MCP，以及 Web/Tauri 共用的桥接配置和紧急停止。它复用目标上已经运行的 agent-desktop-bridge，不会安装驱动。浏览器操作另见独立授权的 [Browser Use](browser-use.md)。
 
+## macOS 桌面客户端：内置 cua-driver，只授权一次
+
+Cranibox 桌面客户端在 macOS 上以 cua-driver 的嵌入模式运行它（`CUA_DRIVER_EMBEDDED=1`，`CUA_DRIVER_HOST_BUNDLE_ID=com.cranibox.node`）：驱动由 Cranibox 进程直接启动，处在 Cranibox 的 TCC 责任链中，所以只需给 **Cranibox** 授予「屏幕录制」和「辅助功能」，不需要单独的 CuaDriver.app 或第二份授权。驱动随应用退出而停止。
+
+- 驱动文件按需下载（固定版本 cua-driver 0.37.0，MIT，GitHub Release `darwin-universal-binary`，校验 SHA-256 后解压到 `~/Library/Application Support/cranibox-node/cua-driver/`），不增大安装包。已安装 CuaDriver.app 时直接复用其中的可执行文件，同样以嵌入模式运行。
+- 权限由 Cranibox 自己请求（`AXIsProcessTrustedWithOptions`、`CGRequestScreenCaptureAccess`），能力页和首次启动的设置向导里「全部开启」会依次弹出。
+- 命令行版 `cranibox` 不是 macOS 应用，仍使用独立安装的 CuaDriver.app 及其授权。
+- 锁屏或屏保期间，macOS 对所有应用隐藏窗口的辅助功能信息，并把输入送到锁屏界面，所以真实桌面上的 Computer Use 会暂停（截图仍可用）。需要无人值守时，请让 Agent 使用虚拟空间里的桌面（Agent 自己的电脑），或在系统设置中延长锁屏时间。
+
 ## 范围与权限
 
 目标用户先配置一个回环 IP:port，再为指定调用方单独授予 computer。旧配置、旧授权和新授权表单均默认关闭；desktop、exec、terminals 不会隐式授予此能力。Web 配置的目标是 Web 服务所在设备，不是浏览器所在电脑。

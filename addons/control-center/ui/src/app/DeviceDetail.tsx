@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal } from "lucide-react";
+import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { webDesktopConnector } from "../desktop/WebRemoteDesktops";
@@ -93,7 +93,34 @@ function Overview({ device }: { device: Device }) {
         </div>
       </Card>;
     })}
+    {!local && <RemoveDevice device={device} />}
   </div>;
+}
+/** Remove a device from this network. A lost or stolen device of your identity is
+ * removed with the recovery code instead, which also replaces the identity key. */
+function RemoveDevice({ device }: { device: Device }) {
+  const { t, api, run, busy, setNotice } = useApp();
+  const navigate = useNavigate();
+  const [confirming, setConfirming] = useState(false);
+  const remove = () => void run(async () => {
+    await api.call("PUT", "/devices/" + encodeURIComponent(device.node_id), { revoke: true });
+    setNotice(t("已移除 " + device.name, "Removed " + device.name));
+    navigate("/app/devices");
+  });
+  return <Card label={t("移除设备", "Remove device")} className="cx-detail-remove">
+    <div className="cx-card-head"><span className="cx-card-icon muted"><Trash2 size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("移除设备", "Remove device")}</h3>
+      <p className="cx-muted cx-small">{device.guest ? t("撤销这台访客设备的全部访问，并从列表中删除。之后需要重新配对。", "Revoke every permission of this guest device and remove it from the list. It must pair again to come back.")
+        : t("把它移出你的身份：其他设备不再信任它，它也会停止同步。适合不再使用、重装过或重复出现的设备。", "Take it out of your identity: your other devices stop trusting it and it stops syncing. Use this for a device you no longer use, reinstalled, or that shows up twice.")}</p></div></div>
+    {!confirming ? <div className="cx-actions"><button className="cx-btn danger" disabled={busy} onClick={() => setConfirming(true)}>{t("移除…", "Remove…")}</button></div>
+      : <div className="cx-stack" style={{ marginTop: 8 }}>
+        {!device.guest && <Alert tone="warn">{t("设备丢失或被盗时，请改到「身份与安全」用恢复码移除。普通移除不会更换身份密钥，被盗设备仍持有旧密钥，可能重新加入。", "If the device was lost or stolen, remove it with your recovery code under Identity & security instead. A plain removal keeps the identity key, which a stolen device still holds and could use to rejoin.")}</Alert>}
+        <div className="cx-actions">
+          <button className="cx-btn" onClick={() => setConfirming(false)}>{t("取消", "Cancel")}</button>
+          {!device.guest && <Link className="cx-btn" to="/app/identity">{t("用恢复码移除", "Remove with recovery code")}</Link>}
+          <button className="cx-btn danger" disabled={busy} onClick={remove}>{t("确认移除 ", "Remove ") + device.name}</button>
+        </div>
+      </div>}
+  </Card>;
 }
 function TerminalTab({ device }: { device: Device }) {
   const { t } = useApp();
@@ -115,21 +142,21 @@ function DesktopTab({ device }: { device: Device }) {
   const [open, setOpen] = useState(false);
   if (isThis(device)) return <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("这就是你正在使用的设备", "This is the device you are using")}</h3>
     <p className="cx-muted">{t("要让其他设备查看这块屏幕，请在「能力与权限」中开启桌面共享。", "To let your other devices see this screen, turn on desktop sharing under Capabilities.")}</p></div></div>
-    <div className="cx-actions"><Link className="cx-btn primary" to="/app/this">{t("管理桌面共享", "Manage desktop sharing")}</Link><Link className="cx-btn" to="/desktop">{t("所有远程桌面", "All remote desktops")}</Link></div></Card>;
+    <div className="cx-actions"><Link className="cx-btn primary" to="/app/this">{t("管理桌面共享", "Manage desktop sharing")}</Link></div></Card>;
   const allowed = device.caps.desktop !== false;
   return <div className="cx-stack">
     {!allowed && <Alert tone="warn">{t("这台设备没有共享桌面给你。", "This device does not share its desktop with you.")}</Alert>}
     {open ? <VncViewer target={{ node: device.node_id, local: false }} connect={webDesktopConnector} language={locale} />
       : <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("远程桌面", "Remote desktop")}</h3>
         <p className="cx-muted">{t("画面经端到端加密的对等连接传输。需要对方设备已开启桌面共享。", "The screen streams over an end-to-end encrypted peer connection. The other device must have desktop sharing turned on.")}</p></div></div>
-        <div className="cx-actions"><button className="cx-btn primary" disabled={!allowed || !device.online} onClick={() => setOpen(true)}>{t("连接桌面", "Connect to desktop")}</button><Link className="cx-btn" to="/desktop">{t("所有远程桌面", "All remote desktops")}</Link></div></Card>}
+        <div className="cx-actions"><button className="cx-btn primary" disabled={!allowed || !device.online} onClick={() => setOpen(true)}>{t("连接桌面", "Connect to desktop")}</button></div></Card>}
   </div>;
 }
 const directClient: DirectClient = command => request("/api/peers", command);
 function BrowserTab({ device }: { device: Device }) {
   const { t, locale } = useApp();
   if (isThis(device)) return <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Globe size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("本机浏览器", "This device's browser")}</h3>
-    <p className="cx-muted">{t("Cranibox 可以启动一个独立配置的浏览器，供 Agent 操作，不影响你日常使用的浏览器。", "Cranibox can launch a browser with its own profile for agents to drive, separate from the browser you use every day.")}</p></div></div>
+    <p className="cx-muted">{t("Agent 可以使用你正在用的 Chrome（保留登录状态，每次连接由 Chrome 请你允许），或一个独立配置的托管浏览器。", "Agents can use the Chrome you already use (signed in; Chrome asks you to allow each connection), or a separate managed browser.")}</p></div></div>
     <div className="cx-actions"><Link className="cx-btn primary" to="/app/this">{t("管理浏览器共享", "Manage browser sharing")}</Link></div></Card>;
   if (device.caps.browser === false) return <Alert tone="warn">{t("这台设备没有共享浏览器给你。", "This device does not share its browser with you.")}</Alert>;
   return <Card><BrowserTargetPanel client={directClient} node={device.node_id} language={locale} /></Card>;
@@ -176,7 +203,6 @@ function AccessTab({ device }: { device: Device }) {
       {state === "error" && <Alert action={<button className="cx-btn small" onClick={() => void load()}>{t("重试", "Retry")}</button>}>{error}</Alert>}
       {state === "unsupported" && !legacy && <Alert tone="info">{t("这台设备上的节点版本还不支持逐项授权。更新 Cranibox 后即可在这里调整。", "This node does not support per-device access yet. Update Cranibox to adjust access here.")}</Alert>}
       {editable && <div className="cx-toggle-list">{visible.map(key => <Switch key={key} label={capabilityName(key, t)} checked={!!permissions[key]} disabled={busy} onChange={value => void change(key, value)} />)}</div>}
-      {device.guest && <div className="cx-actions" style={{ marginTop: 16 }}><button className="cx-btn danger" disabled={busy} onClick={() => void run(() => api.call("PUT", "/devices/" + encodeURIComponent(device.node_id), { revoke: true }))}>{t("撤销访问", "Revoke access")}</button></div>}
     </Card>
     <Card label={t("我能对它做什么", "What I can do on it")}>
       <div className="cx-card-head"><span className="cx-card-icon muted"><MousePointerClick size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("我能对它做什么", "What I can do on it")}</h3>

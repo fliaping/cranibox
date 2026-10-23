@@ -12,7 +12,7 @@ function describe(id: string, t: Translate) {
     terminal: [t("终端", "Terminal"), t("你的其他设备和 Agent 可以在这里打开持久终端会话。", "Your other devices and agents can open persistent terminal sessions here.")],
     desktop: [t("远程桌面", "Remote desktop"), t("通过 VNC 共享这块屏幕，在其他设备上查看和操作。", "Share this screen over VNC to view and control it from your other devices.")],
     computer: ["Computer Use", t("让 Agent 看到屏幕并使用鼠标和键盘，每次会话都需要你确认。", "Let agents see the screen and use the mouse and keyboard. Each session asks you first.")],
-    browser: [t("浏览器", "Browser"), t("一个独立配置的浏览器，供 Agent 操作，不影响你日常使用的浏览器。", "A browser with its own profile for agents to drive, separate from your everyday browser.")],
+    browser: [t("浏览器", "Browser"), t("让 Agent 使用你正在用的 Chrome（保留登录状态，每次连接 Chrome 会请你允许），或一个独立配置的托管浏览器。", "Let agents use the Chrome you already use (signed in; Chrome asks you to allow each connection), or a separate managed browser.")],
   } as Record<string, string[]>)[id] || [id, ""];
 }
 function permissionName(id: string, t: Translate) {
@@ -97,7 +97,9 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
         {has("request_permissions") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "request_permissions")}><ShieldCheck size={14} aria-hidden="true" />{t("去授权", "Grant access")}</button>}
         {has("open_settings") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "open_settings")}><ExternalLink size={14} aria-hidden="true" />{t("打开系统设置", "Open System Settings")}</button>}
       </div>}
-      {missing.length > 0 && <p className="cx-muted cx-small">{t("权限授予提供者应用本身，与终端或浏览器无关；授权后点击「重新检测」。", "Permission belongs to the provider app itself, not your terminal or browser. Check again after granting.")}</p>}</div>}
+      {missing.length > 0 && <p className="cx-muted cx-small">{item.provider.kind === "cua-embedded"
+        ? t("Computer Use 内置在 Cranibox 中，只需在系统设置里给 Cranibox 授权；授权后点击「重新检测」。", "Computer Use is built into Cranibox: grant access to Cranibox in System Settings, then check again.")
+        : t("权限授予提供者应用本身，与终端或浏览器无关；授权后点击「重新检测」。", "Permission belongs to the provider app itself, not your terminal or browser. Check again after granting.")}</p>}</div>}
     <div className="cx-cap-section"><h4>{t("共享", "Sharing")}</h4>
       <Switch label={t("允许我的其他设备使用", "Available to my other devices")} detail={item.sharing.enabled && item.sharing.address ? <span className="cx-mono">{item.sharing.address}</span> : undefined}
         checked={item.sharing.enabled} disabled={busy || !(item.sharing.enabled ? has("disable") : has("enable"))} onChange={on => void act(item, on ? "enable" : "disable")} />

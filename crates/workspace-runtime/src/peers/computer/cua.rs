@@ -1,7 +1,10 @@
 //! Computer Use through cua-driver (<https://cua.ai/docs/cua-driver>), an MCP stdio
-//! server. The driver, not Cranibox, holds the macOS Screen Recording and Accessibility
-//! grants. One long-lived session keeps cua-driver's screenshot-to-input coordinate
+//! server. In the macOS app the driver is embedded (see [`embedded`]) and uses the
+//! app's own grants; elsewhere an installed driver holds the macOS Screen Recording
+//! and Accessibility grants. One long-lived session keeps cua-driver's screenshot-to-input coordinate
 //! mapping; it is respawned after an exit, but an interrupted input is never replayed.
+pub mod embedded;
+
 use super::{MAX_RESPONSE, validate_image};
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -37,8 +40,14 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 /// One JSON-RPC line may carry a base64 PNG plus its metadata.
 const MAX_LINE: usize = MAX_RESPONSE + MAX_RESPONSE / 2;
 
-/// The installed driver: PATH, `~/.local/bin`, then the macOS app bundle.
+/// The driver: the macOS app's embedded copy, then PATH, `~/.local/bin` and the
+/// CuaDriver app bundle.
 pub fn locate() -> Option<PathBuf> {
+    if embedded::active()
+        && let Some(binary) = embedded::binary().filter(|b| executable(b))
+    {
+        return Some(binary);
+    }
     let home =
         std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from);
     std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
@@ -97,6 +106,9 @@ pub async fn version(program: &Path) -> Option<String> {
 }
 /// Whether the daemon answers (`cua-driver status` exits successfully).
 pub async fn daemon_running(program: &Path) -> bool {
+    if embedded::active() {
+        return embedded::daemon_running();
+    }
     cli(program, &["status"], Duration::from_secs(5))
         .await
         .is_ok_and(|(ok, text)| ok && !text.to_ascii_lowercase().contains("not running"))
@@ -104,6 +116,9 @@ pub async fn daemon_running(program: &Path) -> bool {
 /// Start the daemon in the background. On macOS through LaunchServices, so the
 /// Screen Recording and Accessibility grants stay attributed to CuaDriver.app.
 pub async fn start_daemon(program: &Path) -> Result<()> {
+    if embedded::active() {
+        return embedded::start_daemon(program).await;
+    }
     let mut command = if cfg!(target_os = "macos") && Path::new(MAC_APP).is_dir() {
         let mut command = Command::new("/usr/bin/open");
         command.args(["-n", "-g", "-a", "CuaDriver", "--args", "serve"]);
@@ -136,6 +151,10 @@ pub async fn start_daemon(program: &Path) -> Result<()> {
     bail!("cua-driver did not start; run `cua-driver doctor` in your desktop session")
 }
 pub async fn stop_daemon(program: &Path) -> Result<()> {
+    if embedded::active() {
+        embedded::stop_daemon();
+        return Ok(());
+    }
     let (ok, text) = cli(program, &["stop"], Duration::from_secs(10)).await?;
     ensure!(
         ok || text.to_ascii_lowercase().contains("not running"),
@@ -147,6 +166,9 @@ pub async fn stop_daemon(program: &Path) -> Result<()> {
 pub async fn permissions(program: &Path) -> Option<(Option<bool>, Option<bool>)> {
     if !cfg!(target_os = "macos") {
         return None;
+    }
+    if embedded::active() {
+        return Some(embedded::permissions());
     }
     let (ok, text) = cli(
         program,
@@ -174,6 +196,10 @@ pub async fn request_permissions(program: &Path) -> Result<()> {
         cfg!(target_os = "macos"),
         "Only macOS requires Computer Use permissions"
     );
+    if embedded::active() {
+        embedded::request_permissions();
+        return Ok(());
+    }
     // The command waits for a user decision; do not block the request on it.
     let mut child = Command::new(program)
         .args(["permissions", "grant"])
@@ -344,7 +370,13 @@ pub struct Driver {
 }
 static DRIVER: LazyLock<Driver> = LazyLock::new(|| {
     Driver::new(Box::new(|| {
-        locate().map(|program| (program, vec!["mcp".to_owned()]))
+        let program = locate()?;
+        let args = if embedded::active() {
+            embedded::mcp_args()?
+        } else {
+            vec!["mcp".to_owned()]
+        };
+        Some((program, args))
     }))
 });
 /// The process-wide driver session for the installed cua-driver.
@@ -418,6 +450,10 @@ impl Driver {
         if state.client.is_none() {
             let (program, args) = (self.locate)()
                 .context("cua-driver is not installed; install it from the capabilities page")?;
+            if embedded::active() {
+                // The app's own daemon serves the embedded session.
+                embedded::start_daemon(&program).await?;
+            }
             state.client = Some(Client::spawn(&program, &args).await?);
             state.geometry = None;
         }
