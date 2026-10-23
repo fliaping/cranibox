@@ -403,6 +403,30 @@ impl PairHost for Host {
         serde_json::to_value(models.own_member()?).ok()
     }
     async fn bundle(&self, member: &Value, peer: &Value) -> Option<Value> {
+        self.offer(member, peer, true).await
+    }
+    async fn prepare(&self, member: &Value, peer: &Value) -> Option<Value> {
+        self.offer(member, peer, false).await
+    }
+    async fn commit(&self, bundle: &Value) -> Result<()> {
+        crate::models::live(&self.shared.path)
+            .context("the model service is not running")?
+            .commit_invite(bundle)
+    }
+    async fn join(&self, inviter: &str, bundle: &Value) -> Result<bool> {
+        let joined = crate::models::live(&self.shared.path)
+            .context("the model service is not running")?
+            .join_identity(inviter, bundle)?;
+        if !joined {
+            eprintln!("pairing: kept this device's identity; it already includes other devices");
+        }
+        Ok(joined)
+    }
+}
+impl Host {
+    /// The identity to offer the SAS-verified device on the other end; `commit` adds it
+    /// to this identity at once (for joiners that do not confirm).
+    async fn offer(&self, member: &Value, peer: &Value, commit: bool) -> Option<Value> {
         let models = crate::models::live(&self.shared.path)?;
         let member: cranibox_contracts::roster::RosterMember =
             serde_json::from_value(member.clone()).ok()?;
@@ -414,7 +438,13 @@ impl PairHost for Host {
             eprintln!("pairing: the offered member does not match the paired device");
             return None;
         }
-        match models.invite_bundle(member, serde_json::to_value(&peer).ok()?) {
+        let peer = serde_json::to_value(&peer).ok()?;
+        let offered = if commit {
+            models.invite_bundle(member, peer)
+        } else {
+            models.prepare_invite(member, peer)
+        };
+        match offered {
             Ok(bundle) => Some(bundle),
             Err(error) => {
                 eprintln!("pairing: could not add the device to this identity: {error:#}");

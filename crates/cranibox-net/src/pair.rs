@@ -56,6 +56,10 @@ pub struct Outcome {
 
 /// Feature bit: the device exchanges owner identities in owner-device pairings.
 pub const FEATURE_IDENTITY: u8 = 1;
+/// Feature bit: the joiner reports whether it joined, and the inviter commits the new
+/// member only then. Without it the inviter commits before the joiner decides.
+pub const FEATURE_IDENTITY_ACK: u8 = 2;
+const FEATURES: u8 = FEATURE_IDENTITY | FEATURE_IDENTITY_ACK;
 
 /// Node-side hooks: identities, the SAS code and persisting the result.
 #[async_trait::async_trait]
@@ -76,6 +80,19 @@ pub trait PairHost: Send + Sync + 'static {
     /// sealed to the member's key.
     async fn bundle(&self, _member: &Value, _peer: &Value) -> Option<Value> {
         None
+    }
+    /// Inviter, with a confirming joiner: like [`Self::bundle`], without changing this
+    /// device's identity yet.
+    async fn prepare(&self, _member: &Value, _peer: &Value) -> Option<Value> {
+        None
+    }
+    /// Inviter: the joiner took `bundle`; add it to this device's identity.
+    async fn commit(&self, _bundle: &Value) -> Result<()> {
+        Ok(())
+    }
+    /// Joiner: take the identity `inviter` offered. `Ok(false)` keeps this device's own.
+    async fn join(&self, _inviter: &str, _bundle: &Value) -> Result<bool> {
+        Ok(false)
     }
 }
 
@@ -105,6 +122,10 @@ enum Frame {
     /// Inviter → joiner: the identity to join (or null).
     Identity {
         bundle: Option<Value>,
+    },
+    /// Joiner → inviter: whether it joined that identity.
+    Joined {
+        ok: bool,
     },
     Reject {
         reason: String,
@@ -388,7 +409,7 @@ impl Pairing {
                 secret: ticket.secret,
                 identity: self.host.identity(),
                 addr: self.node.addr(),
-                features: FEATURE_IDENTITY,
+                features: FEATURES,
             },
         )
         .await?;
@@ -479,7 +500,7 @@ impl Pairing {
                 identity: self.host.identity(),
                 purpose,
                 addr: self.node.addr(),
-                features: FEATURE_IDENTITY,
+                features: FEATURES,
             },
         )
         .await?;
@@ -612,19 +633,49 @@ impl Pending {
         })
         .await
         .context("the other device did not finish pairing")??;
+        let expects = self.side == Side::Joiner || self.purpose == PairPurpose::OwnerDevice;
+        ensure!(
+            received.is_some() == expects
+                && received
+                    .as_ref()
+                    .is_none_or(|c| c.len() == 64 && c.bytes().all(|b| b.is_ascii_hexdigit())),
+            "invalid pairing credential"
+        );
         // Phase 3 (owner devices, both sides new enough): the joiner joins the inviter's
-        // identity. Failing here never undoes the pairing itself.
+        // identity. Failing here never undoes the pairing itself. With a confirming peer
+        // the inviter adds the joiner only after it joined, so neither side is left
+        // half way.
         let mut joined = None;
         if self.purpose == PairPurpose::OwnerDevice && self.peer_features & FEATURE_IDENTITY != 0 {
+            let confirmed = self.peer_features & FEATURE_IDENTITY_ACK != 0;
             let identity = tokio::time::timeout(STEP_TIMEOUT, async {
                 match self.side {
                     Side::Joiner => {
                         let member = self.host.member().await.unwrap_or(Value::Null);
                         write_frame(send, &Frame::Member { member }).await?;
-                        match read_frame(recv).await? {
-                            Frame::Identity { bundle } => anyhow::Ok(bundle),
+                        let bundle = match read_frame(recv).await? {
+                            Frame::Identity { bundle } => bundle,
                             _ => bail!("unexpected pairing frame"),
+                        };
+                        if !confirmed {
+                            return anyhow::Ok(bundle);
                         }
+                        let ok = match &bundle {
+                            Some(bundle) => {
+                                match self.host.join(&self.peer_node_id, bundle).await {
+                                    Ok(ok) => ok,
+                                    Err(error) => {
+                                        eprintln!(
+                                            "pairing: could not join the identity: {error:#}"
+                                        );
+                                        false
+                                    }
+                                }
+                            }
+                            None => false,
+                        };
+                        write_frame(send, &Frame::Joined { ok }).await?;
+                        Ok(None)
                     }
                     Side::Inviter => {
                         let member = match read_frame(recv).await? {
@@ -633,10 +684,25 @@ impl Pending {
                         };
                         let bundle = if member.is_null() {
                             None
+                        } else if confirmed {
+                            self.host.prepare(&member, &self.identity).await
                         } else {
                             self.host.bundle(&member, &self.identity).await
                         };
-                        write_frame(send, &Frame::Identity { bundle }).await?;
+                        write_frame(
+                            send,
+                            &Frame::Identity {
+                                bundle: bundle.clone(),
+                            },
+                        )
+                        .await?;
+                        if confirmed && let Some(bundle) = bundle {
+                            match read_frame(recv).await? {
+                                Frame::Joined { ok: true } => self.host.commit(&bundle).await?,
+                                Frame::Joined { ok: false } => {}
+                                _ => bail!("unexpected pairing frame"),
+                            }
+                        }
                         Ok(None)
                     }
                 }
@@ -651,14 +717,6 @@ impl Pending {
                 Err(_) => None,
             };
         }
-        let expects = self.side == Side::Joiner || self.purpose == PairPurpose::OwnerDevice;
-        ensure!(
-            received.is_some() == expects
-                && received
-                    .as_ref()
-                    .is_none_or(|c| c.len() == 64 && c.bytes().all(|b| b.is_ascii_hexdigit())),
-            "invalid pairing credential"
-        );
         self.host
             .apply(Outcome {
                 side: self.side,

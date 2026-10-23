@@ -293,25 +293,6 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "copy_root":if caller.grant.permissions.projects && caller.grant.permissions.exec {Config::read(&app.path).ok().and_then(|c|c.copy_root)} else {None},"path":"direct"}]}),
     )
 }
-/// A paired device invites this one into its identity; the owner decides in the Inbox.
-/// Only a device trusted with commands here may ask.
-async fn identity_invite(
-    State(app): State<App>,
-    Extension(caller): Extension<Caller>,
-    Path(node): Path<String>,
-    Json(request): Json<Value>,
-) -> Result<Json<Value>, Failure> {
-    check_target(&app, &node)?;
-    check_permission(&caller, false)?;
-    let id = crate::join::offer(
-        &app.path,
-        &caller.node,
-        request["name"].as_str().unwrap_or_default(),
-        request["link"].as_str().unwrap_or_default(),
-    )
-    .map_err(|e| failure(StatusCode::BAD_REQUEST, &format!("{e:#}")))?;
-    Ok(Json(json!({"id": id, "state": "pending"})))
-}
 /// One chunk of `cranibox push`. Writing files is part of the `exec` grant.
 async fn file_write(
     State(app): State<App>,
@@ -888,7 +869,6 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
             )),
         )
         .route("/nodes/{node}/files/read", post(file_read))
-        .route("/nodes/{node}/identity/invite", post(identity_invite))
         .route("/nodes/{node}/projects/export", post(copies::export))
         .route(
             "/nodes/{node}/projects/import",

@@ -107,6 +107,10 @@ jobs:
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
+        env:
+          # On CI the bundler otherwise skips the Finder step that lays out the disk
+          # image window: its background and the app/Applications icon positions.
+          TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
       # Gatekeeper assesses a signed disk image and blocks one signed by a
       # certificate Apple does not know; an unsigned image opens directly. Only the
       # app keeps the signature (opened once via Privacy & Security > Open Anyway).
@@ -138,6 +142,9 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg" >/dev/null
           trap 'hdiutil detach "$mount" >/dev/null' EXIT
           app="$mount/Cranibox.app"
+          # The Finder layout (background and icon positions) ships in the image.
+          test -f "$mount/.DS_Store"
+          ls "$mount/.background/"*.png
           codesign --verify --deep --strict "$app"
           codesign -dv --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Authority|TeamIdentifier|Signature'
           codesign -d -r- "$app"

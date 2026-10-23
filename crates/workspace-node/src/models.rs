@@ -678,9 +678,10 @@ impl Models {
     pub fn own_member(&self) -> Option<RosterMember> {
         self.roster.current()?.member(self.vault.node()).cloned()
     }
-    /// Inviter: add a SAS-verified owner device to this identity and return what it
-    /// needs to join: the new signed roster and the owner key sealed to its vault key.
-    pub fn invite_bundle(
+    /// Inviter: what a SAS-verified owner device needs to join this identity: the next
+    /// signed roster (with it added) and the owner key sealed to its vault key. Nothing
+    /// changes here until [`Self::commit_invite`], once the device has joined.
+    pub fn prepare_invite(
         &self,
         member: RosterMember,
         identity: serde_json::Value,
@@ -700,21 +701,39 @@ impl Models {
             .ok()
             .and_then(|i| serde_json::to_value(i.public()).ok());
         let me = self.vault.node().to_owned();
-        self.edit_members(|members| {
-            members.retain(|m| m.node_id != member.node_id);
-            // Older rosters lack this device's identity; members need it to trust us.
-            if let Some(m) = members.iter_mut().find(|m| m.node_id == me)
-                && m.identity.is_none()
-            {
-                m.identity = own;
-            }
-            members.push(member.clone());
-            Ok(())
-        })?;
-        let roster = self.roster.current().context("no roster")?;
+        let mut members = self.roster.current().context("no roster")?.members;
+        members.retain(|m| m.node_id != member.node_id);
+        // Older rosters lack this device's identity; members need it to trust us.
+        if let Some(m) = members.iter_mut().find(|m| m.node_id == me)
+            && m.identity.is_none()
+        {
+            m.identity = own;
+        }
+        members.push(member.clone());
         let owner = OwnerKey::load_or_create(&self.owner_path)?;
+        let roster = self.roster.prepare(&owner, members)?;
         let sealed = owner.seal_for(&member)?;
         Ok(serde_json::json!({"owner_pub": roster.owner_pub, "roster": roster, "sealed": sealed}))
+    }
+    /// Inviter: the device joined with `bundle`; adopt the roster that includes it.
+    pub fn commit_invite(&self, bundle: &serde_json::Value) -> Result<()> {
+        let roster: cranibox_contracts::roster::Roster =
+            serde_json::from_value(bundle["roster"].clone())?;
+        ensure!(
+            roster.owner_pub == self.roster.owner(),
+            "the invitation is for another identity"
+        );
+        self.install_roster(roster)
+    }
+    /// Inviter, for devices that join without confirming: prepare and commit at once.
+    pub fn invite_bundle(
+        &self,
+        member: RosterMember,
+        identity: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let bundle = self.prepare_invite(member, identity)?;
+        self.commit_invite(&bundle)?;
+        Ok(bundle)
     }
     /// Joiner: take the identity offered by `inviter` over a SAS-verified pairing.
     /// Returns `false` when this device already belongs to an identity with other
@@ -905,6 +924,62 @@ mod tests {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
+    async fn device(root: &Path) -> (Arc<Models>, String) {
+        let path = root.join("peers.json");
+        let config = Config::update(&path, |_| Ok(())).unwrap();
+        let service = Models::start_on(
+            path,
+            CancellationToken::new(),
+            Some(vec!["127.0.0.1:0".parse().unwrap()]),
+        )
+        .await
+        .unwrap();
+        (service, config.node_id)
+    }
+    fn public(models: &Models) -> serde_json::Value {
+        serde_json::to_value(Config::identity(&models.path).unwrap().public()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn an_invitation_changes_the_inviter_only_after_the_device_joined() {
+        let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let ((inviter, inviter_id), (joiner, joiner_id)) =
+            (device(a.path()).await, device(b.path()).await);
+        let before = inviter.roster.current().unwrap();
+        let bundle = inviter
+            .prepare_invite(joiner.own_member().unwrap(), public(&joiner))
+            .unwrap();
+        assert_eq!(
+            inviter.roster.current().unwrap(),
+            before,
+            "nothing committed yet"
+        );
+        assert!(joiner.join_identity(&inviter_id, &bundle).unwrap());
+        inviter.commit_invite(&bundle).unwrap();
+        let (left, right) = (
+            inviter.roster.current().unwrap(),
+            joiner.roster.current().unwrap(),
+        );
+        assert_eq!(left, right, "both devices hold the same identity");
+        assert_eq!(left.epoch, before.epoch + 1);
+        assert!(left.member(&joiner_id).is_some() && left.member(&inviter_id).is_some());
+        assert_eq!(joiner.roster.owner(), inviter.roster.owner());
+        // A bundle is committed once; a stale one is refused.
+        assert!(inviter.commit_invite(&bundle).is_err());
+
+        // A device whose identity already includes others keeps it, and an inviter that
+        // never commits stays unchanged.
+        let c = tempfile::tempdir().unwrap();
+        let (other, _) = device(c.path()).await;
+        let unchanged = other.roster.current().unwrap();
+        let offer = other
+            .prepare_invite(joiner.own_member().unwrap(), public(&joiner))
+            .unwrap();
+        assert!(!joiner.join_identity(other.vault.node(), &offer).unwrap());
+        assert_eq!(other.roster.current().unwrap(), unchanged);
+        assert_eq!(joiner.roster.owner(), inviter.roster.owner());
+    }
 
     #[tokio::test]
     async fn a_chosen_passphrase_is_the_recovery_key_and_survives_rotation() {

@@ -321,8 +321,13 @@ impl RosterStore {
         Ok(())
     }
     pub fn issue(&self, key: &OwnerKey, members: Vec<RosterMember>) -> Result<Vec<String>> {
+        let roster = self.prepare(key, members)?;
+        self.install(roster)
+    }
+    /// Sign the next roster without installing it; [`Self::install`] commits it later.
+    pub fn prepare(&self, key: &OwnerKey, members: Vec<RosterMember>) -> Result<Roster> {
         let cert = self.current().and_then(|r| r.owner_cert);
-        self.issue_with(key, members, cert, Default::default())
+        self.signed(key, members, cert, Default::default())
     }
     /// Sign a roster with `key`: the current owner, or a new owner certified by `cert`
     /// (a rotation, with the new key sealed to members in `owner_keys`).
@@ -333,6 +338,16 @@ impl RosterStore {
         cert: Option<OwnerCert>,
         owner_keys: std::collections::BTreeMap<String, serde_json::Value>,
     ) -> Result<Vec<String>> {
+        let roster = self.signed(key, members, cert, owner_keys)?;
+        self.install(roster)
+    }
+    fn signed(
+        &self,
+        key: &OwnerKey,
+        members: Vec<RosterMember>,
+        cert: Option<OwnerCert>,
+        owner_keys: std::collections::BTreeMap<String, serde_json::Value>,
+    ) -> Result<Roster> {
         ensure!(
             key.public() == self.owner()
                 || cert.as_ref().is_some_and(|c| c.owner_pub == key.public()),
@@ -353,7 +368,7 @@ impl RosterStore {
             sig: String::new(),
         };
         roster.sig = hex(&key.0.sign(&roster.signing_message()).to_bytes());
-        self.install(roster)
+        Ok(roster)
     }
 }
 impl RosterView for RosterStore {

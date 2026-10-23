@@ -243,6 +243,10 @@ async fn relay_refuses_unpaired_endpoints_and_self_check_explains_failures() {
 struct Host {
     key: String,
     applied: Mutex<Vec<Outcome>>,
+    /// Joiner: whether it takes the offered identity.
+    joins: bool,
+    joined: Mutex<Vec<Value>>,
+    committed: Mutex<Vec<Value>>,
 }
 #[async_trait::async_trait]
 impl PairHost for Host {
@@ -266,6 +270,109 @@ impl PairHost for Host {
         self.applied.lock().unwrap().push(outcome);
         Ok(())
     }
+    async fn member(&self) -> Option<Value> {
+        Some(json!({"node_id": format!("node-{}", &self.key[..32])}))
+    }
+    async fn prepare(&self, member: &Value, _peer: &Value) -> Option<Value> {
+        Some(json!({"roster": [self.key.clone(), member["node_id"].clone()]}))
+    }
+    async fn commit(&self, bundle: &Value) -> anyhow::Result<()> {
+        self.committed.lock().unwrap().push(bundle.clone());
+        Ok(())
+    }
+    async fn join(&self, _inviter: &str, bundle: &Value) -> anyhow::Result<bool> {
+        if self.joins {
+            self.joined.lock().unwrap().push(bundle.clone());
+        }
+        Ok(self.joins)
+    }
+}
+
+/// Pair two owner devices; the joiner takes the identity only when `joins`.
+async fn owner_pairing(seed: u8, joins: bool) -> (Arc<Host>, Arc<Host>) {
+    let allow = Allowlist::default();
+    let (relay_url, relay) = start_relay(allow.clone()).await;
+    let inviter_id = iroh::SecretKey::from_bytes(&[seed; 32]).public();
+    allow.set([inviter_id]);
+    let inviter = node(seed, &relay_url).await;
+    let inviter_host = Arc::new(Host {
+        key: addr::hex_id(&inviter_id),
+        ..Host::default()
+    });
+    let pairing_a = Pairing::new(
+        inviter.clone(),
+        format!("node-{}", &addr::hex_id(&inviter_id)[..32]),
+        inviter_host.clone(),
+        Some(relay.clone()),
+        None,
+    );
+    serve(
+        &inviter,
+        Allowlist::default(),
+        MeshTarget::Tcp("127.0.0.1:9".parse().unwrap()),
+        Some(pairing_a.clone()),
+    );
+    let joiner = IrohNode::bind(
+        &[seed + 1; 32],
+        Options {
+            relays: vec![relay_url.clone()],
+            relay_only: true,
+            no_address_lookup: true,
+            ..Options::default()
+        },
+    )
+    .await
+    .unwrap();
+    let joiner_host = Arc::new(Host {
+        key: addr::hex_id(&joiner.id()),
+        joins,
+        ..Host::default()
+    });
+    let pairing_b = Pairing::new(
+        joiner.clone(),
+        format!("node-{}", &addr::hex_id(&joiner.id())[..32]),
+        joiner_host.clone(),
+        None,
+        None,
+    );
+    let invitation = pairing_a.invite(PairPurpose::OwnerDevice, None).unwrap();
+    let flow_b = pairing_b.accept(&invitation.link).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let flow_a = pairing_a.flows().pop().unwrap();
+    let (a, b) = tokio::join!(
+        pairing_a.confirm(&flow_a.flow_id, true),
+        pairing_b.confirm(&flow_b.flow_id, true)
+    );
+    assert_eq!(
+        (a.unwrap(), b.unwrap()),
+        (FlowState::Paired, FlowState::Paired)
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    (inviter_host, joiner_host)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn owner_pairing_adds_the_joiner_to_the_identity_only_after_it_joined() {
+    let (inviter, joiner) = owner_pairing(21, true).await;
+    let joined = joiner.joined.lock().unwrap().clone();
+    assert_eq!(joined.len(), 1, "the joiner took the offered identity");
+    assert_eq!(
+        *inviter.committed.lock().unwrap(),
+        joined,
+        "and the inviter committed it"
+    );
+    // Joined during pairing: nothing left for the joiner's apply to do.
+    assert!(joiner.applied.lock().unwrap()[0].identity.is_none());
+
+    // A joiner that keeps its own identity leaves the inviter's unchanged.
+    let (inviter, joiner) = owner_pairing(31, false).await;
+    assert!(joiner.joined.lock().unwrap().is_empty());
+    assert!(inviter.committed.lock().unwrap().is_empty());
+    assert_eq!(
+        inviter.applied.lock().unwrap().len(),
+        1,
+        "the devices are still paired"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

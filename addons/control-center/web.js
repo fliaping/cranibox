@@ -34399,7 +34399,7 @@ function sv({ invite: e, t }) {
 	});
 }
 function cv(e, t) {
-	return e.title_key === "approval.join_identity" ? t("邀请这台设备加入它的身份", "Invites this device to join its identity") : {
+	return {
 		pairing: t("核对新设备", "Verify a new device"),
 		message: t("一条设备消息等待确认", "A device message needs your approval"),
 		capability: t("设备请求新的权限", "A device requests access"),
@@ -35775,17 +35775,17 @@ function jv({ device: e }) {
 					})]
 				}, n);
 			}),
-			!a && !e.guest && e.same_identity === !1 && /* @__PURE__ */ (0, J.jsx)(Mv, { device: e }),
+			!a && !e.guest && e.same_identity === !1 && /* @__PURE__ */ (0, J.jsx)(Mv, {}),
 			!a && /* @__PURE__ */ (0, J.jsx)(Nv, { device: e })
 		]
 	});
 }
-function Mv({ device: e }) {
-	let { t, api: n, busy: r, run: i } = z_(), [a, o] = (0, y.useState)(!1);
-	return /* @__PURE__ */ (0, J.jsxs)(V_, {
-		label: t("加入同一身份", "Join this identity"),
+function Mv() {
+	let { t: e } = z_();
+	return /* @__PURE__ */ (0, J.jsx)(V_, {
+		label: e("不在你的身份中", "Not in your identity"),
 		className: "cx-detail-join",
-		children: [/* @__PURE__ */ (0, J.jsxs)("div", {
+		children: /* @__PURE__ */ (0, J.jsxs)("div", {
 			className: "cx-card-head",
 			children: [/* @__PURE__ */ (0, J.jsx)("span", {
 				className: "cx-card-icon",
@@ -35795,26 +35795,12 @@ function Mv({ device: e }) {
 				})
 			}), /* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-grow",
-				children: [/* @__PURE__ */ (0, J.jsx)("h3", { children: t("不在你的身份中", "Not in your identity") }), /* @__PURE__ */ (0, J.jsx)("p", {
+				children: [/* @__PURE__ */ (0, J.jsx)("h3", { children: e("不在你的身份中", "Not in your identity") }), /* @__PURE__ */ (0, J.jsx)("p", {
 					className: "cx-muted cx-small",
-					children: t("这台设备已配对，但属于另一个身份，所以模型订阅不会同步，也看不到你的其他设备。邀请它加入后，它会改用你的身份（它原来的身份里不能还有其他设备）。", "This device is paired but belongs to another identity, so model subscriptions do not sync and it cannot see your other devices. Once it joins, it uses your identity (its current identity must not include other devices).")
+					children: e("这台设备已配对，但属于另一个身份，所以模型订阅不会同步。以「我的设备」方式配对时会自动合并：在两台设备上移除对方，然后在已有订阅的设备上生成配对二维码，用这台设备扫码或打开链接。这台设备原来的身份里不能还有其他设备。", "This device is paired but belongs to another identity, so model subscriptions do not sync. Pairing as one of your own devices merges identities: remove each device on the other, then create a pairing code on the device that has your subscriptions and open it on this one. This device's current identity must not include other devices.")
 				})]
 			})]
-		}), a ? /* @__PURE__ */ (0, J.jsx)("p", {
-			className: "cx-notice",
-			role: "status",
-			children: t("邀请已发送。请在那台设备的「待办」里确认，10 分钟内有效。", "Invitation sent. Accept it in that device's Inbox within 10 minutes.")
-		}) : /* @__PURE__ */ (0, J.jsx)("div", {
-			className: "cx-actions",
-			children: /* @__PURE__ */ (0, J.jsx)("button", {
-				className: "cx-btn primary",
-				disabled: r || !e.online,
-				onClick: () => void i(async () => {
-					await n.call("POST", "/devices/" + encodeURIComponent(e.node_id) + "/join"), o(!0);
-				}),
-				children: t("邀请加入我的身份", "Invite to my identity")
-			})
-		})]
+		})
 	});
 }
 function Nv({ device: e }) {
