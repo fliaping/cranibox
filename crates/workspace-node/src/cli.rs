@@ -110,7 +110,7 @@ mod tests {
     fn space_job_and_peer_arguments_keep_their_own_ids() {
         let id = uuid::Uuid::new_v4();
         for operation in ["stop", "resume", "remove", "credentials"] {
-            let args = Args::try_parse_from(["cranibox-node", "space", operation, &id.to_string()])
+            let args = Args::try_parse_from(["cranibox", "space", operation, &id.to_string()])
                 .unwrap();
             let parsed = match args.command.unwrap() {
                 agent::Command::Space {
@@ -125,7 +125,7 @@ mod tests {
             assert_eq!(parsed, id);
         }
         for operation in ["job", "cancel"] {
-            let args = Args::try_parse_from(["cranibox-node", operation, "job-123"]).unwrap();
+            let args = Args::try_parse_from(["cranibox", operation, "job-123"]).unwrap();
             let parsed = match args.command.unwrap() {
                 agent::Command::Job { id, .. } | agent::Command::Cancel { id, .. } => id,
                 other => panic!("unexpected command: {other:?}"),
@@ -133,7 +133,7 @@ mod tests {
             assert_eq!(parsed, "job-123");
         }
         let args = Args::try_parse_from([
-            "cranibox-node",
+            "cranibox",
             "peer",
             "grant",
             "--node",

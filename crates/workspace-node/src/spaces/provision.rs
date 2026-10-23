@@ -44,7 +44,7 @@ impl Ports {
 /// Point the space's node at its in-container desktop bridge and allow the managing
 /// device to use it, keeping that device's existing credential.
 async fn give_agent_computer(runner: &Runner, space: &Space) -> Result<()> {
-    const NODE: &str = "/usr/local/lib/agent-workspace/cranibox-node";
+    const NODE: &str = "/usr/local/lib/agent-workspace/cranibox";
     const SETTINGS: &str = "/config/.config/cranibox-node/settings.json";
     let container = space.container();
     for command in [

@@ -50,7 +50,7 @@ out['credentials_mode']=stat.S_IMODE(credentials.stat().st_mode)
 out['credentials_sha256']=hashlib.sha256(credentials.read_bytes()).hexdigest()
 out['versions']={}
 for name,path in [('cranibox',root/'bin/cranibox'),('workspacectl',root/'bin/workspacectl'),
-                  ('herdr',root/'bin/herdr'),('cranibox-node',pathlib.Path('/usr/local/lib/agent-workspace/cranibox-node'))]:
+                  ('herdr',root/'bin/herdr')]:
     result=subprocess.run([str(path),'--version'],capture_output=True,text=True,timeout=10)
     out['versions'][name]={'exit_code':result.returncode,'version':result.stdout.strip()}
 out['image_binary_matches']=hashlib.sha256((root/'bin/cranibox').read_bytes()).digest()==hashlib.sha256(pathlib.Path('/usr/local/lib/agent-workspace/cranibox').read_bytes()).digest()
@@ -204,7 +204,7 @@ class ImageCheck:
                 and set(probe['static_assets']) == {'/web.js', '/web.css'}
                 and all(status == 200 for status in probe['static_assets'].values()),
             'built-in-programs': all(value['exit_code'] == 0 for value in probe['versions'].values())
-                and set(probe['versions']) == {'cranibox', 'workspacectl', 'herdr', 'cranibox-node'}
+                and set(probe['versions']) == {'cranibox', 'workspacectl', 'herdr'}
                 and set(probe['aliases']) == {'workspacectl', 'workspace-services'}
                 and all(probe['aliases'].values()) and probe['image_binary_matches'],
             'default-service': set(probe['service']) == {'is-enabled', 'is-active'}

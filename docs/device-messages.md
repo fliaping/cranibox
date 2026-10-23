@@ -64,7 +64,7 @@ cranibox peer serve
 {
   "mcpServers": {
     "cranibox-messages": {
-      "command": "cranibox-node",
+      "command": "cranibox",
       "args": ["peer", "messages", "mcp"]
     }
   }

@@ -92,7 +92,7 @@ class Socket:
         self.socket.close()
 
 
-@unittest.skipUnless(os.name == 'posix' and CORE.exists() and NODE.exists() and sockets_allowed(), 'build cranibox and cranibox-node; PTY tests require sockets and Unix')
+@unittest.skipUnless(os.name == 'posix' and CORE.exists() and NODE.exists() and sockets_allowed(), 'build cranibox; PTY tests require sockets and Unix')
 class TerminalTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness(unified=True, node_env={'CRANIBOX_HERDR_BIN': '/missing-node-herdr'})

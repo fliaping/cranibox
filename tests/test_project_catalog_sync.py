@@ -266,7 +266,7 @@ class ProjectCatalogSyncTests(unittest.TestCase):
 
 
 @unittest.skipUnless(os.name == 'posix' and CORE.exists() and NODE.exists() and sockets_allowed(),
-                     'build cranibox and cranibox-node; real sockets required')
+                     'build cranibox; real sockets required')
 class EmbeddedHostCatalogSyncTests(unittest.TestCase):
     setUp = host_fixture.WebHostNodeTests.setUp
     api = host_fixture.WebHostNodeTests.api

@@ -97,7 +97,7 @@ Agent MCP 沿用现有独立入口；不需要 Workspace 地址：
 {
   "mcpServers": {
     "cranibox-messages": {
-      "command": "cranibox-node",
+      "command": "cranibox",
       "args": ["peer", "messages", "mcp"]
     }
   }

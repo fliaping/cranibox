@@ -9,7 +9,7 @@
 沿用[设备消息](device-messages.md)的独立 MCP 入口：
 
 ~~~json
-{"mcpServers":{"cranibox-messages":{"command":"cranibox-node","args":["peer","messages","mcp"]}}}
+{"mcpServers":{"cranibox-messages":{"command":"cranibox","args":["peer","messages","mcp"]}}}
 ~~~
 
 此入口提供 device_messages、device_tasks、device_agent_sessions 三个工具，不需要 Workspace 地址。以下是 device_agent_sessions 的参数：

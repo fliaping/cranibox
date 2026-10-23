@@ -312,13 +312,12 @@ jobs:
       - run: python -m unittest discover -s tests -p test_workspacectl_rust.py -v
         if: runner.os == 'Linux'
       # The container build (workspace feature) is measured here; only the Docker image ships it.
-      - run: cargo build --release --locked -p cranibox -p cranibox-node
+      - run: cargo build --release --locked -p cranibox
         if: runner.os == 'Linux'
       - run: python scripts/measure-workspace-resources.py --report target/resource-baseline.json
         if: runner.os == 'Linux'
         env:
           CRANIBOX_BIN: target/release/cranibox
-          CRANIBOX_NODE_BIN: target/release/cranibox-node
       # Device CLI: one program with the node core and its web interface.
       - run: cargo build --release --locked -p cranibox --no-default-features
       - uses: actions/upload-artifact@v4

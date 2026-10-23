@@ -185,7 +185,7 @@ class ControlTests(unittest.TestCase):
 
     def test_device_arguments_and_exit_code_pass_through(self):
         # Device commands run in the node, over its paired peers; the gateway is gone.
-        node = self.python("cranibox-node", "import json,sys\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)")
+        node = self.python("cranibox", "import json,sys\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)")
         self.env["CRANIBOX_NODE_BIN"] = str(node)
         self.assertNotEqual(self.cli("runtime", "status", ok=False).returncode, 0)
         result = self.cli("node", "exec", "one", "--", "program", "--json", ok=False)

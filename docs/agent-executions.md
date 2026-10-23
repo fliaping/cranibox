@@ -17,15 +17,15 @@ Codex 可选择只读或修改工作区，使用对应的 Codex 沙箱及 never 
 CLI 使用相同的持久命令：
 
 ~~~sh
-cranibox-node --config /path/to/settings.json peer serve
+cranibox --config /path/to/settings.json peer serve
 # 检查 Agent 配置，返回 launch / available；此命令不会入队或运行
-cranibox-node --config /path/to/settings.json peer runs --command '{"operation":"prepare_agent","agent":{"name":"项目审查","adapter":"codex","access":"read_only","prompt":"审查项目并说明发现的问题","cwd":"/home/user/project"}}'
+cranibox --config /path/to/settings.json peer runs --command '{"operation":"prepare_agent","agent":{"name":"项目审查","adapter":"codex","access":"read_only","prompt":"审查项目并说明发现的问题","cwd":"/home/user/project"}}'
 # 在另一个终端中提交；示例使用支持非交互模式的自有程序
-cranibox-node --config /path/to/settings.json peer runs --command '{"operation":"start","id":"11111111-1111-4111-8111-111111111111","launch":{"name":"项目审查","harness":"custom-cli","program":"review-agent","args":["--noninteractive"],"cwd":"/home/user/project"}}'
-cranibox-node --config /path/to/settings.json peer runs
-cranibox-node --config /path/to/settings.json peer runs --command '{"operation":"get","id":"11111111-1111-4111-8111-111111111111","stdout_offset":0,"stderr_offset":0}'
-cranibox-node --config /path/to/settings.json peer runs --command '{"operation":"stop","id":"11111111-1111-4111-8111-111111111111"}'
-cranibox-node --config /path/to/settings.json peer runs --command '{"operation":"archive","id":"11111111-1111-4111-8111-111111111111"}'
+cranibox --config /path/to/settings.json peer runs --command '{"operation":"start","id":"11111111-1111-4111-8111-111111111111","launch":{"name":"项目审查","harness":"custom-cli","program":"review-agent","args":["--noninteractive"],"cwd":"/home/user/project"}}'
+cranibox --config /path/to/settings.json peer runs
+cranibox --config /path/to/settings.json peer runs --command '{"operation":"get","id":"11111111-1111-4111-8111-111111111111","stdout_offset":0,"stderr_offset":0}'
+cranibox --config /path/to/settings.json peer runs --command '{"operation":"stop","id":"11111111-1111-4111-8111-111111111111"}'
+cranibox --config /path/to/settings.json peer runs --command '{"operation":"archive","id":"11111111-1111-4111-8111-111111111111"}'
 ~~~
 
 每次新运行生成一个非零 UUID。响应不确定时用同一 UUID 和完全相同的启动内容重试；相同 ID 不会再次启动，不能用于修改命令。Web 在当前设备的检查页保留提交 ID，并在失败提示中显示它；关闭页面或切换设备前应先刷新记录确认结果。归档后仍保留去重记录七天，之后不保证该 ID 继续有效；实际新运行始终使用新 UUID。
@@ -35,8 +35,8 @@ cranibox-node --config /path/to/settings.json peer runs --command '{"operation":
 CLI 在相同命令中增加 --node <目标 NodeID>，检查、提交、查询、停止及归档均使用目标设备。例如：
 
 ~~~sh
-cranibox-node --config /path/to/settings.json peer runs --node node-target
-cranibox-node --config /path/to/settings.json peer runs --node node-target --command '{"operation":"get","id":"11111111-1111-4111-8111-111111111111"}'
+cranibox --config /path/to/settings.json peer runs --node node-target
+cranibox --config /path/to/settings.json peer runs --node node-target --command '{"operation":"get","id":"11111111-1111-4111-8111-111111111111"}'
 ~~~
 
 Web / Tauri 的本机接口为 {"operation":"executions","node":"node-target","command":{...}}；省略 node 保持原来的本机行为。直连端点为 POST /api/v1/mesh/nodes/{node}/executions，要求目标执行授权、Bearer Token 和匹配的 X-Cranibox-Target。带浏览器 Origin 的直接请求被拒绝，浏览器通过已有登录及 CSRF 保护的 Web 接口调用。该功能不依赖 Workspace 中继在线，实际提交不因连接路径失败而自动重发。
@@ -55,7 +55,7 @@ exec 本身允许以节点账户执行任意程序，因此上述 API 范围不�
 {
   "mcpServers": {
     "cranibox-runs": {
-      "command": "/path/to/cranibox-node",
+      "command": "/path/to/cranibox",
       "args": ["--config", "/path/to/settings.json", "peer", "runs", "mcp"]
     }
   }

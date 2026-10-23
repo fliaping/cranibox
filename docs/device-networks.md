@@ -62,7 +62,7 @@ EasyTier 使用节点托管的独立进程，可以在没有 Workspace 网关的
 
 “断开 EasyTier”禁用自动恢复、终止本节点管理的进程，并删除临时 TOML；保留安装文件、已保存目标凭据和原 NodeID。网络断开只关闭网络通道，不结束其他节点上的 Shell。退出节点进程会结束它自己持有的原生 Shell，重新启动不会恢复原 Shell 进程。
 
-没有图形界面或不连接 Workspace 时，可使用相同配置运行 `cranibox-node --config /path/to/settings.json peer serve`，持续托管已经配置的网络与桌面服务；仅通过 EasyTier 接入的节点不要求额外开启局域网 HTTP 监听。不要同时用同一配置启动 Web、Tauri 或另一个节点进程。
+没有图形界面或不连接 Workspace 时，可使用相同配置运行 `cranibox --config /path/to/settings.json peer serve`，持续托管已经配置的网络与桌面服务；仅通过 EasyTier 接入的节点不要求额外开启局域网 HTTP 监听。不要同时用同一配置启动 Web、Tauri 或另一个节点进程。
 
 ## 与系统 Tailscale 共存
 

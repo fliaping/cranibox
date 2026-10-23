@@ -138,8 +138,6 @@ COPY --chmod=0644 nginx/cranibox-applications.conf /usr/local/share/agent-worksp
 RUN cat /usr/local/share/agent-workspace/cranibox-applications.conf >> /defaults/default.conf
 EXPOSE 3002
 COPY --chmod=0755 --from=workspace-rust-builder /build/target/release/cranibox /usr/local/lib/agent-workspace/
-# One program: the node CLI is the same binary under its historical name.
-RUN ln -sf cranibox /usr/local/lib/agent-workspace/cranibox-node
 COPY --chmod=0755 --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
 # Startup tasks are native s6-rc oneshots; they leave no sleep process behind.
 RUN mkdir -p /usr/local/lib/agent-workspace \

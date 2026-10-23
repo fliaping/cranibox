@@ -80,7 +80,7 @@ pub(super) async fn install(peers: PathBuf) -> Result<()> {
         .https_only(true)
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(180))
-        .user_agent("cranibox-node")
+        .user_agent("cranibox")
         .build()?;
     let response = client
         .get(plan["url"].as_str().unwrap())

@@ -12,7 +12,7 @@ from workspace_web_harness import CORE, NODE, Harness, free_port, sockets_allowe
 
 
 @unittest.skipUnless(os.name == 'posix' and CORE.exists() and NODE.exists() and sockets_allowed(),
-                     'build cranibox and cranibox-node; real sockets and Unix PTY required')
+                     'build cranibox; real sockets and Unix PTY required')
 class WebHostNodeTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness(unified=True, node_env={'CRANIBOX_HERDR_BIN': '/missing-node-herdr'})

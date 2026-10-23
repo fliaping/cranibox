@@ -57,7 +57,7 @@ class DirectSocket(Socket):
         raise AssertionError('Missing output: ' + text)
 
 
-@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed(), 'build cranibox-node; real sockets and Unix PTY required')
+@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed(), 'build cranibox; real sockets and Unix PTY required')
 class PeerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-peers-')

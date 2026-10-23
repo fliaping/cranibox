@@ -66,7 +66,7 @@ flowchart TB
 
   subgraph MAC["个人设备（macOS/Windows/Linux，Tauri 客户端 cranibox-node-desktop）"]
     M_UI["个人 Agent 式界面<br/>首页=DSH Web UI<br/>状态胶囊 / 审批卡 / 设备 / 模型 / 高级"]
-    M_NODE["cranibox-node<br/>节点引擎 + 本地授权"]
+    M_NODE["cranibox 节点<br/>节点引擎 + 本地授权"]
     M_NET["cranibox-net (iroh)"]
     M_LLM["cranibox-llm<br/>127.0.0.1:3424<br/>Hub 在线→转发；离线→本机代理"]
     M_AG["cranibox-agents"]
@@ -116,7 +116,7 @@ flowchart TB
 | 角色 | 数量 | 运行形态 | 职责 |
 |---|---|---|---|
 | **Hub（常驻节点）** | **恰好 1 台** | Linux 服务器或 Docker，`cranibox serve` | iroh relay（HTTPS/WSS，可放在 Cloudflare Tunnel 后面）；默认的模型代理执行点；OAuth 刷新的默认持有者；名册的默认签发方；可选 DSH Web UI |
-| **Node（普通节点）** | 不限 | Tauri 客户端（macOS/Windows/Linux）、`cranibox-node` CLI、Docker | 跑本机 Agent，执行 Computer Use 和 Browser Use；本机 `cranibox-llm`：Hub 在线时转发过去，离线时自己代理 |
+| **Node（普通节点）** | 不限 | Tauri 客户端（macOS/Windows/Linux）、`cranibox` CLI、Docker | 跑本机 Agent，执行 Computer Use 和 Browser Use；本机 `cranibox-llm`：Hub 在线时转发过去，离线时自己代理 |
 | **Claude 节点** | 0 或 1 台（属性，不是独立角色） | 任一台主人设备，通常是第一次登录 Claude 的那台 | 保存 Claude OAuth（永不同步），执行本机及其他节点转发来的 Claude 请求 |
 | **访客节点**（同事） | 不限 | 已配对、**不在名册里** | 只拿到逐项授予的能力（messages、computer 等）；**永远拿不到 `llm` 和 `vault`** |
 

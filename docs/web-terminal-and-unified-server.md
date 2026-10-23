@@ -2,7 +2,7 @@
 
 2026-10-13：Web 控制中心新增全局浮动终端，使用 React + xterm.js，通过 WebSocket
 接入持久终端。Workspace 本机使用 herdr；远程节点由客户端直接持有 PTY 和 Shell。可选择本机或在线且支持持久终端的远程节点。
-节点客户端是独立的 `cranibox-node` 应用，服务端是 `cranibox`。
+服务端和节点都是 `cranibox` 程序：容器镜像构建带 Workspace 功能，设备构建（`--no-default-features`）只有节点。
 
 ## 嵌入方案选择
 
@@ -23,9 +23,9 @@ xterm.js 负责显示和输入，本机命令在独立 herdr 后台引擎的 PTY
 | `cranibox ctl` | Workspace 控制命令 |
 | `cranibox service` | Linux 用户服务管理；监督继续由 s6 执行 |
 | `cranibox runtime` | 节点注册、命令查询、MCP；不包含节点执行客户端 |
-| `cranibox-node` | Windows/macOS/Linux 独立客户端；远程命令与交互终端 |
+| `cranibox`（设备构建） | Windows/macOS/Linux 节点；远程命令与交互终端 |
 
-Cargo 保留兼容开发入口；正式部署包含服务端和独立客户端两个 Cranibox Rust 二进制，服务端本机终端另外使用独立升级的 herdr。客户端构建产物只包含 `cranibox-node` 或 `cranibox-node.exe`。
+正式部署只有一个 Cranibox Rust 程序，按构建功能区分服务端与设备；服务端本机终端另外使用独立升级的 herdr。设备构建产物只包含 `cranibox` 或 `cranibox.exe`。
 `workspacectl`、`workspace-services`、`systemctl`、`workspace-runtime` 和原 Web 程序路径
 通过别名调用统一服务端。现有用户服务 unit、自定义服务和节点凭据保留。
 
@@ -33,8 +33,8 @@ Cargo 保留兼容开发入口；正式部署包含服务端和独立客户端�
 npm ci --prefix addons/control-center/ui
 node scripts/build-control-center-ui.cjs
 cargo build --release --locked -p cranibox
-# 单独构建，客户端不启用服务端依赖
-cargo build --release --locked -p cranibox-node
+# 设备构建，不启用服务端依赖
+cargo build --release --locked -p cranibox --no-default-features
 python3 scripts/install-herdr.py --output-directory /config/bin
 CRANIBOX_BIN=./target/release/cranibox bash scripts/install-cranibox.sh
 ```
@@ -52,7 +52,7 @@ CRANIBOX_BIN=./target/release/cranibox bash scripts/install-cranibox.sh
 在远程机器上只安装匹配系统和 CPU 的节点客户端：
 
 ```bash
-cranibox-node --server wss://workspace.example.com \
+cranibox --server wss://workspace.example.com \
   --id my-node --token-file ./my-node.token
 ```
 

@@ -39,10 +39,10 @@ fn node_binary(ctx: &Context) -> PathBuf {
         .map(PathBuf::from)
         .filter(|path| executable(path))
         .or_else(|| {
-            let path = ctx.root.join("bin/cranibox-node");
+            let path = ctx.root.join("bin/cranibox");
             executable(&path).then_some(path)
         })
-        .unwrap_or_else(|| PathBuf::from("cranibox-node"))
+        .unwrap_or_else(|| PathBuf::from("cranibox"))
 }
 /// Owner approval queue for agent-to-agent messages held by inbound policy or the loop
 /// guard. Uses the same peer store as the Control Center (`/api/peers`).

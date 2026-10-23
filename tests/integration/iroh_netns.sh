@@ -3,8 +3,8 @@
 #
 #   hub  10.93.0.1  `cranibox serve --relay --public-url https://10.93.0.1` behind an
 #                   nginx TLS-terminating proxy on :443 (good) and :8444 (no Upgrade, bad)
-#   a    10.93.0.2  `cranibox-node peer serve`   } outbound TCP 443 to the hub only;
-#   b    10.93.0.3  `cranibox-node peer serve`   } UDP and everything else dropped
+#   a    10.93.0.2  `cranibox peer serve`     } outbound TCP 443 to the hub only;
+#   b    10.93.0.3  `cranibox peer serve`     } UDP and everything else dropped
 #
 # Checks: link pairing hub<->a, hub<->b, a<->b (SAS compared on both sides), exec,
 # terminal sessions and messages over the relay-only path, idle survival across the
@@ -12,14 +12,14 @@
 # no plaintext, and PathInfo=Direct once UDP is allowed between a and b.
 #
 # Needs root (netns, iptables), nginx, openssl, jq, tcpdump. Builds nothing:
-#   cargo build -p cranibox -p cranibox-node && sudo -E tests/integration/iroh_netns.sh
+#   cargo build -p cranibox && sudo -E tests/integration/iroh_netns.sh
 # Env: BIN_DIR (default target/debug), IDLE_SECS (default 95; 0 skips), KEEP=1 keeps the work dir.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BIN_DIR=${BIN_DIR:-$ROOT/target/debug}
 CRANIBOX=$BIN_DIR/cranibox
-NODE=$BIN_DIR/cranibox-node
+NODE=$CRANIBOX
 IDLE_SECS=${IDLE_SECS:-95}
 P=cbxw1
 NET=10.93.0
@@ -29,7 +29,7 @@ for tool in nginx openssl jq tcpdump ip iptables; do
   command -v "$tool" >/dev/null || [ -x "/usr/sbin/$tool" ] || { echo "missing $tool" >&2; exit 2; }
 done
 NGINX=$(command -v nginx || echo /usr/sbin/nginx)
-[ -x "$CRANIBOX" ] && [ -x "$NODE" ] || { echo "build first: cargo build -p cranibox -p cranibox-node" >&2; exit 2; }
+[ -x "$CRANIBOX" ] && [ -x "$NODE" ] || { echo "build first: cargo build -p cranibox" >&2; exit 2; }
 
 WORK=$(mktemp -d /tmp/cbx-iroh-netns.XXXXXX)
 chmod 755 "$WORK"

@@ -155,7 +155,7 @@ def main():
                        cwd=ROOT, env={**os.environ, 'CRANIBOX_STREAM_REPORT': str(payload)}, check=True, timeout=120)
         report['in_process_payloads'] = json.loads(payload.read_text())
     report['web_end_to_end'] = web(unified=core is not None)
-    binaries = [('server', core), ('node', Path(os.environ.get('CRANIBOX_NODE_BIN', ROOT / 'target/debug/cranibox-node')))] if core else [('services', binary), ('web', Path(os.environ.get('WORKSPACE_WEB_BIN', ROOT / 'target/debug/workspace-web')))]
+    binaries = [('server', core), ('node', Path(os.environ.get('CRANIBOX_NODE_BIN', core)))] if core else [('services', binary), ('web', Path(os.environ.get('WORKSPACE_WEB_BIN', ROOT / 'target/debug/workspace-web')))]
     report['binaries'] = {name: {'path': str(path), 'bytes': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()} for name, path in binaries}
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     temporary.close()

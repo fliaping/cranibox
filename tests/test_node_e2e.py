@@ -79,7 +79,7 @@ class RecordingProxy:
         self.server.close()
 
 
-@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed(), 'build cranibox-node; real sockets required')
+@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed(), 'build cranibox; real sockets required')
 class NodeE2eTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='cranibox-e2e-')

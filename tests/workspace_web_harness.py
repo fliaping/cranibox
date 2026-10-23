@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = Path(os.environ.get('WORKSPACE_WEB_BIN', ROOT / 'target/debug/workspace-web'))
 
 
-NODE = Path(os.environ.get("CRANIBOX_NODE_BIN", ROOT / "target/debug/cranibox-node"))
 CORE = Path(os.environ.get("CRANIBOX_BIN", ROOT / "target/debug/cranibox"))
+# The node CLI is the same program.
+NODE = Path(os.environ.get("CRANIBOX_NODE_BIN", CORE))
 
 def sockets_allowed():
     try:
@@ -157,11 +158,10 @@ else:
     def start(self, binary, *args):
         log = (self.root / f'process-{len(self.logs)}.log').open('wb')
         self.logs.append(log)
-        if Path(binary) == NODE and '--config' not in args:
-            # The simulated remote device has its own identity and catalog.
-            args = ('--config', self.root / 'test-node/settings.json', *args)
-        environment = {**os.environ, 'HOME': str(self.root), **self.node_env} if Path(binary) == NODE else None
-        if Path(binary) in (WEB, CORE) and self.web_env:
+        # NODE and CORE are one program; a simulated device always names its own settings.
+        device = Path(binary) == NODE and args[:1] == ('--config',)
+        environment = {**os.environ, 'HOME': str(self.root), **self.node_env} if device else None
+        if not device and Path(binary) in (WEB, CORE) and self.web_env:
             environment = {**os.environ, **self.web_env}
         process = subprocess.Popen([str(binary), *map(str, args)], stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=environment)
         self.processes.append(process)

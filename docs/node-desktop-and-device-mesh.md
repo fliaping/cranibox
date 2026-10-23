@@ -49,7 +49,7 @@ cranibox peer pair invite # 生成一次性配对链接
 - 界面只监听回环地址。首次运行生成访问令牌 `ui.token`（0600，与 `peers.json` 同目录）；打开 `ui-url` 输出的链接后换成 HttpOnly 会话 cookie，令牌不会留在地址栏。远程服务器用 SSH 隧道访问：`ssh -L 7377:127.0.0.1:7377 server`。
 - 默认端口被占用且未指定 `--listen` 时自动改用空闲端口，实际地址写入 `ui.address`，`ui-url` 会读取它。经可信反向代理访问时用 `--allow-host` 放行代理的 Host。
 - 交互终端里启动时直接打印登录链接；作为服务运行时日志只记录地址，不记录令牌。
-- `cranibox-node`、`cranibox peer serve` 和 `cranibox serve`（非容器构建）是同一服务的兼容入口；已保存的旧 Workspace 网关连接会同时保持。
+- `cranibox peer serve` 和 `cranibox serve`（非容器构建）是同一服务的入口；已保存的旧 Workspace 网关连接会同时保持。
 - 远程命令的权限等于运行节点的账户；不要用 root 运行。
 
 ### Linux AppImage 与 FUSE
@@ -103,7 +103,7 @@ cranibox cancel <job-id>
 cranibox mcp
 ~~~
 
-也可用托盘应用可执行文件替代 cranibox-node，传入子命令时只运行 CLI/MCP。需要其他配置时添加 --config /path/to/settings.json。MCP 配置包含可执行文件和配置文件路径，不含明文 Token。默认设置位置：
+也可用托盘应用可执行文件替代 cranibox，传入子命令时只运行 CLI/MCP。需要其他配置时添加 --config /path/to/settings.json。MCP 配置包含可执行文件和配置文件路径，不含明文 Token。默认设置位置：
 
 | 平台 | 文件 |
 | --- | --- |

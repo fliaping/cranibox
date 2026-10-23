@@ -19,7 +19,6 @@ async fn main() -> Result<()> {
             "workspacectl" => Some("ctl".to_owned()),
             "workspace-services" | "systemctl" => Some("service".to_owned()),
             "workspace-web" => Some("serve".to_owned()),
-            "cranibox-node" => None,
             _ if args.get(1).is_some_and(|s| s.starts_with("__")) => Some("service".to_owned()),
             _ if args
                 .get(1)
@@ -39,11 +38,11 @@ async fn main() -> Result<()> {
         }
     }
     // `cranibox node …` is the long form; every other command belongs to the node.
-    if name != "cranibox-node" && args.get(1).is_some_and(|s| s == "node") {
+    if args.get(1).is_some_and(|s| s == "node") {
         args.remove(1);
     }
     match args.get(1).map(String::as_str) {
-        Some("-V" | "--version") if name != "cranibox-node" => {
+        Some("-V" | "--version") => {
             println!("cranibox {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }

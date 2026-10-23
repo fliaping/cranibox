@@ -32,7 +32,7 @@ await fs.writeFile(command, [
 // Keep network previews independent of any Tailscale daemon on the test host.
 await fs.writeFile(path.join(directory, 'tailscale'), '#!' + process.execPath + '\nconsole.log(JSON.stringify({BackendState:"Stopped",Peer:{}}));\n', { mode: 0o700 });
 const binary = process.env.CRANIBOX_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox');
-const node = process.env.CRANIBOX_NODE_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox-node');
+const node = process.env.CRANIBOX_NODE_BIN || path.resolve(uiRoot, '../../../target/debug/cranibox');
 const webPort = Number(process.env.UI_PREVIEW_PORT || '19080');
 await fs.rm(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), { force: true });
 const closeDesktopFixture = await rfbFixture(webPort + 30);
