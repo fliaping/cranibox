@@ -207,12 +207,16 @@ impl Service {
             .pair_requests
             .decide(id, crate::pair_url::State::Approved { link: invite.link })
             .ok_or_else(|| error(404, "not_found", "Approval expired or already decided"))?;
-        let node = request.node_id;
+        self.confirm_inviter(iroh, request.node_id, crate::pair_url::REQUEST_TTL_SECS);
+        Ok(())
+    }
+    /// Confirm this device's invitation once `node` reaches the code comparison: the
+    /// owner already consented (an approved request or an invitation they sent).
+    fn confirm_inviter(&self, iroh: crate::peer::transport_iroh::Handle, node: String, ttl: u64) {
         self.auto_confirm.lock().unwrap().insert(node.clone());
         let auto = self.auto_confirm.clone();
         tokio::spawn(async move {
-            let deadline = std::time::Instant::now()
-                + std::time::Duration::from_secs(crate::pair_url::REQUEST_TTL_SECS);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(ttl);
             while std::time::Instant::now() < deadline {
                 if let Some(flow) = iroh.pair_flows().into_iter().find(|f| {
                     f.side == Side::Inviter
@@ -227,6 +231,64 @@ impl Service {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
             auto.lock().unwrap().remove(&node);
+        });
+    }
+    /// `POST /devices/{node}/join`: invite a paired device into this identity. It
+    /// joins once its owner accepts in its Inbox; both pairing codes are confirmed
+    /// automatically because the invitation travels over the authenticated peer link.
+    pub async fn invite_to_identity(&self, node: &str) -> Result<Value, AppError> {
+        let local = self.local()?;
+        if node == local.id {
+            return Err(error(
+                400,
+                "invalid",
+                "This device is already in its identity",
+            ));
+        }
+        if self.models.roster.is_owner_node(node) {
+            return Err(error(
+                409,
+                "invalid",
+                "That device is already in this identity",
+            ));
+        }
+        let iroh = self.pairing().await?;
+        let invite = iroh
+            .pair_invite(PairInviteReq {
+                purpose: cranibox_contracts::net::PairPurpose::OwnerDevice,
+            })
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?;
+        let answer = agent_workspace_runtime::client::Fleet::new(local.config_path().to_path_buf())
+            .post(
+                node,
+                &format!("/api/v1/nodes/{node}/identity/invite"),
+                serde_json::json!({"link": invite.link, "name": crate::device_info::local().name}),
+            )
+            .await
+            .map_err(|e| error(409, "invite_failed", format!("{e:#}")))?;
+        self.confirm_inviter(iroh, node.to_owned(), crate::join::TTL_SECS);
+        Ok(answer)
+    }
+    /// Accept or decline an invitation to join another device's identity.
+    async fn decide_join(&self, id: &str, accept: bool) -> Result<(), AppError> {
+        let local = self.local()?;
+        let invitation = crate::join::take(local.config_path(), id)
+            .ok_or_else(|| error(404, "not_found", "Invitation expired or already decided"))?;
+        if !accept {
+            return Ok(());
+        }
+        let iroh = self.pairing().await?;
+        let accepted = iroh
+            .pair_accept(PairAcceptReq {
+                link: invitation.link,
+            })
+            .await
+            .map_err(|e| error(409, "pairing_failed", format!("{e:#}")))?;
+        // The owner accepted here; the inviter confirms on its side.
+        tokio::spawn(async move {
+            let _ = iroh
+                .pair_confirm(&accepted.flow_id, PairConfirmReq { matches: true })
+                .await;
         });
         Ok(())
     }
@@ -518,6 +580,7 @@ impl AppApi for Service {
                     rtt_ms: path.and_then(|p| p.rtt_ms),
                     badges,
                     guest: false,
+                    same_identity: true,
                     caps,
                     os_version: if own {
                         this.os_version.clone()
@@ -563,6 +626,7 @@ impl AppApi for Service {
                 rtt_ms: path.and_then(|p| p.rtt_ms),
                 badges: vec![],
                 guest,
+                same_identity: false,
                 caps,
                 os_version: remembered.os_version,
                 model: remembered.model,
@@ -707,6 +771,22 @@ impl AppApi for Service {
                 actions: vec![ApprovalAction::AllowOnce, ApprovalAction::Deny],
             });
         }
+        for invitation in crate::join::pending(local.config_path()) {
+            cards.push(ApprovalCard {
+                id: format!("join:{}", invitation.id),
+                kind: ApprovalKind::Pairing,
+                from_node: Some(invitation.from.clone()),
+                on_node: local.id.clone(),
+                agent: None,
+                title_key: "approval.join_identity".into(),
+                title_args: BTreeMap::from([("device".into(), invitation.name.clone())]),
+                detail: None,
+                risk: Risk::Medium,
+                created_at: invitation.created_at,
+                expires_at: Some(invitation.created_at + crate::join::TTL_SECS),
+                actions: vec![ApprovalAction::AllowOnce, ApprovalAction::Deny],
+            });
+        }
         cards.extend(
             cranibox_agents::approvals::pending(&self.env()?, &local.id).map_err(unavailable)?,
         );
@@ -725,6 +805,11 @@ impl AppApi for Service {
         if id.starts_with("agent:") {
             return cranibox_agents::approvals::decide(&self.env()?, id, req.decision)
                 .map_err(|e| error(409, "approval_conflict", e.to_string()));
+        }
+        if let Some(invitation) = id.strip_prefix("join:") {
+            return self
+                .decide_join(invitation, req.decision != ApprovalAction::Deny)
+                .await;
         }
         if let Some(request) = id.strip_prefix("pairreq:") {
             return self
@@ -1129,6 +1214,15 @@ async fn route(
                     )
                     .await?,
                 );
+            }
+            if let Some(node) = path
+                .strip_prefix("/devices/")
+                .and_then(|p| p.strip_suffix("/join"))
+                && method == "POST"
+            {
+                let service =
+                    service.ok_or_else(|| error(503, "unavailable", "Demo devices cannot join"))?;
+                return service.invite_to_identity(node).await;
             }
             if let Some(node) = path.strip_prefix("/devices/")
                 && method == "PUT"

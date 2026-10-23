@@ -57,7 +57,8 @@
         "spaces": true,
         "llm": true,
         "vault": true
-      }
+      },
+      "same_identity": false
     }
   },
   {

@@ -157,6 +157,7 @@ export function QrPanel({ invite, t }: { invite: Invite; t: Translate }) {
   </div>;
 }
 export function approvalTitle(card: Approval, t: Translate) {
+  if (card.title_key === "approval.join_identity") return t("邀请这台设备加入它的身份", "Invites this device to join its identity");
   return ({
     pairing: t("核对新设备", "Verify a new device"),
     message: t("一条设备消息等待确认", "A device message needs your approval"),

@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal, Trash2 } from "lucide-react";
+import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { webDesktopConnector } from "../desktop/WebRemoteDesktops";
@@ -93,8 +93,20 @@ function Overview({ device }: { device: Device }) {
         </div>
       </Card>;
     })}
+    {!local && !device.guest && device.same_identity === false && <JoinIdentity device={device} />}
     {!local && <RemoveDevice device={device} />}
   </div>;
+}
+/** A paired device that is not part of this identity: subscriptions do not sync until it joins. */
+function JoinIdentity({ device }: { device: Device }) {
+  const { t, api, busy, run } = useApp();
+  const [sent, setSent] = useState(false);
+  return <Card label={t("加入同一身份", "Join this identity")} className="cx-detail-join">
+    <div className="cx-card-head"><span className="cx-card-icon"><Users size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("不在你的身份中", "Not in your identity")}</h3>
+      <p className="cx-muted cx-small">{t("这台设备已配对，但属于另一个身份，所以模型订阅不会同步，也看不到你的其他设备。邀请它加入后，它会改用你的身份（它原来的身份里不能还有其他设备）。", "This device is paired but belongs to another identity, so model subscriptions do not sync and it cannot see your other devices. Once it joins, it uses your identity (its current identity must not include other devices).")}</p></div></div>
+    {sent ? <p className="cx-notice" role="status">{t("邀请已发送。请在那台设备的「待办」里确认，10 分钟内有效。", "Invitation sent. Accept it in that device's Inbox within 10 minutes.")}</p>
+      : <div className="cx-actions"><button className="cx-btn primary" disabled={busy || !device.online} onClick={() => void run(async () => { await api.call("POST", "/devices/" + encodeURIComponent(device.node_id) + "/join"); setSent(true); })}>{t("邀请加入我的身份", "Invite to my identity")}</button></div>}
+  </Card>;
 }
 /** Remove a device from this network. A lost or stolen device of your identity is
  * removed with the recovery code instead, which also replaces the identity key. */

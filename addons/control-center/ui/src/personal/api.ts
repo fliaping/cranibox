@@ -29,6 +29,7 @@ export type Device = {
   /** "this" marks the local device, "claude" the device holding Claude credentials. */
   badges: string[];
   guest: boolean;
+  same_identity?: boolean;
   caps: Record<string, boolean>;
   /** e.g. "macOS 26.6". */
   os_version?: string | null;

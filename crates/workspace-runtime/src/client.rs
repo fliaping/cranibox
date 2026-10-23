@@ -986,6 +986,11 @@ impl Fleet {
         }
         Ok(value)
     }
+    /// POST `body` to `path` (an `/api/v1/…` route) on a peer.
+    pub async fn post(&self, node: &str, path: &str, body: Value) -> Result<Value> {
+        anyhow::ensure!(valid_node_id(node), "invalid node ID");
+        self.api(node)?.post(path, body).await
+    }
     /// Copy a local file to `remote` (an absolute path) on `node`.
     pub async fn push(
         &self,

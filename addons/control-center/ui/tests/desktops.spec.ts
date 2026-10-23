@@ -410,24 +410,24 @@ test('username and password authentication rejects invalid credentials and recon
     const auth = section.locator('.vnc-auth');
     await expect(auth.getByLabel('Username', { exact: true })).toBeFocused();
     await auth.getByLabel('Username', { exact: true }).fill('cranibox');
-    await auth.getByLabel('VNC password', { exact: true }).fill('incorrect-password');
+    await auth.getByLabel('Password', { exact: true }).fill('incorrect-password');
     await auth.getByRole('button', { name: 'Authenticate', exact: true }).click();
     await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Disconnected');
     await expect(section.getByRole('alert')).toContainText('authentication failed');
     await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
     await expect(auth.getByLabel('Username', { exact: true })).toHaveValue('');
-    await expect(auth.getByLabel('VNC password', { exact: true })).toHaveValue('');
+    await expect(auth.getByLabel('Password', { exact: true })).toHaveValue('');
     await page.setViewportSize({ width: 375, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await auth.getByLabel('Username', { exact: true }).fill('cranibox');
-    await auth.getByLabel('VNC password', { exact: true }).fill('wayland8');
+    await auth.getByLabel('Password', { exact: true }).fill('wayland8');
     await auth.getByRole('button', { name: 'Authenticate', exact: true }).click();
     await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
     await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
     expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('wayland8');
     await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
     await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-    await expect(auth.getByLabel('VNC password', { exact: true })).toHaveValue('');
+    await expect(auth.getByLabel('Password', { exact: true })).toHaveValue('');
     expect(errors).toEqual([]);
   } finally { await api(page, { operation: 'desktop', desktop: null }); }
 });

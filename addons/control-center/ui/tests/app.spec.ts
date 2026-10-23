@@ -120,6 +120,30 @@ test('recovery uses a passphrase the owner chooses, checked before it is sent', 
   await expect(page.getByRole('region', { name: 'Remove a lost device' }).getByLabel('Recovery passphrase')).toHaveAttribute('type', 'password');
 });
 
+test('a paired device in another identity can be invited to join, and the invitation is decided in the Inbox', async ({ page }) => {
+  // Demo fixtures: Studio is paired but in another identity; Home server is one of mine.
+  const studio = { node_id: 'node-2c3d4e5f60718293a4b5c6d7e8f90a1b' }, server = { node_id: 'node-0a1b2c3d4e5f60718293a4b5c6d7e8f9' };
+  await page.route('**/api/v1/app/devices', async route => {
+    const devices = await (await route.fetch()).json();
+    return route.fulfill({ json: devices.map((device: { node_id: string }) => device.node_id === studio.node_id ? { ...device, online: true } : device) });
+  });
+  let invited = '';
+  await page.route('**/api/v1/app/devices/*/join', route => { invited = route.request().url(); return route.fulfill({ json: { state: 'pending' } }); });
+  await ready(page, '/app/device/' + studio.node_id);
+  const card = page.getByRole('region', { name: 'Join this identity', exact: true });
+  await expect(card).toContainText('model subscriptions do not sync');
+  await card.getByRole('button', { name: 'Invite to my identity' }).click();
+  await expect.poll(() => invited).toContain(studio.node_id + '/join');
+  await expect(card).toContainText('Invitation sent');
+  await page.goto('/#/app/device/' + server.node_id);
+  await expect(page.getByRole('region', { name: 'Join this identity', exact: true })).toHaveCount(0);
+
+  await page.route('**/api/v1/app/approvals', route => route.fulfill({ json: [{ id: 'join:abc', kind: 'pairing', from_node: studio.node_id, on_node: server.node_id, agent: null, title_key: 'approval.join_identity', title_args: { device: 'Studio' }, detail: null, risk: 'medium', created_at: 1, expires_at: null, actions: ['allow_once', 'deny'] }] }));
+  await page.goto('/#/app/inbox');
+  await page.reload();
+  await expect(page.locator('main')).toContainText('Invites this device to join its identity');
+});
+
 test('setup guide asks for every permission in one pass', async ({ page }) => {
   const calls: string[] = [];
   await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: { ...capabilities, items: capabilities.items.map(item => item.id === 'computer' ? { ...item, provider: { ...item.provider, installed: true }, actions: ['enable', 'request_permissions', 'open_settings', 'refresh'] } : item) } }));

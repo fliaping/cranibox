@@ -123,6 +123,10 @@ pub struct Device {
     pub rtt_ms: Option<u32>,
     pub badges: Vec<Badge>,
     pub guest: bool,
+    /// A member of this device's identity: shares model subscriptions and sees the
+    /// same devices. A paired device that is not can be invited to join.
+    #[serde(default)]
+    pub same_identity: bool,
     pub caps: DeviceCaps,
     /// e.g. `macOS 26.6`, `Debian GNU/Linux 13 (trixie)`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
