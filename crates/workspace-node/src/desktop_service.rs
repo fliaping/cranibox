@@ -590,7 +590,8 @@ pub(crate) async fn rfb(address: SocketAddr) -> Result<()> {
         let mut stream=tokio::net::TcpStream::connect(address).await.context("Cannot connect to this local VNC port. Start the VNC server and check its loopback address.")?;
         let mut header=[0;12];
         stream.read_exact(&mut header).await.context("The service did not return a VNC greeting.")?;
-        ensure!(matches!(&header,b"RFB 003.003\n"|b"RFB 003.007\n"|b"RFB 003.008\n"),"This port did not return a supported VNC greeting.");
+        // macOS Screen Sharing answers with Apple's 003.889 (RFB 3.8 plus Apple auth).
+        ensure!(matches!(&header,b"RFB 003.003\n"|b"RFB 003.007\n"|b"RFB 003.008\n"|b"RFB 003.889\n"),"This port did not return a supported VNC greeting.");
         Ok::<_,anyhow::Error>(())
     }).await.context("VNC greeting timed out. Check the server and port.")?
 }
@@ -624,4 +625,26 @@ fn install_plan(provider: Provider) -> Result<Value> {
     Ok(
         json!({"commands":format!("pkexec /bin/sh -c 'apt-get update && apt-get install --yes --no-install-recommends {package}'"),"administrator":true,"package":package,"source":if provider==Provider::Wayvnc {"https://github.com/any1/wayvnc"} else {"https://github.com/LibVNC/x11vnc"},"summary":format!("Install {package} from your configured Ubuntu/Debian apt repositories. The system authentication dialog requires your approval. This does not enable sharing.")}),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    async fn greeting(version: &'static [u8]) -> Result<()> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let _ = tokio::io::AsyncWriteExt::write_all(&mut stream, version).await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        });
+        rfb(address).await
+    }
+    #[tokio::test]
+    async fn macos_screen_sharing_greeting_is_a_vnc_server() {
+        for version in [b"RFB 003.008\n", b"RFB 003.889\n"] {
+            assert!(greeting(version).await.is_ok());
+        }
+        assert!(greeting(b"HTTP/1.1 200\n").await.is_err());
+    }
 }

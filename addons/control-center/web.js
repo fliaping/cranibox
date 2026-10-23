@@ -22218,7 +22218,7 @@ function nm({ target: e, connect: t, language: n = "en" }) {
 						"username",
 						"password",
 						"target"
-					].includes(e)).map((e) => /* @__PURE__ */ (0, H.jsxs)("label", { children: [e === "password" ? r("VNC 密码", "VNC password") : e === "username" ? r("用户名", "Username") : r("认证目标", "Authentication target"), /* @__PURE__ */ (0, H.jsx)("input", {
+					].includes(e)).map((e) => /* @__PURE__ */ (0, H.jsxs)("label", { children: [e === "password" ? p.includes("username") ? r("密码（那台电脑的登录密码）", "Password (that computer's sign-in password)") : r("VNC 密码", "VNC password") : e === "username" ? r("用户名（那台电脑的登录用户名）", "Username (that computer's account)") : r("认证目标", "Authentication target"), /* @__PURE__ */ (0, H.jsx)("input", {
 						autoFocus: e === p[0],
 						type: e === "password" ? "password" : "text",
 						required: !0,
