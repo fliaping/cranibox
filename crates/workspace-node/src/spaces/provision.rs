@@ -109,7 +109,13 @@ pub(super) async fn inspect(runner: &Runner, kind: &str, name: &str) -> Result<O
         serde_json::from_str(value.trim()).context("invalid container inspection response")?,
     ))
 }
-fn create_args(space: &Space, installation: Uuid, env: &str, network: Option<&str>) -> Vec<String> {
+fn create_args(
+    space: &Space,
+    installation: Uuid,
+    env: &str,
+    network: Option<&str>,
+    platform: &str,
+) -> Vec<String> {
     let mut result = args(&[
         "container",
         "create",
@@ -134,6 +140,8 @@ fn create_args(space: &Space, installation: Uuid, env: &str, network: Option<&st
         env,
         "--mount",
         &format!("type=volume,source={},target=/config", space.volume()),
+        "--platform",
+        platform,
     ]);
     for port in ["9020", "3001", "8443"] {
         result.extend(args(&["--publish", &format!("127.0.0.1::{port}")]));
@@ -174,10 +182,13 @@ impl Store {
             .run(&args(&["info", "--format", "{{json .}}"]), None, 10)
             .await
             .context("container engine unavailable; complete environment setup first")?;
+        let info: Value = serde_json::from_str(&info)?;
         ensure!(
-            serde_json::from_str::<Value>(&info)?["OSType"] == "linux",
+            info["OSType"] == "linux",
             "Switch Docker to Linux containers."
         );
+        // The published manifests carry amd64 and arm64; pin the engine's own one.
+        let platform = super::images::platform(info["Architecture"].as_str().unwrap_or_default())?;
         let access = runner.access(space.provider).await?;
         let current = inspect(&runner, "container", &space.container()).await?;
         if let Some(container) = &current {
@@ -211,7 +222,11 @@ impl Store {
                 None => {
                     self.stage(id, "pulling")?;
                     runner
-                        .run(&args(&["image", "pull", &space.image]), None, 1800)
+                        .run(
+                            &args(&["image", "pull", "--platform", platform, &space.image]),
+                            None,
+                            1800,
+                        )
                         .await?;
                     runner.run(&inspect_image, None, 10).await?
                 }
@@ -251,6 +266,8 @@ impl Store {
                     &args(&[
                         "run",
                         "--pull=never",
+                        "--platform",
+                        platform,
                         "--rm",
                         "--interactive",
                         "--network",
@@ -272,8 +289,9 @@ impl Store {
                 )
                 .await?;
             let environment = format!(
-                "PUID=1000\nPGID=1000\nCUSTOM_USER=agent\nPASSWORD={}\nAGENT_WORKSPACE_BOOTSTRAP=remote\nAGENT_WORKSPACE_AGENT=deepseek-harness\nCODE_SERVER_BIND=0.0.0.0:8443\nCODE_SERVER_AUTH=password\nCODE_SERVER_CERT=true\nCODE_SERVER_RECONFIGURE=true\nSTART_DOCKER=false\nTZ=Etc/UTC\n",
-                space.password
+                "PUID=1000\nPGID=1000\nCUSTOM_USER=agent\nPASSWORD={}\nAGENT_WORKSPACE_BOOTSTRAP=remote\nAGENT_WORKSPACE_AGENT=deepseek-harness\nCODE_SERVER_BIND=0.0.0.0:8443\nCODE_SERVER_AUTH=password\nCODE_SERVER_CERT=true\nCODE_SERVER_RECONFIGURE=true\nSTART_DOCKER=false\nTZ=Etc/UTC\n{}",
+                space.password,
+                space.display.environment()
             );
             let env_file = self.directory.join(format!("{id}.env"));
             secrets::write_private(&env_file, environment.as_bytes(), true)?;
@@ -287,7 +305,13 @@ impl Store {
             let result = if let Some(env_path) = env_path {
                 runner
                     .run(
-                        &create_args(&space, installation, &env_path, access.network.as_deref()),
+                        &create_args(
+                            &space,
+                            installation,
+                            &env_path,
+                            access.network.as_deref(),
+                            platform,
+                        ),
                         None,
                         30,
                     )
@@ -301,6 +325,7 @@ impl Store {
                             installation,
                             "/dev/stdin",
                             access.network.as_deref(),
+                            platform,
                         ),
                         Some(environment.as_bytes()),
                         30,

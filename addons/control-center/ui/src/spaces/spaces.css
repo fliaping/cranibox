@@ -33,6 +33,7 @@
 .spaces-install-plan pre { overflow: auto; max-height: 280px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg, var(--surface)); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .spaces-advanced summary, .spaces-details summary { cursor: pointer; padding: 10px 0; min-height: 44px; }
 .spaces-advanced label { margin-top: 12px; }
+.spaces-advanced .spaces-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .spaces-review { display: grid; gap: 12px; margin: 0; }
 .spaces-review > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .spaces-review dt { color: var(--muted); }.spaces-review dd { margin: 0; overflow-wrap: anywhere; }

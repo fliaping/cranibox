@@ -1,11 +1,13 @@
 //! Local container workspaces. A space owns its data and joins the normal peer catalog.
 pub mod applications;
 mod engine;
+pub mod images;
 mod provision;
 
 use agent_workspace_runtime::{config as secrets, peers::config::Config};
 use anyhow::{Context, Result, ensure};
 pub use engine::{Provider, SetupAction};
+use images::{Desktop, Display, Registry};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -47,18 +49,35 @@ pub enum Command {
         name: String,
         #[arg(long, default_value = "docker")]
         provider: Provider,
-        #[serde(default = "default_image")]
-        #[arg(long, default_value = DEFAULT_IMAGE)]
-        image: String,
+        /// A custom image instead of the published one for `--desktop` from `--registry`.
+        #[serde(default)]
+        #[arg(long)]
+        image: Option<String>,
+        #[serde(default)]
+        #[arg(long, value_enum, default_value = "auto")]
+        registry: Registry,
+        #[serde(default)]
+        #[arg(long, value_enum, default_value = "xfce")]
+        desktop: Desktop,
+        #[serde(default)]
+        #[arg(long, value_enum, default_value = "wayland")]
+        display: Display,
         #[serde(default)]
         #[arg(long, value_enum, default_value = "always")]
         pull_policy: PullPolicy,
     },
+    /// Round-trip time from this device to each published image registry.
+    Registries,
     Resume {
         id: Uuid,
         /// Change the image only when no container exists; archive an existing container first.
         #[arg(long)]
         image: Option<String>,
+        /// Pull the published image from another registry (same digest on each).
+        #[arg(long, value_enum)]
+        registry: Option<Registry>,
+        #[arg(long, value_enum)]
+        display: Option<Display>,
         #[arg(long, value_enum)]
         pull_policy: Option<PullPolicy>,
     },
@@ -73,9 +92,6 @@ pub enum Command {
         id: Uuid,
     },
 }
-fn default_image() -> String {
-    DEFAULT_IMAGE.into()
-}
 
 #[derive(Clone, Deserialize, Serialize)]
 struct Space {
@@ -83,6 +99,13 @@ struct Space {
     name: String,
     provider: Provider,
     image: String,
+    /// Published image source; `None` for a custom image.
+    #[serde(default)]
+    registry: Option<Registry>,
+    #[serde(default)]
+    desktop: Option<Desktop>,
+    #[serde(default)]
+    display: Display,
     #[serde(default)]
     pull_policy: PullPolicy,
     node: String,
@@ -102,7 +125,7 @@ impl Space {
         format!("cranibox-space-{}-data", self.id)
     }
     fn public(&self) -> Value {
-        json!({"id":self.id,"name":self.name,"provider":self.provider,"image":self.image,"pull_policy":self.pull_policy,
+        json!({"id":self.id,"name":self.name,"provider":self.provider,"image":self.image,"registry":self.registry,"desktop":self.desktop,"display":self.display,"pull_policy":self.pull_policy,
             "node":self.node,"phase":self.phase,"error":self.error,"ports":self.ports,
             "container":self.container(),"volume":self.volume()})
     }
@@ -302,7 +325,7 @@ impl Store {
         }
         Ok(
             json!({"spaces":catalog.spaces.iter().map(Space::public).collect::<Vec<_>>(),"setup":catalog.setup,
-            "platform":std::env::consts::OS,"default_image":DEFAULT_IMAGE}),
+            "platform":std::env::consts::OS,"default_image":DEFAULT_IMAGE,"images":images::catalog()}),
         )
     }
     /// Web/Tauri use background jobs; the CLI awaits the same operation to keep it alive.
@@ -310,6 +333,10 @@ impl Store {
         match command {
             Command::List => return self.list(),
             Command::Preflight { provider } => return engine::preflight(provider).await,
+            Command::Registries => {
+                let results = images::probe().await;
+                return Ok(json!(results.iter().map(|(id, time)| json!({"id":id,"milliseconds":time.map(|t| t.as_millis() as u64)})).collect::<Vec<_>>()));
+            }
             Command::Plan { action } => {
                 let _lock = self.lock()?;
                 let mut catalog = self.read()?;
@@ -344,10 +371,15 @@ impl Store {
                 name,
                 provider,
                 image,
+                registry,
+                desktop,
+                display,
                 pull_policy,
             } => {
                 validate_name(name)?;
-                validate_image(image)?;
+                if let Some(image) = image {
+                    validate_image(image)?;
+                }
                 provider.validate_platform()?;
                 ensure!(catalog.spaces.len() < 32, "maximum of 32 spaces reached");
                 ensure!(
@@ -356,11 +388,21 @@ impl Store {
                 );
                 let owner = Config::update(&self.peers, |_| Ok(()))?.node_id;
                 let id = Uuid::new_v4();
+                let (image, registry) = match image {
+                    Some(image) => (image.clone(), None),
+                    None => {
+                        let registry = images::resolve(*registry).await;
+                        (images::reference(registry, *desktop), Some(registry))
+                    }
+                };
                 catalog.spaces.push(Space {
                     id,
                     name: name.trim().into(),
                     provider: *provider,
-                    image: image.clone(),
+                    image,
+                    registry,
+                    desktop: registry.map(|_| *desktop),
+                    display: *display,
                     pull_policy: *pull_policy,
                     node: format!("node-{}", Uuid::new_v4().simple()),
                     owner,
@@ -380,6 +422,8 @@ impl Store {
             Command::Resume {
                 id,
                 image,
+                registry,
+                display,
                 pull_policy,
             } => {
                 if let Some(image) = image {
@@ -390,16 +434,31 @@ impl Store {
                     .iter_mut()
                     .find(|space| space.id == *id)
                     .context("space not found")?;
-                if image.is_some() || pull_policy.is_some() {
+                if image.is_some()
+                    || registry.is_some()
+                    || display.is_some()
+                    || pull_policy.is_some()
+                {
                     let runner = space.provider.runner()?;
                     ensure!(
                         provision::inspect(&runner, "container", &space.container())
                             .await?
                             .is_none(),
-                        "Archive this space before changing its image or pull policy. Its existing container was not changed; the data volume and node identity will be retained when archived."
+                        "Archive this space before changing its image, display or pull policy. Its existing container was not changed; the data volume and node identity will be retained when archived."
                     );
                     if let Some(image) = image {
                         space.image = image.clone();
+                        space.registry = None;
+                        space.desktop = None;
+                    } else if let Some(registry) = registry {
+                        let registry = images::resolve(*registry).await;
+                        let desktop = space.desktop.unwrap_or_default();
+                        space.image = images::reference(registry, desktop);
+                        space.registry = Some(registry);
+                        space.desktop = Some(desktop);
+                    }
+                    if let Some(display) = display {
+                        space.display = *display;
                     }
                     if let Some(pull_policy) = pull_policy {
                         space.pull_policy = *pull_policy;
@@ -626,6 +685,9 @@ mod tests {
             name: "Project space".into(),
             provider: Provider::Docker,
             image: DEFAULT_IMAGE.into(),
+            registry: None,
+            desktop: None,
+            display: Default::default(),
             pull_policy: PullPolicy::default(),
             node: "node-persistent".into(),
             owner: "owner".into(),

@@ -110,8 +110,8 @@ mod tests {
     fn space_job_and_peer_arguments_keep_their_own_ids() {
         let id = uuid::Uuid::new_v4();
         for operation in ["stop", "resume", "remove", "credentials"] {
-            let args = Args::try_parse_from(["cranibox", "space", operation, &id.to_string()])
-                .unwrap();
+            let args =
+                Args::try_parse_from(["cranibox", "space", operation, &id.to_string()]).unwrap();
             let parsed = match args.command.unwrap() {
                 agent::Command::Space {
                     command:

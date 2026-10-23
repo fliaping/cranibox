@@ -181,15 +181,17 @@ test('removed connections cannot restore a space directory from an older in-flig
 
 test('guided setup reviews installation, enrolls a space and retains it across reload and archive', async ({ page }) => {
   const commands: any[] = [], errors: string[] = [];
-  const catalog: any = { spaces: [], platform: 'linux', default_image: 'cranibox-test:latest', setup: null };
+  const images = { registries: [{ id: 'dockerhub', repository: 'docker.io/xuping/agent-workspace' }, { id: 'ghcr', repository: 'ghcr.io/fliaping/agent-workspace' }, { id: 'aliyun', repository: 'registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace' }], desktops: [] };
+  const catalog: any = { spaces: [], platform: 'linux', default_image: 'cranibox-test:latest', setup: null, images };
   let checks = 0;
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/spaces', async route => {
     const command = route.request().postDataJSON(); commands.push(command);
     let value = catalog;
     if (command.operation === 'preflight') value = { ready: checks++ > 0, detail: 'Start the local Docker engine.', notice: 'Runs on this management device.', engine: { name: 'Development laptop', version: 'test', os: 'Linux' }, actions: ['linux_docker'] };
+    if (command.operation === 'registries') value = [{ id: 'dockerhub', milliseconds: null }, { id: 'ghcr', milliseconds: 310 }, { id: 'aliyun', milliseconds: 42 }];
     if (command.operation === 'plan') value = { action: command.action, plan_id: 'review-only', expires_in_seconds: 600, summary: 'Install Docker on this device.', commands: 'apt-get install docker-ce', administrator: true };
-    if (command.operation === 'create') catalog.spaces = [{ id: 'space-1', name: command.name, provider: command.provider, image: command.image, pull_policy: command.pull_policy, node: 'space-node', phase: 'enrolling', error: null, volume: 'cranibox-data-stable', ports: { desktop: 43001, code: 48443 } }];
+    if (command.operation === 'create') catalog.spaces = [{ id: 'space-1', name: command.name, provider: command.provider, image: 'registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-' + command.desktop, registry: command.registry, desktop: command.desktop, display: command.display, pull_policy: command.pull_policy, node: 'space-node', phase: 'enrolling', error: null, volume: 'cranibox-data-stable', ports: { desktop: 43001, code: 48443 } }];
     if (command.operation === 'stop') catalog.spaces[0].phase = 'stopped';
     if (command.operation === 'remove') catalog.spaces[0].phase = 'archived';
     if (command.operation === 'resume') catalog.spaces[0].phase = 'ready';
@@ -207,7 +209,16 @@ test('guided setup reviews installation, enrolls a space and retains it across r
   expect(commands.some(command => command.operation === 'install')).toBe(false);
   await section.getByRole('button', { name: 'Check environment', exact: true }).click();
   await section.getByLabel('Space name', { exact: true }).fill('Agent playground');
-  await section.getByText('Advanced: container image', { exact: true }).click();
+  await section.getByLabel('Desktop', { exact: true }).selectOption('kde');
+  await section.getByLabel('Display server', { exact: true }).selectOption('x11');
+  await section.getByText('Advanced: image source', { exact: true }).click();
+  // Automatic selection names the fastest registry measured from this device.
+  await expect(section.getByLabel('Registry', { exact: true }).locator('option[value=auto]')).toHaveText('Automatic (fastest reachable) · Alibaba Cloud mirror');
+  await expect(section.getByLabel('Registry', { exact: true }).locator('option[value=dockerhub]')).toHaveText('Docker Hub · unreachable');
+  await expect(section).toContainText('registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-kde');
+  await section.getByLabel('Registry', { exact: true }).selectOption('ghcr');
+  await expect(section).toContainText('ghcr.io/fliaping/agent-workspace:ubuntu-kde');
+  await section.getByLabel('Registry', { exact: true }).selectOption('aliyun');
   await expect(section.getByLabel('Image pull policy', { exact: true })).toHaveValue('always');
   await section.getByLabel('Image pull policy', { exact: true }).selectOption('never');
   await expect(section).toContainText('without contacting a registry');
@@ -218,6 +229,8 @@ test('guided setup reviews installation, enrolls a space and retains it across r
   await section.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(section.locator('.spaces-review')).toContainText('2 CPU');
   await expect(section.locator('.spaces-review')).toContainText('Use local image only');
+  await expect(section.locator('.spaces-review')).toContainText('KDE Plasma · X11 (compatibility)');
+  await expect(section.locator('.spaces-review')).toContainText('registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace:ubuntu-kde');
   await section.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(section.getByLabel('Space name', { exact: true })).toHaveValue('Agent playground');
   await section.getByRole('button', { name: 'Next', exact: true }).click();
@@ -253,7 +266,7 @@ test('guided setup reviews installation, enrolls a space and retains it across r
       if (width === 375 || width === 1440) await page.screenshot({ path: '/tmp/cranibox-spaces-' + width + '-' + theme + '.png', fullPage: true, animations: 'disabled' });
     }
   }
-  expect(commands.find(command => command.operation === 'create')).toEqual({ operation: 'create', name: 'Agent playground', provider: 'docker', image: 'cranibox-test:latest', pull_policy: 'never' });
+  expect(commands.find(command => command.operation === 'create')).toEqual({ operation: 'create', name: 'Agent playground', provider: 'docker', registry: 'aliyun', desktop: 'kde', display: 'x11', pull_policy: 'never' });
   expect(errors).toEqual([]);
 });
 
@@ -308,7 +321,7 @@ test('failed spaces can review a new image, recover errors and retry once with t
   await expect(form).toHaveCount(0);
   await expect(card).toBeFocused();
   await expect(page.getByRole('status').filter({ hasText: 'Image settings saved' })).toBeVisible();
-  expect(commands.filter(command => command.operation === 'resume')).toEqual(Array(2).fill({ operation: 'resume', id: space.id, image, pull_policy: 'never' }));
+  expect(commands.filter(command => command.operation === 'resume')).toEqual(Array(2).fill({ operation: 'resume', id: space.id, image, display: 'wayland', pull_policy: 'never' }));
   expect(space.node).toBe('persistent-node'); expect(space.volume).toBe('persistent-volume');
   space.phase = 'ready';
   await page.reload();
