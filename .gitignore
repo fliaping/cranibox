@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 core
+# noVNC source directory, not a core dump.
+!addons/novnc/core/
 core.*
 /target/
 /addons/control-center/ui/node_modules/
