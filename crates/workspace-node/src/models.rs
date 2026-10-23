@@ -255,6 +255,22 @@ impl Models {
                 member.x25519_pub == keys.encryption_public(),
                 "vault key does not match the pinned roster"
             );
+            // Rosters from older versions named this device "My device"; other
+            // members show that name. A name the owner chose is kept.
+            if (member.name.trim().is_empty() || member.name == "My device")
+                && owner_path.exists()
+                && let Some(mut current) = roster.current()
+            {
+                for m in &mut current.members {
+                    if m.node_id == config.node_id {
+                        m.name = crate::device_info::local().name.chars().take(64).collect();
+                    }
+                }
+                let owner = OwnerKey::load_or_create(&owner_path)?;
+                if let Err(error) = roster.issue(&owner, current.members) {
+                    eprintln!("roster: could not update this device's name: {error:#}");
+                }
+            }
         }
         let vault = Arc::new(Vault::open(
             &dir.join("vault.sqlite"),
