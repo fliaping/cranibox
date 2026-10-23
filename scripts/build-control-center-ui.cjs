@@ -14,6 +14,8 @@ for (const asset of ['web.js', 'web.css']) {
     fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + fs.readFileSync(source, 'utf8'));
   } else fs.copyFileSync(source, destination);
 }
+// The tab icon is inlined: the page serves no other static files besides its bundle.
+const favicon = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, '..', 'addons', 'control-center', 'favicon.png')).toString('base64');
 for (const language of ['en', 'zh-cn']) {
   const zh = language === 'zh-cn';
   const html = '<!doctype html>\n<html lang="' + language + '"><head>\n' +
@@ -22,13 +24,13 @@ for (const language of ['en', 'zh-cn']) {
     // Its public API cannot apply a nonce; only styles allow inline content.
     '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; frame-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
     '<meta name="color-scheme" content="light dark"><title>Cranibox</title>\n' +
-    '<link rel="icon" href="data:,"><link rel="stylesheet" href="/web.css">\n' +
-    '<script nonce="__WORKSPACE_NONCE__">try{var s=localStorage.getItem("cranibox.theme");document.documentElement.dataset.theme=s==="light"||s==="dark"?s:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}</script>\n' +
+    '<link rel="icon" type="image/png" href="' + favicon + '"><link rel="stylesheet" href="/web.css">\n' +
     '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +
     '<noscript>' + (zh ? '请启用 JavaScript 后使用 Cranibox。' : 'Enable JavaScript to use Cranibox.') + '</noscript>\n' +
     // Keep the configuration alone in its script; tools read it as window.workspaceWeb=…;</script>.
     '<script nonce="__WORKSPACE_NONCE__">window.workspaceWeb=__WORKSPACE_CONFIG__;</script>\n' +
-    '<script nonce="__WORKSPACE_NONCE__">try{var l=localStorage.getItem("cranibox.language");if(l==="en"||l==="zh-cn")window.workspaceWeb.language=l;document.documentElement.lang=window.workspaceWeb.language}catch{}</script>\n' +
+    // Preferences saved on the node win; browser storage covers servers that send none.
+    '<script nonce="__WORKSPACE_NONCE__">(function(){var c=window.workspaceWeb,p=c.preferences||{},s=null,l=null;try{s=localStorage.getItem("cranibox.theme");l=localStorage.getItem("cranibox.language")}catch(e){}var t=p.theme||s;document.documentElement.dataset.theme=t==="light"||t==="dark"?t:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(!p.language&&(l==="en"||l==="zh-cn"))c.language=l;document.documentElement.lang=c.language})()</script>\n' +
     '<script nonce="__WORKSPACE_NONCE__" src="/web.js" type="module"></script>\n</body></html>\n';
   fs.writeFileSync(path.join(output, 'index.' + language + '.html'), html);
 }
