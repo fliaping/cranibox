@@ -73,7 +73,7 @@ class VirtualSpacesTests(unittest.TestCase):
         return until(lambda: next((s for s in self.api()['spaces'] if s['phase'] == phase), None), seconds=15)
 
     def cli(self, *args):
-        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox-node/settings.json'), *map(str, args)], text=True, capture_output=True, timeout=20)
+        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox/settings.json'), *map(str, args)], text=True, capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
@@ -157,7 +157,7 @@ class VirtualSpacesTests(unittest.TestCase):
             status, value = self.h.post('/api/spaces', {'operation': 'install', 'action': 'linux_docker', **fields})
             self.assertEqual(status, 400, value)
             self.assertIn('plan', json.dumps(value).lower())
-        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox-node/settings.json'), 'space', 'install', 'linux-docker'], capture_output=True, text=True, timeout=20)
+        result = subprocess.run([str(NODE), '--config', str(self.h.root / '.config/cranibox/settings.json'), 'space', 'install', 'linux-docker'], capture_output=True, text=True, timeout=20)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('--plan-id', result.stderr)
         self.assertEqual(self.state()['events'], [])

@@ -12,5 +12,5 @@ pub fn default_path() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")));
     base.unwrap_or_else(|| PathBuf::from("."))
-        .join("cranibox-node/settings.json")
+        .join("cranibox/settings.json")
 }

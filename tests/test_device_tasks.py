@@ -25,7 +25,7 @@ class DeviceTasksTests(unittest.TestCase):
         self.cli('listen', '--address', f'127.0.0.1:{self.port}')
         self.start_target()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
-        self.path = self.h.root / '.config/cranibox-node/device-tasks.json'
+        self.path = self.h.root / '.config/cranibox/device-tasks.json'
 
     def cli(self, *args):
         result = subprocess.run([str(NODE), '--config', str(self.config), 'peer', *map(str, args)], capture_output=True, text=True, timeout=10)

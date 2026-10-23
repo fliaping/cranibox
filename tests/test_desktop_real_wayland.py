@@ -132,7 +132,7 @@ class RealWaylandTests(unittest.TestCase):
         os.environ['PATH'] = str(self.root) + os.pathsep + os.environ['PATH']
         self.h = Harness(unified=True)
         self.addCleanup(self.h.close)
-        self.config = self.h.root / '.config/cranibox-node/peers.json'
+        self.config = self.h.root / '.config/cranibox/peers.json'
 
     def open(self, harness, node, local=False):
         code, ticket = harness.post('/api/desktop/ticket', {'node': node, 'local': local})

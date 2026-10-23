@@ -30,7 +30,7 @@ print(json.dumps({'args':sys.argv[1:],'prompt':sys.stdin.read()},ensure_ascii=Fa
         self.h = Harness(web_env={'PATH': str(self.tools) + os.pathsep + os.environ.get('PATH', '')})
         self.addCleanup(self.h.close)
         self.owner = self.api(operation='identity')['node_id']
-        self.ledger = self.h.root / '.config/cranibox-node/agent-executions.json'
+        self.ledger = self.h.root / '.config/cranibox/agent-executions.json'
         self.logs = self.ledger.with_name('agent-logs')
 
     def api(self, **command):

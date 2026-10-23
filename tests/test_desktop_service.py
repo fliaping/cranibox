@@ -44,7 +44,7 @@ class DesktopServiceTests(unittest.TestCase):
         self.addCleanup(environment.stop)
         self.h = Harness()
         self.addCleanup(self.h.close)
-        self.config = self.h.root / '.config/cranibox-node/peers.json'
+        self.config = self.h.root / '.config/cranibox/peers.json'
 
     def service(self, **command):
         status, body = self.h.post('/api/desktop/service', command)

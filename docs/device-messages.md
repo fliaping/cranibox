@@ -99,7 +99,7 @@ list 的可选 session 只返回 target_session 等于它的来信，以及 send
 
 ## 存储、投递与权限边界
 
-邮箱保存在 `peers.json` 同目录的 `device-messages.json`，Web 默认是配置根目录下的 `.config/cranibox-node/device-messages.json`。Unix 使用 0600 权限、文件锁和原子替换；损坏的数据报错并保留，不自动重置。邮箱文件保存消息正文与连接绑定摘要，不保存明文目标 Token。它没有静态加密，备份按私有工作数据处理。
+邮箱保存在 `peers.json` 同目录的 `device-messages.json`，Web 默认是配置根目录下的 `.config/cranibox/device-messages.json`。Unix 使用 0600 权限、文件锁和原子替换；损坏的数据报错并保留，不自动重置。邮箱文件保存消息正文与连接绑定摘要，不保存明文目标 Token。它没有静态加密，备份按私有工作数据处理。
 
 - 每台设备最多保存 **256 条**收发记录，持久文件上限 8 MiB。
 - 投递窗口为创建后 **7 天**；网络错误采用退避重试。收到后在窗口内轮询显式确认，过期后保留历史，停止查询。
@@ -134,7 +134,7 @@ Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`�
 - 速率限制：每个发送方每分钟最多 **60** 条，超出返回错误。
 - 循环保护：同一发送方会话 10 分钟内超过 **12** 条时，后续消息转入待审批（原因 `loop guard`），防止两端 Agent 无限互相回复。
 - 不可信封装：交给 Agent 的正文包在 `<cranibox-message from=".." thread=".." trust="untrusted">…</cranibox-message>` 中，正文里的闭合标签（不区分大小写）被转义为 `<\/cranibox-message`，避免伪造边界进行提示注入。
-- `workspacectl messages held | release <消息ID> | reject <消息ID>` 与 `workspacectl messages inbound <NodeID> accept|hold|refuse` 在 Workspace 内操作同一审批队列（与控制中心共用 `~/.config/cranibox-node`）。
+- `workspacectl messages held | release <消息ID> | reject <消息ID>` 与 `workspacectl messages inbound <NodeID> accept|hold|refuse` 在 Workspace 内操作同一审批队列（与控制中心共用 `~/.config/cranibox`）。
 - 控制中心“设备消息”页顶部显示“待审批”区：来源、暂扣原因（入站策略或循环保护）、发件 Agent 与纯文本正文，提供“放行”和“拒绝”（拒绝前确认）。仅查看不会改变任何状态。
 
 ## 投递到运行中的 Agent 会话（阶段 4）

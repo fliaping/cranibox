@@ -42,7 +42,7 @@ out['static_assets']={path:get(9080,path)[0] for path in ('/web.js','/web.css')}
 status,body,_=get(9080,'/api/peers','POST',json.dumps({'operation':'list'}),
     {'Cookie':headers['set-cookie'].split(';')[0],'X-Workspace-CSRF':bootstrap['csrf'],'Content-Type':'application/json'})
 out['peers_status']=status; out['api_node_id']=json.loads(body).get('node_id')
-peers=root/'.config/cranibox-node/peers.json'
+peers=root/'.config/cranibox/peers.json'
 out['node_id']=json.loads(peers.read_text())['node_id']
 out['peers_mode']=stat.S_IMODE(peers.stat().st_mode)
 credentials=peers
@@ -85,7 +85,7 @@ print(json.dumps(out))
 '''
 
 SEED = '''set -eu
-directory=/config/.config/cranibox-node
+directory=/config/.config/cranibox
 install -d -m 700 -o 1000 -g 1000 "$directory"
 test ! -e "$directory/peers.json"
 umask 077

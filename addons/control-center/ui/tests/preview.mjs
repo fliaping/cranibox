@@ -90,7 +90,7 @@ process.on('SIGINT', () => void stop());
 try {
   start(binary, ['serve', '--config-root', directory, '--command', command, '--port', String(webPort)]);
   await wait(async () => (await fetch('http://127.0.0.1:' + webPort + '/healthz')).ok);
-  const host = JSON.parse(await fs.readFile(path.join(directory, '.config/cranibox-node/peers.json'), 'utf8')).node_id;
+  const host = JSON.parse(await fs.readFile(path.join(directory, '.config/cranibox/peers.json'), 'utf8')).node_id;
   // A second device paired directly with the host: desktop, terminals, commands and projects.
   const peer = (config, args) => {
     const result = spawnSync(node, ['--config', config, 'peer', ...args], { stdio: 'pipe', env: { ...process.env, HOME: directory } });
@@ -105,7 +105,7 @@ try {
   peer(previewConfig, ['listen', '--address', '127.0.0.1:' + previewPort]);
   const preview = JSON.parse(peer(previewConfig, ['identity'])).node_id;
   start(node, ['--config', previewConfig, 'peer', 'serve']);
-  peer(path.join(directory, '.config/cranibox-node/settings.json'), ['connect', '--node', preview, '--url', 'http://127.0.0.1:' + previewPort, '--credential-file', grant]);
+  peer(path.join(directory, '.config/cranibox/settings.json'), ['connect', '--node', preview, '--url', 'http://127.0.0.1:' + previewPort, '--credential-file', grant]);
   // Tests read the preview device's NodeID from here.
   await fs.writeFile(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), preview);
 } catch (error) {

@@ -57,7 +57,7 @@ cranibox peer listen --address 10.42.0.2:9140 --allow-private-http
 启动 B 按宿主选择：
 
 - 已使用普通 CLI 常驻服务：通过 CLI 配置后重启该服务。重启会结束原来由该进程持有的 Shell，应先结束当前工作。托盘应用可直接在“设备网络 → 入站授权 → 配置监听”中保存并启用，无需重启。
-- Web 服务所在设备：直接在“远程节点 → 入站授权 → 配置监听”中启用。Web 内嵌节点复用原有项目目录与 herdr Shell，无需另外运行 `peer serve`。也可以用 Web 配置根目录中的 `.config/cranibox-node/settings.json` 作为 CLI 的 `--config` 参数配置，下次 Web 启动时应用。
+- Web 服务所在设备：直接在“远程节点 → 入站授权 → 配置监听”中启用。Web 内嵌节点复用原有项目目录与 herdr Shell，无需另外运行 `peer serve`。也可以用 Web 配置根目录中的 `.config/cranibox/settings.json` 作为 CLI 的 `--config` 参数配置，下次 Web 启动时应用。
 - 无需 Workspace 连接：运行下面的独立模式，不需要创建 `settings.json` 或填写服务端连接。
 
 ~~~sh
@@ -67,8 +67,8 @@ cranibox peer serve
 同一份身份只能有一个节点服务进程，包括未开启直连监听器的 Web/桌面宿主；不要对同一配置目录再运行 `peer serve`。`listen` 和 `disable` 在下次服务启动时生效，授权增删则实时读取。例如，Web 使用配置根目录 `/path/to/config-root` 时，可运行：
 
 ~~~sh
-cranibox-node --config /path/to/config-root/.config/cranibox-node/settings.json peer identity
-cranibox-node --config /path/to/config-root/.config/cranibox-node/settings.json peer listen --address 127.0.0.1:9140
+cranibox --config /path/to/config-root/.config/cranibox/settings.json peer identity
+cranibox --config /path/to/config-root/.config/cranibox/settings.json peer listen --address 127.0.0.1:9140
 ~~~
 
 在 A 上，将 `NODE_B` 替换成 B 的完整 NodeID，注册目标地址和收到的令牌文件：
@@ -103,7 +103,7 @@ Web 与 Tauri 启动时会创建直连身份，页面可查看 NodeID。在目�
 
 添加时填写目标 NodeID、可达的 HTTP(S) 源地址及目标颁发的 Token。地址不接受路径、查询或内嵌凭据；非回环 HTTP 需要显式勾选可信私网选项。保存后点击“检查连接”，页面显示目标实时返回的系统及命令、终端、项目目录权限；检查通过且有终端权限时，可点击“打开终端”进入共用浮动窗口，列出并接回已有 Shell，也可创建、改名或显式结束会话。最小化保留当前附着；关闭窗口仅断开附着，重新打开仍可接回同一个 Shell。
 
-Web 保存到其配置根目录下的 `.config/cranibox-node/peers.json`；Tauri 使用节点默认 `settings.json` 同目录的 `peers.json`，与 CLI 共用格式。Web 上的身份指 Web 服务所在的接入端，不是访问浏览器所在的电脑。一个 Web 实例当前仍是单用户管理边界。
+Web 保存到其配置根目录下的 `.config/cranibox/peers.json`；Tauri 使用节点默认 `settings.json` 同目录的 `peers.json`，与 CLI 共用格式。Web 上的身份指 Web 服务所在的接入端，不是访问浏览器所在的电脑。一个 Web 实例当前仍是单用户管理边界。
 
 Token 经 HTTPS/受信本地访问提交后单独写入私有文件，不返回列表或自动填入编辑表单。编辑时留空可保留原凭据，变更目标地址必须重新提供对应凭据。填写新 Token 会清除备用路径，避免把新授权自动发送到旧地址；留空编辑保留原凭据与路径。移除只删除本接入端保存的路由及页面管理的凭据文件，不撤销目标授权，不停止目标任务或 Shell；CLI 引用的外部凭据文件不会被删除。
 

@@ -65,7 +65,7 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
     let embedded = relay::setup(args.relay, args.no_relay, &config.public_url);
     state.local = Some(std::sync::Arc::new(
         cranibox_node::local::LocalNode::start_with(
-            args.config_root.join(".config/cranibox-node/peers.json"),
+            args.config_root.join(".config/cranibox/peers.json"),
             agent_workspace_pty::engine::Engine::Herdr(agent_workspace_pty::herdr::Engine::new(
                 args.config_root.clone(),
                 args.config_root.join(".local/state/cranibox/terminal"),

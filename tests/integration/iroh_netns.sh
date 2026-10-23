@@ -146,9 +146,9 @@ mkdir -p "$HUB/home"
 in_ns hub env HOME="$HUB/home" "$CRANIBOX" serve --config-root "$HUB" --port $SERVE_PORT --gateway-port 0 \
   --public-url "https://$HUB_IP" --relay >"$WORK/hub.log" 2>&1 &
 PIDS+=($!)
-HUB_SETTINGS=$HUB/.config/cranibox-node/settings.json
-for _ in $(seq 60); do [ -S "$HUB/.config/cranibox-node/cranibox-net.sock" ] && break; sleep 0.5; done
-[ -S "$HUB/.config/cranibox-node/cranibox-net.sock" ] || die "hub iroh service did not start"
+HUB_SETTINGS=$HUB/.config/cranibox/settings.json
+for _ in $(seq 60); do [ -S "$HUB/.config/cranibox/cranibox-net.sock" ] && break; sleep 0.5; done
+[ -S "$HUB/.config/cranibox/cranibox-net.sock" ] || die "hub iroh service did not start"
 for _ in $(seq 30); do grep -q "self-check" "$WORK/hub.log" && break; sleep 0.5; done
 grep -q "iroh relay self-check: https://$HUB_IP/relay OK" "$WORK/hub.log" || die "hub self-check did not pass"
 ok "relay self-check passes through nginx"

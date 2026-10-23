@@ -27,7 +27,7 @@ pub(crate) async fn issue(state: &State, owner: String, body: Value) -> Result<V
         !state.console_origin(&origin.origin().ascii_serialization()),
         "Configure a separate applicationsUrl origin"
     );
-    let store = Store::new(state.root.join(".config/cranibox-node/peers.json"));
+    let store = Store::new(state.root.join(".config/cranibox/peers.json"));
     let invitation = state
         .applications
         .issue(&store, owner, options.id.parse()?, options.application)

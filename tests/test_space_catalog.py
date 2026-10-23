@@ -58,7 +58,7 @@ class SpaceCatalogTests(unittest.TestCase):
         before = self.catalog.read_bytes()
         expected = {'owner':self.target, 'spaces':[{key:self.space[key] for key in ('id','name','provider','node','phase')}]}
         self.assertEqual(self.api(operation='space_catalog', node=self.target), expected)
-        caller_config = self.h.root / '.config/cranibox-node/settings.json'
+        caller_config = self.h.root / '.config/cranibox/settings.json'
         call = subprocess.run([str(NODE), '--config', str(caller_config), 'peer', 'call', '--node', self.target, 'spaces'],
                               capture_output=True, text=True, timeout=10)
         self.assertEqual(call.returncode, 0, call.stderr)
@@ -165,7 +165,7 @@ class SpaceCatalogTests(unittest.TestCase):
                 worker.start()
                 self.assertTrue(arrived.wait(4))
                 if change == 'same-file-token-rotation':
-                    peers = json.loads((self.h.root/'.config/cranibox-node/peers.json').read_text())
+                    peers = json.loads((self.h.root/'.config/cranibox/peers.json').read_text())
                     token_path = peers['routes'][self.target]['token_file']
                     with open(token_path, 'w') as token:
                         token.write('b'*64+'\n')

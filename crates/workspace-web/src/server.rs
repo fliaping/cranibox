@@ -349,7 +349,7 @@ impl State {
         let sessions: Arc<Mutex<HashMap<String, SessionRef>>> = Arc::default();
         let services = cranibox_node::web::Services::new(
             None,
-            root.join(".config/cranibox-node/peers.json"),
+            root.join(".config/cranibox/peers.json"),
             Arc::new(WebSessions(sessions.clone())),
             closing.subscribe(),
         );
@@ -374,7 +374,7 @@ impl State {
     pub fn attach_node(&mut self) {
         let mut services = cranibox_node::web::Services::new(
             None,
-            self.root.join(".config/cranibox-node/peers.json"),
+            self.root.join(".config/cranibox/peers.json"),
             Arc::new(WebSessions(self.sessions.clone())),
             self.closing.subscribe(),
         );

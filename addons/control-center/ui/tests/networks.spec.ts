@@ -240,7 +240,7 @@ test('installation is reviewable and survives leaving the view; mobile forms sta
   let installs = 0;
   await page.route('**/api/network', async route => {
     const command = route.request().postDataJSON();
-    if (command.operation === 'plan') return route.fulfill({ json: { version: '2.6.4', platform: 'linux-x86_64', directory: '/config/.config/cranibox-node/tools/easytier-2.6.4', sha256: 'f'.repeat(64) } });
+    if (command.operation === 'plan') return route.fulfill({ json: { version: '2.6.4', platform: 'linux-x86_64', directory: '/config/.config/cranibox/tools/easytier-2.6.4', sha256: 'f'.repeat(64) } });
     if (command.operation === 'install') { installs++; status.easytier.phase = 'installing'; }
     return route.fulfill({ json: status });
   });

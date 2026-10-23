@@ -162,7 +162,7 @@ class RealVncTests(unittest.TestCase):
         self.start('stdbuf', '-oL', 'xev', '-root', '-event', 'keyboard', '-event', 'mouse', log=self.events)
         self.h = Harness(unified=True)
         self.addCleanup(self.h.close)
-        self.config = self.h.root / '.config/cranibox-node/peers.json'
+        self.config = self.h.root / '.config/cranibox/peers.json'
 
     def start(self, *args, log=None, **kwargs):
         stream = (log or self.root / f'process-{len(self.logs)}.log').open('wb')

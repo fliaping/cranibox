@@ -58,7 +58,7 @@ fn messages_args(ctx: &Context, args: &[String]) -> Result<Vec<String>> {
                 }
             })
     };
-    let config = ctx.root.join(".config/cranibox-node/settings.json");
+    let config = ctx.root.join(".config/cranibox/settings.json");
     let mut command = vec![
         "--config".to_owned(),
         config.to_string_lossy().into_owned(),

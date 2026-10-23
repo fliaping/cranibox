@@ -28,7 +28,7 @@ class DeviceNetworkTests(unittest.TestCase):
         self.addCleanup(environment.stop)
         self.h = Harness()
         self.addCleanup(self.h.close)
-        self.config = self.h.root / '.config/cranibox-node/networks.json'
+        self.config = self.h.root / '.config/cranibox/networks.json'
         self.token = 'fixture-network-secret-' * 3
 
     def network(self, **command):
@@ -267,7 +267,7 @@ class DeviceNetworkTests(unittest.TestCase):
         self.h.login()
         receiver = Harness()
         self.addCleanup(receiver.close)
-        receiver_config = receiver.root / '.config/cranibox-node/networks.json'
+        receiver_config = receiver.root / '.config/cranibox/networks.json'
         command = {'operation': 'easy_tier_enroll', 'url': f'http://127.0.0.1:{self.h.web_port}', 'token': issued['token'], 'listen_port': None}
         code, body = receiver.post('/api/network', command)
         self.assertEqual(code, 400, body)
@@ -293,7 +293,7 @@ class DeviceNetworkTests(unittest.TestCase):
         self.assertIsInstance(claimed[0]['redeemed_at'], int)
         self.assertFalse(receiver_config.with_name('network-enrollment.json').exists())
         for harness in (self.h, receiver):
-            peers = json.loads((harness.root / '.config/cranibox-node/peers.json').read_text())
+            peers = json.loads((harness.root / '.config/cranibox/peers.json').read_text())
             self.assertFalse(peers['grants'])
             self.assertFalse(peers['routes'])
         code, body = self.h.http('POST', '/api/network/bootstrap', {}, headers={'Authorization': 'Bearer ' + issued['token'], 'Content-Type': 'application/json'})
@@ -343,7 +343,7 @@ class DeviceNetworkTests(unittest.TestCase):
         issued = self.network(operation='easy_tier_invite', peers=entries)['invitation']
         receiver = Harness()
         self.addCleanup(receiver.close)
-        receiver_config = receiver.root / '.config/cranibox-node/networks.json'
+        receiver_config = receiver.root / '.config/cranibox/networks.json'
         self.provision(receiver_config)
         upstream = f'http://127.0.0.1:{self.h.web_port}/api/network/bootstrap'
         claims = []
@@ -431,7 +431,7 @@ class DeviceNetworkTests(unittest.TestCase):
         issued = self.network(operation='easy_tier_invite', peers=entries)['invitation']
         receiver = Harness()
         self.addCleanup(receiver.close)
-        receiver_config = receiver.root / '.config/cranibox-node/networks.json'
+        receiver_config = receiver.root / '.config/cranibox/networks.json'
         self.provision(receiver_config)
         pending = receiver_config.with_name('network-enrollment.json')
         pending.write_text('preserve corrupt recovery')

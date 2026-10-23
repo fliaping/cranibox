@@ -65,7 +65,7 @@ class ActivityTests(unittest.TestCase):
         self.assertNotIn(other_token, json.dumps(snapshot))
         self.assertEqual(self.api(operation='activity')['messages'], [])
         self.assertEqual(self.cli('activity')['messages'], snapshot['messages'])
-        caller_settings = self.h.root/'.config/cranibox-node/settings.json'
+        caller_settings = self.h.root/'.config/cranibox/settings.json'
         read = subprocess.run([str(NODE), '--config', str(caller_settings), 'peer', 'activity', '--node', self.target], capture_output=True, text=True, check=True, timeout=10)
         self.assertEqual(json.loads(read.stdout)['digest'], snapshot['digest'])
 
@@ -184,7 +184,7 @@ class ActivityTests(unittest.TestCase):
                 worker.start()
                 self.assertTrue(arrived.wait(4))
                 if change == 'token':
-                    peers = json.loads((self.h.root/'.config/cranibox-node/peers.json').read_text())
+                    peers = json.loads((self.h.root/'.config/cranibox/peers.json').read_text())
                     with open(peers['routes'][self.target]['token_file'], 'w') as token:
                         token.write('b'*64+'\n')
                 else:

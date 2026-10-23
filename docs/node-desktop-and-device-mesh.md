@@ -107,9 +107,9 @@ cranibox mcp
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows | %APPDATA%/cranibox-node/settings.json |
-| macOS | ~/Library/Application Support/cranibox-node/settings.json |
-| Linux | $XDG_CONFIG_HOME/cranibox-node/settings.json，默认 ~/.config/cranibox-node/settings.json |
+| Windows | %APPDATA%/cranibox/settings.json |
+| macOS | ~/Library/Application Support/cranibox/settings.json |
+| Linux | $XDG_CONFIG_HOME/cranibox/settings.json，默认 ~/.config/cranibox/settings.json |
 
 Token 保存在设置文件旁的 node.token。Unix 使用私有文件权限；Windows 使用当前用户的私人配置目录。CLI 也支持已有的 --server、--id、--token-file 参数。
 

@@ -29,7 +29,7 @@ class DeviceMessagesTests(unittest.TestCase):
         self.cli('listen', '--address', f'127.0.0.1:{self.port}')
         self.start_target()
         self.api(operation='connect', node=self.target, url=self.url, token=self.token)
-        self.path = self.h.root / '.config/cranibox-node/device-messages.json'
+        self.path = self.h.root / '.config/cranibox/device-messages.json'
 
     def cli(self, *args):
         result = subprocess.run([str(NODE), '--config', str(self.config), 'peer', *map(str, args)], capture_output=True, text=True, timeout=10)
@@ -102,7 +102,7 @@ class DeviceMessagesTests(unittest.TestCase):
             self.skipTest('build workspacectl')
         root = self.h.root / 'ctl-root'
         (root / '.config').mkdir(parents=True, exist_ok=True)
-        link = root / '.config/cranibox-node'
+        link = root / '.config/cranibox'
         if not link.exists():
             link.symlink_to(self.config.parent, target_is_directory=True)
         env = {**os.environ, 'AGENT_WORKSPACE_CONFIG_ROOT': str(root), 'CRANIBOX_NODE_BIN': str(NODE)}

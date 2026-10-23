@@ -20,7 +20,7 @@ class WebDirectPeersTests(unittest.TestCase):
     def setUp(self):
         self.h = Harness()
         self.addCleanup(self.h.close)
-        self.path = self.h.root / '.config/cranibox-node/peers.json'
+        self.path = self.h.root / '.config/cranibox/peers.json'
         self.assertEqual(self.api(operation='list')['routes'], [])
         self.assertTrue(self.path.exists())
         self.caller = self.api(operation='identity')['node_id']

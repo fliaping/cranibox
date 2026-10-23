@@ -45,7 +45,7 @@ impl Ports {
 /// device to use it, keeping that device's existing credential.
 async fn give_agent_computer(runner: &Runner, space: &Space) -> Result<()> {
     const NODE: &str = "/usr/local/lib/agent-workspace/cranibox";
-    const SETTINGS: &str = "/config/.config/cranibox-node/settings.json";
+    const SETTINGS: &str = "/config/.config/cranibox/settings.json";
     let container = space.container();
     for command in [
         vec!["computer", "--address", SPACE_COMPUTER],
@@ -155,7 +155,7 @@ fn create_args(
 /// `agent-desktop-bridge` inside the space image.
 const SPACE_COMPUTER: &str = "127.0.0.1:8765";
 const SEED: &str = r#"set -eu
-directory=/config/.config/cranibox-node
+directory=/config/.config/cranibox
 install -d -m 700 -o 1000 -g 1000 "$directory"
 if test -e "$directory/peers.json"; then cat >/dev/null; exit 0; fi
 umask 077

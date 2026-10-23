@@ -21,7 +21,7 @@ class WebHostNodeTests(unittest.TestCase):
         self.target = snapshot['local_node']['id']
         self.assertRegex(self.target, r'^node-[a-f0-9]{32}$')
         self.assertEqual(self.api('/api/peers', operation='identity')['node_id'], self.target)
-        self.settings = self.h.root / '.config/cranibox-node/settings.json'
+        self.settings = self.h.root / '.config/cranibox/settings.json'
         self.caller = 'node-external-device'
 
     def api(self, endpoint, **command):

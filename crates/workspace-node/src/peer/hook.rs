@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn windows_hooks_avoid_posix_quoting() {
         let binary = Path::new(r"C:\Program Files\Cranibox\cranibox.exe");
-        let settings = Path::new(r"C:\Users\O'Neil\AppData\Roaming\cranibox-node\settings.json");
+        let settings = Path::new(r"C:\Users\O'Neil\AppData\Roaming\cranibox\settings.json");
         // Claude Code: exec form, so Git Bash and PowerShell never parse the paths.
         let claude = config_for(Harness::Claude, true, binary, settings, true).unwrap();
         assert_eq!(
@@ -231,7 +231,7 @@ mod tests {
         let codex = config_for(Harness::Codex, true, binary, settings, true).unwrap();
         assert_eq!(
             handler(&codex)["command"],
-            r#""C:\Program Files\Cranibox\cranibox.exe" --config "C:\Users\O'Neil\AppData\Roaming\cranibox-node\settings.json" peer messages hook"#
+            r#""C:\Program Files\Cranibox\cranibox.exe" --config "C:\Users\O'Neil\AppData\Roaming\cranibox\settings.json" peer messages hook"#
         );
         // cmd.exe expands %VAR% even inside quotes; such paths are refused, not mangled.
         let odd = Path::new(r"C:\Users\100%\settings.json");
