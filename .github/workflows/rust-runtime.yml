@@ -75,8 +75,50 @@ jobs:
       - run: npm test
         working-directory: apps/node-desktop
         if: runner.os == 'Linux'
+      # One stable signing identity keeps macOS privacy grants (Screen Recording,
+      # Accessibility) across updates; ad-hoc signatures change with every build.
+      # Without the secrets (e.g. forks) the app stays ad-hoc signed.
+      - name: Import the macOS signing certificate
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CERTIFICATE" ] || [ -z "$IDENTITY" ]; then
+            echo "No signing certificate configured; the app stays ad-hoc signed."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/cranibox-signing.keychain-db"
+          password=$(openssl rand -hex 16)
+          printf %s "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -P "$CERTIFICATE_PASSWORD" -f pkcs12 -k "$keychain" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # A self-signed certificate: trusted for code signing on this runner only.
+          security find-certificate -c "$IDENTITY" -p "$keychain" > "$RUNNER_TEMP/signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
+          security find-identity -v -p codesigning "$keychain"
+          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
+      - name: Check the macOS signature
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          app=target/release/bundle/macos/Cranibox.app
+          codesign --verify --deep --strict "$app"
+          codesign -dv --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Authority|TeamIdentifier|Signature'
+          codesign -d -r- "$app"
+          if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            codesign -dv --verbose=2 "$app" 2>&1 | grep -q "Authority=$APPLE_SIGNING_IDENTITY"
+            codesign -dv "$app" 2>&1 | grep -q '^Identifier=com.cranibox.node$'
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
