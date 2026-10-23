@@ -21,7 +21,7 @@ from test_cranibox_terminal import Socket
 from workspace_web_harness import CORE, NODE, ROOT, WEB, Harness, free_port, sockets_allowed, until
 
 
-DES = ROOT / 'addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/des.js'
+DES = ROOT / 'addons/novnc/core/crypto/des.js'
 TOOLS = ('x11vnc', 'Xvfb', 'xev', 'xsetroot', 'xdotool', 'node', 'stdbuf')
 
 

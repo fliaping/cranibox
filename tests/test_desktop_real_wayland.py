@@ -23,7 +23,7 @@ from test_cranibox_terminal import Socket
 from workspace_web_harness import CORE, NODE, ROOT, WEB, Harness, free_port, sockets_allowed, until
 
 
-CRYPTO = ROOT / 'addons/control-center/ui/node_modules/@novnc/novnc/core/crypto/crypto.js'
+CRYPTO = ROOT / 'addons/novnc/core/crypto/crypto.js'
 TOOLS = ('wayvnc', 'sway', 'swaymsg', 'swaybg', 'node', 'touch')
 
 
