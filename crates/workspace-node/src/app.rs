@@ -469,20 +469,26 @@ impl AppApi for Service {
                 if member.is_claude_node {
                     badges.push(Badge::Claude);
                 }
+                let remembered = known.get(&member.node_id).cloned().unwrap_or_default();
+                if !own {
+                    // Keeps what the device shares current, even while it is reachable.
+                    self.reachable(&member.node_id);
+                }
+                // Our own devices allow everything; whether one actually shares its
+                // desktop, Computer Use or browser is what it last reported.
                 let caps = DeviceCaps {
                     exec: true,
                     terminals: true,
                     projects: true,
-                    desktop: true,
-                    computer: true,
-                    browser: true,
+                    desktop: own || remembered.offers("desktop"),
+                    computer: own || remembered.offers("computer"),
+                    browser: own || remembered.offers("browser"),
                     messages: true,
                     activity: true,
                     spaces: true,
                     llm: true,
                     vault: true,
                 };
-                let remembered = known.get(&member.node_id).cloned().unwrap_or_default();
                 let online = own
                     || (path.is_some()
                         && self.models.router.health.get(&member.node_id).available());
@@ -1008,15 +1014,26 @@ async fn route(
         return match (method, rest) {
             ("GET", "") => Ok(service.models.identity()),
             ("POST", "/recovery") => {
-                let code = service.models.create_recovery().map_err(conflict)?;
+                let passphrase = body["passphrase"].as_str();
+                let models = service.models.clone();
+                let passphrase = passphrase.map(str::to_owned);
+                // Argon2id takes a moment; keep it off the async workers.
+                let code = tokio::task::spawn_blocking(move || {
+                    models.create_recovery(passphrase.as_deref())
+                })
+                .await
+                .map_err(unavailable)?
+                .map_err(conflict)?;
                 Ok(serde_json::json!({"code": code, "identity": service.models.identity()}))
             }
             ("POST", "/rotate") => {
                 let remove: Vec<String> =
                     serde_json::from_value(body["remove"].clone()).unwrap_or_default();
-                service
-                    .models
-                    .rotate_owner(body["code"].as_str().unwrap_or_default(), &remove)
+                let models = service.models.clone();
+                let code = body["code"].as_str().unwrap_or_default().to_owned();
+                tokio::task::spawn_blocking(move || models.rotate_owner(&code, &remove))
+                    .await
+                    .map_err(unavailable)?
                     .map_err(conflict)?;
                 Ok(service.models.identity())
             }

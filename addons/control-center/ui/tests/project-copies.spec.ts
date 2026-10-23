@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 
 test('handoff review starts only the destination and recovers its fixed run after reopening', async ({ page }) => {
@@ -96,7 +97,7 @@ test('a missing destination CLI prevents confirming a continuation', async ({ pa
 });
 
 test('the Web host can send and receive project copies using its own identity', async ({ page }) => {
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const host = await page.evaluate(async () => (await (await fetch('/api/peers', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': (window as any).workspaceWeb.csrf }, body: JSON.stringify({ operation: 'identity' }) })).json()).node_id);
   const localReplica = '55555555-5555-4555-8555-555555555555', remoteReplica = '66666666-6666-4666-8666-666666666666';
   const actions: any[] = [];
@@ -196,7 +197,7 @@ test('the copy receiving directory retains invalid input and can be disabled loc
     }
     return route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const form = page.getByRole('form', { name: 'Project copy receiving directory', exact: true });
   const field = form.getByLabel('Project copy receiving directory', { exact: true });
   await field.fill('/missing');

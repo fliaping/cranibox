@@ -6,7 +6,6 @@ import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { useApp } from "./store";
 import { approvalTitle, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Section } from "./ui";
 import { useTerminalNode } from "./targets";
-import { NetworkMap } from "./Network";
 
 export const deviceCaps = ["terminals", "desktop", "computer", "browser"] as const;
 export function devicePath(device: Device, tab = "") {
@@ -51,7 +50,6 @@ export function Devices() {
       <Pill tone={online.some(device => device.path === "relay") ? "warn" : ""}>{t("中继 ", "Relayed ") + online.filter(device => device.path === "relay").length}</Pill>
       <Pill>{t("离线 ", "Offline ") + devices.filter(device => !isThis(device) && !device.online).length}</Pill>
     </div>
-    {devices.length > 1 && <NetworkMap />}
     <Section title={t("我的设备", "My devices")} description={t("点击设备查看终端、桌面、浏览器、项目与授权。", "Open a device for its terminal, desktop, browser, projects and access.")}
 >
       <div className="cx-device-grid">

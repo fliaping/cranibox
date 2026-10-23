@@ -1,36 +1,10 @@
-import { Languages, Lock, Moon, Plus, QrCode, Radio, Sun, SunMoon } from "lucide-react";
+import { Languages, Moon, Sun, SunMoon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DesktopAppSettings } from "./DesktopAppSettings";
-import { devicePath } from "./Home";
 import { inShell } from "./shell";
 import { useApp, type Theme } from "./store";
-import { Card, DeviceIcon, isThis, pathLabel, Pill, Section } from "./ui";
+import { Card } from "./ui";
 
-/** Shown wherever devices are managed: pairing is symmetric between peers. */
-export function PairingCard() {
-  const { t, devices, setPairing } = useApp();
-  return <Section title={t("我的设备", "My devices")} description={t("所有设备彼此对等。任意一台都可以发出邀请或接受邀请。", "All devices are equal peers. Any of them can send or accept an invitation.")}
-    actions={<button className="cx-btn primary" onClick={() => setPairing(true)}><Plus size={16} aria-hidden="true" />{t("添加设备", "Add device")}</button>}>
-    {devices.length ? <div className="cx-list">{devices.map(device => <Link key={device.node_id} className="cx-list-row" to={devicePath(device)}>
-      <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={18} /></span>
-      <div className="cx-grow"><strong>{device.name}</strong><small>{pathLabel(device, t)}</small></div>
-      {isThis(device) ? <Pill tone="accent">{t("本机", "This device")}</Pill> : device.guest ? <Pill tone="info">{t("访客", "Guest")}</Pill> : <Pill tone={device.online ? "good" : ""}>{device.online ? t("在线", "Online") : t("离线", "Offline")}</Pill>}
-    </Link>)}</div> : <Card><p className="cx-muted"><QrCode size={16} aria-hidden="true" /> {t("还没有配对的设备。", "No paired devices yet.")}</p></Card>}
-  </Section>;
-}
-/** iroh is the built-in transport: summarize how peers are currently reached. */
-export function PeerTransport() {
-  const { t, devices } = useApp();
-  const peers = devices.filter(device => !isThis(device) && device.online);
-  const direct = peers.filter(device => device.path === "direct").length, relay = peers.filter(device => device.path === "relay").length;
-  return <Card className="cx-stack" label="iroh">
-    <div className="cx-card-head"><span className="cx-card-icon"><Radio size={20} aria-hidden="true" /></span>
-      <div className="cx-grow"><h3>{t("iroh 对等连接", "iroh peer connections")}</h3>
-        <p className="cx-muted cx-small">{t("内置传输：设备之间优先直连，打洞失败时经中继转发；两种路径都是端到端加密。", "Built-in transport: devices connect directly when possible and fall back to a relay. Both paths are end-to-end encrypted.")}</p></div>
-      <Pill tone="good" icon={Lock}>{t("端到端加密", "End-to-end encrypted")}</Pill></div>
-    <div className="cx-actions"><Pill tone="good">{t("直连 ", "Direct ") + direct}</Pill><Pill tone={relay ? "warn" : ""}>{t("中继 ", "Relayed ") + relay}</Pill><Pill>{t("离线 ", "Offline ") + devices.filter(device => !isThis(device) && !device.online).length}</Pill></div>
-  </Card>;
-}
 export function Settings() {
   const { t, theme, setTheme, locale, setLocale } = useApp();
   const themes: [Theme, string, typeof Sun][] = [["system", t("跟随系统", "System"), SunMoon], ["light", t("浅色", "Light"), Sun], ["dark", t("深色", "Dark"), Moon]];

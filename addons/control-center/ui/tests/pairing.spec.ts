@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 
 test('grants are strict by default, opting out is explicit and pairing codes must be typed to verify', async ({ page }) => {
@@ -20,7 +21,7 @@ test('grants are strict by default, opting out is explicit and pairing codes mus
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
   const list = panel.getByLabel('Granted devices');
   await expect(list).toContainText('Pairing verification not required (compatibility mode)');
@@ -70,7 +71,7 @@ test('the caller shows the pairing code the target asks for and can verify the t
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const form = page.getByRole('form', { name: 'Verify pairing code target-node' });
   await expect(form).toContainText('Not verified: enter this code on the target device');
   await expect(form).toContainText('2713-7394-7426');

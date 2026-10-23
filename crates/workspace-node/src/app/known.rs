@@ -17,6 +17,10 @@ pub struct Known {
     pub os_version: Option<String>,
     pub model: Option<String>,
     pub last_seen: Option<u64>,
+    /// What the device last said it shares with this one (`desktop`, `computer`,
+    /// `browser`): granted to us and configured on that device.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub offers: BTreeMap<String, bool>,
 }
 impl Known {
     pub fn display(&self, node: &str) -> String {
@@ -24,6 +28,10 @@ impl Known {
             .clone()
             .or_else(|| self.name.clone())
             .unwrap_or_else(|| node.to_owned())
+    }
+    /// Whether the device shares `key`; unknown until it was probed once.
+    pub fn offers(&self, key: &str) -> bool {
+        self.offers.get(key).copied().unwrap_or(true)
     }
     pub fn kind(&self) -> DeviceKind {
         match self.kind.as_deref() {
@@ -49,6 +57,11 @@ impl Known {
         self.kind = text("kind").or(self.kind.take());
         self.os_version = text("os_version").or(self.os_version.take());
         self.model = text("model").or(self.model.take());
+        for key in ["desktop", "computer", "browser"] {
+            if let Some(offered) = node[key].as_bool() {
+                self.offers.insert(key.to_owned(), offered);
+            }
+        }
         self.last_seen = Some(now);
     }
 }

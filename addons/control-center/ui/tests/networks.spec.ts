@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -17,7 +18,7 @@ test('Tailscale setup requires a reviewed confirmation, retains errors and conti
     }
     return route.fulfill({ json: status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
   await expect(ts.getByRole('heading', { name: 'Install system Tailscale', exact: true })).toBeFocused();
@@ -46,7 +47,7 @@ test('Tailscale manual setup explains container boundaries and mobile layouts re
     const command = route.request().postDataJSON(); actions.push(command);
     return route.fulfill({ json: command.operation === 'tailscale_setup_plan' ? { available: false, platform: 'linux', reason: 'Install Tailscale on the container host. Container setup does not change the host network.' } : status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await expect(ts.getByRole('alert')).toContainText('Check it before retrying');
   await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
@@ -74,7 +75,7 @@ test('Tailscale setup expires without execution and preserves command details on
     const command = route.request().postDataJSON(); actions.push(command);
     return route.fulfill({ json: command.operation === 'tailscale_setup_plan' ? { available: true, id: 'expiring-plan', platform: 'macos', action: 'install', requires_admin: true, expires_in_seconds: 600, commands: [{ program: '/bin/sh', args: ['-c', '<bundled installation script>', 'tailscale-setup', '/opt/homebrew/bin/brew'] }], script, script_sha256: 'a'.repeat(64) } : status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await ts.getByRole('button', { name: 'Review Tailscale setup', exact: true }).click();
   await ts.getByText('View commands', { exact: true }).click();
@@ -114,7 +115,7 @@ test('continuous Tailscale discovery retains errors, survives reload and connect
     return route.fulfill({ json: status });
   });
   await page.route('**/api/peers', route => route.fulfill({ json: { node_id: 'this-node', routes: connected ? [{ node: identity.node_id, url: identity.url }] : [], grants: [] } }));
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true }), discovery = ts.getByRole('region', { name: 'Continuous Tailscale discovery', exact: true });
   const port = discovery.getByLabel('Node listener ports', { exact: true });
   for (const invalid of ['1234, 1234', '1234, 0', '65536', '1-8', '1,2,3,4,5,6,7,8,9']) {
@@ -167,7 +168,7 @@ test('network join preserves errors and credentials, then discovers and authoriz
     return route.fulfill({ json: status });
   });
   await page.route('**/api/peers', route => route.fulfill({ json: { node_id: 'this-node', routes: connected ? [{ node: 'remote-mac', url: 'http://127.0.0.1:43211' }] : [], grants: [] } }));
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Device networks', exact: true });
   const et = panel.getByRole('article', { name: 'EasyTier', exact: true });
   await et.getByRole('button', { name: 'Enter addresses manually', exact: true }).click();
@@ -206,7 +207,7 @@ test('network join preserves errors and credentials, then discovers and authoriz
 test('multiple entries validate before submitting, retain credentials and fit a mobile viewport', async ({ page }) => {
   const commands: any[] = [];
   await page.route('**/api/network', route => { commands.push(route.request().postDataJSON()); return route.fulfill({ json: initial() }); });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const et = page.getByRole('article', { name: 'EasyTier', exact: true });
   await et.getByRole('button', { name: 'Enter addresses manually', exact: true }).click();
   const entry = et.getByLabel('Network entry addresses', { exact: true });
@@ -243,7 +244,7 @@ test('installation is reviewable and survives leaving the view; mobile forms sta
     if (command.operation === 'install') { installs++; status.easytier.phase = 'installing'; }
     return route.fulfill({ json: status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Device networks', exact: true });
   await panel.getByRole('button', { name: 'Review installation', exact: true }).click();
   await expect(panel).toContainText('SHA-256'); expect(installs).toBe(0);
@@ -270,7 +271,7 @@ test('Tailscale uses the existing service and only exposes an official login URL
     if (command.operation === 'tailscale_cancel_login') status.tailscale.login_pending = false;
     return route.fulfill({ json: status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await ts.getByRole('button', { name: 'Sign in to Tailscale', exact: true }).click();
   await expect(ts.getByRole('link', { name: 'Open Tailscale sign in', exact: true })).toHaveCount(0);
@@ -300,7 +301,7 @@ test('Tailscale checks one selected identity before saving access and keeps fail
     return route.fulfill({ json: status });
   });
   await page.route('**/api/peers', route => route.fulfill({ json: { node_id: 'this-node', grants: [], routes: connected ? [{ node: 'tailscale-laptop', url: 'http://100.64.0.2:1234' }] : [] } }));
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const ts = page.getByRole('article', { name: 'Tailscale', exact: true });
   await expect(ts.getByRole('button', { name: 'Find node', exact: true }).nth(1)).toBeDisabled();
   expect(actions.filter(a => a.operation === 'tailscale_discover')).toHaveLength(0);
@@ -351,7 +352,7 @@ test('invitation enrollment keeps failed input and joins without exposing or per
     }
     return route.fulfill({ json: status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const et = page.getByRole('article', { name: 'EasyTier', exact: true });
   await expect(et.getByRole('button', { name: 'Use invitation', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await et.getByLabel('Workspace address', { exact: true }).fill('https://workspace.example.com');
@@ -393,7 +394,7 @@ test('invitation creation is explicit, shows its token once and remains revocabl
     if (command.operation === 'easy_tier_revoke_invitation') { revoked = command.id; status.easytier.invitations = []; }
     return route.fulfill({ json: status });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const et = page.getByRole('article', { name: 'EasyTier', exact: true });
   await et.getByText('Invite another device', { exact: true }).click();
   await et.getByLabel('Invitation entry addresses', { exact: true }).fill('tcp://entry:11010\nwss://backup.example.com/mesh');

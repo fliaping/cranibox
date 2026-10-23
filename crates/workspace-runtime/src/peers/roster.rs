@@ -469,6 +469,7 @@ mod rotation_tests {
             recovery_pub: hex(recovery.verifying_key().as_bytes()),
             owner_pub: owner.public(),
             serial,
+            recovery_salt: None,
             sig: String::new(),
         };
         cert.sig = hex(&recovery.sign(&cert.signing_message()).to_bytes());

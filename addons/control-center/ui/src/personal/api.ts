@@ -37,7 +37,7 @@ export type Device = {
   /** Unix seconds when the device last answered. */
   last_seen?: number | null;
 };
-export type Identity = { code: string; owner_pub: string; recovery: boolean; epoch: number | null; members: number };
+export type Identity = { code: string; owner_pub: string; recovery: boolean; recovery_kind?: "passphrase" | "code" | null; epoch: number | null; members: number };
 export type Approval = {
   id: string;
   kind: string;

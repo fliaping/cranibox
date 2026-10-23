@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test, type Page } from '@playwright/test';
 import { previewNode } from './preview-node';
 
@@ -77,7 +78,7 @@ test('leaving a pending platform setup check cannot open the sharing review', as
   await guide.getByRole('button', { name: 'Server ready, check port', exact: true }).click();
   await guide.getByRole('button', { name: 'Check VNC server', exact: true }).click(); await ready;
   await expect(guide.getByRole('button', { name: 'Checking…', exact: true })).toBeDisabled();
-  await page.goto('/#/nodes'); release(); await page.goto('/#/desktop');
+  await openNetworkSettings(page); release(); await page.goto('/#/desktop');
   await expect(guide.getByRole('button', { name: 'Server ready, check port', exact: true })).toBeVisible();
   await expect(page.getByRole('form', { name: 'Review desktop sharing', exact: true })).toHaveCount(0);
 });
@@ -392,7 +393,7 @@ test('leaving discovery ignores its pending result and manual configuration stay
   await ready; await expect(discovery.getByRole('button', { name: 'Detecting…', exact: true })).toBeDisabled();
   await page.getByRole('region', { name: 'Local desktop sharing', exact: true }).getByRole('button', { name: 'Configure sharing', exact: true }).click();
   await expect(page.getByLabel('Local VNC address', { exact: true })).toBeVisible();
-  await page.goto('/#/nodes'); release();
+  await openNetworkSettings(page); release();
   await page.goto('/#/desktop');
   await expect(discovery.getByRole('button', { name: 'Detect existing services', exact: true })).toBeEnabled();
   await expect(discovery.locator('li')).toHaveCount(0);

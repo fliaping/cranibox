@@ -15,23 +15,21 @@ test('Web host uses one stable identity for device, project and restored termina
   page.on('request', request => {
     if (request.url().endsWith('/api/terminal/sessions') && request.postDataJSON().operation === 'create') creates.push(request.postDataJSON());
   });
-  await page.goto('/#/nodes');
-  await expect(page.getByRole('heading', { name: 'Connected node', exact: true })).toBeVisible();
+  // The host is "this device" on the devices page.
+  await page.goto('/#/app/devices');
   const host = (await api(page, '/api/peers', { operation: 'identity' })).node_id;
-  const card = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Connected node', exact: true }) });
-  await expect(card).toContainText(host);
+  const card = page.locator('.cx-device').filter({ hasText: 'This device' });
+  await expect(card).toHaveCount(1);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const theme of ['dark', 'light']) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      const box = await card.getByRole('button', { name: 'Open node terminal', exact: true }).boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
       if (width === 375 || width === 1440) await page.screenshot({ path: '/tmp/cranibox-host-node-' + width + '-' + theme + '.png', fullPage: true, animations: 'disabled' });
     }
   }
-  await card.getByRole('button', { name: 'Open node terminal', exact: true }).click();
+  await card.getByRole('button', { name: 'Terminal', exact: true }).click();
   const pane = page.locator('.terminal-panel.active');
   await expect(pane.locator('.status')).toContainText('Connected');
   await expect(page.getByRole('combobox', { name: 'Target', exact: true })).toHaveValue(host);

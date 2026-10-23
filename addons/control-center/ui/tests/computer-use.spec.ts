@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 
 test('Computer Use is opt in, retains failed input, and requires local confirmation to resume', async ({ page }) => {
@@ -16,7 +17,7 @@ test('Computer Use is opt in, retains failed input, and requires local confirmat
     if (command.operation === 'grant') return route.fulfill({ json: { node: command.node, token: 'c'.repeat(64), catalog: { ...catalog, grants: [{ node: command.node, permissions: command.permissions }] } } });
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Agent Computer Use', exact: true });
   await expect(panel.getByRole('button', { name: 'Stop Agent input', exact: true })).toHaveCount(0);
   const address = panel.getByLabel('Local bridge address', { exact: true });
@@ -64,7 +65,7 @@ test('emergency stop remains available during a slow status check on a small scr
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Agent Computer Use', exact: true });
   await panel.getByRole('button', { name: 'Check bridge status', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Check bridge status', exact: true })).toBeDisabled();

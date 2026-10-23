@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 
 test('Browser Use requires a separate grant and local confirmation to resume', async ({ page }) => {
@@ -16,7 +17,7 @@ test('Browser Use requires a separate grant and local confirmation to resume', a
     if (command.operation === 'grant') return route.fulfill({ json: { node: command.node, token: 'c'.repeat(64), catalog: { ...catalog, grants: [{ node: command.node, permissions: command.permissions }] } } });
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   await page.locator('summary').filter({ hasText: 'Agent Browser Use' }).click();
   const panel = page.getByRole('region', { name: 'Agent Browser Use', exact: true });
   await expect(panel.getByRole('button', { name: 'Stop browser control', exact: true })).toHaveCount(0);
@@ -61,7 +62,7 @@ test('browser emergency stop supersedes a slow status and fits mobile themes', a
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Agent Browser Use', exact: true });
   await panel.getByRole('button', { name: 'Check browser status', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Check browser status', exact: true })).toBeDisabled();
@@ -85,7 +86,7 @@ test('target browser uses the selected identity and never exposes resume remotel
     if (command.operation === 'browser') return route.fulfill({ json: { node: command.node, result: { paused: command.command.operation === 'emergency_stop', backend_available: true } } });
     await route.fulfill({ json: { node_id: 'caller', grants: [], routes: [{ node: 'chosen-target', url: 'http://127.0.0.1:9223', allow_private_http: false }] } });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Target browser', exact: true });
   await expect(panel).toContainText('cranibox-node peer call --node chosen-target browser-mcp');

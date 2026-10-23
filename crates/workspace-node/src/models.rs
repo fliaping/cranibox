@@ -34,6 +34,9 @@ pub fn live(peers: &Path) -> Option<Arc<Models>> {
     live_models().lock().unwrap().get(peers)?.upgrade()
 }
 
+fn hex_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 fn hex32(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -43,16 +46,45 @@ fn recovery_key(seed: &[u8; 32]) -> ed25519_dalek::SigningKey {
     let digest = sha2::Sha256::digest([b"cranibox-recovery-key-v1\0".as_slice(), seed].concat());
     ed25519_dalek::SigningKey::from_bytes(&digest.into())
 }
+/// Shortest recovery passphrase: it guards the identity against offline guessing.
+pub const MIN_PASSPHRASE: usize = 12;
+fn check_passphrase(passphrase: &str) -> Result<()> {
+    let length = passphrase.chars().count();
+    ensure!(
+        length >= MIN_PASSPHRASE,
+        "Use at least {MIN_PASSPHRASE} characters for the recovery passphrase"
+    );
+    ensure!(length <= 256, "The recovery passphrase is too long");
+    let distinct: std::collections::BTreeSet<char> = passphrase.chars().collect();
+    ensure!(
+        distinct.len() >= 5,
+        "The recovery passphrase is too simple; mix more characters"
+    );
+    Ok(())
+}
+/// The recovery seed behind a passphrase: Argon2id (64 MiB, 3 passes) with a
+/// per-identity salt, so a passphrase cannot be guessed cheaply.
+fn passphrase_seed(passphrase: &str, salt: &[u8]) -> Result<zeroize::Zeroizing<[u8; 32]>> {
+    let params = argon2::Params::new(64 * 1024, 3, 1, Some(32))
+        .map_err(|e| anyhow::anyhow!("recovery parameters: {e}"))?;
+    let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+    argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params)
+        .hash_password_into(passphrase.trim().as_bytes(), salt, seed.as_mut())
+        .map_err(|e| anyhow::anyhow!("recovery passphrase: {e}"))?;
+    Ok(seed)
+}
 fn sign_cert(
     recovery: &ed25519_dalek::SigningKey,
     owner_pub: &str,
     serial: u64,
+    recovery_salt: Option<String>,
 ) -> cranibox_contracts::roster::OwnerCert {
     use ed25519_dalek::Signer;
     let mut cert = cranibox_contracts::roster::OwnerCert {
         recovery_pub: hex32(recovery.verifying_key().as_bytes()),
         owner_pub: owner_pub.to_owned(),
         serial,
+        recovery_salt,
         sig: String::new(),
     };
     cert.sig = recovery
@@ -448,37 +480,71 @@ impl Models {
             "code": identity_code(recovery.as_deref().unwrap_or(&owner)),
             "owner_pub": owner,
             "recovery": recovery.is_some(),
+            "recovery_kind": roster.as_ref().and_then(|r| r.owner_cert.as_ref()).map(|c| if c.recovery_salt.is_some() { "passphrase" } else { "code" }),
             "epoch": roster.as_ref().map(|r| r.epoch),
             "members": roster.map_or(0, |r| r.members.len()),
         })
     }
-    /// Create this identity's recovery code (shown once). The recovery key certifies the
-    /// current owner key and never stays on any device.
-    pub fn create_recovery(&self) -> Result<String> {
+    /// Create this identity's recovery key, either from a passphrase the owner chose
+    /// (`Some`, nothing to show) or as a generated code returned once. The recovery
+    /// key certifies the current owner key and never stays on any device.
+    pub fn create_recovery(&self, passphrase: Option<&str>) -> Result<Option<String>> {
         ensure!(
             self.roster.identity().is_none(),
             "this identity already has a recovery code"
         );
-        let mut seed = zeroize::Zeroizing::new([0u8; 32]);
-        rand::RngCore::fill_bytes(&mut rand::rng(), seed.as_mut());
+        let (seed, salt, code) = match passphrase {
+            Some(passphrase) => {
+                check_passphrase(passphrase)?;
+                let mut salt = [0u8; 16];
+                rand::RngCore::fill_bytes(&mut rand::rng(), &mut salt);
+                (
+                    passphrase_seed(passphrase, &salt)?,
+                    Some(hex_bytes(&salt)),
+                    None,
+                )
+            }
+            None => {
+                let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+                rand::RngCore::fill_bytes(&mut rand::rng(), seed.as_mut());
+                let code = recovery_code(&seed);
+                (seed, None, Some(code))
+            }
+        };
         let recovery = recovery_key(&seed);
         let owner = OwnerKey::load_or_create(&self.owner_path)?;
         let roster = self.roster.current().context("no roster")?;
-        let cert = sign_cert(&recovery, &owner.public(), 1);
+        let cert = sign_cert(&recovery, &owner.public(), 1, salt);
         self.roster.pin_identity(&cert.recovery_pub)?;
         self.roster
             .issue_with(&owner, roster.members, Some(cert), Default::default())?;
-        Ok(recovery_code(&seed))
+        Ok(code)
+    }
+    /// The recovery key from a generated code or, for a passphrase identity, the passphrase.
+    fn recovery_from(&self, secret: &str) -> Result<ed25519_dalek::SigningKey> {
+        if let Ok(seed) = parse_recovery_code(secret) {
+            return Ok(recovery_key(&seed));
+        }
+        let salt = self
+            .roster
+            .current()
+            .and_then(|r| r.owner_cert)
+            .and_then(|c| c.recovery_salt)
+            .context("That is not this identity's recovery code")?;
+        let salt = (0..salt.len() / 2)
+            .map(|i| u8::from_str_radix(&salt[i * 2..i * 2 + 2], 16))
+            .collect::<Result<Vec<u8>, _>>()
+            .context("invalid recovery salt")?;
+        Ok(recovery_key(&*passphrase_seed(secret, &salt)?))
     }
     /// Lost a device: with the recovery code, replace the owner key, remove `remove`
     /// from the identity and hand the new key to every remaining member.
     pub fn rotate_owner(&self, code: &str, remove: &[String]) -> Result<()> {
-        let seed = parse_recovery_code(code)?;
-        let recovery = recovery_key(&seed);
+        let recovery = self.recovery_from(code)?;
         let recovery_pub = hex32(recovery.verifying_key().as_bytes());
         ensure!(
             self.roster.identity().as_deref() == Some(recovery_pub.as_str()),
-            "this recovery code belongs to another identity"
+            "That recovery code or passphrase does not belong to this identity"
         );
         ensure!(
             !remove.iter().any(|n| n == self.vault.node()),
@@ -486,10 +552,14 @@ impl Models {
         );
         let roster = self.roster.current().context("no roster")?;
         let serial = roster.owner_cert.as_ref().map_or(0, |c| c.serial) + 1;
+        let salt = roster
+            .owner_cert
+            .as_ref()
+            .and_then(|c| c.recovery_salt.clone());
         let staged = self.owner_path.with_extension("key.new");
         let _ = std::fs::remove_file(&staged);
         let key = OwnerKey::load_or_create(&staged)?;
-        let cert = sign_cert(&recovery, &key.public(), serial);
+        let cert = sign_cert(&recovery, &key.public(), serial, salt);
         let members: Vec<_> = roster
             .members
             .into_iter()
@@ -819,6 +889,38 @@ mod tests {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_chosen_passphrase_is_the_recovery_key_and_survives_rotation() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        Config::update(&path, |_| Ok(())).unwrap();
+        let service = Models::start_on(
+            path,
+            CancellationToken::new(),
+            Some(vec!["127.0.0.1:0".parse().unwrap()]),
+        )
+        .await
+        .unwrap();
+        assert!(service.create_recovery(Some("short")).is_err());
+        assert!(service.create_recovery(Some("aaaaaaaaaaaaaaaa")).is_err());
+        let passphrase = "correct horse battery";
+        assert_eq!(service.create_recovery(Some(passphrase)).unwrap(), None);
+        let identity = service.identity();
+        assert_eq!(identity["recovery_kind"], "passphrase");
+        let code = identity["code"].clone();
+        assert!(service.create_recovery(None).is_err(), "set once");
+        assert!(service.rotate_owner("correct horse batterY", &[]).is_err());
+        let owner = service.roster.owner();
+        // Surrounding spaces are ignored, as when pasted.
+        service
+            .rotate_owner(&format!(" {passphrase} "), &[])
+            .unwrap();
+        assert_ne!(service.roster.owner(), owner, "the owner key was replaced");
+        // The identity is the recovery key, so its code stays; the salt carries over.
+        assert_eq!(service.identity()["code"], code);
+        service.rotate_owner(passphrase, &[]).unwrap();
+    }
 
     #[test]
     fn recovery_codes_round_trip_and_catch_typos() {

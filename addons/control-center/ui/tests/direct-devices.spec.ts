@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test } from '@playwright/test';
 
 test('device paths recover failed input, show the checked address and allow explicit ordering', async ({ page }) => {
@@ -19,7 +20,7 @@ test('device paths recover failed input, show the checked address and allow expl
     if (command.operation === 'probe') return route.fulfill({ json: { nodes: [{ id: device.node, os: 'linux', arch: 'x86_64', exec: true }], connection: { url: device.paths.at(-1)!.url, fallback: true, path_count: device.paths.length } } });
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Device connection paths', exact: true });
   await panel.getByRole('button', { name: 'Add path', exact: true }).click();
   const form = panel.getByRole('form', { name: 'Add device path', exact: true });
@@ -81,7 +82,7 @@ test('space directory access can be granted without execution, credentials or ot
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
   await panel.getByRole('textbox', { name: /^Caller node ID/ }).fill('viewer');
@@ -113,7 +114,7 @@ test('incoming listener settings retain failed input, show actual status and con
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const listener = page.locator('.direct-listener');
   await expect(listener.getByRole('status')).toHaveText('Incoming access is stopped');
   await listener.getByRole('button', { name: 'Configure listener', exact: true }).click();
@@ -165,7 +166,7 @@ test('direct devices retain job queries across reload without resubmitting comma
     const value = command.operation === 'probe' ? { nodes: [{ id: 'direct-laptop', os: 'macos', arch: 'aarch64', exec: true, terminal_sessions: false }] } : ['exec', 'job', 'cancel'].includes(command.operation) ? job : catalog;
     await route.fulfill({ json: value });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Direct devices', exact: true });
   await panel.getByRole('button', { name: 'Create direct identity', exact: true }).click();
   await expect(panel.locator('.direct-identity')).toContainText('access-point');
@@ -214,7 +215,7 @@ test('permission and submission failures stay visible and never retry an executi
       await route.fulfill({ status: 400, json: { error: 'Target unavailable. Check connection before retrying.' } });
     } else await route.fulfill({ json: command.operation === 'probe' ? { nodes: [{ id: 'direct-laptop', os: 'linux', arch: 'x86_64', exec: granted, terminal_sessions: false }] } : { node_id: 'access-point', routes: [{ node: 'direct-laptop', url: 'https://laptop.example.com', allow_private_http: false }] } });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Direct devices', exact: true });
   await panel.getByRole('button', { name: 'Check connection', exact: true }).click();
   await expect(panel.locator('.direct-probe')).toContainText('Commands not granted');
@@ -250,7 +251,7 @@ test('direct device opens the shared terminal and routes management to its physi
     socket.send(new TextEncoder().encode('direct browser Shell'));
     socket.onMessage(data => inputs.push(JSON.parse(String(data))));
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Direct devices', exact: true });
   await panel.getByRole('button', { name: 'Check connection', exact: true }).click();
   await panel.getByRole('button', { name: 'Open terminal', exact: true }).click();
@@ -282,7 +283,7 @@ test('incoming access issues tokens once, keeps scopes explicit and supports key
     if (command.operation === 'revoke') catalog.grants = [];
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
   await expect(panel).toContainText('Incoming access is stopped');
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
@@ -347,7 +348,7 @@ test('activity is a separate read grant and resets after issuing a token', async
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
   await panel.getByRole('textbox', { name: /^Caller node ID/ }).fill('observer-device');

@@ -145,7 +145,7 @@ function DesktopTab({ device }: { device: Device }) {
     <div className="cx-actions"><Link className="cx-btn primary" to="/app/this">{t("管理桌面共享", "Manage desktop sharing")}</Link></div></Card>;
   const allowed = device.caps.desktop !== false;
   return <div className="cx-stack">
-    {!allowed && <Alert tone="warn">{t("这台设备没有共享桌面给你。", "This device does not share its desktop with you.")}</Alert>}
+    {!allowed && <Alert tone="warn">{t("这台设备还没开启桌面共享。在那台设备上打开「本机设置 → 能力与权限 → 远程桌面」并允许其他设备使用（macOS 还需在系统设置中打开「屏幕共享」）。", "This device does not share its desktop yet. On that device, open Settings → Capabilities → Remote desktop and allow your other devices (on macOS, also turn on Screen Sharing in System Settings).")}</Alert>}
     {open ? <VncViewer target={{ node: device.node_id, local: false }} connect={webDesktopConnector} language={locale} />
       : <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("远程桌面", "Remote desktop")}</h3>
         <p className="cx-muted">{t("画面经端到端加密的对等连接传输。需要对方设备已开启桌面共享。", "The screen streams over an end-to-end encrypted peer connection. The other device must have desktop sharing turned on.")}</p></div></div>

@@ -232,6 +232,12 @@ fn main() -> anyhow::Result<()> {
             .block_on(cranibox_node::cli::run());
     }
     let background = args == ["--background"];
+    // Started from Finder or a login item, the app has a minimal PATH: take the login
+    // shell's, so installed agents and their tools are found.
+    if let Some(path) = cranibox_node::login_path::resolve() {
+        // SAFETY: no other thread exists yet.
+        unsafe { std::env::set_var("PATH", path) };
+    }
     let state = Arc::new(AppState {
         service: Default::default(),
         stop: Default::default(),
@@ -265,10 +271,16 @@ fn main() -> anyhow::Result<()> {
             let exit = MenuItem::with_id(app, "quit", "退出并结束本机 Shell / Quit", true, None::<&str>)?;
             let decisions = Submenu::with_id(app, "decisions", "处理审批 / Decide requests", false)?;
             let menu = Menu::with_items(app, &[&status_item, &held_item, &decisions, &open, &pause_screen, &exit])?;
+            // macOS menu bars take a monochrome template that follows light and dark
+            // mode; other trays show the colored app icon.
+            let tray_icon: &[u8] = if cfg!(target_os = "macos") {
+                include_bytes!("../icons/tray-template.png")
+            } else {
+                include_bytes!("../icons/32x32.png")
+            };
             TrayIconBuilder::with_id("node")
-                .icon(tauri::image::Image::from_bytes(include_bytes!(
-                    "../icons/32x32.png"
-                ))?)
+                .icon(tauri::image::Image::from_bytes(tray_icon)?)
+                .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Cranibox — 正在启动")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {

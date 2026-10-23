@@ -72,6 +72,10 @@ pub struct OwnerCert {
     pub recovery_pub: String,
     pub owner_pub: String,
     pub serial: u64,
+    /// Argon2id salt (hex) when the recovery key comes from a passphrase the owner
+    /// chose; absent for a generated recovery code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_salt: Option<String>,
     /// ed25519 signature by the recovery key, hex.
     pub sig: String,
 }

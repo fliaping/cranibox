@@ -33,7 +33,7 @@ test('one navigation: home shows peers, approvals and no hub wording', async ({ 
   await expect(page.locator('body')).not.toContainText(/\bHub\b|常驻节点|Advanced/);
   await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
   await nav.getByRole('link', { name: 'Devices & network' }).click();
-  await expect(page.getByRole('region', { name: 'Network map' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Network map' })).toHaveCount(0);
   const server = page.getByRole('region', { name: 'Home server', exact: true });
   await expect(server).toContainText('Relayed · 38 ms');
   await expect(server).toContainText('Computer Use');
@@ -93,6 +93,31 @@ test('removing one of my devices points lost devices to the recovery code', asyn
   await remove.getByRole('button', { name: 'Remove…' }).click();
   await expect(remove).toContainText('lost or stolen');
   await expect(remove.getByRole('link', { name: 'Remove with recovery code' })).toHaveAttribute('href', '#/app/identity');
+});
+
+test('recovery uses a passphrase the owner chooses, checked before it is sent', async ({ page }) => {
+  let identity = { code: 'cbo-aaaa-bbbb-cccc-dddd', owner_pub: 'ab', recovery: false, recovery_kind: null, epoch: 1, members: 2 };
+  let sent: unknown = null;
+  await page.route('**/api/v1/app/identity', route => route.fulfill({ json: identity }));
+  await page.route('**/api/v1/app/identity/recovery', route => {
+    sent = route.request().postDataJSON();
+    identity = { ...identity, recovery: true, recovery_kind: 'passphrase' as never };
+    return route.fulfill({ json: { code: null, identity } });
+  });
+  await ready(page, '/app/identity');
+  const card = page.getByRole('region', { name: 'Recovery passphrase', exact: true });
+  const set = card.getByRole('button', { name: 'Set recovery passphrase' });
+  await card.getByLabel('Recovery passphrase', { exact: true }).fill('too short');
+  await expect(card).toContainText('At least 12 characters');
+  await expect(set).toBeDisabled();
+  await card.getByLabel('Recovery passphrase', { exact: true }).fill('my cat sleeps on the piano');
+  await card.getByLabel('Enter it again').fill('my cat sleeps on the pian0');
+  await expect(card).toContainText('The two entries differ');
+  await card.getByLabel('Enter it again').fill('my cat sleeps on the piano');
+  await set.click();
+  await expect.poll(() => sent).toEqual({ passphrase: 'my cat sleeps on the piano' });
+  await expect(card).toContainText('A recovery passphrase is set.');
+  await expect(page.getByRole('region', { name: 'Remove a lost device' }).getByLabel('Recovery passphrase')).toHaveAttribute('type', 'password');
 });
 
 test('setup guide asks for every permission in one pass', async ({ page }) => {
@@ -167,8 +192,8 @@ test('capabilities page explains when the node does not offer it yet', async ({ 
 });
 
 test('device pairing uses the invitation and SAS confirmation contract', async ({ page }) => {
-  await ready(page, '/nodes');
-  await page.getByRole('button', { name: 'Start pairing', exact: true }).click();
+  await ready(page, '/app/devices');
+  await page.getByRole('button', { name: 'Add device', exact: true }).first().click();
   await page.getByRole('button', { name: 'Create QR code and link', exact: true }).click();
   const link = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   expect(link.startsWith('cranibox://pair/')).toBe(true);
@@ -249,9 +274,13 @@ test('workspace consoles live under This device and old bookmarks keep working',
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Services');
   await page.goto('/#/app/devices');
   await expect(page.locator('main h1')).toHaveText('Devices & network');
-  await expect(page.getByRole('region', { name: 'Network map' })).toBeVisible();
   await page.goto('/#/nodes');
   await expect(page.locator('main h1')).toHaveText('Network settings');
+  // Only network settings: devices, identity and pairing live on their own pages.
+  for (const name of ['Connection', 'Relays']) await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Identity', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Add device|Start pairing/ })).toHaveCount(0);
+  await expect(page.getByText('Other networks (optional)')).toBeVisible();
   await page.goto('/#/desktop');
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Desktop');
 });

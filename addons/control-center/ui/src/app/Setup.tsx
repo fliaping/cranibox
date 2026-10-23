@@ -1,8 +1,9 @@
-import { Check, CircleAlert, Copy, Globe, KeyRound, Monitor, MousePointerClick, Plus, Power, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, CircleAlert, Globe, KeyRound, Monitor, MousePointerClick, Plus, Power, ShieldCheck, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Capabilities, Capability, CapabilityAction, Identity } from "../personal/api";
-import { copyText, useIdentity } from "./Network";
+import type { Capabilities, Capability, CapabilityAction } from "../personal/api";
+import { useIdentity } from "./Network";
+import { RecoveryCreator } from "./Identity";
 import { inShell, shellCall, type ShellStatus } from "./shell";
 import { savePreferences, store, useApp } from "./store";
 import { Alert, Card, localizeMessage, Pill, type Translate } from "./ui";
@@ -22,7 +23,7 @@ export function SetupGuide() {
     await savePreferences(api, { onboarded: true });
     if (pair) setPairing(true);
   };
-  const labels: Record<Step, string> = { permissions: t("权限与能力", "Permissions"), identity: t("身份与恢复码", "Identity"), devices: t("添加设备", "Add devices") };
+  const labels: Record<Step, string> = { permissions: t("权限与能力", "Permissions"), identity: t("身份与恢复口令", "Identity"), devices: t("添加设备", "Add devices") };
   return <div className="cx-setup">
     <div className="cx-page-head"><div><h1>{t("设置 Cranibox", "Set up Cranibox")}</h1>
       <p>{t("一次把这台设备需要的权限和设置都准备好。之后随时可以在「本机设置」里调整。", "Get everything this device needs ready in one go. You can change any of it later in Settings.")}{thisDevice ? " · " + thisDevice.name : ""}</p></div>
@@ -159,29 +160,16 @@ function SetupState({ state, t, children }: { state: Row["state"]; t: Translate;
 }
 
 function IdentityStep({ back, next }: { back: () => void; next: () => void }) {
-  const { t, api } = useApp();
+  const { t } = useApp();
   const { identity, setIdentity } = useIdentity();
-  const [code, setCode] = useState(""), [copied, setCopied] = useState(false), [error, setError] = useState("");
-  async function create() {
-    setError("");
-    try {
-      const value = await api.call<{ code: string; identity: Identity }>("POST", "/identity/recovery");
-      setCode(value.code); setIdentity(value.identity);
-    } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
-  }
-  return <Card label={t("身份与恢复码", "Identity")}>
+  return <Card label={t("身份与恢复口令", "Identity")}>
     <div className="cx-card-head"><span className="cx-card-icon"><KeyRound size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("你的身份", "Your identity")}{identity && <span className="cx-mono"> · {identity.code}</span>}</h3>
-      <p className="cx-muted">{t("不需要注册账号：这台设备已经创建了你的身份，之后配对的设备会加入同一身份。恢复码只在设备丢失或被盗时用来移除它，并更换身份密钥。它只显示一次，不保存在任何设备上。", "No account needed: this device already created your identity, and devices you pair join it. The recovery code is only for removing a lost or stolen device and replacing the identity key. It is shown once and never stored on any device.")}</p></div></div>
-    {error && <Alert>{error}</Alert>}
-    {code ? <div className="cx-stack" style={{ marginTop: 12 }}>
-      <Alert tone="warn">{t("请现在抄写或存进密码管理器，关闭后无法再次查看。", "Write it down or save it in a password manager now; it cannot be shown again.")}</Alert>
-      <code className="cx-identity-code">{code}</code>
-      <div className="cx-actions"><button className="cx-btn" onClick={() => void copyText(code).then(setCopied)}><Copy size={14} aria-hidden="true" />{copied ? t("已复制", "Copied") : t("复制", "Copy")}</button></div>
-    </div> : identity?.recovery ? <p className="cx-muted" style={{ marginTop: 12 }}><Check size={14} aria-hidden="true" /> {t("这个身份已经有恢复码。", "This identity already has a recovery code.")}</p>
-      : <div className="cx-actions" style={{ marginTop: 12 }}><button className="cx-btn primary" disabled={!identity} onClick={() => void create()}>{t("生成恢复码", "Create recovery code")}</button></div>}
+      <p className="cx-muted">{t("不需要注册账号：这台设备已经创建了你的身份，之后配对的设备会加入同一身份。再设置一个恢复口令：设备丢失或被盗时，用它移除那台设备。口令不保存在任何设备上。", "No account needed: this device already created your identity, and devices you pair join it. Set a recovery passphrase too: if a device is lost or stolen, it removes that device. The passphrase is never stored on any device.")}</p></div></div>
+    {identity?.recovery ? <p className="cx-muted" style={{ marginTop: 12 }}><Check size={14} aria-hidden="true" /> {identity.recovery_kind === "passphrase" ? t("已设置恢复口令。", "A recovery passphrase is set.") : t("已设置恢复码。", "A recovery code is set.")}</p>
+      : identity && <RecoveryCreator onCreated={setIdentity} />}
     <div className="cx-actions" style={{ marginTop: 16 }}>
       <button className="cx-btn" onClick={back}>{t("上一步", "Back")}</button>
-      <button className="cx-btn primary" onClick={next}>{code ? t("我已保存，下一步", "Saved — next") : identity?.recovery ? t("下一步", "Next") : t("暂不生成，下一步", "Skip for now")}</button>
+      <button className="cx-btn primary" onClick={next}>{identity?.recovery ? t("下一步", "Next") : t("暂不设置，下一步", "Skip for now")}</button>
     </div>
   </Card>;
 }

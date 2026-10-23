@@ -1,79 +1,12 @@
-import { Copy, Fingerprint, KeyRound, Radio, Server } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import type { Device, Identity } from "../personal/api";
-import { Nodes } from "../pages/Nodes";
+import { Copy, Fingerprint, KeyRound } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import type { Identity } from "../personal/api";
 import { request } from "../workspace";
-import { devicePath } from "./Home";
-import { useApp } from "./store";
-import { Alert, Card, isThis, PageHead, Pill, Section, Switch, type Translate } from "./ui";
+import { store, stored, useApp } from "./store";
+import { Alert, Card, isThis, PageHead, Pill, Switch } from "./ui";
+import { OtherNetworks, DirectRoutes } from "../pages/Nodes";
 
-const WIDTH = 720, HEIGHT = 460, CX = WIDTH / 2, CY = HEIGHT / 2;
-const short = (text: string, size = 16) => text.length > size ? text.slice(0, size - 1) + "…" : text;
-function edgeLabel(device: Device, t: Translate) {
-  if (!device.online) return "";
-  const kind = device.path === "direct" ? t("直连", "direct") : device.path === "relay" ? t("中继", "relay") : "";
-  return [kind, device.rtt_ms != null ? device.rtt_ms + " ms" : ""].filter(Boolean).join(" · ");
-}
-/** This device in the middle; every peer around it, joined by how it is reached right now. */
-export function NetworkMap() {
-  const { t, devices } = useApp();
-  const navigate = useNavigate();
-  const self = devices.find(isThis);
-  const peers = devices.filter(device => !isThis(device)).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-  const viaRelay = (device: Device) => device.online && device.path === "relay";
-  const upper = peers.filter(viaRelay), lower = peers.filter(device => !viaRelay(device));
-  const relayed = upper.length > 0;
-  const radius = { x: Math.max(250, Math.min(320, 160 + peers.length * 20)), y: 165 };
-  const relay = { x: CX, y: CY - radius.y * 0.42 };
-  const spread = (items: Device[], from: number, to: number) => items.map((device, index) => {
-    const degrees = items.length === 1 ? (from + to) / 2 : from + (to - from) * index / (items.length - 1);
-    const angle = degrees * Math.PI / 180;
-    return { device, x: CX + Math.cos(angle) * radius.x, y: CY + Math.sin(angle) * radius.y };
-  });
-  // Relayed peers sit behind the relay on the upper arc; the rest share the lower arc
-  // (or the whole circle when nothing is relayed).
-  const placed = relayed ? [...(upper.length === 1 ? spread(upper, 240, 240) : spread(upper, 205, 335)), ...spread(lower, 25, 155)]
-    : lower.length === 1 ? spread(lower, 90, 90) : spread(lower, -90 + 180 / lower.length, 270 - 180 / lower.length);
-  const open = (device: Device) => navigate(devicePath(device));
-  return <Card className="cx-netmap" label={t("网络连接图", "Network map")}>
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={t("网络连接图：本机居中，连线表示与每台设备的连接方式", "Network map: this device in the middle, lines show how each device is reached")}>
-      {relayed && <g className="cx-netmap-relay">
-        <line x1={CX} y1={CY} x2={relay.x} y2={relay.y} />
-        <rect x={relay.x - 34} y={relay.y - 15} width={68} height={30} rx={15} />
-        <text x={relay.x} y={relay.y + 4} textAnchor="middle">{t("中继", "Relay")}</text>
-      </g>}
-      {placed.map(({ device, x, y }) => {
-        const via = device.online && device.path === "relay";
-        const kind = !device.online ? "offline" : via ? "relay" : "direct";
-        const label = edgeLabel(device, t);
-        const [fx, fy] = via ? [relay.x, relay.y] : [CX, CY];
-        return <g key={device.node_id} className={"cx-netmap-edge " + kind}>
-          <line x1={fx} y1={fy} x2={x} y2={y} />
-          {label && <text x={(fx + x) / 2} y={(fy + y) / 2 - 6} textAnchor="middle">{label}</text>}
-        </g>;
-      })}
-      {self && <g className="cx-netmap-node self" role="link" tabIndex={0} aria-label={self.name + " · " + t("本机", "this device")}
-        onClick={() => open(self)} onKeyDown={event => { if (event.key === "Enter") open(self); }}>
-        <circle cx={CX} cy={CY} r={30} />
-        <text className="cx-netmap-initial" x={CX} y={CY + 6} textAnchor="middle">{self.name.slice(0, 1).toUpperCase()}</text>
-        <text x={CX} y={CY + 50} textAnchor="middle">{short(self.name, 22)}</text>
-      </g>}
-      {placed.map(({ device, x, y }) => { const above = y < CY - 20; return <g key={device.node_id} className={"cx-netmap-node " + (device.online ? "online" : "offline") + (device.guest ? " guest" : "")}
-        role="link" tabIndex={0} aria-label={device.name + " · " + (device.online ? edgeLabel(device, t) || t("在线", "online") : t("离线", "offline"))}
-        onClick={() => open(device)} onKeyDown={event => { if (event.key === "Enter") open(device); }}>
-        <circle cx={x} cy={y} r={22} />
-        <text className="cx-netmap-initial" x={x} y={y + 5} textAnchor="middle">{device.name.slice(0, 1).toUpperCase()}</text>
-        <text x={x} y={above ? y - 32 : y + 40} textAnchor="middle">{short(device.name)}</text>
-      </g>; })}
-      {!peers.length && <text className="cx-netmap-hint" x={CX} y={CY + 100} textAnchor="middle">{t("配对另一台设备后，它会出现在这里。", "Pair another device and it appears here.")}</text>}
-    </svg>
-    <div className="cx-netmap-legend" aria-hidden="true">
-      <span><i className="direct" />{t("对等直连", "Direct")}</span><span><i className="relay" />{t("经中继（仍端到端加密）", "Relayed (still end-to-end encrypted)")}</span><span><i className="offline" />{t("离线", "Offline")}</span>
-    </div>
-    <ul className="cx-sr">{peers.map(device => <li key={device.node_id}>{device.name}: {device.online ? edgeLabel(device, t) : t("离线", "offline")}</li>)}</ul>
-  </Card>;
-}
 export function useIdentity() {
   const { api } = useApp();
   const [identity, setIdentity] = useState<Identity | null>(null), [error, setError] = useState("");
@@ -103,65 +36,69 @@ export function IdentityCard({ compact = false }: { compact?: boolean }) {
   </Card>;
 }
 type IrohStatus = { lan: boolean; relays: string[]; n0_fallback: boolean; learned_relays: string[]; this_relay: { enabled: boolean; public_url: string | null } };
-/** Which relays this device uses, whether it serves one, and local network discovery. */
-export function RelaySettings() {
-  const { t } = useApp();
-  const [status, setStatus] = useState<IrohStatus | null>(null), [draft, setDraft] = useState<{ lan: boolean; relays: string; n0: boolean } | null>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
-  const adopt = (value: { iroh?: IrohStatus }) => {
-    if (!value.iroh) return;
-    setStatus(value.iroh);
-    setDraft({ lan: value.iroh.lan, relays: value.iroh.relays.join("\n"), n0: value.iroh.n0_fallback });
-  };
-  useEffect(() => { void request("/api/network", { operation: "status" }).then(adopt, problem => setError(problem instanceof Error ? problem.message : String(problem))); }, []);
-  if (!status || !draft) return error ? <Alert tone="info">{error}</Alert> : null;
-  const changed = draft.lan !== status.lan || draft.n0 !== status.n0_fallback || draft.relays.split("\n").map(v => v.trim()).filter(Boolean).join("\n") !== status.relays.join("\n");
-  async function save() {
-    setBusy(true); setError(""); setSaved(false);
+/** One labelled row of a settings group: what it is on the left, its state or control on the right. */
+function Row({ title, detail, children }: { title: string; detail?: ReactNode; children?: ReactNode }) {
+  return <div className="cx-setting-row"><div className="cx-grow"><strong>{title}</strong>{detail && <small className="cx-muted">{detail}</small>}</div>{children && <div className="cx-setting-control">{children}</div>}</div>;
+}
+/** A folded settings group that remembers whether it was open; its content mounts only when open. */
+function Disclosure({ id, title, detail, children }: { id: string; title: string; detail: string; children: ReactNode }) {
+  const key = "cranibox.network." + id;
+  const [open, setOpen] = useState(() => stored(key, "") === "1");
+  return <details className="cx-settings-group cx-disclosure" open={open} onToggle={event => { const next = (event.currentTarget as HTMLDetailsElement).open; setOpen(next); store(key, next ? "1" : ""); }}>
+    <summary><h2>{title}</h2><small className="cx-muted">{detail}</small></summary>
+    {open && children}
+  </details>;
+}
+/** How this device takes part in the network: connections, relays, other networks.
+ * Devices live under Devices; identity and recovery under Settings → Identity & security. */
+export function NetworkPage() {
+  const { t, devices } = useApp();
+  const [status, setStatus] = useState<IrohStatus | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false), [relays, setRelays] = useState(""), [notice, setNotice] = useState("");
+  useEffect(() => { void request("/api/network", { operation: "status" }).then((value: { iroh?: IrohStatus }) => setStatus(value.iroh || null), problem => setError(problem instanceof Error ? problem.message : String(problem))); }, []);
+  const peers = devices.filter(device => !isThis(device));
+  const online = peers.filter(device => device.online);
+  const direct = online.filter(device => device.path === "direct").length, relayed = online.filter(device => device.path === "relay").length;
+  async function save(change: Partial<{ lan: boolean; n0_fallback: boolean; relays: string[] }>) {
+    if (!status) return;
+    setBusy(true); setError(""); setNotice("");
     try {
-      adopt(await request("/api/network", { operation: "iroh_settings", lan: draft!.lan, n0_fallback: draft!.n0, relays: draft!.relays.split("\n").map(v => v.trim()).filter(Boolean) }));
-      setSaved(true);
+      const value = await request("/api/network", { operation: "iroh_settings", lan: status.lan, n0_fallback: status.n0_fallback, relays: status.relays, ...change }) as { iroh?: IrohStatus };
+      if (value.iroh) setStatus(value.iroh);
+      setNotice(t("已保存，重启 Cranibox 后生效。", "Saved. Takes effect after Cranibox restarts."));
+      setEditing(false);
     } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
   }
-  return <Card label={t("中继与发现", "Relays and discovery")}>
-    <div className="cx-card-head"><span className="cx-card-icon"><Server size={20} aria-hidden="true" /></span>
-      <div className="cx-grow"><h3>{t("中继与发现", "Relays and discovery")}</h3>
-        <p className="cx-muted cx-small">{t("直连失败时，设备经中继转发（仍端到端加密）。优先使用你自己的中继。", "When a direct connection fails, devices go through a relay (still end-to-end encrypted). Your own relays are tried first.")}</p></div></div>
-    <dl className="cx-facts" style={{ marginTop: 12 }}>
-      <div><dt>{t("本机中继", "This device's relay")}</dt><dd>{status.this_relay.enabled ? (status.this_relay.public_url || t("运行中（未设置公网地址）", "Running (no public address)")) : t("未开启", "Off")}</dd></div>
-      <div><dt>{t("从配对学到的中继", "Learned from pairing")}</dt><dd className="cx-mono">{status.learned_relays.length ? status.learned_relays.join(", ") : "—"}</dd></div>
-    </dl>
-    {!status.this_relay.enabled && <p className="cx-muted cx-small">{t("要让这台设备当中继：在有公网 HTTPS 入口的机器上运行 ", "To make this device a relay, run ")}<code>cranibox serve --relay --public-url https://…</code>{t("。", " on a machine with a public HTTPS address.")}</p>}
-    <div className="cx-toggle-list" style={{ marginTop: 12 }}>
-      <Switch label={t("局域网发现", "Local network discovery")} detail={t("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet.")} checked={draft.lan} disabled={busy} onChange={lan => setDraft({ ...draft, lan })} />
-      <Switch label={t("使用公共中继作为后备", "Fall back to public relays")} detail={t("自己的中继不可用时使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable.")} checked={draft.n0} disabled={busy} onChange={n0 => setDraft({ ...draft, n0 })} />
-    </div>
-    <label className="cx-field" style={{ marginTop: 12 }}>{t("自己的中继（每行一个）", "Your relays (one per line)")}
-      <textarea rows={3} spellCheck={false} placeholder="https://box.example.com" value={draft.relays} disabled={busy} onChange={event => setDraft({ ...draft, relays: event.target.value })} /></label>
-    <div className="cx-between" style={{ marginTop: 12 }}>
-      <small className="cx-muted">{saved ? t("已保存，重启 Cranibox 后生效。", "Saved. Takes effect after Cranibox restarts.") : t("修改在重启 Cranibox 后生效。", "Changes take effect after Cranibox restarts.")}</small>
-      <button className="cx-btn primary" disabled={busy || !changed} onClick={() => void save()}>{t("保存", "Save")}</button>
-    </div>
-    {error && <p className="cx-error" role="alert">{error}</p>}
-  </Card>;
-}
-/** Identity, relays and other networks: how this device takes part in the network. */
-export function NetworkPage() {
-  const { t, setPairing } = useApp();
-  return <>
-    <PageHead title={t("网络设置", "Network settings")} description={t("身份码、中继，以及 EasyTier / Tailscale 等其他网络。设备与连接图在「设备」中。", "Identity code, relays, and other networks such as EasyTier or Tailscale. Devices and the network map are under Devices.")} />
-    <div className="cx-grid two">
-      <IdentityCard compact />
-      <Card label={t("添加设备", "Add a device")}>
-        <div className="cx-card-head"><span className="cx-card-icon"><Radio size={20} aria-hidden="true" /></span>
-          <div className="cx-grow"><h3>{t("添加设备", "Add a device")}</h3>
-            <p className="cx-muted cx-small">{t("扫描二维码、粘贴邀请链接，或输入运行 Cranibox 的服务器地址（如 https://box.example.com）——服务器主人批准后自动配对，并优先使用它的中继。", "Scan a QR code, paste an invitation link, or enter the address of a server running Cranibox (e.g. https://box.example.com). Once its owner approves, the devices pair and prefer its relay.")}</p></div></div>
-        <div className="cx-actions" style={{ marginTop: 12 }}><button className="cx-btn" onClick={() => setPairing(true)}>{t("开始配对", "Start pairing")}</button></div>
-      </Card>
-    </div>
-    <div style={{ marginTop: 16 }}><RelaySettings /></div>
-    <Section title={t("高级", "Advanced")} description={t("连接路径、监听地址，以及 EasyTier / Tailscale 网络。", "Connection paths, listener, and EasyTier / Tailscale networks.")}>
-      <Nodes embedded />
-    </Section>
-  </>;
+  const inUse = status ? [...new Set([...(status.this_relay.public_url ? [status.this_relay.public_url] : []), ...status.relays, ...status.learned_relays])] : [];
+  return <div className="cx-settings">
+    <PageHead title={t("网络设置", "Network settings")} description={t("这台设备怎样连接你的其他设备。设备列表在「设备」里，身份与恢复口令在「本机设置 → 身份与安全」。", "How this device reaches your other devices. Your devices are under Devices; identity and recovery under Settings → Identity & security.")} />
+    {error && <Alert>{error}</Alert>}
+    {notice && <div className="cx-notice" role="status"><span>{notice}</span></div>}
+    <section className="cx-settings-group" aria-label={t("连接", "Connection")}>
+      <h2>{t("连接", "Connection")}</h2>
+      <Row title={t("当前连接", "Right now")} detail={t("优先直连，打洞失败时经中继转发；两种都端到端加密。", "Direct when possible, through a relay otherwise; both end-to-end encrypted.")}>
+        <span className="cx-row"><Pill tone="good">{t("直连 ", "Direct ") + direct}</Pill><Pill tone={relayed ? "warn" : ""}>{t("中继 ", "Relayed ") + relayed}</Pill><Pill>{t("离线 ", "Offline ") + (peers.length - online.length)}</Pill></span>
+      </Row>
+      {status && <Switch label={t("局域网发现", "Local network discovery")} detail={t("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet.")} checked={status.lan} disabled={busy} onChange={lan => void save({ lan })} />}
+    </section>
+    {status && <section className="cx-settings-group" aria-label={t("中继", "Relays")}>
+      <h2>{t("中继", "Relays")}</h2>
+      <Row title={t("使用的中继", "Relays in use")} detail={inUse.length ? <span className="cx-mono">{inUse.join(" · ")}</span> : t("没有自己的中继，使用公共中继。", "No relay of your own; public relays are used.")}>
+        <button className="cx-btn small" onClick={() => { setRelays(status.relays.join("\n")); setEditing(!editing); }}>{editing ? t("取消", "Cancel") : t("编辑", "Edit")}</button>
+      </Row>
+      {editing && <div className="cx-setting-row cx-stack">
+        <label className="cx-field">{t("自己的中继（每行一个 https 地址）", "Your relays (one https address per line)")}
+          <textarea rows={3} spellCheck={false} placeholder="https://box.example.com" value={relays} disabled={busy} onChange={event => setRelays(event.target.value)} /></label>
+        {status.learned_relays.length > 0 && <small className="cx-muted">{t("配对时学到的中继会自动使用：", "Relays learned while pairing are used automatically: ")}<span className="cx-mono">{status.learned_relays.join(", ")}</span></small>}
+        <div className="cx-actions"><button className="cx-btn primary" disabled={busy} onClick={() => void save({ relays: relays.split("\n").map(value => value.trim()).filter(Boolean) })}>{t("保存", "Save")}</button></div>
+      </div>}
+      <Switch label={t("公共中继后备", "Public relay fallback")} detail={t("自己的中继不可用时，使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable.")} checked={status.n0_fallback} disabled={busy} onChange={n0_fallback => void save({ n0_fallback })} />
+      <Row title={t("这台设备作为中继", "This device as a relay")} detail={status.this_relay.enabled ? (status.this_relay.public_url || t("运行中（未设置公网地址）", "Running (no public address)"))
+        : <>{t("未开启。在有公网 HTTPS 入口的机器上运行 ", "Off. On a machine with a public HTTPS address, run ")}<code>cranibox serve --public-url https://…</code></>}>
+        <Pill tone={status.this_relay.enabled ? "good" : ""}>{status.this_relay.enabled ? t("开启", "On") : t("关闭", "Off")}</Pill>
+      </Row>
+    </section>}
+    <Disclosure id="networks" title={t("其他网络（可选）", "Other networks (optional)")} detail={t("EasyTier、Tailscale", "EasyTier, Tailscale")}><OtherNetworks /></Disclosure>
+    <Disclosure id="troubleshooting" title={t("排障", "Troubleshooting")} detail={t("直连路由、监听地址", "Direct routes, listener")}><DirectRoutes /></Disclosure>
+  </div>;
 }

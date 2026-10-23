@@ -262,30 +262,6 @@
 .cx-welcome { margin-bottom: var(--space-6); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 
 /* Network map */
-.cx-netmap svg { display: block; width: 100%; height: auto; max-height: 440px; }
-.cx-netmap-edge line, .cx-netmap-relay line { stroke-width: 2; }
-.cx-netmap-edge.direct line { stroke: var(--good); }
-.cx-netmap-edge.relay line, .cx-netmap-relay line { stroke: var(--warn); stroke-dasharray: 7 5; }
-.cx-netmap-edge.offline line { stroke: var(--border-strong); stroke-dasharray: 2 5; }
-.cx-netmap-edge text { font-size: 12px; fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
-.cx-netmap-relay rect { fill: var(--warn-bg); stroke: var(--warn); }
-.cx-netmap-relay text { font-size: 12px; font-weight: 600; fill: var(--warn); }
-.cx-netmap-node { cursor: pointer; outline: none; }
-.cx-netmap-node circle { fill: var(--surface-raised); stroke: var(--border-strong); stroke-width: 2; transition: stroke .15s; }
-.cx-netmap-node.online circle { stroke: var(--good); }
-.cx-netmap-node.guest circle { stroke-dasharray: 4 3; }
-.cx-netmap-node.self circle { fill: var(--accent); stroke: var(--accent); }
-.cx-netmap-node.self .cx-netmap-initial { fill: var(--on-accent); }
-.cx-netmap-node:hover circle, .cx-netmap-node:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
-.cx-netmap-node text { font-size: 13px; fill: var(--text); }
-.cx-netmap-node .cx-netmap-initial { font-size: 15px; font-weight: 700; }
-.cx-netmap-node.offline text { fill: var(--muted); }
-.cx-netmap-hint { font-size: 13px; fill: var(--muted); }
-.cx-netmap-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: center; font-size: var(--text-xs); color: var(--muted); }
-.cx-netmap-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.cx-netmap-legend i { display: inline-block; width: 22px; border-top: 2px solid var(--good); }
-.cx-netmap-legend i.relay { border-top: 2px dashed var(--warn); }
-.cx-netmap-legend i.offline { border-top: 2px dotted var(--border-strong); }
 .cx-identity-code { font: 600 var(--text-sm) var(--mono); letter-spacing: .04em; overflow-wrap: anywhere; padding: 6px 10px; border-radius: var(--radius); background: var(--surface-raised); }
 
 /* Top bar language switch */
@@ -312,3 +288,20 @@
 .cx-setup-list li .cx-grow { display: grid; gap: 2px; min-width: 0; }
 .cx-setup-note { display: flex; align-items: center; gap: 4px; color: var(--warn, #b45309); }
 @media (max-width: 560px) { .cx-setup-list li { flex-wrap: wrap; } }
+
+/* Settings groups (Network settings) */
+.cx-settings { max-width: 860px; }
+.cx-settings-group { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); margin-bottom: var(--space-5); overflow: hidden; }
+.cx-settings-group > h2, .cx-settings-group > summary { margin: 0; padding: var(--space-4) var(--space-5) var(--space-2); font-size: var(--text-sm); color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.cx-settings-group > summary { display: flex; align-items: baseline; gap: var(--space-3); cursor: pointer; padding-bottom: var(--space-4); list-style: none; }
+.cx-settings-group > summary::-webkit-details-marker { display: none; }
+.cx-settings-group > summary::before { content: "▸"; color: var(--muted); }
+.cx-settings-group[open] > summary::before { content: "▾"; }
+.cx-settings-group > summary h2 { margin: 0; font-size: var(--text-sm); color: var(--text); }
+.cx-setting-row, .cx-settings-group > .cx-switch { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border); }
+.cx-setting-row .cx-grow { display: grid; gap: 2px; min-width: 0; }
+.cx-setting-row .cx-grow small { overflow-wrap: anywhere; }
+.cx-setting-row.cx-stack { display: grid; }
+.cx-setting-control { flex: none; }
+.cx-disclosure[open] > :not(summary) { padding: 0 var(--space-5) var(--space-5); }
+@media (max-width: 560px) { .cx-setting-row { flex-wrap: wrap; } }

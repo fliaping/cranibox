@@ -1,3 +1,4 @@
+import { openNetworkSettings } from './network-page';
 import { expect, test, type Page } from '@playwright/test';
 
 const incomingID = '11111111-1111-4111-8111-111111111111';
@@ -129,7 +130,7 @@ test('message access can be granted without command, desktop or terminal access'
     }
     await route.fulfill({ json: catalog });
   });
-  await page.goto('/#/nodes');
+  await openNetworkSettings(page);
   const panel = page.getByRole('region', { name: 'Incoming access', exact: true });
   await panel.getByRole('button', { name: 'Grant device access', exact: true }).click();
   await panel.getByLabel(/^Caller node ID/).fill('another-device');
