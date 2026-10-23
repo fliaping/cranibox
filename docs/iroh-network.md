@@ -86,11 +86,11 @@ ingress:
 ## 3. 配对 / Pairing
 
 ```bash
-cranibox-node peer pair invite [--guest] [--qr invite.svg]   # 生成一次性链接 + 二维码（15 分钟，最多 16 张未用）
-cranibox-node peer pair accept 'cranibox://pair/…'          # 另一台设备打开链接，显示配对码
-cranibox-node peer pair flows                                # 邀请方看到同一个配对码
-cranibox-node peer pair confirm <flow_id> [--reject]         # 两边都确认配对码一致
-cranibox-node peer pair status                               # EndpointId、relay、每个对端的路径（direct/relay、RTT）
+cranibox peer pair invite [--guest] [--qr invite.svg]   # 生成一次性链接 + 二维码（15 分钟，最多 16 张未用）
+cranibox peer pair accept 'cranibox://pair/…'          # 另一台设备打开链接，显示配对码
+cranibox peer pair flows                                # 邀请方看到同一个配对码
+cranibox peer pair confirm <flow_id> [--reject]         # 两边都确认配对码一致
+cranibox peer pair status                               # EndpointId、relay、每个对端的路径（direct/relay、RTT）
 ```
 
 - 链接 `cranibox://pair/<base32>`，网页版 `https://<hub>/pair#<base32>`（Hub 才有），内容是 C2 `PairTicket`（邀请方 EndpointId、relay URL、16 字节一次性 secret、过期时间、用途）。

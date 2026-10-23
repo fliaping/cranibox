@@ -24,8 +24,8 @@ Cranibox 桌面客户端在 macOS 上以 cua-driver 的嵌入模式运行它（`
 在目标 B 上，先运行本项目的桌面桥接，再配置共享：
 
 ~~~sh
-cranibox-node peer computer --address 127.0.0.1:8765
-cranibox-node peer grant --node NODE_A --computer --output-token ./node-a.token
+cranibox peer computer --address 127.0.0.1:8765
+cranibox peer grant --node NODE_A --computer --output-token ./node-a.token
 ~~~
 
 地址必须是回环 IP，端口不能为零。上面的 8765 是示例，以实际桥接监听端口为准。grant 将 Token 写入新的私有文件 node-a.token；通过已有安全方式交给 A，不提交仓库。已有 Web/Tauri 节点宿主时直接通过其界面启用监听器，不要再启动同身份进程；独立 CLI 的监听和启动方式见直连文档。
@@ -33,17 +33,17 @@ cranibox-node peer grant --node NODE_A --computer --output-token ./node-a.token
 在 A 保存 B 颁发的凭据并建立路由后：
 
 ~~~sh
-cranibox-node peer call --node NODE_B computer
-cranibox-node peer call --node NODE_B computer --command '{"operation":"action","action":{"action":"screenshot"}}'
-cranibox-node peer call --node NODE_B computer --command '{"operation":"acquire","ttl_secs":60}'
+cranibox peer call --node NODE_B computer
+cranibox peer call --node NODE_B computer --command '{"operation":"action","action":{"action":"screenshot"}}'
+cranibox peer call --node NODE_B computer --command '{"operation":"acquire","ttl_secs":60}'
 ~~~
 
 acquire 返回 lease UUID；将它用于后续输入、续期与释放：
 
 ~~~sh
-cranibox-node peer call --node NODE_B computer --command '{"operation":"action","lease":"LEASE_UUID","action":{"action":"type","text":"hello"}}'
-cranibox-node peer call --node NODE_B computer --command '{"operation":"renew","lease":"LEASE_UUID","ttl_secs":60}'
-cranibox-node peer call --node NODE_B computer --command '{"operation":"release","lease":"LEASE_UUID"}'
+cranibox peer call --node NODE_B computer --command '{"operation":"action","lease":"LEASE_UUID","action":{"action":"type","text":"hello"}}'
+cranibox peer call --node NODE_B computer --command '{"operation":"renew","lease":"LEASE_UUID","ttl_secs":60}'
+cranibox peer call --node NODE_B computer --command '{"operation":"release","lease":"LEASE_UUID"}'
 ~~~
 
 输入控制权有效期为 1–300 秒，默认 60 秒，绑定调用方身份及当前 Token。目标同时只允许一个控制者，与 VNC/Selkies 查看器共用名额。截图、区域截图、光标位置与窗口列表不要求输入控制权，仍要求单独授权。控制权到期、撤权、换 Token、重配桥接、监听器停止或节点重启后失效；后台约每 250ms 清理，也会在每个请求前重新检查。断开一次 HTTP 请求不会立即释放控制权，应显式 release 或等待到期。
@@ -55,17 +55,17 @@ cranibox-node peer call --node NODE_B computer --command '{"operation":"release"
 远端没有 resume。恢复只能通过目标的已认证管理界面确认，或由目标所有者执行：
 
 ~~~sh
-cranibox-node peer computer-owner --command '{"action":"resume"}'
+cranibox peer computer-owner --command '{"action":"resume"}'
 ~~~
 
-只有桥接确认恢复且配置未改变，节点才清除持久暂停。桥接的暂停也会影响该桥接的其他本地调用者；VNC 查看器仍按自身权限和生命周期管理，Computer Use 停止不代表关闭整个桌面。留空保存桥接地址，或运行 cranibox-node peer computer，可关闭 Computer Use 共享。
+只有桥接确认恢复且配置未改变，节点才清除持久暂停。桥接的暂停也会影响该桥接的其他本地调用者；VNC 查看器仍按自身权限和生命周期管理，Computer Use 停止不代表关闭整个桌面。留空保存桥接地址，或运行 cranibox peer computer，可关闭 Computer Use 共享。
 
 ## MCP 与 API
 
 为选定目标明确添加独立 MCP 进程：
 
 ~~~sh
-cranibox-node peer call --node NODE_B computer-mcp
+cranibox peer call --node NODE_B computer-mcp
 ~~~
 
 该入口提供 device_computer，参数与上述 JSON 相同。每次 tools/list 实时探测指定目标；能力不可用或已撤权时返回空列表。截图返回标准 MCP image/png 内容块及带目标 NodeID 的文字结果。它不会自动出现在默认 MCP 配置，也不能通过参数改成另一台设备。

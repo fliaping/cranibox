@@ -976,7 +976,7 @@ pub(crate) mod control {
         }))
     }
 
-    /// Minimal client used by `cranibox-node peer pair …`.
+    /// Minimal client used by `cranibox peer pair …`.
     pub async fn call(
         peers: &Path,
         method: &str,
@@ -986,7 +986,7 @@ pub(crate) mod control {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let socket = peers.with_file_name(CONTROL_SOCKET);
         let mut stream = tokio::net::UnixStream::connect(&socket).await.context(
-            "the Cranibox node service is not running (start it with `cranibox-node peer serve`)",
+            "the Cranibox node service is not running (start it with `cranibox peer serve`)",
         )?;
         let body = body.map(|b| b.to_string()).unwrap_or_default();
         let request = format!(
@@ -1036,7 +1036,7 @@ pub(crate) mod control {
     }
 }
 
-/// `cranibox-node peer pair …`
+/// `cranibox peer pair …`
 #[derive(Debug, clap::Subcommand)]
 pub enum PairCommand {
     /// Create a one-time pairing link and QR code (15 minutes).

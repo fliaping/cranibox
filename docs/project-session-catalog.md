@@ -34,7 +34,7 @@ Web 与 Tauri 都在当前界面打开共用的 React 浮动终端，支持尺�
 
 ## 迁移旧网关身份
 
-新设备注册时，使用 Tauri“这台设备”或节点 CLI 的 `cranibox-node peer identity` 显示的持久 NodeID。已有 laptop 等旧注册可在 Web“远程节点”中点击对应设备的“迁移身份”，填写同一设备的持久 NodeID；管理员也可通过运行中的网关操作：
+新设备注册时，使用 Tauri“这台设备”或节点 CLI 的 `cranibox peer identity` 显示的持久 NodeID。已有 laptop 等旧注册可在 Web“远程节点”中点击对应设备的“迁移身份”，填写同一设备的持久 NodeID；管理员也可通过运行中的网关操作：
 
 ```bash
 cranibox runtime migrate-identity laptop node-YOUR_PERSISTENT_ID --url http://127.0.0.1:9090
@@ -118,10 +118,10 @@ Web 与 Tauri 的“项目与会话 → 后台目录同步”共用设置。默�
 独立节点也可通过本机 CLI 管理，JSON 与 Web/Tauri 的本机入口相同：
 
 ```bash
-cranibox-node peer project-sync
-cranibox-node peer project-sync --command '{"operation":"configure","revision":0,"nodes":["node-TARGET"],"interval_seconds":60}'
-cranibox-node peer project-sync --command '{"operation":"pause","revision":1}'
-cranibox-node peer serve
+cranibox peer project-sync
+cranibox peer project-sync --command '{"operation":"configure","revision":0,"nodes":["node-TARGET"],"interval_seconds":60}'
+cranibox peer project-sync --command '{"operation":"pause","revision":1}'
+cranibox peer serve
 ```
 
 以上 revision 只是首次保存示例；修改前读取实际状态。入站 peer API 与任务 MCP 不提供同步设置修改能力。
@@ -145,16 +145,16 @@ Web 与 Tauri 共用“复制项目到设备”面板。本机与直连远端之
 CLI 使用同一 Rust 实现，适合由本机 Agent 操作；prepare 返回清单，commit 必须使用该清单的 digest：
 
 ```bash
-cranibox-node peer copy-root --path /home/me/received
-cranibox-node peer copy prepare --source laptop --target desktop --replica-id REPLICA_UUID
+cranibox peer copy-root --path /home/me/received
+cranibox peer copy prepare --source laptop --target desktop --replica-id REPLICA_UUID
 # 仅在新版快照准备中断后，沿用原 ID 继续准备
-cranibox-node peer copy prepare-resume COPY_UUID
-cranibox-node peer copy commit COPY_UUID --digest SHA256
-cranibox-node peer copy status COPY_UUID
-cranibox-node peer copy list
-cranibox-node peer copy discard COPY_UUID
+cranibox peer copy prepare-resume COPY_UUID
+cranibox peer copy commit COPY_UUID --digest SHA256
+cranibox peer copy status COPY_UUID
+cranibox peer copy list
+cranibox peer copy discard COPY_UUID
 # 关闭本机接收
-cranibox-node peer copy-root
+cranibox peer copy-root
 ```
 
 来源或目标也可以填写本机持久 NodeID；独立节点 CLI 使用 peers.json 同目录的 node-projects.json。Web 嵌入的本机目录沿用原 projects.json，入口会绑定目录位置，避免把两份目录误认为同一个来源。
@@ -174,12 +174,12 @@ Web 的 POST /api/peers 与 Tauri 的 direct_peers IPC 使用 copy_root、copy_p
 说明的 goal 必填，goal / progress / next_steps / verification 分别最多 2048 / 4096 / 4096 / 2048 个 UTF-8 字节；允许换行和制表，拒绝其他控制字符。内容保存在入口私有复制记录和目标工作副本中，不写入浏览器持久存储。CLI 可读取最多 64 KiB 的 JSON 文件：
 
 ```bash
-cranibox-node peer copy prepare --source laptop --target desktop --replica-id REPLICA_UUID --handoff-file /home/me/handoff.json
-cranibox-node peer copy agent --command '{"operation":"copy_agent_prepare","id":"COPY_UUID","adapter":"codex","access":"read_only"}'
+cranibox peer copy prepare --source laptop --target desktop --replica-id REPLICA_UUID --handoff-file /home/me/handoff.json
+cranibox peer copy agent --command '{"operation":"copy_agent_prepare","id":"COPY_UUID","adapter":"codex","access":"read_only"}'
 # 仅在完成文件复制并检查上述 review 后启动，digest 使用返回值
-cranibox-node peer copy agent --command '{"operation":"copy_agent_start","id":"COPY_UUID","adapter":"codex","access":"read_only","digest":"REVIEW_DIGEST"}'
-cranibox-node peer copy agent --command '{"operation":"copy_agent_status","id":"COPY_UUID","stdout_offset":0,"stderr_offset":0}'
-cranibox-node peer copy agent --command '{"operation":"copy_agent_stop","id":"COPY_UUID"}'
+cranibox peer copy agent --command '{"operation":"copy_agent_start","id":"COPY_UUID","adapter":"codex","access":"read_only","digest":"REVIEW_DIGEST"}'
+cranibox peer copy agent --command '{"operation":"copy_agent_status","id":"COPY_UUID","stdout_offset":0,"stderr_offset":0}'
+cranibox peer copy agent --command '{"operation":"copy_agent_stop","id":"COPY_UUID"}'
 ```
 
 Web 的 `POST /api/peers` 和 Tauri 的 `direct_peers` IPC 使用同名命令；`copy_prepare` 可额外传入上述 handoff 对象，省略时保持原文件复制行为。新接续入口复用既有节点执行 API，无需目标升级文件接收协议；目标仍需支持 Agent 启动检查及后台执行。

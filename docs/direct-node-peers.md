@@ -6,7 +6,7 @@
 
 ## 身份与授权
 
-`cranibox-node peer identity` 创建并显示本机持久 NodeID。配置保存在节点 `settings.json` 同目录的 `peers.json`；所有命令支持 `--config /path/to/settings.json` 选择隔离目录，即使该 settings 文件不存在也可以使用 `peer`。NodeID 与 IP、主机名无关，删除配置会丢失身份和授权。
+`cranibox peer identity` 创建并显示本机持久 NodeID。配置保存在节点 `settings.json` 同目录的 `peers.json`；所有命令支持 `--config /path/to/settings.json` 选择隔离目录，即使该 settings 文件不存在也可以使用 `peer`。NodeID 与 IP、主机名无关，删除配置会丢失身份和授权。
 
 每个节点首次运行时生成持久 Ed25519 签名密钥和独立的 X25519 Noise 密钥（私钥保存在 `peers.json` 旁的 `node-identity.json`，`0600`，不会被覆盖或导出）。新节点的 NodeID 由公钥派生（`node-` + 公钥哈希前 128 位，与旧格式同形），已有随机 NodeID 保持不变并由同一密钥自签名绑定。`peer identity` 显示公钥指纹。`peers.json` 只保存 bearer 凭据的加盐 SHA-256 摘要，授权记录由目标节点签名；手工改写权限或去掉签名会被拒绝。远端请求用目标颁发的 256 位凭据授权；新版节点之间所有 mesh 调用自动走 Noise IK 端到端加密通道，凭据只在加密握手内传输，并在首次连接时互相固定公钥。两端 `peer identity` 显示相同的 12 位配对码，核对后执行 `peer verify --node NODE --code CODE`；新授权默认要求核对完成且拒绝明文请求（`--allow-unverified` 显式退出，旧授权保持不变）。终端、桌面与浏览器 WebSocket 的数据帧也逐帧端到端加密。身份、迁移和威胁模型详见[节点身份与端到端加密](node-identity-and-e2e.md)。
 
@@ -29,13 +29,13 @@
 先在 A 和 B 各运行一次，记录各自输出的 `node_id`：
 
 ~~~sh
-cranibox-node peer identity
+cranibox peer identity
 ~~~
 
 在目标 B 上，将下面的 `NODE_A` 替换成 A 的完整 NodeID：
 
 ~~~sh
-cranibox-node peer grant --node NODE_A --output-token ./node-a.token --exec --terminals --projects
+cranibox peer grant --node NODE_A --output-token ./node-a.token --exec --terminals --projects
 ~~~
 
 通过已有安全方式将该令牌文件交给 A。不要把令牌内容放进 URL、命令参数或代码仓库。重复授权必须先撤销旧授权；输出令牌文件采用不覆盖写入。
@@ -43,13 +43,13 @@ cranibox-node peer grant --node NODE_A --output-token ./node-a.token --exec --te
 在 B 配置监听地址。仅本机测试或同机 TLS 反向代理可使用：
 
 ~~~sh
-cranibox-node peer listen --address 127.0.0.1:9140
+cranibox peer listen --address 127.0.0.1:9140
 ~~~
 
 跨设备时使用已有私网地址；例如 B 在现有 EasyTier/Tailscale/其他可信私网中的地址是 `10.42.0.2`：
 
 ~~~sh
-cranibox-node peer listen --address 10.42.0.2:9140 --allow-private-http
+cranibox peer listen --address 10.42.0.2:9140 --allow-private-http
 ~~~
 
 节点监听器本身提供 HTTP/WS。默认拒绝非回环明文监听和远端 HTTP 地址；`--allow-private-http` 表示显式信任底层私网加密和访问控制，程序不负责判断该接口是否确实属于 VPN。公网使用经过可信证书验证的 HTTPS/WSS 反向代理，后端保持回环监听，保留 Authorization、X-Cranibox-Target 与 WebSocket Upgrade 头。
@@ -61,7 +61,7 @@ cranibox-node peer listen --address 10.42.0.2:9140 --allow-private-http
 - 无需 Workspace 连接：运行下面的独立模式，不需要创建 `settings.json` 或填写服务端连接。
 
 ~~~sh
-cranibox-node peer serve
+cranibox peer serve
 ~~~
 
 同一份身份只能有一个节点服务进程，包括未开启直连监听器的 Web/桌面宿主；不要对同一配置目录再运行 `peer serve`。`listen` 和 `disable` 在下次服务启动时生效，授权增删则实时读取。例如，Web 使用配置根目录 `/path/to/config-root` 时，可运行：
@@ -74,13 +74,13 @@ cranibox-node --config /path/to/config-root/.config/cranibox-node/settings.json 
 在 A 上，将 `NODE_B` 替换成 B 的完整 NodeID，注册目标地址和收到的令牌文件：
 
 ~~~sh
-cranibox-node peer connect --node NODE_B --url http://10.42.0.2:9140 --credential-file ./node-a.token --allow-private-http
-cranibox-node peer call --node NODE_B nodes
-cranibox-node peer call --node NODE_B exec -- hostname
-cranibox-node peer call --node NODE_B sessions create --name work
-cranibox-node peer call --node NODE_B sessions list
-cranibox-node peer call --node NODE_B projects register --name app --path /home/me/app
-cranibox-node peer call --node NODE_B projects list
+cranibox peer connect --node NODE_B --url http://10.42.0.2:9140 --credential-file ./node-a.token --allow-private-http
+cranibox peer call --node NODE_B nodes
+cranibox peer call --node NODE_B exec -- hostname
+cranibox peer call --node NODE_B sessions create --name work
+cranibox peer call --node NODE_B sessions list
+cranibox peer call --node NODE_B projects register --name app --path /home/me/app
+cranibox peer call --node NODE_B projects list
 ~~~
 
 HTTPS 地址不需要 `--allow-private-http`。`connect` 只保存并验证配置，首次调用才验证实际网络和凭据。每个目标可保存多条显式路径，使用同一份目标授权；新连接可在允许的网络故障下选择其他路径，身份或认证错误不会继续回退，不自动切到网关并重跑命令。
@@ -120,10 +120,10 @@ Token 经 HTTPS/受信本地访问提交后单独写入私有文件，不返回�
 CLI 与 Agent 使用相同路径配置：
 
 ~~~sh
-cranibox-node peer paths add --node NODE_B --url http://100.64.0.2:9140 --credential-file ./node-a.token --allow-private-http
-cranibox-node peer paths prefer --node NODE_B --url http://100.64.0.2:9140
-cranibox-node peer call --node NODE_B nodes
-cranibox-node peer paths remove --node NODE_B --url http://100.64.0.2:9140
+cranibox peer paths add --node NODE_B --url http://100.64.0.2:9140 --credential-file ./node-a.token --allow-private-http
+cranibox peer paths prefer --node NODE_B --url http://100.64.0.2:9140
+cranibox peer call --node NODE_B nodes
+cranibox peer paths remove --node NODE_B --url http://100.64.0.2:9140
 ~~~
 
 配置多条路径时，每次新调用或终端/桌面附着先按顺序进行只读鉴权与 NodeID 检查，每条路径限 2 秒、4 KiB；无法建立连接、超时、502–504 或已停止的本机 EasyTier 转发才尝试下一条。401/403、身份不匹配、无效协议等立即报错，不借备用路径绕过。托管端口失去本机锁后不发送目标凭据。
@@ -141,14 +141,14 @@ cranibox-node peer paths remove --node NODE_B --url http://100.64.0.2:9140
 在 A 的 MCP 配置中启动：
 
 ~~~sh
-cranibox-node peer call --node NODE_B mcp
+cranibox peer call --node NODE_B mcp
 ~~~
 
 如使用自定义配置，在参数中加入 `--config /path/to/settings.json`。每个 MCP 进程绑定一个已配置目标；多个目标可注册多个 MCP 实例。提供 `workspace_nodes`、`workspace_exec`、`workspace_job`、`workspace_cancel` 和 `workspace_projects`。执行参数里的 `node` 必须为此目标，不能借这个端口转发到任意第三方节点。`workspace_projects` 接收 `{command: {operation: "list"}}` 等目录命令，直连注册时自动补齐目标 NodeID。
 
 普通命令默认等待退出；`exec --detach` 返回作业 ID，可用 `peer call --node NODE_B job ID` 和 `cancel ID` 查询或取消。CLI 退出不结束已经提交的直连作业，目标节点进程仍需存活。普通命令最长一小时，不能替代独立的[本机后台执行](agent-executions.md)。
 
-设备间纯文本通信另使用 `cranibox-node peer messages mcp`，不需要网关设置，提供本机持久收发箱、回复、重试、归档和明确收件确认；目标需单独授予 `messages` 权限。见[设备消息](device-messages.md)。
+设备间纯文本通信另使用 `cranibox peer messages mcp`，不需要网关设置，提供本机持久收发箱、回复、重试、归档和明确收件确认；目标需单独授予 `messages` 权限。见[设备消息](device-messages.md)。
 
 ## HTTP 与终端 WebSocket
 
@@ -191,7 +191,7 @@ X-Cranibox-Target: <目标持久 NodeID>
 在 B 撤销 A：
 
 ~~~sh
-cranibox-node peer revoke --node NODE_A
+cranibox peer revoke --node NODE_A
 ~~~
 
 新请求立即拒绝；活动作业和终端附件约每 250 毫秒重新检查授权，并启动取消或断开。普通命令沿用进程树清理；终端附件断开后 Shell 继续存在，已在 Shell 中启动的后台任务不会因撤销授权而自动结束。需要结束会话时由目标用户或另一个已授权管理者显式 end。此撤销不修改旧网关的设备组权限。

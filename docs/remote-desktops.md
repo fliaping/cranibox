@@ -19,11 +19,11 @@ Web 中“本机”指运行 Rust Web 服务的设备，包括 Docker 容器，�
 CLI 使用相同配置：
 
 ~~~sh
-cranibox-node peer desktop --address 127.0.0.1:5900
+cranibox peer desktop --address 127.0.0.1:5900
 # 新建授权时按需附加 --exec、--terminals、--projects
-cranibox-node peer grant --node NODE_A --output-token ./node-a.token --desktop
+cranibox peer grant --node NODE_A --output-token ./node-a.token --desktop
 # 不带 address 表示停止共享
-cranibox-node peer desktop
+cranibox peer desktop
 ~~~
 
 已有授权需要先撤销再重新签发，才能改变权限。其他直连配置见[节点直连与目标本地授权](direct-node-peers.md)。
@@ -47,7 +47,7 @@ cranibox-node peer desktop
 KDE 容器不一定支持 x11vnc/wayvnc 的捕获方式。如果已有可用 Selkies，可先“检测已有服务”并选择 Selkies 核对，也可在“配置共享”选择 Selkies，填写该设备内部的 WebSocket 地址，然后保存。当前验证镜像的地址为 `127.0.0.1:8082`；它不是浏览器入口 3000/3001 或宿主映射的 3031。端口取决于部署配置，应先核对监听。检查只等待 `MODE websockets`，不发送 SETTINGS，因此不会接管现有桌面。
 
 ~~~sh
-cranibox-node peer desktop --protocol selkies --address 127.0.0.1:8082
+cranibox peer desktop --protocol selkies --address 127.0.0.1:8082
 ~~~
 
 这条路径使用现有桌面授权、单控制者、本机/直连/中继及 Tauri IPC，不另外开放远端 Selkies 端口。连接时选择 primary 显示器、JPEG 编码、30 FPS 和质量 65，不请求修改桌面分辨率；支持画面、键鼠、移动端输入框、只读、重连和撤权断开。一次粘贴产生的键盘命令合并为不超过 64 KiB 的传输块，避免小消息挤满节点输入队列。
@@ -60,7 +60,7 @@ cranibox-node peer desktop --protocol selkies --address 127.0.0.1:8082
 
 Rust 节点负责保持 x11vnc 运行，关闭查看器、切换页面或断开网关不会终止它。节点正常退出会停止子进程；重启节点后按已保存配置恢复。异常退出采用有上限的退避重试，连续五次失败后可检查环境并手动重试。“停止托管服务”或“停止共享”会禁用恢复并关闭托管进程。关闭 Tauri 窗口到托盘仍保持节点运行；操作系统注销或关闭设备后不保证图形会话继续存在。
 
-使用相同配置运行独立的 `cranibox-node peer serve`，也会恢复已启用的托管服务，不要求连接网关。节点仍须有权访问原来的 X11 登录会话；“无界面运行节点”不代表能创建不存在的图形桌面。
+使用相同配置运行独立的 `cranibox peer serve`，也会恢复已启用的托管服务，不要求连接网关。节点仍须有权访问原来的 X11 登录会话；“无界面运行节点”不代表能创建不存在的图形桌面。
 
 服务只监听 IPv4 回环地址，关闭 x11vnc 远程管理接口，并使用随机的 8 位 VNC 密码；此认证应始终配合 Cranibox 的授权通道及可信私网或加密传输。配置旁的 `desktop-service.json` 和 `desktop-vnc.password` 为当前用户私有文件（Unix 权限 `0600`），状态及命令参数不包含明文密码。查看密码是单独操作，页面不会持久保存它。容器中不提供宿主机 VNC 包安装，也不会因此共享宿主机桌面。
 

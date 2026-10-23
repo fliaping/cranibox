@@ -219,7 +219,7 @@ pub async fn run(
         );
     } else {
         eprintln!(
-            "Cranibox device interface on http://{address} (run `cranibox-node ui-url` for the sign-in link)"
+            "Cranibox device interface on http://{address} (run `cranibox ui-url` for the sign-in link)"
         );
     }
     if let Some(address) = relay.listen.filter(|_| embedded.enabled()) {
@@ -654,8 +654,8 @@ fn sign_in_required(status: StatusCode) -> Response {
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
 <title>Cranibox</title><body style=\"font:16px system-ui,'PingFang SC',sans-serif;max-width:560px;margin:15vh auto;padding:0 16px;line-height:1.6\">\
 <h1 style=\"font-size:22px\">需要登录链接 · Sign-in link required</h1>\
-<p>在运行 Cranibox 的设备上执行 <code>cranibox-node ui-url</code>，打开它输出的链接。</p>\
-<p>Run <code>cranibox-node ui-url</code> on the device running Cranibox and open the printed link.</p></body></html>";
+<p>在运行 Cranibox 的设备上执行 <code>cranibox ui-url</code>，打开它输出的链接。</p>\
+<p>Run <code>cranibox ui-url</code> on the device running Cranibox and open the printed link.</p></body></html>";
     (status, [("content-type", "text/html; charset=utf-8")], body).into_response()
 }
 

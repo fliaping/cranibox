@@ -9,8 +9,8 @@
 按照[节点直连](direct-node-peers.md)保存 NODE_A 到 NODE_B 的路径。在 NODE_B 授予 NODE_A 消息权限：
 
 ~~~sh
-cranibox-node peer grant --node NODE_A --output-token ./node-a.token --messages
-cranibox-node peer serve
+cranibox peer grant --node NODE_A --output-token ./node-a.token --messages
+cranibox peer serve
 ~~~
 
 界面的“设备消息与协作任务”开关默认关闭。它允许查询公开 Agent 登记、消息与任务请求投递，以及查询自己请求的回执、进度与结果；不授予命令、终端、项目或桌面访问权限。目标 Agent 保持原有工具权限，并把任务描述视为外部输入。已有授权需撤销后重新签发，更新发送方保存的凭据。
@@ -81,8 +81,8 @@ CLI 与 device_tasks MCP 使用相同命令：
 本机 CLI 使用同一份类型化命令，无网关设置也能运行：
 
 ~~~sh
-cranibox-node peer tasks
-cranibox-node peer tasks --command '{"operation":"list"}'
+cranibox peer tasks
+cranibox peer tasks --command '{"operation":"list"}'
 ~~~
 
 创建时生成并保留两个不同用途的非零 UUID：TaskID 标识工作，DispatchID 标识一次尝试。创建响应不确定时，必须用相同 ID、内容与目标重试。

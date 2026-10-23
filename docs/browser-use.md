@@ -18,24 +18,24 @@
 chromium --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
   --user-data-dir=/path/to/cranibox-browser-profile
 
-cranibox-node peer browser --address 127.0.0.1:9222
-cranibox-node peer browser-owner --command '{"action":"status"}'
-cranibox-node peer grant --node NODE_A --browser --output-token ./node-a.token
+cranibox peer browser --address 127.0.0.1:9222
+cranibox peer browser-owner --command '{"action":"status"}'
+cranibox peer grant --node NODE_A --browser --output-token ./node-a.token
 ~~~
 
 不要添加 --no-sandbox 到日常浏览器。地址只接受回环 IP 和非零端口，例如 127.0.0.1:9222 或 [::1]:9222；localhost 不作为配置地址。Web 的配置对应 Web 服务所在设备，Tauri 的配置对应运行客户端的设备，不一定是当前网页所在电脑。
 
 Token 文件只供对应调用方保存，不提交仓库。监听器、NodeID、凭据交付和连接方法见[节点直连](direct-node-peers.md)。已经运行 Web/Tauri 节点宿主时，通过其界面启用监听器，不要为同一身份再启动一个 peer serve。配置是持久的，浏览器本身仍由设备用户管理。
 
-设备界面的“Agent 浏览器操作”面板可保存或关闭共享、检查浏览器状态及紧急停止；“授权设备接入”中单独勾选浏览器能力。清空地址保存或执行 cranibox-node peer browser 可关闭共享。修改配置会断开已有远程控制连接，保存地址不会清除已持久化的紧急停止。
+设备界面的“Agent 浏览器操作”面板可保存或关闭共享、检查浏览器状态及紧急停止；“授权设备接入”中单独勾选浏览器能力。清空地址保存或执行 cranibox peer browser 可关闭共享。修改配置会断开已有远程控制连接，保存地址不会清除已持久化的紧急停止。
 
 ## 调用设备配置
 
 在 A 保存 B 颁发的凭据并建立到 B 的路由后：
 
 ~~~sh
-cranibox-node peer call --node NODE_B browser
-cranibox-node peer call --node NODE_B browser-mcp
+cranibox peer call --node NODE_B browser
+cranibox peer call --node NODE_B browser-mcp
 ~~~
 
 第一条检查目标状态；第二条是供 Agent 配置的独立 stdio MCP 进程，明确绑定 NODE_B。自定义 settings.json 时在 peer 前添加 --config /path/to/settings.json。安装桌面客户端的用户也可将可执行文件替换成实际安装的 cranibox-node-desktop；AppImage 应使用实际持久路径并添加 --appimage-extract-and-run，不使用临时挂载路径。
@@ -45,7 +45,7 @@ cranibox-node peer call --node NODE_B browser-mcp
 已有 CDP 客户端可运行以下命令获取临时端点：
 
 ~~~sh
-cranibox-node peer call --node NODE_B browser-proxy
+cranibox peer call --node NODE_B browser-proxy
 ~~~
 
 stdout 输出目标 NodeID 和随机回环 WebSocket 地址。该地址仅在进程存活时有效，不提供 HTTP /json/version；使用输出的完整 WebSocket 地址连接。代理校验 Host、随机路径，拒绝 Origin 与 Sec-Fetch-Site 请求。MCP 关闭 stdin、退出或收到 Ctrl-C 后，代理及其子进程树随之清理。失去连接后应先检查状态，节点不重放浏览器动作。
@@ -56,11 +56,11 @@ stdout 输出目标 NodeID 和随机回环 WebSocket 地址。该地址仅在进
 
 ~~~sh
 # 调用方 A
-cranibox-node peer call --node NODE_B browser --command '{"operation":"emergency_stop"}'
+cranibox peer call --node NODE_B browser --command '{"operation":"emergency_stop"}'
 
 # 目标所有者 B
-cranibox-node peer browser-owner --command '{"action":"emergency_stop"}'
-cranibox-node peer browser-owner --command '{"action":"resume"}'
+cranibox peer browser-owner --command '{"action":"emergency_stop"}'
+cranibox peer browser-owner --command '{"action":"resume"}'
 ~~~
 
 停止先保存暂停状态，再断开控制连接；浏览器离线和节点重启后仍保持停止。恢复只允许目标的所有者 CLI 或已认证管理界面明确操作，并要求配置的浏览器可用；远端 resume 请求被拒绝。撤权、Token 轮换、关闭监听器、节点重启和重新配置浏览器也会使已有连接失效。状态查询不会占住停止通道。已经发给浏览器的动作无法撤回，停止不会关闭浏览器或中止其已启动的下载、脚本和网络请求。

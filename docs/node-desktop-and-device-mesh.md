@@ -95,12 +95,12 @@ Tailscale 模式：使用已有的 Tailscale 客户端，把 Workspace 和设备
 CLI 使用同一设置，例如：
 
 ~~~bash
-cranibox-node nodes
-cranibox-node exec --node desktop -- git status --short
-cranibox-node exec --node desktop --detach -- sh -lc 'make test'
-cranibox-node job <job-id>
-cranibox-node cancel <job-id>
-cranibox-node mcp
+cranibox nodes
+cranibox exec --node desktop -- git status --short
+cranibox exec --node desktop --detach -- sh -lc 'make test'
+cranibox job <job-id>
+cranibox cancel <job-id>
+cranibox mcp
 ~~~
 
 也可用托盘应用可执行文件替代 cranibox-node，传入子命令时只运行 CLI/MCP。需要其他配置时添加 --config /path/to/settings.json。MCP 配置包含可执行文件和配置文件路径，不含明文 Token。默认设置位置：

@@ -502,7 +502,7 @@ impl Service {
         serde_json::to_value(self.item(host, id).await?).map_err(unavailable)
     }
 
-    /// The desktop server to share: macOS Screen Sharing, else a detected VNC/Selkies.
+    /// The desktop server to share: macOS Screen Sharing, else a detected Selkies or VNC.
     async fn detected_desktop(&self, host: &dyn Host) -> Option<Desktop> {
         if cfg!(target_os = "macos") {
             return desktop_service::rfb(SCREEN_SHARING)
@@ -527,9 +527,12 @@ impl Service {
                 })
             })
             .collect();
+        // Selkies streams the whole desktop over WebSockets and is what Cranibox
+        // workspaces ship; prefer it over VNC on Linux.
         services
             .iter()
-            .find(|d| d.protocol == DesktopProtocol::Vnc)
+            .find(|d| d.protocol == DesktopProtocol::Selkies)
+            .or_else(|| services.iter().find(|d| d.protocol == DesktopProtocol::Vnc))
             .or(services.first())
             .cloned()
     }

@@ -89,7 +89,7 @@ test('target browser uses the selected identity and never exposes resume remotel
   await openNetworkSettings(page);
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Target browser', exact: true });
-  await expect(panel).toContainText('cranibox-node peer call --node chosen-target browser-mcp');
+  await expect(panel).toContainText('cranibox peer call --node chosen-target browser-mcp');
   await panel.getByRole('button', { name: 'Check target browser', exact: true }).click();
   await expect(panel).toContainText('Target browser ready.');
   await panel.getByRole('button', { name: 'Stop target browser control', exact: true }).click();

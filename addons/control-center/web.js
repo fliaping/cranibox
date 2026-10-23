@@ -43434,7 +43434,7 @@ function Zw({ client: e, node: t, language: n }) {
 			/* @__PURE__ */ (0, H.jsxs)("code", {
 				className: "browser-command",
 				children: [
-					"cranibox-node peer call --node ",
+					"cranibox peer call --node ",
 					t,
 					" browser-mcp"
 				]

@@ -6,7 +6,7 @@
 
 ## 启动与查看
 
-先启动 Tauri、包含本机节点的 Workspace Web，或独立的 cranibox-node peer serve；三者对同一个配置目录互斥。Web 上的“本机”指 Web 服务所在设备，不是浏览器所在电脑。远端执行需在设备网络中保存目标连接，并由目标授予本机 exec 权限。
+先启动 Tauri、包含本机节点的 Workspace Web，或独立的 cranibox peer serve；三者对同一个配置目录互斥。Web 上的“本机”指 Web 服务所在设备，不是浏览器所在电脑。远端执行需在设备网络中保存目标连接，并由目标授予本机 exec 权限。
 
 页面选择 Codex 或 Claude Code，填写运行名称、完整工作目录、任务说明及权限，再检查并确认。检查只验证参数、工作目录及节点 PATH 中的 CLI 文件，不会启动程序或验证 CLI 版本、登录状态；缺少 CLI 时禁用确认。请先在节点账户下安装、登录所选 CLI。
 

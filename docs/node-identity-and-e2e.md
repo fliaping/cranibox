@@ -11,7 +11,7 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 - 新节点的 NodeID 由公钥派生：`node-` + `SHA-256("cranibox-node-id-v1\0" ‖ 公钥)` 前 16 字节的十六进制。它与原随机 `node-<32 hex>` 同形，网关、Web、测试中已有的 NodeID 校验无需改动。
 - 已有节点保留原 NodeID，首次运行时生成密钥并以自签名绑定（`key_derived_id: false`）。其他节点在首次接触时固定（pin）这把公钥。
 - 读取已签名配置时，公钥必须与本机私钥文件一致；私钥缺失、身份不匹配、Noise 公私钥不匹配均报错并保留原文件，不自动生成替代密钥。
-- `cranibox-node peer identity` 显示公钥、指纹（如 `abcd-efgh-ijkl-mnop`）和是否为派生 ID，不显示任何私钥或凭据。
+- `cranibox peer identity` 显示公钥、指纹（如 `abcd-efgh-ijkl-mnop`）和是否为派生 ID，不显示任何私钥或凭据。
 
 ## 凭据摘要与迁移
 
@@ -59,10 +59,10 @@ Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent �
 ### 密钥固定与配对码
 
 - 首次连接时调用方把目标公钥固定到路由（`target_identity`），目标在首次握手时把调用方公钥固定到授权（`peer`），即 TOFU。之后对端密钥变化时连接失败并提示重新配对，不会静默接受新密钥，也不会降级为明文。
-- 两端执行 `cranibox-node peer identity` 都会显示同一个 12 位配对码（如 `1234-5678-9012`，由双方身份的 SHA-256 计算，约 40 位）。在两台设备上目视或语音核对一致后，各自执行：
+- 两端执行 `cranibox peer identity` 都会显示同一个 12 位配对码（如 `1234-5678-9012`，由双方身份的 SHA-256 计算，约 40 位）。在两台设备上目视或语音核对一致后，各自执行：
 
 ~~~sh
-cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
+cranibox peer verify --node 对端NodeID --code 1234-5678-9012
 ~~~
 
 - **新授权默认严格**（`peer grant` 不加参数、Web“授权设备”默认、`/api/peers` 的 `grant` 未给 `require_verified`）：在目标所有者执行 `peer verify`（或在控制中心“入站授权”中输入对方设备显示的配对码）之前拒绝所有能力，并且始终拒绝明文 bearer 请求。首次连接时固定的密钥（TOFU）仍算“未核对”。`--require-verified` 继续可用，作用与默认相同。
@@ -141,12 +141,12 @@ cranibox-node peer verify --node 对端NodeID --code 1234-5678-9012
   - Metadata (target NodeID, sizes, timing) stays visible.
 - **Phase 3 inbound policy.** Each grant has `inbound`: `accept` (legacy default, signed bytes unchanged), `hold` (default for new grants; stored but hidden from Agents until the owner runs `peer messages release`), or `refuse` (403, not stored).
   - Approval commands are owner-only: MCP refuses them. A local process running as the same OS user is not distinguished.
-  - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), with `workspacectl messages held|release|reject`, or with `cranibox-node peer messages`.
+  - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), with `workspacectl messages held|release|reject`, or with `cranibox peer messages`.
   - Rate limit: 60 messages per sender per minute. Loop guard: more than 12 messages from one sender session within 10 minutes are held.
   - Agents receive text inside `<cranibox-message ... trust="untrusted">`, with closing tags escaped.
 - **Phase 4: running sessions.** No new state machine is added.
-  - `cranibox-node peer discover-sessions` passively lists running Claude Code and Codex sessions from their transcript files (`~/.claude/projects`, `~/.codex/sessions`, written within the last 30 minutes). It reports id, harness, cwd, repository name, branch, activity (`working` within 90 s, otherwise `idle`) and last event kind. It is local only, conversation content is never read or returned, and it is not exposed over the mesh.
-  - `cranibox-node peer messages hook` is a command hook for both harnesses. On `UserPromptSubmit`/`SessionStart` it adds `additionalContext`. On `Stop`, only if configured with `--wake-on-stop`, it continues the turn, and never when `stop_hook_active` is set. It injects only messages that the inbound policy accepted or the owner released, that are addressed to that session (`target_session`) and not yet acknowledged. They stay framed as untrusted and are acknowledged atomically, so each is delivered once.
+  - `cranibox peer discover-sessions` passively lists running Claude Code and Codex sessions from their transcript files (`~/.claude/projects`, `~/.codex/sessions`, written within the last 30 minutes). It reports id, harness, cwd, repository name, branch, activity (`working` within 90 s, otherwise `idle`) and last event kind. It is local only, conversation content is never read or returned, and it is not exposed over the mesh.
+  - `cranibox peer messages hook` is a command hook for both harnesses. On `UserPromptSubmit`/`SessionStart` it adds `additionalContext`. On `Stop`, only if configured with `--wake-on-stop`, it continues the turn, and never when `stop_hook_active` is set. It injects only messages that the inbound policy accepted or the owner released, that are addressed to that session (`target_session`) and not yet acknowledged. They stay framed as untrusted and are acknowledged atomically, so each is delivered once.
   - Delivery is capped at 8 messages / ~32 KB per turn. The hook always exits 0.
   - `peer messages hook-config --harness claude|codex [--wake-on-stop]` prints the settings. Codex requires trusting the hook in `/hooks`. Paths are quoted per platform. On macOS/Linux they use POSIX single quotes. On Windows, Claude Code gets exec form (`command` plus `args`, no shell), and Codex gets cmd.exe double quoting. Codex refuses paths containing `%`.
   - The MCP `device_messages` tool remains the fallback. The Codex app-server is not used; Codex hooks cover delivery.

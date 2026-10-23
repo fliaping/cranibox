@@ -30,17 +30,17 @@
 本机 CLI 使用相同命令：
 
 ~~~sh
-cranibox-node peer agent-sessions
-cranibox-node peer agent-sessions --command '{"operation":"register","id":"33333333-3333-4333-8333-333333333333","name":"构建检查 Agent","harness":"custom-cli"}'
-cranibox-node peer agent-sessions --command '{"operation":"heartbeat","id":"33333333-3333-4333-8333-333333333333","revision":1,"status":"busy"}'
-cranibox-node peer agent-sessions --node NODE_B
+cranibox peer agent-sessions
+cranibox peer agent-sessions --command '{"operation":"register","id":"33333333-3333-4333-8333-333333333333","name":"构建检查 Agent","harness":"custom-cli"}'
+cranibox peer agent-sessions --command '{"operation":"heartbeat","id":"33333333-3333-4333-8333-333333333333","revision":1,"status":"busy"}'
+cranibox peer agent-sessions --node NODE_B
 ~~~
 
 MCP 远端查询使用 {"operation":"list","node":"NODE_B"}。远端仅支持读目录，不能代替别的设备登记、续期或结束。接收入站查询仍需要目标节点监听；本机登记不需要监听或网关设置。
 
 ## 自动发现运行中的会话
 
-不想手动登记时，`cranibox-node peer discover-sessions` 会根据 Claude Code / Codex 自己写下的会话文件列出本机正在运行的会话（含仓库、分支和活跃度），无需心跳。已放行的定向消息可以通过 hook 送入这些会话，见[设备消息](device-messages.md#投递到运行中的-agent-会话阶段-4)。
+不想手动登记时，`cranibox peer discover-sessions` 会根据 Claude Code / Codex 自己写下的会话文件列出本机正在运行的会话（含仓库、分支和活跃度），无需心跳。已放行的定向消息可以通过 hook 送入这些会话，见[设备消息](device-messages.md#投递到运行中的-agent-会话阶段-4)。
 
 ## 关闭页面后的同步与离线快照
 
@@ -49,9 +49,9 @@ MCP 远端查询使用 {"operation":"list","node":"NODE_B"}。远端仅支持读
 同步由 Rust 节点宿主运行，关闭标签页、收起窗口或不打开任务页后继续；节点程序重启后恢复已保存的策略。退出节点程序或系统休眠时不能同步。暂停会阻止后续请求，已在途的只读请求可以完成；已有快照继续保留。CLI 使用相同本机设置：
 
 ~~~sh
-cranibox-node peer agent-sync
-cranibox-node peer agent-sync --command '{"operation":"configure","revision":0,"nodes":["NODE_B"],"interval_seconds":60}'
-cranibox-node peer agent-sync --command '{"operation":"pause","revision":1}'
+cranibox peer agent-sync
+cranibox peer agent-sync --command '{"operation":"configure","revision":0,"nodes":["NODE_B"],"interval_seconds":60}'
+cranibox peer agent-sync --command '{"operation":"pause","revision":1}'
 ~~~
 
 先读取当前 revision；configure 和 pause 都拒绝过期版本。配置为 peers.json 同目录的 agent-sync.json，运行状态为 agent-sync-state.json；Unix 文件权限为 0600。状态包含各设备的尝试时间、成功时间、登记数量与错误类别，不含 Token 或连接摘要。损坏或属于其他 NodeID 的策略保留原文件并停止该类同步，不影响独立的项目同步。

@@ -11,7 +11,7 @@
 在目标 NODE_B 上：
 
 ~~~sh
-cranibox-node peer grant --node NODE_A --output-token ./node-a-activity.token --activity
+cranibox peer grant --node NODE_A --output-token ./node-a-activity.token --activity
 ~~~
 
 已有授权必须先显式撤销后重新授予，使用新的输出文件，并在调用方更新连接凭据；其他仍需要的能力须一起勾选。重新授权不会重新绑定旧的待投递任务或消息。连接配置参见[节点直连](direct-node-peers.md)。
@@ -19,8 +19,8 @@ cranibox-node peer grant --node NODE_A --output-token ./node-a-activity.token --
 在调用方 NODE_A 上：
 
 ~~~sh
-cranibox-node peer activity
-cranibox-node peer activity --node NODE_B
+cranibox peer activity
+cranibox peer activity --node NODE_B
 ~~~
 
 省略 node 读取本机，不需要给自己创建远端授权。CLI 可用于 Agent 的明确查询，本轮没有新增 MCP 工具。Web 的同源 POST /api/peers 接受 {"operation":"activity","node":"NODE_B"}，沿用登录、CSRF 和同源检查；Tauri 通过本机 IPC 调用同一个 Rust 实现。
@@ -48,8 +48,8 @@ digest 为 Rust 按确定字段顺序序列化 (version, owner, tasks, messages,
 CLI 先查询当前 revision，再提交设置；以下 revision=0 仅适用于从未配置的策略：
 
 ~~~sh
-cranibox-node peer activity-sync
-cranibox-node peer activity-sync --command '{"operation":"configure","revision":0,"nodes":["NODE_B"],"interval_seconds":60}'
+cranibox peer activity-sync
+cranibox peer activity-sync --command '{"operation":"configure","revision":0,"nodes":["NODE_B"],"interval_seconds":60}'
 ~~~
 
 Web 的同源 POST /api/peers 使用 {"operation":"activity_sync","command":{"operation":"status"}}；Tauri 使用相同管理命令。修改策略需携带当前 revision，冲突必须重新读取并核对，不自动覆盖。pause 操作保留选择；configure 配合空 nodes 数组则清空并停用。

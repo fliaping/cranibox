@@ -6,9 +6,9 @@
 
 向导的高级设置与 CLI `space create --pull-policy` 提供三种策略：`always`（默认，每次创建或归档重建前拉取）、`missing`（优先使用本地镜像，缺少时拉取）、`never`（只使用本地镜像）。策略随空间保存，归档恢复继续使用；启动已有容器不拉取镜像。旧目录没有此字段时继续按 `always` 处理。
 
-离线部署或本地构建镜像可使用 `cranibox-node space create "Local lab" --image cranibox-local:test --pull-policy never`。镜像必须已经构建或加载到管理设备使用的 Docker 引擎，并具有兼容性标签。缺少或不兼容时在创建数据卷之前提示错误；准备完成后可重试同一空间。初始化与创建容器也禁止 Docker 隐式拉取镜像。此策略只控制空间管理器的镜像下载，不代表容器内首次启动的工具安装无需联网。
+离线部署或本地构建镜像可使用 `cranibox space create "Local lab" --image cranibox-local:test --pull-policy never`。镜像必须已经构建或加载到管理设备使用的 Docker 引擎，并具有兼容性标签。缺少或不兼容时在创建数据卷之前提示错误；准备完成后可重试同一空间。初始化与创建容器也禁止 Docker 隐式拉取镜像。此策略只控制空间管理器的镜像下载，不代表容器内首次启动的工具安装无需联网。
 
-失败、中断或已归档的空间提供“修改镜像”：核对兼容镜像与拉取策略后“保存并重试”，继续使用原 UUID、NodeID、凭据和数据卷。取消不保存；提交失败保留输入并显示原因。只允许在容器不存在时修改，已有容器需先归档；引擎查询失败不会被视为容器不存在。也可运行 `cranibox-node space resume SPACE_UUID --image cranibox-current:test --pull-policy never`，两个选项均可省略。修改镜像不自动迁移卷内应用数据。
+失败、中断或已归档的空间提供“修改镜像”：核对兼容镜像与拉取策略后“保存并重试”，继续使用原 UUID、NodeID、凭据和数据卷。取消不保存；提交失败保留输入并显示原因。只允许在容器不存在时修改，已有容器需先归档；引擎查询失败不会被视为容器不存在。也可运行 `cranibox space resume SPACE_UUID --image cranibox-current:test --pull-policy never`，两个选项均可省略。修改镜像不自动迁移卷内应用数据。
 
 ## 创建
 
@@ -87,20 +87,20 @@ Web 和 Tauri 的“虚拟空间 → 其他设备”汇总当前接入端已保�
 ## CLI 与验证
 
 ~~~sh
-cranibox-node space preflight
+cranibox space preflight
 # 先阅读返回的安装命令，再手动使用本次 plan_id 确认；仅适用于对应平台
-cranibox-node space plan linux-docker
-cranibox-node space install linux-docker --plan-id REVIEWED_PLAN_UUID
-cranibox-node space create "Agent lab" --provider docker
-cranibox-node space list
-cranibox-node space stop SPACE_UUID
-cranibox-node space resume SPACE_UUID
-cranibox-node space remove SPACE_UUID
+cranibox space plan linux-docker
+cranibox space install linux-docker --plan-id REVIEWED_PLAN_UUID
+cranibox space create "Agent lab" --provider docker
+cranibox space list
+cranibox space stop SPACE_UUID
+cranibox space resume SPACE_UUID
+cranibox space remove SPACE_UUID
 
 # 在管理设备为查看方授予只读空间目录
-cranibox-node peer grant --node VIEWER_NODE --output-token /private/viewer.token --spaces
+cranibox peer grant --node VIEWER_NODE --output-token /private/viewer.token --spaces
 # 查看方保存目标连接后读取目录
-cranibox-node peer call --node MANAGER_NODE spaces
+cranibox peer call --node MANAGER_NODE spaces
 ~~~
 
 Web 使用有登录、Origin 和 CSRF 校验的 `POST /api/spaces`；Tauri 使用 `spaces` IPC，二者共用 Rust Store。CLI 等待操作结束，Web/Tauri 在后台运行并轮询。远端目录使用经目标 Token 和 NodeID 校验的只读 GET /api/v1/mesh/nodes/NODE/spaces；浏览器经 POST /api/peers 的 space_catalog 操作访问，目标凭据保留在后端。

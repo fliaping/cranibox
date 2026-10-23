@@ -10,7 +10,7 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : S
 /**
  * Owner approval queue: messages held by the sender's inbound policy or the Agent loop
  * guard. Agents cannot see these until the owner releases them here (or with
- * `workspacectl messages` / `cranibox-node peer messages`). Text is untrusted and is
+ * `workspacectl messages` / `cranibox peer messages`). Text is untrusted and is
  * rendered as plain text only.
  */
 export function HeldMessages({ client, language = 'en', count, refreshed, onChanged }: { client: DirectClient; language?: string; count: number; refreshed?: number; onChanged: () => void }) {

@@ -31,27 +31,27 @@ Web 导航中的“设备消息”和 Tauri 的同名页面使用相同 React �
 以下示例假设 NODE_A 已有到 NODE_B 的连接；完整的监听和连接配置见[节点直连](direct-node-peers.md)。在 NODE_B 上授予 NODE_A 消息权限：
 
 ~~~sh
-cranibox-node peer grant --node NODE_A --output-token ./node-a-messages.token --messages
+cranibox peer grant --node NODE_A --output-token ./node-a-messages.token --messages
 ~~~
 
 已有授权需要显式撤销后重新授予，重新生成的凭据也需要在调用方更新。更换连接或凭据会阻止旧发件记录投递，检查目标后创建新的消息；不会把旧消息自动转发到新地址。
 
 ~~~sh
-cranibox-node peer messages list
-cranibox-node peer messages list --session SESSION_UUID
-cranibox-node peer messages send --node NODE_B --text '请检查项目的测试结果'
-cranibox-node peer messages send --message-id 11111111-1111-4111-8111-111111111111 --node NODE_B --text '请检查项目的测试结果'
-cranibox-node peer messages send --node NODE_A --thread THREAD_UUID --in-reply-to MESSAGE_UUID --text '结果已检查，请查看变更'
-cranibox-node peer messages send --node NODE_B --sender-session SOURCE_SESSION_UUID --target-session TARGET_SESSION_UUID --text '给指定 Agent 的消息'
-cranibox-node peer messages acknowledge MESSAGE_UUID
-cranibox-node peer messages retry MESSAGE_UUID
-cranibox-node peer messages archive MESSAGE_UUID
+cranibox peer messages list
+cranibox peer messages list --session SESSION_UUID
+cranibox peer messages send --node NODE_B --text '请检查项目的测试结果'
+cranibox peer messages send --message-id 11111111-1111-4111-8111-111111111111 --node NODE_B --text '请检查项目的测试结果'
+cranibox peer messages send --node NODE_A --thread THREAD_UUID --in-reply-to MESSAGE_UUID --text '结果已检查，请查看变更'
+cranibox peer messages send --node NODE_B --sender-session SOURCE_SESSION_UUID --target-session TARGET_SESSION_UUID --text '给指定 Agent 的消息'
+cranibox peer messages acknowledge MESSAGE_UUID
+cranibox peer messages retry MESSAGE_UUID
+cranibox peer messages archive MESSAGE_UUID
 ~~~
 
 需要其他配置目录时，把 `--config /path/to/settings.json` 放在 `peer` 前面。普通 CLI 的 send 只负责持久入队，退出后不常驻；需要保持 Tauri、Web、本机节点服务或下述 MCP 进程运行。无网关的独立节点服务可用：
 
 ~~~sh
-cranibox-node peer serve
+cranibox peer serve
 ~~~
 
 `retry` 始终使用原 MessageID；已收到的消息只重新查询确认，不重放文本。删除本机发件记录停止后续重试，无法撤回目标已收到或正在传输的消息。
@@ -128,7 +128,7 @@ Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`�
 | `hold` | 保存为“待审批”，Agent 不可见，等待本机所有者放行（**新授权默认**） |
 | `refuse` | 目标返回 403，不保存 |
 
-- CLI：`cranibox-node peer grant --messages --inbound accept|hold|refuse`；`peer inbound --node <NodeID> --policy <...>` 修改已有授权；`peer messages held | release --message-id <ID> | reject --message-id <ID>` 管理审批队列。
+- CLI：`cranibox peer grant --messages --inbound accept|hold|refuse`；`peer inbound --node <NodeID> --policy <...>` 修改已有授权；`peer messages held | release --message-id <ID> | reject --message-id <ID>` 管理审批队列。
 - Web 控制中心：`POST /api/peers` 的 `{"operation":"grant",...,"inbound":"accept"}`、`{"operation":"inbound","node":...,"policy":...}`，以及 `{"operation":"messages","command":{"operation":"held"|"release"|"reject",...}}`。
 - 审批操作只对本机所有者开放：MCP 工具拒绝 `held`/`release`/`reject`，Agent 不能自我放行。同一操作系统用户的本地 CLI 无法与 Agent 区分，这是已知边界。
 - 速率限制：每个发送方每分钟最多 **60** 条，超出返回错误。
@@ -141,14 +141,14 @@ Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`�
 
 不新增状态机：发现只读会话文件，投递复用“已确认”状态，所有内容仍受入站策略约束。
 
-**发现运行中的会话。** `cranibox-node peer discover-sessions` 被动扫描最近 30 分钟内写过的会话文件，无需登记或心跳：
+**发现运行中的会话。** `cranibox peer discover-sessions` 被动扫描最近 30 分钟内写过的会话文件，无需登记或心跳：
 
 - Claude Code：`$CLAUDE_CONFIG_DIR` 或 `~/.claude` 下的 `projects/<目录>/<会话>.jsonl`
 - Codex：`$CODEX_HOME` 或 `~/.codex` 下的 `sessions/YYYY/MM/DD/rollout-*.jsonl`
 
 每项返回会话 ID（可直接作为 `target_session`）、`harness`、`cwd`、仓库目录名、分支（优先读取工作树 `.git/HEAD`）、`activity`（90 秒内有写入为 `working`，否则为 `idle`）、最后事件类型和 `last_active`。只读取文件头尾的有限字节，不返回对话内容；结果仅在本机，不通过网格接口暴露。
 
-**通过 hook 投递。** `cranibox-node peer messages hook` 同时适用于 Claude Code 和 Codex（两者 hook 协议一致：stdin 为事件 JSON，stdout 为 JSON）：
+**通过 hook 投递。** `cranibox peer messages hook` 同时适用于 Claude Code 和 Codex（两者 hook 协议一致：stdin 为事件 JSON，stdout 为 JSON）：
 
 - `UserPromptSubmit` / `SessionStart`：以 `hookSpecificOutput.additionalContext` 注入。这是默认方式，消息在用户下一次提问或会话恢复时送达。
 - `Stop`：以 `{"decision":"block","reason":...}` 让 Agent 继续处理。该事件会让远端文本成为一轮无人值守的提示，因此默认不配置，需要 `--wake-on-stop` 显式开启；`stop_hook_active` 为真时绝不再次继续。`SubagentStop` 不投递。
@@ -161,9 +161,9 @@ Web 同源 `POST /api/peers` 接收 `{"operation":"messages","command":{...}}`�
 生成配置：
 
 ```bash
-cranibox-node peer messages hook-config --harness claude   # 合并进 ~/.claude/settings.json
-cranibox-node peer messages hook-config --harness codex    # 保存为 ~/.codex/hooks.json，再在 /hooks 中信任
-cranibox-node peer messages hook-config --harness claude --wake-on-stop   # 额外配置 Stop
+cranibox peer messages hook-config --harness claude   # 合并进 ~/.claude/settings.json
+cranibox peer messages hook-config --harness codex    # 保存为 ~/.codex/hooks.json，再在 /hooks 中信任
+cranibox peer messages hook-config --harness claude --wake-on-stop   # 额外配置 Stop
 ```
 
 生成的命令按平台引用路径：macOS/Linux 使用 POSIX 单引号（Claude Code 走 `sh -c`，Codex 走 `$SHELL -lc`）；Windows 上 Claude Code 使用 exec 形式（`command` 为程序路径，参数放在 `args`，不经 Git Bash/PowerShell 解析），Codex 使用 `cmd.exe /C` 的双引号写法。cmd 在引号内仍会展开 `%`，因此路径含 `%` 时 Codex 配置会直接报错，需改用不含 `%` 的路径。
