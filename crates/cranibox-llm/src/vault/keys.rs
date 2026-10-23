@@ -123,7 +123,9 @@ pub fn load_or_create(
     let lock = opts.open(fallback.with_extension("lock")).map_err(other)?;
     lock.lock_exclusive().map_err(other)?;
     let marker = fallback.with_extension("backend");
-    // An existing fallback remains authoritative when a secret service appears later.
+    // The 0600 file is authoritative. A key once committed to the system store is
+    // migrated into the file on the next launch, so the desktop keychain is consulted
+    // at most once more and never prompts again; new installs never touch it.
     match fs::read(fallback) {
         Ok(bytes) => {
             if bytes.len() != 32 {
@@ -134,18 +136,30 @@ pub fn load_or_create(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(other(e)),
     }
-    let mark_system = || -> Result<(), StoreError> {
-        let mut file = opts.open(&marker).map_err(other)?;
-        file.write_all(b"system").map_err(other)?;
+    let write_fallback = |secret: &SecretBox| -> Result<(), StoreError> {
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+            opts.mode(0o600);
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(other)?;
+        }
+        let mut file = opts.open(fallback).map_err(other)?;
+        file.write_all(secret.expose()).map_err(other)?;
         file.sync_all().map_err(other)?;
         #[cfg(unix)]
         fs::File::open(parent)
             .and_then(|f| f.sync_all())
             .map_err(other)?;
+        // The migration is complete: the file is now authoritative.
+        let _ = fs::remove_file(&marker);
         Ok(())
     };
     if marker.exists() {
-        // A temporarily locked keychain must never cause a replacement key.
+        // An older version committed the key to the system store. Read it once and
+        // migrate it into the file. A temporarily locked keychain reports an error
+        // here and must never cause a replacement key.
         if fs::read(&marker).map_err(other)? != b"system" {
             return Err(other("invalid key backend"));
         }
@@ -156,43 +170,23 @@ pub fn load_or_create(
         if secret.expose().len() != 32 {
             return Err(other("key length"));
         }
+        write_fallback(&secret)?;
         return Ok(secret);
     }
+    // A legacy system key without a marker: migrate it into the file too.
     if let Some(system) = system
         && let Ok(Some(secret)) = system.read(name)
     {
-        if secret.expose().len() == 32 {
-            mark_system()?;
-            return Ok(secret);
+        if secret.expose().len() != 32 {
+            return Err(other("key length"));
         }
-        return Err(other("key length"));
+        write_fallback(&secret)?;
+        return Ok(secret);
     }
     let mut key = Zeroizing::new([0u8; 32]);
     rand08::rngs::OsRng.fill_bytes(key.as_mut());
     let secret = SecretBox::new(key.to_vec());
-    if let Some(system) = system
-        && system.write(name, &secret).is_ok()
-    {
-        mark_system()?;
-        return Ok(secret);
-    }
-    let parent = fallback.parent().ok_or_else(|| other("key directory"))?;
-    fs::create_dir_all(parent).map_err(other)?;
-    let mut opts = fs::OpenOptions::new();
-    opts.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        opts.mode(0o600);
-        fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(other)?;
-    }
-    let mut file = opts.open(fallback).map_err(other)?;
-    file.write_all(secret.expose()).map_err(other)?;
-    file.sync_all().map_err(other)?;
-    #[cfg(unix)]
-    fs::File::open(parent)
-        .and_then(|f| f.sync_all())
-        .map_err(other)?;
+    write_fallback(&secret)?;
     Ok(secret)
 }
 
@@ -209,24 +203,56 @@ mod tests {
         }
     }
     #[test]
-    fn system_key_is_reused_and_existing_fallback_remains_authoritative() {
+    fn a_system_key_migrates_into_the_file_and_the_keychain_is_then_never_consulted() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("key");
+        // First launch: the key lives in the system store, so it is read once and
+        // written to the file.
         assert_eq!(
             load_or_create("node", &path, Some(&Stored))
                 .unwrap()
                 .expose(),
             &[7; 32]
         );
+        assert!(path.exists(), "the key was migrated into the file");
+        // From now on the file is authoritative: the system store is not needed and
+        // (on the desktop) the keychain never prompts again.
+        assert_eq!(
+            load_or_create("node", &path, None).unwrap().expose(),
+            &[7; 32]
+        );
+        assert_eq!(
+            load_or_create("node", &path, Some(&Stored))
+                .unwrap()
+                .expose(),
+            &[7; 32],
+            "Stored::write would panic if the key were rewritten to the system store"
+        );
+    }
+
+    #[test]
+    fn a_committed_system_key_that_cannot_be_read_never_becomes_a_new_key() {
+        struct Locked;
+        impl KeyStore for Locked {
+            fn read(&self, _: &str) -> Result<Option<SecretBox>, StoreError> {
+                Err(other("keychain is locked"))
+            }
+            fn write(&self, _: &str, _: &SecretBox) -> Result<(), StoreError> {
+                panic!("must not write")
+            }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("key");
+        fs::write(path.with_extension("backend"), b"system").unwrap();
+        // A marked system key that cannot be read must error, not regenerate.
+        assert!(load_or_create("node", &path, Some(&Locked)).is_err());
         assert!(!path.exists());
         assert!(load_or_create("node", &path, None).is_err());
-        assert!(!path.exists());
-        assert_eq!(
-            load_or_create("node", &path, Some(&Stored))
-                .unwrap()
-                .expose(),
-            &[7; 32]
-        );
+    }
+
+    #[test]
+    fn a_headless_key_is_a_durable_private_file() {
+        let root = tempfile::tempdir().unwrap();
         let path = root.path().join("headless-key");
         let first = load_or_create("node", &path, None).unwrap();
         assert_eq!(
