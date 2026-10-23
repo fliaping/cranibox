@@ -986,6 +986,135 @@ impl Fleet {
         }
         Ok(value)
     }
+    /// Copy a local file to `remote` (an absolute path) on `node`.
+    pub async fn push(
+        &self,
+        node: &str,
+        local: &std::path::Path,
+        remote: &str,
+        overwrite: bool,
+    ) -> Result<Value> {
+        use base64::Engine as _;
+        use std::io::Read as _;
+        anyhow::ensure!(valid_node_id(node), "invalid node ID");
+        let api = self.api(node)?;
+        let size = std::fs::metadata(local)?.len();
+        anyhow::ensure!(
+            size <= crate::peers::files::MAX_FILE,
+            "File is larger than 4 GiB"
+        );
+        let sha256 = crate::peers::files::digest_file(local)?;
+        #[cfg(unix)]
+        let mode = {
+            use std::os::unix::fs::PermissionsExt;
+            Some(std::fs::metadata(local)?.permissions().mode() & 0o7777)
+        };
+        #[cfg(not(unix))]
+        let mode: Option<u32> = None;
+        let mut file = std::fs::File::open(local)?;
+        let mut offset = 0u64;
+        let path = format!("/api/v1/nodes/{node}/files/write");
+        loop {
+            let mut data = Vec::with_capacity(crate::peers::files::CHUNK);
+            (&mut file)
+                .take(crate::peers::files::CHUNK as u64)
+                .read_to_end(&mut data)?;
+            let request = crate::peers::files::WriteChunk {
+                path: remote.to_owned(),
+                offset,
+                data: base64::engine::general_purpose::STANDARD.encode(&data),
+                size,
+                sha256: sha256.clone(),
+                overwrite,
+                mode,
+            };
+            let answer = api
+                .request_bounded(
+                    reqwest::Method::POST,
+                    &path,
+                    Some(serde_json::to_value(request)?),
+                    crate::peers::files::MAX_WIRE,
+                )
+                .await?;
+            offset += data.len() as u64;
+            if answer["done"] == true {
+                return Ok(
+                    json!({"node": node, "path": answer["path"], "size": size, "sha256": sha256}),
+                );
+            }
+            anyhow::ensure!(!data.is_empty(), "The device stopped accepting the file");
+        }
+    }
+    /// Copy `remote` (an absolute path) on `node` to a local file.
+    pub async fn pull(
+        &self,
+        node: &str,
+        remote: &str,
+        local: &std::path::Path,
+        overwrite: bool,
+    ) -> Result<Value> {
+        use base64::Engine as _;
+        use sha2::Digest as _;
+        use std::io::Write as _;
+        anyhow::ensure!(valid_node_id(node), "invalid node ID");
+        anyhow::ensure!(
+            overwrite || !local.exists(),
+            "{} already exists; pass --overwrite to replace it",
+            local.display()
+        );
+        let api = self.api(node)?;
+        let mut name = local
+            .file_name()
+            .context("Choose a file name")?
+            .to_os_string();
+        name.push(".cranibox-part");
+        let temporary = local.with_file_name(name);
+        let mut file = std::fs::File::create(&temporary)?;
+        let mut hasher = sha2::Sha256::new();
+        let mut offset = 0u64;
+        let path = format!("/api/v1/nodes/{node}/files/read");
+        let finished = loop {
+            let answer = api
+                .request_bounded(
+                    reqwest::Method::POST,
+                    &path,
+                    Some(json!({"path": remote, "offset": offset})),
+                    crate::peers::files::MAX_WIRE,
+                )
+                .await?;
+            let data = base64::engine::general_purpose::STANDARD
+                .decode(answer["data"].as_str().unwrap_or_default())
+                .context("Invalid chunk encoding")?;
+            hasher.update(&data);
+            file.write_all(&data)?;
+            offset += data.len() as u64;
+            if answer["eof"] == true {
+                break answer;
+            }
+            anyhow::ensure!(!data.is_empty(), "The device stopped sending the file");
+        };
+        file.sync_all()?;
+        drop(file);
+        let digest: String = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        if finished["sha256"].as_str() != Some(digest.as_str()) {
+            let _ = std::fs::remove_file(&temporary);
+            anyhow::bail!("The received file does not match its SHA-256");
+        }
+        #[cfg(unix)]
+        if let Some(mode) = finished["mode"].as_u64() {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                &temporary,
+                std::fs::Permissions::from_mode(mode as u32 & 0o7777),
+            )?;
+        }
+        std::fs::rename(&temporary, local)?;
+        Ok(json!({"node": node, "path": local, "size": offset, "sha256": digest}))
+    }
     /// Read or cancel a job; `node` is needed for jobs started by another process.
     pub async fn job(&self, id: &str, node: Option<&str>, cancel: bool) -> Result<Value> {
         let path = job_path(id)?;

@@ -42,6 +42,8 @@ cranibox                 # run this device's node; the interface listens on loop
 cranibox ui-url          # print the interface link with a one-time sign-in token
 cranibox nodes           # list devices your Agents can use
 cranibox exec --node <NodeID> -- uname -a
+cranibox push --node <NodeID> ./app.dmg /tmp/app.dmg    # send a file (chunked, SHA-256 verified, replaced atomically)
+cranibox pull --node <NodeID> /var/log/system.log ./system.log
 cranibox mcp             # the same operations as an MCP stdio server
 ```
 

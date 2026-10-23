@@ -36,6 +36,29 @@ pub enum Command {
         #[arg(required = true, trailing_var_arg = true)]
         command: Vec<String>,
     },
+    /// Copy a file to a paired or same-identity device (needs its exec grant).
+    Push {
+        #[arg(long)]
+        node: String,
+        /// Local file.
+        local: std::path::PathBuf,
+        /// Absolute destination path on the device.
+        remote: String,
+        /// Replace an existing file.
+        #[arg(long)]
+        overwrite: bool,
+    },
+    /// Copy a file from a paired or same-identity device (needs its exec grant).
+    Pull {
+        #[arg(long)]
+        node: String,
+        /// Absolute file path on the device.
+        remote: String,
+        /// Local destination.
+        local: std::path::PathBuf,
+        #[arg(long)]
+        overwrite: bool,
+    },
     Job {
         id: String,
         /// Device running the job.
@@ -83,6 +106,18 @@ pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()
         Command::Job { id, node } => client::print(fleet.job(&id, node.as_deref(), false).await?),
         Command::Cancel { id, node } => client::print(fleet.job(&id, node.as_deref(), true).await?),
         Command::Mcp => client::fleet_mcp(peers).await?,
+        Command::Push {
+            node,
+            local,
+            remote,
+            overwrite,
+        } => client::print(fleet.push(&node, &local, &remote, overwrite).await?),
+        Command::Pull {
+            node,
+            remote,
+            local,
+            overwrite,
+        } => client::print(fleet.pull(&node, &remote, &local, overwrite).await?),
         Command::Exec {
             node,
             cwd,

@@ -42,6 +42,8 @@ cranibox                 # 运行本机节点，界面只监听回环地址（�
 cranibox ui-url          # 输出带一次性登录令牌的界面链接
 cranibox nodes           # 列出 Agent 可以使用的设备
 cranibox exec --node <NodeID> -- uname -a
+cranibox push --node <NodeID> ./app.dmg /tmp/app.dmg    # 发送文件（分块传输，SHA-256 校验后原子替换）
+cranibox pull --node <NodeID> /var/log/system.log ./system.log
 cranibox mcp             # 以 MCP stdio 服务器方式提供同样的能力
 ```
 

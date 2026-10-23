@@ -11,6 +11,7 @@ pub mod desktop;
 pub mod discovery;
 pub mod e2e;
 pub mod executions;
+pub mod files;
 pub mod identity;
 pub mod local_forward;
 pub mod messages;

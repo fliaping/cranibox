@@ -168,6 +168,33 @@ class PeerTests(unittest.TestCase):
         again.expect('kept')
         self.cli(self.a, 'call', '--node', self.target, 'sessions', 'end', session)
 
+    def test_push_and_pull_move_whole_files_in_verified_chunks(self):
+        self.start()
+        folder = Path(self.temp.name) / 'files'
+        folder.mkdir()
+        local = folder / 'installer.bin'
+        local.write_bytes(os.urandom(9 * 1024 * 1024 + 123))
+        local.chmod(0o750)
+        remote = str(folder / 'landed.bin')
+        def run(*args, check=True):
+            result = subprocess.run([str(NODE), '--config', str(self.a), *map(str, args)],
+                                    capture_output=True, text=True, timeout=120)
+            if check:
+                self.assertEqual(result.returncode, 0, result.stderr)
+            return result
+        pushed = json.loads(run('push', '--node', self.target, local, remote).stdout)
+        self.assertEqual(Path(remote).read_bytes(), local.read_bytes())
+        self.assertEqual(Path(remote).stat().st_mode & 0o777, 0o750)
+        self.assertEqual(pushed['size'], local.stat().st_size)
+        self.assertFalse(Path(remote + '.cranibox-part').exists())
+        # Never replaced silently.
+        self.assertNotEqual(run('push', '--node', self.target, local, remote, check=False).returncode, 0)
+        run('push', '--node', self.target, local, remote, '--overwrite')
+        back = folder / 'back.bin'
+        run('pull', '--node', self.target, remote, back)
+        self.assertEqual(back.read_bytes(), local.read_bytes())
+        self.assertNotEqual(run('pull', '--node', self.target, remote + '-missing', folder / 'x', check=False).returncode, 0)
+
     def test_auth_scopes_target_binding_and_job_ownership(self):
         self.start()
         self.assertEqual(self.http('GET', '/nodes', headers={'Authorization':'Bearer wrong'})[0], 401)

@@ -291,6 +291,36 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "copy_root":if caller.grant.permissions.projects && caller.grant.permissions.exec {Config::read(&app.path).ok().and_then(|c|c.copy_root)} else {None},"path":"direct"}]}),
     )
 }
+/// One chunk of `cranibox push`. Writing files is part of the `exec` grant.
+async fn file_write(
+    State(app): State<App>,
+    Extension(caller): Extension<Caller>,
+    Path(node): Path<String>,
+    Json(request): Json<agent_workspace_runtime::peers::files::WriteChunk>,
+) -> Result<Json<Value>, Failure> {
+    check_target(&app, &node)?;
+    check_permission(&caller, false)?;
+    tokio::task::spawn_blocking(move || agent_workspace_runtime::peers::files::write(request))
+        .await
+        .map_err(|_| failure(StatusCode::INTERNAL_SERVER_ERROR, "file transfer stopped"))?
+        .map(Json)
+        .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))
+}
+/// One chunk of `cranibox pull`.
+async fn file_read(
+    State(app): State<App>,
+    Extension(caller): Extension<Caller>,
+    Path(node): Path<String>,
+    Json(request): Json<agent_workspace_runtime::peers::files::ReadChunk>,
+) -> Result<Json<Value>, Failure> {
+    check_target(&app, &node)?;
+    check_permission(&caller, false)?;
+    tokio::task::spawn_blocking(move || agent_workspace_runtime::peers::files::read(request))
+        .await
+        .map_err(|_| failure(StatusCode::INTERNAL_SERVER_ERROR, "file transfer stopped"))?
+        .map(Json)
+        .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))
+}
 async fn execute(
     State(app): State<App>,
     Extension(caller): Extension<Caller>,
@@ -823,6 +853,13 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
             post(executions::manage).layer(DefaultBodyLimit::max(128 * 1024)),
         )
         .route("/nodes/{node}/spaces", get(spaces::list))
+        .route(
+            "/nodes/{node}/files/write",
+            post(file_write).layer(DefaultBodyLimit::max(
+                agent_workspace_runtime::peers::files::MAX_WIRE,
+            )),
+        )
+        .route("/nodes/{node}/files/read", post(file_read))
         .route("/nodes/{node}/projects/export", post(copies::export))
         .route(
             "/nodes/{node}/projects/import",
