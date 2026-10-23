@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { notAvailable, type Capabilities as CapabilityList, type Capability, type CapabilityAction, type InstallPlan, type PermissionState } from "../personal/api";
 import { request } from "../workspace";
 import { useApp } from "./store";
-import { Alert, capabilityIcons, Card, Empty, Loading, Pill, Sheet, Switch, type Translate } from "./ui";
+import { Alert, capabilityIcons, Card, Empty, Loading, localizeMessage, Pill, providerName, Sheet, Switch, type Translate } from "./ui";
 
 const order = ["terminal", "desktop", "computer", "browser"];
 function describe(id: string, t: Translate) {
@@ -42,7 +42,7 @@ export function Capabilities() {
       else if (value && typeof value === "object" && "id" in value) setData(current => current && { ...current, items: current.items.map(entry => entry.id === item.id ? value as Capability : entry) });
       else await load();
       if (action === "install") setPlan(null);
-    } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+    } catch (problem) { setError(localizeMessage(problem instanceof Error ? problem.message : String(problem), t)); }
     finally { setPending(""); }
   }
   if (state === "loading") return <Loading label={t("正在检测本机能力…", "Checking this device's capabilities…")} />;
@@ -79,14 +79,15 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
       <div className="cx-grow"><h3>{title}</h3><p className="cx-muted cx-small">{detail}</p></div>
       <Pill tone={ready ? (item.sharing.enabled ? "good" : "accent") : "warn"}>{ready ? (item.sharing.enabled ? t("已共享", "Shared") : t("就绪", "Ready")) : !item.provider.installed ? t("未安装", "Not installed") : !item.provider.running ? t("未运行", "Not running") : t("需要授权", "Needs permission")}</Pill></div>
     <div className="cx-cap-section"><h4>{t("提供者", "Provider")}</h4>
-      <div className="cx-between"><div><strong>{item.provider.kind}</strong>{item.provider.version && <span className="cx-muted cx-small"> · {item.provider.version}</span>}
-        {item.provider.detail && <p className="cx-muted cx-small">{item.provider.detail}</p>}</div>
+      <div className="cx-between"><div><strong>{providerName(item.provider.kind, t)}</strong>{item.provider.version && <span className="cx-muted cx-small"> · {item.provider.version}</span>}
+        {item.provider.detail && <p className="cx-muted cx-small">{localizeMessage(item.provider.detail, t)}</p>}</div>
         <div className="cx-actions"><Pill tone={item.provider.installed ? "good" : ""}>{item.provider.installed ? t("已安装", "Installed") : t("未安装", "Not installed")}</Pill>{item.provider.installed && <Pill tone={item.provider.running ? "good" : ""}>{item.provider.running ? t("运行中", "Running") : t("已停止", "Stopped")}</Pill>}</div></div>
       <div className="cx-actions">
         {has("install_plan") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "install_plan")}><Download size={14} aria-hidden="true" />{t("安装…", "Install…")}</button>}
         {has("start") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "start")}><Play size={14} aria-hidden="true" />{t("启动", "Start")}</button>}
         {has("stop") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "stop")}><Square size={14} aria-hidden="true" />{t("停止", "Stop")}</button>}
         {has("use_profile") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "use_profile")}><Globe size={14} aria-hidden="true" />{t("使用我的 Chrome（保留登录）", "Use my Chrome (signed in)")}</button>}
+        {item.id === "desktop" && !item.provider.running && has("open_settings") && <button className="cx-btn small primary" disabled={busy} onClick={() => void act(item, "open_settings")}><ExternalLink size={14} aria-hidden="true" />{t("打开共享设置", "Open Sharing settings")}</button>}
         {item.id === "browser" && has("open_settings") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "open_settings")}><ExternalLink size={14} aria-hidden="true" />{t("打开远程调试设置", "Open remote debugging setting")}</button>}
         {has("refresh") && <button className="cx-btn small ghost" disabled={busy} onClick={() => void act(item, "refresh")}><RefreshCw size={14} aria-hidden="true" />{t("刷新", "Refresh")}</button>}
       </div></div>
@@ -105,7 +106,7 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
         checked={item.sharing.enabled} disabled={busy || !(item.sharing.enabled ? has("disable") : has("enable"))} onChange={on => void act(item, on ? "enable" : "disable")} />
       <p className="cx-muted cx-small">{t("每台设备能否使用，在该设备详情的「授权」中单独设置。", "Choose which devices may use it on each device's Access tab.")}</p></div>
     {item.id === "computer" && <AgentComputers />}
-    {item.error && <p className="cx-error" role="alert"><CircleAlert size={14} aria-hidden="true" /> {item.error}</p>}
+    {item.error && <p className="cx-error" role="alert"><CircleAlert size={14} aria-hidden="true" /> {localizeMessage(item.error, t)}</p>}
   </Card>;
 }
 /** Besides this screen, agents can use their own computers: running virtual spaces. */

@@ -145,6 +145,20 @@ test('capabilities page shows providers, permissions, sharing and reviews instal
   await expect(page.getByRole('region', { name: 'Browser', exact: true })).toContainText('Profile locked');
 });
 
+test('device messages show in Chinese and a stopped Screen Sharing offers its settings', async ({ page }) => {
+  const opened: string[] = [];
+  const stopped = { ...capabilities, items: capabilities.items.map(item => item.id === 'desktop' ? { ...item, provider: { ...item.provider, kind: 'screen_sharing', running: false, detail: 'Turn on Screen Sharing in System Settings → General → Sharing.' }, actions: ['open_settings', 'refresh'] } : item) };
+  await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: stopped }));
+  await page.route('**/api/v1/app/capabilities/*/*', route => { opened.push(new URL(route.request().url()).pathname.split('/').slice(-2).join(':')); return route.fulfill({ json: {} }); });
+  await page.addInitScript(() => localStorage.setItem('cranibox.language', 'zh-cn'));
+  await ready(page, '/app/this');
+  const desktop = page.getByRole('region', { name: '远程桌面', exact: true });
+  await expect(desktop).toContainText('macOS 屏幕共享');
+  await expect(desktop).toContainText('在「系统设置 → 通用 → 共享」中打开「屏幕共享」。');
+  await desktop.getByRole('button', { name: '打开共享设置' }).click();
+  await expect.poll(() => opened).toContain('desktop:open_settings');
+});
+
 test('capabilities page explains when the node does not offer it yet', async ({ page }) => {
   // Older nodes answer 404 for the capability API.
   await page.route('**/api/v1/app/capabilities', route => route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"not_found","message":"Not found"}' }));

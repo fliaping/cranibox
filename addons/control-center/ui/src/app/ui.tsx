@@ -69,6 +69,39 @@ export function Sheet({ title, children, onClose, t }: { title: string; children
 }
 
 export const capabilityIcons: Record<string, LucideIcon> = { terminal: SquareTerminal, terminals: SquareTerminal, desktop: Monitor, computer: MousePointerClick, browser: Globe };
+/** Device services answer in English; show the known messages in the interface language. */
+const messages: [RegExp, string][] = [
+  [/^Turn on Screen Sharing in System Settings → General → Sharing\.?$/, "在「系统设置 → 通用 → 共享」中打开「屏幕共享」。"],
+  [/^macOS Screen Sharing on (.+)$/, "macOS 屏幕共享（$1）"],
+  [/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重新检测。"],
+  [/^Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver\.?$/, "请在系统设置中为 CuaDriver 打开「屏幕录制」和「辅助功能」，然后重新打开 CuaDriver。"],
+  [/^Installing cua-driver…$/, "正在安装 cua-driver…"],
+  [/^The Computer Use bridge is not answering\.?$/, "Computer Use 桥接没有响应。"],
+  [/^Install Google Chrome, Chromium, Microsoft Edge or Brave\.?(.*)$/, "请先安装 Google Chrome、Chromium、Microsoft Edge 或 Brave。$1"],
+  [/^Update the browser to Chrome (\d+) or later, then retry\.?$/, "请把浏览器更新到 Chrome $1 或更高版本后重试。"],
+  [/^In your browser, allow remote debugging at (\S+), keep the browser open, then retry\.?$/, "请在浏览器中打开 $1 并允许远程调试，保持浏览器开启后重试。"],
+  [/^Open Chrome and allow remote debugging at (\S+); Chrome asks you to approve each new controller\.?$/, "请打开 Chrome，在 $1 允许远程调试；每次有新的控制方连接，Chrome 都会请你确认。"],
+  [/^This action does not apply in the current state; refresh and retry\.?$/, "当前状态下不能执行此操作，请刷新后重试。"],
+  [/^Open your system settings to change this\.?$/, "请在系统设置中修改。"],
+  [/^cua-driver is not answering; start it in your desktop session, then retry\.?$/, "cua-driver 没有响应，请在桌面会话中启动它后重试。"],
+  [/^The installation plan changed, expired or was already used\. Review a new plan\.?$/, "安装方案已变更、过期或已使用，请重新查看方案。"],
+  [/^The cua-driver download does not match its published checksum\.?$/, "下载的 cua-driver 与官方校验值不一致，已停止安装。"],
+  [/^Browser sharing was changed elsewhere; the managed browser stopped\.?$/, "浏览器共享在别处被修改，托管浏览器已停止。"],
+  [/^The managed browser exited; restarting it\.?$/, "托管浏览器已退出，正在重新启动。"],
+];
+export function localizeMessage(text: string | null | undefined, t: Translate) {
+  if (!text || t("zh", "en") === "en") return text || "";
+  for (const [pattern, chinese] of messages) if (pattern.test(text)) return text.replace(pattern, chinese);
+  return text;
+}
+/** What provides a capability, in words rather than internal identifiers. */
+export function providerName(kind: string, t: Translate) {
+  return ({
+    pty: t("内置终端", "Built-in terminal"), screen_sharing: t("macOS 屏幕共享", "macOS Screen Sharing"), x11vnc: "x11vnc", wayvnc: "wayvnc", vnc: "VNC", selkies: "Selkies",
+    cua: "cua-driver", "cua-embedded": t("内置 Computer Use（cua-driver）", "Built-in Computer Use (cua-driver)"), "cua-driver": "cua-driver", http: t("桌面桥接", "Desktop bridge"),
+    chrome: "Google Chrome", chromium: "Chromium", edge: "Microsoft Edge", brave: "Brave", profile: t("你的 Chrome", "Your Chrome"),
+  } as Record<string, string>)[kind] || kind;
+}
 export function capabilityName(id: string, t: Translate) {
   return ({
     terminal: t("终端", "Terminal"), terminals: t("终端", "Terminal"), desktop: t("远程桌面", "Remote desktop"),

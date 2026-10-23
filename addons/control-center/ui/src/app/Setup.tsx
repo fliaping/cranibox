@@ -5,7 +5,7 @@ import type { Capabilities, Capability, CapabilityAction, Identity } from "../pe
 import { copyText, useIdentity } from "./Network";
 import { inShell, shellCall, type ShellStatus } from "./shell";
 import { savePreferences, store, useApp } from "./store";
-import { Alert, Card, Pill, type Translate } from "./ui";
+import { Alert, Card, localizeMessage, Pill, type Translate } from "./ui";
 
 type Step = "permissions" | "identity" | "devices";
 const steps: Step[] = ["permissions", "identity", "devices"];
@@ -69,7 +69,7 @@ function rows(data: Capabilities | null, shell: ShellStatus | null, act: (item: 
     id: "desktop", icon: Monitor, title: t("远程桌面", "Remote desktop"),
     detail: t("在你的其他设备上查看和操作这块屏幕。", "View and control this screen from your other devices."),
     state: desktop.sharing.enabled && desktop.provider.running ? "ready" : desktop.provider.installed ? "todo" : "manual",
-    note: !desktop.provider.running ? (data?.platform === "macos" ? t("需要在「系统设置 → 通用 → 共享」中打开「屏幕共享」。", "Turn on Screen Sharing in System Settings → General → Sharing.") : desktop.error || undefined) : undefined,
+    note: !desktop.provider.running ? (data?.platform === "macos" ? t("需要在「系统设置 → 通用 → 共享」中打开「屏幕共享」。", "Turn on Screen Sharing in System Settings → General → Sharing.") : localizeMessage(desktop.error, t) || undefined) : undefined,
     fix: async () => {
       if (!desktop.provider.running && has(desktop, "open_settings")) { await act(desktop, "open_settings"); return; }
       if (!desktop.sharing.enabled && has(desktop, "enable")) await act(desktop, "enable");
@@ -119,7 +119,7 @@ function PermissionsStep({ next }: { next: () => void }) {
       const row = list.find(entry => entry.id === id);
       if (!row?.fix || row.state === "ready") continue;
       setBusy(id);
-      try { await row.fix(); } catch (problem) { setError((row.title + ": ") + (problem instanceof Error ? problem.message : String(problem))); }
+      try { await row.fix(); } catch (problem) { setError((row.title + ": ") + localizeMessage(problem instanceof Error ? problem.message : String(problem), t)); }
     }
     setBusy("");
     await load();
