@@ -119,7 +119,7 @@ struct Spec {
 type Detect = Arc<dyn Fn() -> Vec<Candidate> + Send + Sync>;
 /// The running browser: our child, or an instance already running on the profile.
 enum Instance {
-    Child(Child),
+    Child(Box<Child>),
     Adopted {
         address: SocketAddr,
         checked: Instant,
@@ -527,7 +527,7 @@ async fn launch(spec: &Spec, profile: &Path) -> Result<(Instance, Provider, Opti
     })
     .await;
     match ready {
-        Ok(Ok(version)) => Ok((Instance::Child(child), provider, version)),
+        Ok(Ok(version)) => Ok((Instance::Child(Box::new(child)), provider, version)),
         result => {
             let _ = child.kill().await;
             match result {
