@@ -107,6 +107,27 @@ jobs:
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
+      # Gatekeeper assesses a signed disk image and blocks one signed by a
+      # certificate Apple does not know; an unsigned image opens directly. Only the
+      # app keeps the signature (opened once via Privacy & Security > Open Anyway).
+      - name: Leave the macOS disk image unsigned
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          dmg=$(ls target/release/bundle/dmg/*.dmg | head -1)
+          if codesign -dv "$dmg" 2>/dev/null; then
+            codesign --remove-signature "$dmg" || true
+          fi
+          if codesign -dv "$dmg" 2>/dev/null; then
+            # Fallback: a fresh copy of the image carries no signature.
+            hdiutil convert "$dmg" -format UDZO -imagekey zlib-level=9 -o "$dmg.unsigned.dmg" >/dev/null
+            mv -f "$dmg.unsigned.dmg" "$dmg"
+          fi
+          if codesign -dv "$dmg" 2>/dev/null; then
+            echo "The disk image is still signed" >&2
+            exit 1
+          fi
+          hdiutil verify "$dmg" >/dev/null
       - name: Check the macOS signature
         if: runner.os == 'macOS'
         run: |
