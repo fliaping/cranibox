@@ -131,14 +131,13 @@ jobs:
           architectures=("$ARCHITECTURE")
           pull_args=()
           if [ "$PUBLISH_IMAGE" = true ]; then
+            # The arm64 manifest is verified on a native arm64 runner (verify-dockerhub-arm64):
+            # under QEMU its first boot does not finish in time.
             image="$REGISTRY_DOCKERHUB/$IMAGE_NAME@$IMAGE_DIGEST"
-            architectures=(amd64 arm64)
             pull_args=(--pull)
           fi
           for architecture in "${architectures[@]}"; do
-            # QEMU startup may be slower than the native check-only runner.
             timeout=600
-            if [ "$PUBLISH_IMAGE" = true ] && [ "$architecture" = arm64 ]; then timeout=1800; fi
             python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
               --platform "linux/$architecture" "${pull_args[@]}" --timeout "$timeout" \
               --report "$RUNNER_TEMP/image-startup-$DESKTOP-$architecture.json"
@@ -152,26 +151,85 @@ jobs:
           path: ${{ runner.temp }}/image-startup-${{ matrix.desktop }}-*.json
           if-no-files-found: warn
 
-      - name: Promote the verified image to public tags
-        if: github.event_name != 'workflow_dispatch' || inputs.publish
+  # ==========================================
+  # Both platform manifests pass on native runners before any public tag moves.
+  # ==========================================
+  verify-dockerhub-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: build-dockerhub
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
+    environment: docker-hub
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.desktop != 'all' && format('["{0}"]', inputs.desktop) || '["lxqt","xfce","kde"]') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Make room for the complete development image
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Verify the arm64 manifest natively
         env:
           DESKTOP: ${{ matrix.desktop }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
+          python3 scripts/verify-workspace-image.py \
+            --image "$REGISTRY_DOCKERHUB/$IMAGE_NAME:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --revision "$GITHUB_SHA" --platform linux/arm64 --pull --timeout 900 \
+            --report "$RUNNER_TEMP/image-startup-$DESKTOP-arm64-native.json"
+      - name: Upload sanitized startup acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-startup-${{ matrix.desktop }}-arm64-native
+          path: ${{ runner.temp }}/image-startup-${{ matrix.desktop }}-arm64-native.json
+          if-no-files-found: warn
+
+  promote-dockerhub:
+    runs-on: ubuntu-latest
+    needs: [build-dockerhub, verify-dockerhub-arm64]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
+    environment: docker-hub
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.desktop != 'all' && format('["{0}"]', inputs.desktop) || '["lxqt","xfce","kde"]') }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Promote the verified image to public tags
+        env:
+          DESKTOP: ${{ matrix.desktop }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then VERSION="$REQUESTED_VERSION"; else VERSION=${GITHUB_REF#refs/tags/v}; fi
+          [[ "$VERSION" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,110}$ ]] || { echo 'Invalid image version'; exit 1; }
           repository="$REGISTRY_DOCKERHUB/$IMAGE_NAME"
           tags=(--tag "$repository:ubuntu-$DESKTOP")
           if [ "$VERSION" != latest ]; then
             tags+=(--tag "$repository:ubuntu-$DESKTOP-$VERSION")
           fi
-          docker buildx imagetools create "${tags[@]}" "$repository@$IMAGE_DIGEST"
+          docker buildx imagetools create "${tags[@]}" "$repository:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
   # ==========================================
   # The mirror candidate also needs acceptance before its public tags move.
   # ==========================================
   push-aliyun:
     runs-on: ubuntu-latest
-    needs: build-dockerhub
+    needs: promote-dockerhub
     if: github.event_name != 'workflow_dispatch' || inputs.publish
     environment: aliyun
     permissions:
@@ -251,13 +309,10 @@ jobs:
           DESKTOP: ${{ matrix.desktop }}
         run: |
           image="$REGISTRY_ALIYUN/$IMAGE_NAME@$IMAGE_DIGEST"
-          for architecture in amd64 arm64; do
-            timeout=600
-            if [ "$architecture" = arm64 ]; then timeout=1800; fi
-            python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
-              --platform "linux/$architecture" --pull --timeout "$timeout" \
-              --report "$RUNNER_TEMP/image-startup-aliyun-$DESKTOP-$architecture.json"
-          done
+          # arm64 is verified on a native runner (verify-aliyun-arm64).
+          python3 scripts/verify-workspace-image.py --image "$image" --revision "$GITHUB_SHA" \
+            --platform linux/amd64 --pull --timeout 600 \
+            --report "$RUNNER_TEMP/image-startup-aliyun-$DESKTOP-amd64.json"
 
       - name: Upload sanitized mirror acceptance
         if: always()
@@ -267,15 +322,72 @@ jobs:
           path: ${{ runner.temp }}/image-startup-aliyun-${{ matrix.desktop }}-*.json
           if-no-files-found: warn
 
+  verify-aliyun-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: push-aliyun
+    environment: aliyun
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.desktop != 'all' && format('["{0}"]', inputs.desktop) || '["lxqt","xfce","kde"]') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Make room for the complete development image
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+      - name: Login to Alibaba Cloud Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+      - name: Verify the mirror's arm64 manifest natively
+        env:
+          DESKTOP: ${{ matrix.desktop }}
+        run: |
+          python3 scripts/verify-workspace-image.py \
+            --image "$REGISTRY_ALIYUN/$IMAGE_NAME:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --revision "$GITHUB_SHA" --platform linux/arm64 --pull --timeout 900 \
+            --report "$RUNNER_TEMP/image-startup-aliyun-$DESKTOP-arm64.json"
+      - name: Upload sanitized mirror acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-startup-aliyun-${{ matrix.desktop }}-arm64
+          path: ${{ runner.temp }}/image-startup-aliyun-${{ matrix.desktop }}-arm64.json
+          if-no-files-found: warn
+
+  promote-aliyun:
+    runs-on: ubuntu-latest
+    needs: [push-aliyun, verify-aliyun-arm64]
+    environment: aliyun
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        desktop: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.desktop != 'all' && format('["{0}"]', inputs.desktop) || '["lxqt","xfce","kde"]') }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Alibaba Cloud Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
       - name: Promote the verified mirror to public tags
         env:
           DESKTOP: ${{ matrix.desktop }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then VERSION="$REQUESTED_VERSION"; else VERSION=${GITHUB_REF#refs/tags/v}; fi
+          [[ "$VERSION" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,110}$ ]] || { echo 'Invalid image version'; exit 1; }
           repository="$REGISTRY_ALIYUN/$IMAGE_NAME"
           tags=(--tag "$repository:ubuntu-$DESKTOP")
           if [ "$VERSION" != latest ]; then
             tags+=(--tag "$repository:ubuntu-$DESKTOP-$VERSION")
           fi
-          docker buildx imagetools create "${tags[@]}" "$repository@$IMAGE_DIGEST"
+          docker buildx imagetools create "${tags[@]}" "$repository:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
