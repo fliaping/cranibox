@@ -29,11 +29,22 @@ async fn socket(address: SocketAddr) -> Result<Socket> {
     let config = WebSocketConfig::default()
         .max_message_size(Some(MAX_FRAME))
         .max_frame_size(Some(MAX_FRAME));
-    let (socket, _) = tokio::time::timeout(Duration::from_secs(5), connect_async_with_config(
-        format!("ws://{address}/websockets"), Some(config), true,
-    )).await.context("Local Selkies connection timed out")?
-        .context("Local Selkies websocket server is unavailable (use its internal websocket port, usually 8082)")?;
-    Ok(socket)
+    // Selkies 2.x serves the stream at /api/websockets; 1.x at /websockets.
+    let mut failure = None;
+    for path in ["/api/websockets", "/websockets"] {
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            connect_async_with_config(format!("ws://{address}{path}"), Some(config), true),
+        )
+        .await
+        {
+            Ok(Ok((socket, _))) => return Ok(socket),
+            Ok(Err(error)) => failure = Some(anyhow::Error::from(error)),
+            Err(_) => anyhow::bail!("Local Selkies connection timed out"),
+        }
+    }
+    Err(failure.unwrap_or_else(|| anyhow::anyhow!("no Selkies endpoint")))
+        .context("Local Selkies websocket server is unavailable (use its internal websocket port, usually 8082)")
 }
 
 /// A probe never sends SETTINGS, takes over a display, or changes its resolution.

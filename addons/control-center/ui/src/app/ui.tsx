@@ -73,6 +73,7 @@ export const capabilityIcons: Record<string, LucideIcon> = { terminal: SquareTer
 const messages: [RegExp, string][] = [
   [/^Turn on Screen Sharing in System Settings → General → Sharing\.?$/, "在「系统设置 → 通用 → 共享」中打开「屏幕共享」。"],
   [/^macOS Screen Sharing on (.+)$/, "macOS 屏幕共享（$1）"],
+  [/^Desktop server on (.+)$/, "桌面服务（$1）"],
   [/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重新检测。"],
   [/^Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver\.?$/, "请在系统设置中为 CuaDriver 打开「屏幕录制」和「辅助功能」，然后重新打开 CuaDriver。"],
   [/^Installing cua-driver…$/, "正在安装 cua-driver…"],
