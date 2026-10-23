@@ -1,8 +1,7 @@
 import { Activity, ArrowLeft, Globe, Monitor, MousePointerClick, Plug, ShieldCheck, SquareTerminal, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { webDesktopConnector } from "../desktop/WebRemoteDesktops";
-import { VncViewer } from "../desktop/VncViewer";
+import { DesktopViewer } from "../desktop/DesktopViewer";
 import { BrowserTargetPanel } from "../devices/BrowserTargetPanel";
 import type { DirectClient } from "../devices/DirectDevicesView";
 import { grantKeys, notAvailable, type Device, type Grant, type GrantKey } from "../personal/api";
@@ -150,7 +149,7 @@ function TerminalTab({ device }: { device: Device }) {
   </Card>;
 }
 function DesktopTab({ device }: { device: Device }) {
-  const { t, locale } = useApp();
+  const { t, locale, openExternal } = useApp();
   const [open, setOpen] = useState(false);
   if (isThis(device)) return <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("这就是你正在使用的设备", "This is the device you are using")}</h3>
     <p className="cx-muted">{t("要让其他设备查看这块屏幕，请在「能力与权限」中开启桌面共享。", "To let your other devices see this screen, turn on desktop sharing under Capabilities.")}</p></div></div>
@@ -158,7 +157,7 @@ function DesktopTab({ device }: { device: Device }) {
   const allowed = device.caps.desktop !== false;
   return <div className="cx-stack">
     {!allowed && <Alert tone="warn">{t("这台设备还没开启桌面共享。在那台设备上打开「本机设置 → 能力与权限 → 远程桌面」并允许其他设备使用（macOS 还需在系统设置中打开「屏幕共享」）。", "This device does not share its desktop yet. On that device, open Settings → Capabilities → Remote desktop and allow your other devices (on macOS, also turn on Screen Sharing in System Settings).")}</Alert>}
-    {open ? <VncViewer target={{ node: device.node_id, local: false }} connect={webDesktopConnector} language={locale} />
+    {open ? <DesktopViewer target={{ node: device.node_id, local: false }} language={locale} openExternal={openExternal} />
       : <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("远程桌面", "Remote desktop")}</h3>
         <p className="cx-muted">{t("画面经端到端加密的对等连接传输。需要对方设备已开启桌面共享。", "The screen streams over an end-to-end encrypted peer connection. The other device must have desktop sharing turned on.")}</p></div></div>
         <div className="cx-actions"><button className="cx-btn primary" disabled={!allowed || !device.online} onClick={() => setOpen(true)}>{t("连接桌面", "Connect to desktop")}</button></div></Card>}

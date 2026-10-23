@@ -2,12 +2,15 @@
 import json
 import base64
 import hashlib
+import http.client
+import os
 import socket
 import struct
 import subprocess
 import threading
 import time
 import unittest
+import urllib.parse
 
 from workspace_web_harness import Harness, CORE, NODE, WEB, free_port, sockets_allowed, until
 from test_cranibox_terminal import Socket
@@ -64,64 +67,137 @@ class DesktopServer:
             connection.close()
 
 
+def framing(connection):
+    """Exact reads and unmasked WebSocket frames on a raw server connection."""
+    def exact(count):
+        value = b''
+        while len(value) < count:
+            chunk = connection.recv(count - len(value))
+            if not chunk:
+                raise EOFError()
+            value += chunk
+        return value
+
+    def send(payload, opcode):
+        size = len(payload)
+        header = bytes([128 | opcode, size if size < 126 else 126 if size <= 65535 else 127])
+        if size >= 126:
+            header += struct.pack('!H' if size <= 65535 else '!Q', size)
+        connection.sendall(header + payload)
+    return exact, send
+
+
 class SelkiesServer(DesktopServer):
     payload = bytes(range(256)) * 512
 
     def echo(self, connection):
-        def exact(count):
-            value = b''
-            while len(value) < count:
-                chunk = connection.recv(count - len(value))
-                if not chunk:
-                    raise EOFError()
-                value += chunk
-            return value
-
-        def send(payload, opcode):
-            size = len(payload)
-            header = bytes([128 | opcode, size if size < 126 else 126 if size <= 65535 else 127])
-            if size >= 126:
-                header += struct.pack('!H' if size <= 65535 else '!Q', size)
-            connection.sendall(header + payload)
-
+        exact, send = framing(connection)
         try:
             request = b''
             while not request.endswith(b'\r\n\r\n'):
                 request += exact(1)
                 if len(request) > 8192:
                     return
-            key = next(line.split(b':', 1)[1].strip() for line in request.split(b'\r\n') if line.lower().startswith(b'sec-websocket-key:'))
-            accept = base64.b64encode(hashlib.sha1(key + b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest())
-            connection.sendall(b'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + b'\r\n\r\n')
-            send(b'MODE websockets', 1)
-            send(self.payload, 2)
-            while True:
-                a, b = exact(2)
-                size = b & 127
-                if size == 126:
-                    size = struct.unpack('!H', exact(2))[0]
-                elif size == 127:
-                    size = struct.unpack('!Q', exact(8))[0]
-                if size > 128 * 1024:
-                    return
-                mask = exact(4) if b & 128 else None
-                payload = exact(size)
-                if mask:
-                    payload = bytes(value ^ mask[i % 4] for i, value in enumerate(payload))
-                opcode = a & 15
-                if opcode == 8:
-                    send(b'', 8)
-                    return
-                if opcode == 9:
-                    send(payload, 10)
-                elif opcode == 1:
-                    self.received.append(payload)
-                    send(b'input:' + payload, 1)
+            self.stream(connection, request, exact, send)
         except (OSError, EOFError, StopIteration):
             pass
         finally:
             self.active -= 1
             connection.close()
+
+    def stream(self, connection, request, exact, send):
+        key = next(line.split(b':', 1)[1].strip() for line in request.split(b'\r\n') if line.lower().startswith(b'sec-websocket-key:'))
+        accept = base64.b64encode(hashlib.sha1(key + b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest())
+        connection.sendall(b'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + b'\r\n\r\n')
+        send(b'MODE websockets', 1)
+        send(self.payload, 2)
+        while True:
+            a, b = exact(2)
+            size = b & 127
+            if size == 126:
+                size = struct.unpack('!H', exact(2))[0]
+            elif size == 127:
+                size = struct.unpack('!Q', exact(8))[0]
+            if size > 128 * 1024:
+                return
+            mask = exact(4) if b & 128 else None
+            payload = exact(size)
+            if mask:
+                payload = bytes(value ^ mask[i % 4] for i, value in enumerate(payload))
+            opcode = a & 15
+            if opcode == 8:
+                send(b'', 8)
+                return
+            if opcode == 9:
+                send(payload, 10)
+            elif opcode == 1:
+                self.received.append(payload)
+                send(b'input:' + payload, 1)
+
+
+class SelkiesWebServer(SelkiesServer):
+    """Selkies 2.x: its page, API and stream share one port (HTTP/1.1 keep-alive)."""
+    def __init__(self):
+        self.requests = []
+        super().__init__()
+
+    def echo(self, connection):
+        exact, send = framing(connection)
+        try:
+            while True:
+                request = b''
+                while not request.endswith(b'\r\n\r\n'):
+                    request += exact(1)
+                    if len(request) > 8192:
+                        return
+                line, *fields = request.decode().split('\r\n')
+                method, target, _ = line.split(' ')
+                headers = {name.strip().lower(): value.strip() for name, value in (f.split(':', 1) for f in fields if ':' in f)}
+                self.requests.append((method, target, headers))
+                if headers.get('upgrade', '').lower() == 'websocket':
+                    return self.stream(connection, request, exact, send)
+                body = exact(int(headers.get('content-length', 0)))
+                status, kind, payload, extra = '200 OK', 'text/plain', b'', ''
+                if target == '/':
+                    kind, payload = 'text/html', b'<!doctype html><title>Selkies</title>'
+                elif target.startswith('/api/status'):
+                    kind, payload = 'application/json', json.dumps({'target': target, 'headers': headers}).encode()
+                elif target == '/redirect':
+                    status, extra = '302 Found', 'Location: /api/status\r\n'
+                elif method == 'POST':
+                    payload = b'posted:' + body
+                else:
+                    status = '404 Not Found'
+                connection.sendall(f'HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {len(payload)}\r\n{extra}\r\n'.encode() + payload)
+        except (OSError, EOFError, ValueError):
+            pass
+        finally:
+            self.active -= 1
+            connection.close()
+
+
+APPLICATIONS = 'localhost:3002'
+APPLICATIONS_ORIGIN = 'https://' + APPLICATIONS
+
+
+class PageSocket(Socket):
+    """A WebSocket to a desktop page on the application origin."""
+    def __init__(self, harness, path, cookie, protocol=None):
+        self.socket = socket.create_connection(('127.0.0.1', harness.web_port), timeout=5)
+        self.socket.settimeout(5)
+        self.reader = self.socket.makefile('rb')
+        key = base64.b64encode(os.urandom(16)).decode()
+        headers = [f'GET {path} HTTP/1.1', f'Host: {APPLICATIONS}', 'Upgrade: websocket',
+                   'Connection: Upgrade', 'Sec-WebSocket-Version: 13', f'Sec-WebSocket-Key: {key}',
+                   'Cookie: ' + cookie, 'Origin: ' + APPLICATIONS_ORIGIN]
+        if protocol:
+            headers.append('Sec-WebSocket-Protocol: ' + protocol)
+        self.socket.sendall(('\r\n'.join(headers) + '\r\n\r\n').encode())
+        self.status = int(self.reader.readline().split()[1])
+        self.headers = {}
+        while (line := self.reader.readline()) not in (b'\r\n', b''):
+            name, value = line.decode().split(':', 1)
+            self.headers[name.lower()] = value.strip()
 
 
 @unittest.skipUnless(all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'build Rust binaries; real sockets required')
@@ -162,6 +238,37 @@ class RemoteDesktopTests(unittest.TestCase):
     def open(self, ticket=None, **kwargs):
         connection = Socket(self.h, ticket or self.ticket(), path='/api/desktop/ws', **kwargs)
         self.addCleanup(connection.close)
+        return connection
+
+    def page(self, **body):
+        status, value = self.h.post('/api/desktop/page', {'node': self.target, **body})
+        self.assertEqual(status, 200, value)
+        return value
+
+    def app(self, method, url, cookie='', origin=None, data=None):
+        parts = urllib.parse.urlsplit(url)
+        path = parts.path + ('?' + parts.query if parts.query else '')
+        headers = {'Host': APPLICATIONS}
+        if cookie:
+            headers['Cookie'] = cookie
+        if origin:
+            headers['Origin'] = origin
+        connection = http.client.HTTPConnection('127.0.0.1', self.h.web_port, timeout=8)
+        try:
+            connection.request(method, path, data, headers)
+            response = connection.getresponse()
+            return response.status, {k.lower(): v for k, v in response.getheaders()}, response.read()
+        finally:
+            connection.close()
+
+    def claim(self, url):
+        status, headers, body = self.app('GET', url)
+        self.assertEqual(status, 303, body)
+        return headers['location'], headers['set-cookie'].split(';')[0]
+
+    def socket(self, path, cookie, protocol=None):
+        connection = PageSocket(self.h, path, cookie, protocol)
+        self.addCleanup(connection.socket.close)
         return connection
 
     def connected(self, **kwargs):
@@ -226,6 +333,70 @@ class RemoteDesktopTests(unittest.TestCase):
         self.assertEqual(connection.recv()[0], 8)
         until(lambda: server.active == 0)
         self.assertEqual(self.h.post('/api/desktop/ticket', {'node':self.target})[0], 400)
+
+    def test_selkies_page_is_forwarded_unchanged_on_the_application_origin(self):
+        server = SelkiesWebServer()
+        self.addCleanup(server.close)
+        self.cli('desktop', '--address', server.address, '--protocol', 'selkies')
+        value = self.page()
+        self.assertEqual(value['protocol'], 'selkies')
+        self.assertTrue(value['url'].startswith(APPLICATIONS_ORIGIN + '/cranibox-app-'), value)
+        prefix, cookie = self.claim(value['url'])
+        self.assertEqual(self.app('GET', value['url'])[0], 403)
+        self.assertEqual(self.app('GET', prefix)[0], 403)
+        status, headers, body = self.app('GET', prefix, cookie)
+        self.assertEqual((status, body), (200, b'<!doctype html><title>Selkies</title>'))
+        self.assertIn('frame-ancestors http://127.0.0.1:', headers['content-security-policy'])
+        status, _, body = self.app('GET', prefix + 'api/status?q=1', cookie)
+        seen = json.loads(body)
+        self.assertEqual(seen['target'], '/api/status?q=1')
+        self.assertEqual(seen['headers']['host'], 'localhost')
+        self.assertNotIn('cookie', seen['headers'])
+        self.assertEqual(self.app('POST', prefix + 'api/switch', cookie, data=b'{"a":1}')[0], 403)
+        status, _, body = self.app('POST', prefix + 'api/switch', cookie, APPLICATIONS_ORIGIN, b'{"a":1}')
+        self.assertEqual((status, body), (200, b'posted:{"a":1}'))
+        status, headers, _ = self.app('GET', prefix + 'redirect', cookie)
+        self.assertEqual((status, headers['location']), (302, prefix + 'api/status'))
+        self.assertEqual(self.app('GET', prefix + 'missing', cookie)[0], 404)
+        # Sequential requests reuse the tunnelled HTTP connection.
+        self.assertLess(len(server.connections), 3)
+        stream = self.socket(prefix + 'api/websockets', cookie)
+        self.assertEqual(stream.status, 101)
+        self.assertEqual(stream.recv(), (1, b'MODE websockets'))
+        self.assertEqual(stream.recv(), (2, server.payload))
+        stream.send(b'kd,97')
+        self.assertEqual(stream.recv(), (1, b'input:kd,97'))
+        self.cli('revoke', '--node', self.caller)
+        self.assertEqual(stream.recv()[0], 8)
+        until(lambda: server.active == 0)
+        self.assertEqual(self.app('GET', prefix, cookie)[0], 403)
+        self.assertEqual(self.h.post('/api/desktop/page', {'node': self.target})[0], 400)
+
+    def test_vnc_page_is_novnc_and_its_socket_carries_rfb(self):
+        value = self.page()
+        self.assertEqual(value['protocol'], 'vnc')
+        prefix, cookie = self.claim(value['url'])
+        status, headers, body = self.app('GET', prefix, cookie)
+        self.assertEqual(status, 200)
+        self.assertTrue(headers['content-type'].startswith('text/html'))
+        self.assertIn(b'noVNC', body)
+        status, headers, _ = self.app('GET', prefix + 'app/ui.js', cookie)
+        self.assertEqual((status, headers['content-type']), (200, 'text/javascript; charset=utf-8'))
+        self.assertEqual(json.loads(self.app('GET', prefix + 'mandatory.json', cookie)[2]), {'host': '', 'port': 0, 'path': 'websockify'})
+        self.assertTrue(json.loads(self.app('GET', prefix + 'defaults.json', cookie)[2])['autoconnect'])
+        self.assertEqual(self.app('GET', prefix + 'app/missing.js', cookie)[0], 404)
+        # The stream opened to identify the desktop serves noVNC's first connection.
+        self.assertEqual(self.vnc.active, 1)
+        stream = self.socket(prefix + 'websockify', cookie, 'binary')
+        self.assertEqual((stream.status, stream.headers['sec-websocket-protocol']), (101, 'binary'))
+        self.assertEqual(stream.recv(), (2, self.vnc.banner))
+        stream.send(b'\x00\x01\xff', opcode=2)
+        self.assertEqual(stream.recv(), (2, b'\x00\x01\xff'))
+        # One controller: another page waits until this one closes.
+        self.assertEqual(self.h.post('/api/desktop/page', {'node': self.target})[0], 400)
+        stream.send(b'', opcode=8)
+        until(lambda: self.vnc.active == 0)
+        self.assertEqual(self.page()['protocol'], 'vnc')
 
     def test_single_controller_and_sharing_stop_release_the_lease(self):
         first = self.connected()

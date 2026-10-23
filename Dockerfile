@@ -19,6 +19,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY apps/node-desktop/src-tauri/ ./apps/node-desktop/src-tauri/
 COPY addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css ./addons/control-center/
+COPY addons/novnc/ ./addons/novnc/
 RUN cargo build --release --locked -p cranibox
 
 # Follow official Webtop updates; builds must pull to refresh this moving tag.

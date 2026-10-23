@@ -86,6 +86,8 @@ pub(crate) struct App {
     slots: Arc<Semaphore>,
     streams: Arc<Semaphore>,
     desktops: Arc<Semaphore>,
+    /// Connections to the shared Selkies web page (its page loads open several).
+    desktop_pages: Arc<Semaphore>,
     browsers: Arc<Semaphore>,
     computer: Arc<Mutex<Option<computer::Lease>>>,
     computer_actions: Arc<Mutex<()>>,
@@ -667,6 +669,11 @@ impl Running {
     pub(crate) async fn desktop(&self) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
         desktop::open(&self.app, None, false).await
     }
+    pub(crate) async fn desktop_page(
+        &self,
+    ) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
+        desktop::page(&self.app, None, false).await
+    }
     pub async fn wait(mut self) -> Result<()> {
         let result = if let Some(transport) = self.listener.take() {
             let result = transport.task.await;
@@ -806,6 +813,7 @@ pub(crate) async fn start_with_catalog(
         slots,
         streams: Arc::new(Semaphore::new(4)),
         desktops: Arc::new(Semaphore::new(1)),
+        desktop_pages: Arc::new(Semaphore::new(32)),
         browsers: Arc::new(Semaphore::new(1)),
         computer: Arc::default(),
         computer_actions: Arc::default(),
@@ -856,6 +864,7 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
         .route("/nodes/{node}/terminal/sessions", post(sessions))
         .route("/nodes/{node}/terminal/ws", get(attach))
         .route("/nodes/{node}/desktop/ws", get(desktop::upgrade))
+        .route("/nodes/{node}/desktop/page", get(desktop::page_upgrade))
         .route("/nodes/{node}/computer", post(computer::manage))
         .route("/nodes/{node}/browser", post(browser::manage))
         .route("/nodes/{node}/browser/ws", get(browser::upgrade))

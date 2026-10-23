@@ -1,6 +1,16 @@
 # 跨设备桌面
 
-Web 的“远程桌面”和 Tauri 的“桌面”共用 React 查看器及本机服务管理页面：VNC 使用 noVNC，已有 Selkies 服务使用 JPEG 查看器。浏览器通过同源 Rust 后端连接目标；桌面客户端通过本机 Rust IPC 连接目标。节点令牌留在 Rust 侧，查看器输入的 VNC 密码不写入浏览器存储或节点配置。托管服务生成的密码保存在目标设备的私有文件中，只在主动请求时返回。
+查看端不再自建查看器，直接显示桌面服务自己的界面：Selkies 目标显示它自己的网页（含其音频、剪贴板、文件传输等功能），VNC 目标显示随节点打包的原版 noVNC 1.7.0（`addons/novnc`）。Web 的“远程桌面”和桌面客户端的设备“桌面”页共用同一个外框组件（`DesktopViewer`），只提供连接状态、全屏、在浏览器打开和断开/重新连接。托管服务生成的密码保存在目标设备的私有文件中，只在主动请求时返回；VNC 密码由 noVNC 自己询问，不写入节点配置。
+
+### 桌面页面转发
+
+- `POST /api/desktop/page {node, local}`（会话 + CSRF）先连一次目标以确认在线、授权与协议，返回一次性链接 `{url, protocol}`。
+- 目标设备新增 mesh 路由 `GET /api/v1/mesh/nodes/{node}/desktop/page`：经已授权、端到端加密的桌面通道，把一条 TCP 连接原样接到共享的 Selkies 端口（Selkies 2.x 在同一端口提供网页、API 与 `api/websockets` 流，通常是 8082）。每条连接独立检查共享与授权，撤权或停止共享在 250 ms 内断开；每台目标最多 32 条页面连接。共享的是 VNC 时该路由返回“无 Selkies 网页”，查看端改为提供 noVNC 页面，其 `websockify` 套接字通过原有 `desktop/ws` 通道承载 RFB（仍受单控制者限制）。
+- 查看端在 HTTP/1.1 上转发请求（保留最多 6 条空闲连接复用），WebSocket 升级单独建连。页面始终运行在**独立的源**上，不能读写控制台的会话：容器 Web 使用 `applicationsUrl`（与 Spaces 应用相同），原生窗口与 CLI 节点按需启动只监听回环随机端口的网关（仅在控制台本身经回环地址访问时可用）。链接一次有效，兑换为限定路径的 HttpOnly Cookie；转发时去掉浏览器 Cookie、Authorization 等凭据，响应附带 `frame-ancestors` 只允许控制台源嵌入，控制台 CSP 的 `frame-src` 相应放行该源。
+- “在浏览器打开”重新签发一次性链接：Web 端在新标签页打开，桌面客户端交给系统浏览器。打开前先关闭内嵌页面，以便 VNC 单控制者名额释放。
+- 旧版本目标没有页面路由：VNC 仍可用 noVNC 打开；Selkies 会提示先升级那台设备的 Cranibox。
+
+下文“已有 Selkies 服务”“协议”“文字剪贴板”中关于 JPEG 适配、`CRANIBOX-SELKIES/1` 记录格式与剪贴板面板的内容，描述的是 `/api/desktop/ws` 桌面流；该流仍由节点提供，但控制台界面已不再使用。
 
 ## 开启共享
 

@@ -97,6 +97,8 @@ struct State {
     node: String,
     peers: std::path::PathBuf,
     shell: Option<Arc<dyn Shell>>,
+    /// Separate loopback origin for desktop pages, started on first use.
+    gateway: Arc<tokio::sync::OnceCell<crate::spaces::applications::Gateway>>,
 }
 
 /// Read the access token beside the node configuration, creating it once (0600).
@@ -326,6 +328,7 @@ pub async fn serve(
         node,
         peers: local_peers,
         shell: options.shell,
+        gateway: Arc::default(),
     };
     let shutdown = stop.clone();
     let shutdown = async move { shutdown.cancelled().await };
@@ -551,7 +554,7 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
     if header(&headers, "content-type") != "application/json" {
         return error(StatusCode::UNSUPPORTED_MEDIA_TYPE, "JSON required");
     }
-    let limit = if path == "/api/shell" {
+    let limit = if path == "/api/shell" || path == "/api/desktop/page" {
         Some(16384)
     } else {
         Services::limit(&path)
@@ -587,11 +590,55 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
             Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
         };
     }
+    if path == "/api/desktop/page" {
+        return match desktop_page(&state, &headers, body).await {
+            Ok(value) => Json(value).into_response(),
+            Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+        };
+    }
     match state.services.api(&session, &path, body).await {
         Some(Ok(value)) => Json(value).into_response(),
         Some(Err(e)) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
         None => error(StatusCode::NOT_FOUND, "Not found"),
     }
+}
+
+/// `POST /api/desktop/page`: a one-time link to a shared desktop's own web page on
+/// a separate loopback origin, so the page never runs with this console's session.
+async fn desktop_page(state: &State, headers: &HeaderMap, body: Value) -> Result<Value> {
+    let host = header(headers, "host");
+    let loopback = url::Url::parse(&format!("http://{host}/"))
+        .ok()
+        .and_then(|url| {
+            url.host().map(|host| match host {
+                url::Host::Domain(name) => name == "localhost",
+                url::Host::Ipv4(ip) => ip.is_loopback(),
+                url::Host::Ipv6(ip) => ip.is_loopback(),
+            })
+        })
+        .unwrap_or(false);
+    anyhow::ensure!(
+        loopback,
+        "Open remote desktops from this device's own Cranibox window"
+    );
+    let gateway = state
+        .gateway
+        .get_or_try_init(crate::spaces::applications::Gateway::start)
+        .await?;
+    // CSP source expressions cannot name IPv6 literals.
+    let mut ancestors: Vec<_> = state
+        .origins
+        .iter()
+        .filter(|origin| !origin.contains('['))
+        .cloned()
+        .collect();
+    ancestors.sort();
+    let page = state
+        .services
+        .desktop_page(body, ancestors.join(" "))
+        .await?;
+    let protocol = page.protocol();
+    Ok(json!({"url": gateway.open_desktop(page).await?, "protocol": protocol}))
 }
 
 async fn page_response(
@@ -644,7 +691,8 @@ async fn page_response(
     });
     (
         [("content-type", "text/html; charset=utf-8")],
-        super::page(language, &config),
+        // Desktop pages come from this device's own loopback gateway.
+        super::page(language, &config, "http://127.0.0.1:*"),
     )
         .into_response()
 }

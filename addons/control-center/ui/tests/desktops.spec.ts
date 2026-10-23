@@ -1,6 +1,5 @@
 import { openNetworkSettings } from './network-page';
 import { expect, test, type Page } from '@playwright/test';
-import { previewNode } from './preview-node';
 
 for (const platform of ['windows', 'macos']) test(platform + ' desktop setup checks the real local greeting before reviewing sharing', async ({ page }) => {
   const commands: any[] = [], errors: string[] = [];
@@ -89,83 +88,21 @@ async function api(page: Page, command: Record<string, unknown>) {
     const value = await response.json(); if (!response.ok) throw Error(JSON.stringify(value)); return value;
   }, command);
 }
+const desktop = (page: Page) => page.frameLocator('iframe.vnc-frame');
 async function pixel(page: Page) {
-  return page.locator('.vnc-screen canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3));
+  return desktop(page).locator('#noVNC_container canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3));
 }
-test('desktop text clipboard bounds Unicode, supports chunks and clears on reconnect', async ({ page }) => {
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+/** Records "Open in browser" links instead of opening tabs. */
+async function captureTabs(page: Page) {
   await page.addInitScript(() => {
-    (window as any).clipboardWrites = [];
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as any).clipboardWrites.push(text); } } });
+    (window as any).openedTabs = [];
+    window.open = () => ({ opener: window, close() {}, location: { replace(url: string) { (window as any).openedTabs.push(url); } } }) as unknown as Window;
   });
-  await page.goto('/#/desktop');
-  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19118', protocol: 'selkies' } });
-  await page.reload();
-  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  const status = section.locator('.vnc-toolbar [role="status"]');
-  const push = async (messages: string[]) => { expect((await page.request.post('http://127.0.0.1:19118/clipboard', { data: { messages } })).ok()).toBe(true); };
-  try {
-    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-    await expect(status).toHaveText('Connected');
-    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
-    const panel = section.getByRole('region', { name: 'Desktop text clipboard', exact: true });
-    const outgoing = panel.getByLabel('Send to remote', { exact: true }), incoming = panel.getByLabel('Remote clipboard', { exact: true });
-    await panel.getByRole('button', { name: 'Fetch remote text', exact: true }).click();
-    await expect(incoming).toHaveValue('Remote clipboard fixture');
-    expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([]);
-    const unicode = '中文 👋\nremote command';
-    await outgoing.fill(unicode); await panel.getByRole('button', { name: 'Send text', exact: true }).click();
-    await expect(incoming).toHaveValue(unicode);
-    await panel.getByRole('button', { name: 'Copy to this device', exact: true }).click();
-    expect(await page.evaluate(() => (window as any).clipboardWrites)).toEqual([unicode]);
-    const limit = 'a'.repeat(65536);
-    await outgoing.fill(limit); await panel.getByRole('button', { name: 'Send text', exact: true }).click();
-    await expect(incoming).toHaveValue(limit);
-    await outgoing.fill('中'.repeat(21846));
-    await expect(outgoing).toHaveAttribute('aria-invalid', 'true');
-    await expect(panel.getByRole('button', { name: 'Send text', exact: true })).toBeDisabled();
-    await outgoing.fill('clipboard draft');
-    await section.getByRole('button', { name: 'Input enabled', exact: true }).click();
-    await expect(panel.getByRole('button', { name: 'Send text', exact: true })).toBeDisabled();
-    await section.getByRole('button', { name: 'View only', exact: true }).click();
-    const bytes = Buffer.from(unicode);
-    // Split inside the first Chinese character: UTF-8 is decoded after assembly.
-    await push(['clipboard_start,text/plain,' + bytes.length, 'clipboard_data,' + bytes.subarray(0, 1).toString('base64'), 'clipboard_data,' + bytes.subarray(1).toString('base64'), 'clipboard_finish']);
-    await expect(incoming).toHaveValue(unicode);
-    for (const message of ['clipboard,%%%%', 'clipboard,/w==', 'clipboard_start,text/plain,65537', 'clipboard_binary,image/png,AAAA']) {
-      await push([message]); await expect(panel.getByRole('alert')).toContainText('ignored');
-      await expect(incoming).toHaveValue(''); await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeDisabled();
-      await expect(status).toHaveText('Connected');
-    }
-    await push(['clipboard_secret', 'clipboard,' + Buffer.from('secret fixture').toString('base64')]);
-    await expect(incoming).toHaveValue('');
-    await push(['clipboard,']); await expect(panel.getByRole('alert')).toHaveCount(0);
-    await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeEnabled();
-    for (const width of [375, 1440]) {
-      await page.setViewportSize({ width, height: 1000 });
-      for (const theme of ['dark', 'light']) {
-        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await panel.screenshot({ path: '/tmp/cranibox-clipboard-' + width + '-' + theme + '.png' });
-      }
-    }
-    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    await expect(panel).toHaveCount(0);
-    await section.getByRole('button', { name: 'Reconnect', exact: true }).click(); await expect(status).toHaveText('Connected');
-    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
-    await expect(outgoing).toHaveValue(''); await expect(incoming).toHaveValue('');
-    await expect(panel.getByRole('button', { name: 'Copy to this device', exact: true })).toBeDisabled();
-    // An insecure origin still allows manual selection when copying is blocked.
-    await push(['clipboard,' + Buffer.from(unicode).toString('base64')]); await expect(incoming).toHaveValue(unicode);
-    await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw Error('Blocked'); }; document.execCommand = () => false; });
-    await panel.getByRole('button', { name: 'Copy to this device', exact: true }).click();
-    await expect(panel.getByRole('alert')).toContainText('text is selected');
-    expect(await incoming.evaluate((field: HTMLTextAreaElement) => field.selectionEnd - field.selectionStart)).toBe(unicode.length);
-    expect(errors).toEqual([]);
-  } finally { await api(page, { operation: 'desktop', desktop: null }); }
-});
-test('Selkies shares a JPEG desktop with keyboard, pointer, view only and reconnect', async ({ page }) => {
+}
+
+test('a Selkies desktop shows its own page, opens in the browser and reconnects', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await captureTabs(page);
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
   await section.getByRole('button', { name: 'Configure sharing', exact: true }).click();
@@ -174,24 +111,19 @@ test('Selkies shares a JPEG desktop with keyboard, pointer, view only and reconn
   await section.getByLabel('Local Selkies address', { exact: true }).fill('127.0.0.1:19118');
   await section.getByRole('button', { name: 'Save and enable sharing', exact: true }).click();
   await expect(section.getByRole('status').filter({ hasText: 'Local sharing enabled' })).toBeVisible();
+  const status = section.locator('.vnc-toolbar [role="status"]');
   try {
     await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-    const initial = await pixel(page); expect(initial[1]).toBeGreaterThan(initial[0]);
-    await section.getByRole('button', { name: 'Keyboard', exact: true }).click();
-    await section.getByLabel('Remote keyboard input', { exact: true }).fill('cranibox-selkies-input-20261018');
-    await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(180);
-    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-    await expect.poll(async () => (await pixel(page))[0]).toBeLessThan(100);
-    await section.getByRole('button', { name: 'Input enabled', exact: true }).click();
-    await expect(section.getByRole('button', { name: 'Keyboard', exact: true })).toBeDisabled();
-    await section.locator('canvas').click();
-    expect((await pixel(page))[0]).toBeLessThan(100);
-    await section.getByRole('button', { name: 'View only', exact: true }).click();
-    await section.locator('canvas').click();
-    await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(180);
+    await expect(status).toHaveText('Connected');
+    await expect(section.locator('.vnc-protocol')).toHaveText('Selkies');
+    await expect(section.locator('iframe.vnc-frame')).toHaveAttribute('src', /^http:\/\/127\.0\.0\.1:19121\/cranibox-app-[0-9a-f-]+-page\/\?open=/);
+    await expect(desktop(page).locator('#mode')).toHaveText('MODE websockets');
+    await expect(desktop(page).locator('#status')).toHaveText('status true');
+    await desktop(page).locator('body').click(); await page.keyboard.press('a');
+    await expect(desktop(page).locator('#input')).toHaveText('input:kd,a');
+    // The framed page runs on its own origin and cannot read this console.
+    expect(await desktop(page).locator('body').evaluate(() => { try { return String(window.parent.document.title); } catch { return 'isolated'; } })).toBe('isolated');
+    await expect(section.getByRole('button', { name: 'Fullscreen desktop', exact: true })).toBeEnabled();
     for (const width of [375, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const theme of ['light', 'dark']) {
@@ -200,9 +132,88 @@ test('Selkies shares a JPEG desktop with keyboard, pointer, view only and reconn
         await section.screenshot({ path: '/tmp/cranibox-selkies-' + width + '-' + theme + '.png' });
       }
     }
+    await section.getByRole('button', { name: 'Open in browser', exact: true }).click();
+    await expect(status).toHaveText('Opened in browser');
+    await expect(section.locator('iframe.vnc-frame')).toHaveCount(0);
+    const tabs: string[] = await page.evaluate(() => (window as any).openedTabs);
+    expect(tabs).toHaveLength(1);
+    // The link works once, in any browser on this device.
+    const tab = await page.context().newPage();
+    await tab.goto(tabs[0]);
+    await expect(tab.locator('#mode')).toHaveText('MODE websockets');
+    await tab.close();
+    await section.getByRole('button', { name: 'Show here', exact: true }).click();
+    await expect(desktop(page).locator('#mode')).toHaveText('MODE websockets');
+    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(status).toHaveText('Disconnected');
+    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
+    await expect(desktop(page).locator('#mode')).toHaveText('MODE websockets');
     await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
     await expect(section.getByRole('button', { name: 'Connect desktop', exact: true })).toBeDisabled();
     expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('a VNC desktop opens in noVNC, forwards input and opens in the browser', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await captureTabs(page);
+  await page.goto('/#/desktop');
+  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19110' } });
+  await page.reload();
+  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
+  const status = section.locator('.vnc-toolbar [role="status"]');
+  try {
+    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    await expect(status).toHaveText('Connected');
+    await expect(section.locator('.vnc-protocol')).toHaveText('noVNC');
+    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await desktop(page).locator('#noVNC_container canvas').click(); await page.keyboard.press('a');
+    await expect.poll(() => pixel(page)).toEqual([212, 100, 56]);
+    for (const width of [375, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await section.screenshot({ path: '/tmp/cranibox-vnc-' + width + '-' + theme + '.png', animations: 'disabled' });
+      }
+    }
+    // A desktop accepts one controller: the embedded viewer closes before the browser opens.
+    await section.getByRole('button', { name: 'Open in browser', exact: true }).click();
+    await expect(status).toHaveText('Opened in browser');
+    const tabs: string[] = await page.evaluate(() => (window as any).openedTabs);
+    const tab = await page.context().newPage();
+    await tab.goto(tabs[0]);
+    await expect.poll(() => tab.locator('#noVNC_container canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3))).toEqual([64, 139, 83]);
+    await tab.close();
+    // Each connection starts a fresh fixture frame.
+    await section.getByRole('button', { name: 'Show here', exact: true }).click();
+    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(status).toHaveText('Disconnected');
+    await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
+    await expect(section.getByRole('button', { name: 'Connect desktop', exact: true })).toBeDisabled();
+    expect(errors).toEqual([]);
+  } finally { await api(page, { operation: 'desktop', desktop: null }); }
+});
+
+test('noVNC asks for VNC credentials itself and retries after a rejected password', async ({ page }) => {
+  await page.goto('/#/desktop');
+  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19114' } });
+  await page.reload();
+  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
+  try {
+    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
+    const frame = desktop(page), username = frame.locator('#noVNC_username_input'), password = frame.locator('#noVNC_password_input');
+    await expect(password).toBeVisible();
+    await username.fill('cranibox'); await password.fill('incorrect-password'); await password.press('Enter');
+    await expect(frame.locator('#noVNC_status')).toContainText('Invalid fixture credentials');
+    // noVNC offers its own Connect button and asks again; nothing is remembered.
+    await frame.locator('#noVNC_connect_button').dispatchEvent('click');
+    await expect(password).toBeVisible();
+    await expect(password).toHaveValue('');
+    await username.fill('cranibox'); await password.fill('wayland8'); await password.press('Enter');
+    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('wayland8');
   } finally { await api(page, { operation: 'desktop', desktop: null }); }
 });
 test('an available Selkies desktop opens without requiring the editor extension', async ({ page }) => {
@@ -229,73 +240,6 @@ test('an available Selkies desktop opens without requiring the editor extension'
   await expect(page.getByRole('button', { name: 'Install desktop integration', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open desktop', exact: true })).toHaveCount(0);
 });
-test('leaving a pending desktop releases its unused ticket before reconnecting', async ({ page }) => {
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  let issued!: () => void, release!: () => void;
-  const ready = new Promise<void>(resolve => { issued = resolve; });
-  const delayed = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/desktop/ticket', async route => {
-    const response = await route.fetch();
-    expect(response.ok()).toBe(true); issued();
-    await delayed; await route.fulfill({ response });
-  }, { times: 1 });
-  await page.goto('/#/desktop');
-  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  await section.getByRole('button').filter({ hasText: await previewNode() }).click();
-  await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-  await ready;
-  await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  const cancelled = page.waitForResponse(response => response.url().endsWith('/api/desktop/cancel'));
-  release();
-  expect(await (await cancelled).json()).toEqual({ cancelled: true });
-  await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-  await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-  expect(errors).toEqual([]);
-});
-test('a real VNC desktop renders, forwards input and reconnects without closing the desktop', async ({ page }) => {
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/#/desktop');
-  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19110' } });
-  await page.reload();
-  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  try {
-    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
-    await section.getByRole('button', { name: 'Clipboard', exact: true }).click();
-    const clipboard = section.getByRole('region', { name: 'Desktop text clipboard', exact: true });
-    await clipboard.getByLabel('Send to remote', { exact: true }).fill('VNC clipboard\nLatin-1: café');
-    await clipboard.getByRole('button', { name: 'Send text', exact: true }).click();
-    await expect(clipboard.getByLabel('Remote clipboard', { exact: true })).toHaveValue('VNC clipboard\nLatin-1: café');
-    await expect(clipboard).toContainText('Older VNC servers');
-    await clipboard.getByLabel('Send to remote', { exact: true }).fill('v'.repeat(65536));
-    await clipboard.getByRole('button', { name: 'Send text', exact: true }).click();
-    await expect(clipboard.getByLabel('Remote clipboard', { exact: true })).toHaveValue('v'.repeat(65536));
-    await section.getByRole('button', { name: 'Keyboard', exact: true }).click();
-    await section.getByLabel('Remote keyboard input', { exact: true }).fill('a');
-    await expect.poll(() => pixel(page)).toEqual([212, 100, 56]);
-    await section.getByRole('button', { name: 'Input enabled', exact: true }).click();
-    await expect(section.getByRole('button', { name: 'Keyboard', exact: true })).toBeDisabled();
-    await section.getByRole('button', { name: 'View only', exact: true }).click();
-    for (const width of [375, 768, 1024, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
-      for (const theme of ['dark', 'light']) {
-        await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        if (width === 375 || width === 1440) await section.screenshot({ path: '/tmp/cranibox-vnc-' + width + '-' + theme + '.png', animations: 'disabled' });
-      }
-    }
-    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Disconnected');
-    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
-    await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
-    await expect(section.getByRole('button', { name: 'Connect desktop', exact: true })).toBeDisabled();
-    expect(errors).toEqual([]);
-  } finally { await api(page, { operation: 'desktop', desktop: null }); }
-});
-
 test('sharing setup validates addresses and retains input for correction', async ({ page }) => {
   await page.goto('/#/desktop');
   const section = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
@@ -397,39 +341,6 @@ test('leaving discovery ignores its pending result and manual configuration stay
   await page.goto('/#/desktop');
   await expect(discovery.getByRole('button', { name: 'Detect existing services', exact: true })).toBeEnabled();
   await expect(discovery.locator('li')).toHaveCount(0);
-});
-
-test('username and password authentication rejects invalid credentials and reconnects privately', async ({ page }) => {
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/#/desktop');
-  await api(page, { operation: 'desktop', desktop: { address: '127.0.0.1:19114' } });
-  await page.reload();
-  const section = page.getByRole('region', { name: 'Cross-device desktops', exact: true });
-  try {
-    await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
-    const auth = section.locator('.vnc-auth');
-    await expect(auth.getByLabel('Username', { exact: true })).toBeFocused();
-    await auth.getByLabel('Username', { exact: true }).fill('cranibox');
-    await auth.getByLabel('Password', { exact: true }).fill('incorrect-password');
-    await auth.getByRole('button', { name: 'Authenticate', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Disconnected');
-    await expect(section.getByRole('alert')).toContainText('authentication failed');
-    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-    await expect(auth.getByLabel('Username', { exact: true })).toHaveValue('');
-    await expect(auth.getByLabel('Password', { exact: true })).toHaveValue('');
-    await page.setViewportSize({ width: 375, height: 900 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await auth.getByLabel('Username', { exact: true }).fill('cranibox');
-    await auth.getByLabel('Password', { exact: true }).fill('wayland8');
-    await auth.getByRole('button', { name: 'Authenticate', exact: true }).click();
-    await expect(section.locator('.vnc-toolbar [role="status"]')).toHaveText('Connected');
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
-    expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('wayland8');
-    await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
-    await section.getByRole('button', { name: 'Reconnect', exact: true }).click();
-    await expect(auth.getByLabel('Password', { exact: true })).toHaveValue('');
-    expect(errors).toEqual([]);
-  } finally { await api(page, { operation: 'desktop', desktop: null }); }
 });
 
 test('managed VNC reviews installation and preserves startup settings for recovery', async ({ page }) => {

@@ -1,8 +1,9 @@
 noVNC 1.7.0 — HTML5 VNC client
 Copyright (C) 2020 The noVNC authors and individual contributors.
 Source and upstream notices: https://github.com/novnc/noVNC/tree/v1.7.0
-The noVNC source distributed by npm is used without source modifications.
-Cranibox supplies transport adapters outside the noVNC source files.
+The noVNC web application in addons/novnc is served without source modifications
+to view shared VNC desktops. Cranibox supplies its settings files and the
+WebSocket bridge outside the noVNC source files.
 Most noVNC files use MPL-2.0; individual notices and vendor licenses follow.
 
 maintainers:

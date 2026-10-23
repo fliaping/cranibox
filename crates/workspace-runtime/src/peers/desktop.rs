@@ -16,6 +16,8 @@ use tokio_tungstenite::{
 };
 
 pub const MAX_CHUNK: usize = 64 * 1024;
+/// A target answers this when its shared desktop has no Selkies web page (VNC).
+pub const PAGE_UNAVAILABLE: &str = "This desktop has no Selkies web page";
 pub enum Event {
     Data(Vec<u8>),
     Error(String),
@@ -50,6 +52,42 @@ impl Stream {
                 }
             }
         })
+    }
+    /// Like [`Stream::send`], waiting for queue space instead of failing.
+    pub async fn send_wait(&self, bytes: Vec<u8>) -> Result<()> {
+        ensure!(
+            !bytes.is_empty() && bytes.len() <= MAX_CHUNK,
+            "invalid desktop input size"
+        );
+        if self.input.send(bytes).await.is_err() {
+            let message = self.failure.borrow().clone();
+            anyhow::bail!(message.unwrap_or_else(|| "desktop provider disconnected".into()));
+        }
+        Ok(())
+    }
+    /// Byte-stream view of the tunnel, for HTTP to the target's Selkies web page.
+    pub fn into_io(mut self) -> tokio::io::DuplexStream {
+        let (local, mut remote) = tokio::io::duplex(4 * MAX_CHUNK);
+        tokio::spawn(async move {
+            let mut buffer = vec![0; MAX_CHUNK];
+            loop {
+                tokio::select! {
+                    read = remote.read(&mut buffer) => match read {
+                        Ok(count) if count > 0 => {
+                            if self.input.send(buffer[..count].to_vec()).await.is_err() { break; }
+                        }
+                        _ => break,
+                    },
+                    event = self.output.recv() => match event {
+                        Some(Event::Data(data)) => {
+                            if remote.write_all(&data).await.is_err() { break; }
+                        }
+                        _ => break,
+                    },
+                }
+            }
+        });
+        local
     }
     pub(crate) fn spawn<F, T>(run: F) -> Self
     where

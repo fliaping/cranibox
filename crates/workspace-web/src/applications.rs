@@ -37,6 +37,25 @@ pub(crate) async fn issue(state: &State, owner: String, body: Value) -> Result<V
         .append_pair("open", &invitation.ticket);
     Ok(json!({"url":url.as_str()}))
 }
+/// A shared desktop's own web page (Selkies, or noVNC for VNC) on the application origin.
+pub(crate) async fn issue_desktop(state: &State, owner: String, body: Value) -> Result<Value> {
+    let origin = url::Url::parse(&state.config.applications_url)?;
+    state.config.validate()?;
+    ensure!(
+        !state.console_origin(&origin.origin().ascii_serialization()),
+        "Configure a separate applicationsUrl origin"
+    );
+    let page = state
+        .services
+        .desktop_page(body, state.console_origins())
+        .await?;
+    let protocol = page.protocol();
+    let invitation = state.applications.issue_desktop(owner, page).await?;
+    let mut url = origin.join(&invitation.prefix)?;
+    url.query_pairs_mut()
+        .append_pair("open", &invitation.ticket);
+    Ok(json!({"url": url.as_str(), "protocol": protocol}))
+}
 pub(crate) async fn handle(state: State, request: Request<Body>) -> Response {
     let run = async {
         let origin = url::Url::parse(&state.config.applications_url)?;
@@ -96,8 +115,7 @@ pub(crate) async fn handle(state: State, request: Request<Body>) -> Response {
         let access = state
             .applications
             .access(
-                applications::cookie(request.headers())
-                    .context("Reopen this application from Spaces")?,
+                applications::cookie(request.headers()).context("Reopen this application")?,
                 &prefix,
             )
             .await?;

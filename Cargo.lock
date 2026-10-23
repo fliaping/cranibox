@@ -1348,6 +1348,8 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "fs2",
  "futures-util",
+ "hyper",
+ "hyper-util",
  "iroh",
  "libc",
  "rand 0.9.5",

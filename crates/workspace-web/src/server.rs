@@ -304,6 +304,18 @@ impl State {
     pub(crate) fn console_origin(&self, origin: &str) -> bool {
         self.origins.contains(origin)
     }
+    /// Console origins as a CSP source list, for pages they may frame. CSP source
+    /// expressions cannot name IPv6 literals.
+    pub(crate) fn console_origins(&self) -> String {
+        let mut origins: Vec<_> = self
+            .origins
+            .iter()
+            .filter(|origin| !origin.contains('['))
+            .cloned()
+            .collect();
+        origins.sort();
+        origins.join(" ")
+    }
     pub fn new(root: PathBuf, command: PathBuf, config: Config) -> Result<Self> {
         let history = Journal::open(root.join(".local/state/cranibox/web-history"))?;
         let mut origins = HashSet::from([
@@ -888,7 +900,11 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                     .unwrap_or_else(|| state.locale().into());
                 let s = session.lock().await;
                 let config = json!({"csrf":s.csrf,"workspaceUrl":state.config.workspace_url,"desktopUrl":state.config.desktop_url,"language":locale,"cursor":s.seq,"edition":"workspace","node":state.local.as_ref().map(|l| l.id.clone())});
-                let page = cranibox_node::web::page(&locale, &config);
+                // Desktop pages are framed from the separate application origin.
+                let frames = url::Url::parse(&state.config.applications_url)
+                    .map(|url| url.origin().ascii_serialization())
+                    .unwrap_or_default();
+                let page = cranibox_node::web::page(&locale, &config, &frames);
                 let mut response =
                     ([("content-type", "text/html; charset=utf-8")], page).into_response();
                 let secure = state.config.public_url.starts_with("https:")
@@ -964,6 +980,13 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
         "/api/spaces/application" => {
             let owner = session.lock().await.id.clone();
             match crate::applications::issue(&state, owner, body).await {
+                Ok(value) => Json(value).into_response(),
+                Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            }
+        }
+        "/api/desktop/page" => {
+            let owner = session.lock().await.id.clone();
+            match crate::applications::issue_desktop(&state, owner, body).await {
                 Ok(value) => Json(value).into_response(),
                 Err(e) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
             }

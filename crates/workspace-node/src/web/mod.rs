@@ -2,6 +2,8 @@
 //! desktop window and the Workspace container; each host only supplies sessions.
 pub mod app_api;
 pub mod desktop;
+pub mod desktop_page;
+mod novnc_files;
 pub mod relay;
 pub mod standalone;
 pub mod terminal;
@@ -220,7 +222,8 @@ pub async fn bootstrap(services: &Services, request: Request) -> Response {
 }
 
 /// Fill a page template with its per-response nonce and client configuration.
-pub fn page(language: &str, config: &Value) -> String {
+/// `frames` lists the extra origins the page may frame (desktop pages).
+pub fn page(language: &str, config: &Value, frames: &str) -> String {
     let template = if language == "zh-cn" {
         INDEX_ZH
     } else {
@@ -234,5 +237,12 @@ pub fn page(language: &str, config: &Value) -> String {
         .replace(
             "__WORKSPACE_CONFIG__",
             &config.to_string().replace('<', "\\u003c"),
+        )
+        .replace(
+            "__WORKSPACE_FRAMES__",
+            &frames
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || " :/.*-[]".contains(*c))
+                .collect::<String>(),
         )
 }

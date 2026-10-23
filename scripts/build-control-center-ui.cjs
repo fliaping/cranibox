@@ -10,7 +10,7 @@ if (result.status !== 0) process.exit(result.status || 1);
 for (const asset of ['web.js', 'web.css']) {
   const source = path.join(output, 'ui/dist', asset), destination = path.join(output, asset);
   if (asset === 'web.js') {
-    const notice = ['herdr-web-ui.txt', 'novnc.txt'].map(name => fs.readFileSync(path.resolve(__dirname, '../docs/licenses', name), 'utf8')).join('\n\n').replace(/[ \t]+$/gm, '');
+    const notice = ['herdr-web-ui.txt'].map(name => fs.readFileSync(path.resolve(__dirname, '../docs/licenses', name), 'utf8')).join('\n\n').replace(/[ \t]+$/gm, '');
     fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + fs.readFileSync(source, 'utf8'));
   } else fs.copyFileSync(source, destination);
 }
@@ -22,7 +22,7 @@ for (const language of ['en', 'zh-cn']) {
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n' +
     // xterm's DOM renderer generates styles for cell geometry and ANSI colors.
     // Its public API cannot apply a nonce; only styles allow inline content.
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; frame-src \'self\'; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\' \'nonce-__WORKSPACE_NONCE__\'; style-src \'self\' \'unsafe-inline\'; connect-src \'self\'; frame-src \'self\' __WORKSPACE_FRAMES__; img-src \'self\' data:; font-src \'self\'; base-uri \'none\'; form-action \'self\';">\n' +
     '<meta name="color-scheme" content="light dark"><title>Cranibox</title>\n' +
     '<link rel="icon" type="image/png" href="' + favicon + '"><link rel="stylesheet" href="/web.css">\n' +
     '</head><body><div id="root"><p>' + (zh ? '正在加载 Cranibox…' : 'Loading Cranibox…') + '</p></div>\n' +

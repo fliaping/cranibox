@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
+import net from 'node:net';
 import { snapshot } from './fixture.mjs';
 import { rfbFixture } from './rfb-fixture.mjs';
 import { selkiesFixture } from './selkies-fixture.mjs';
@@ -14,6 +15,11 @@ snapshot.locale.current = process.env.UI_PREVIEW_LANGUAGE || 'en';
 await fs.mkdir(path.join(directory, '.local/state/agent-workspace'), { recursive: true });
 await fs.writeFile(path.join(directory, '.local/state/agent-workspace/locale'), snapshot.locale.current);
 await fs.writeFile(path.join(directory, 'snapshot.json'), JSON.stringify(snapshot));
+// Desktop pages open on a separate application origin: like a real deployment, the
+// same host on another port, forwarded here to the preview server.
+const applicationsPort = Number(process.env.UI_PREVIEW_PORT || '19080') + 41;
+await fs.mkdir(path.join(directory, '.config/agent-workspace'), { recursive: true });
+await fs.writeFile(path.join(directory, '.config/agent-workspace/web.json'), JSON.stringify({ port: Number(process.env.UI_PREVIEW_PORT || '19080'), applicationsUrl: 'http://127.0.0.1:' + applicationsPort }));
 await fs.writeFile(command, [
   '#!' + process.execPath,
   "const fs = require('node:fs'), path = require('node:path');",
@@ -32,6 +38,12 @@ await fs.rm(path.join(os.tmpdir(), 'cranibox-ui-preview-node-' + webPort), { for
 const closeDesktopFixture = await rfbFixture(webPort + 30);
 const closeAuthenticatedDesktopFixture = await rfbFixture(webPort + 34, { username: 'cranibox', password: 'wayland8' });
 const closeSelkiesFixture = await selkiesFixture(webPort + 38);
+const applications = net.createServer(client => {
+  const upstream = net.connect(webPort, '127.0.0.1');
+  client.pipe(upstream).pipe(client);
+  for (const end of [client, upstream]) end.on('error', () => { client.destroy(); upstream.destroy(); });
+});
+await new Promise((resolve, reject) => { applications.once('error', reject); applications.listen(applicationsPort, '127.0.0.1', resolve); });
 const processes = [];
 let stopping = false;
 async function stop(code = 0) {
@@ -40,6 +52,7 @@ async function stop(code = 0) {
   closeDesktopFixture();
   closeAuthenticatedDesktopFixture();
   closeSelkiesFixture();
+  applications.close();
   for (const child of [...processes].reverse()) {
     if (child.exitCode === null && child.signalCode === null) {
       const ended = new Promise(resolve => child.once('exit', resolve));

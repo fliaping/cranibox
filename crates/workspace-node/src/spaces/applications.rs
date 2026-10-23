@@ -48,8 +48,34 @@ struct Target {
     owner: String,
     password: String,
 }
+/// What an application path forwards to: a space's own application, or a shared
+/// desktop's own web page (Selkies, or noVNC for VNC).
 #[derive(Clone)]
-pub struct Proxy {
+pub enum Proxy {
+    Space(Box<SpaceProxy>),
+    Desktop(crate::web::desktop_page::Page),
+}
+impl Proxy {
+    pub fn active(&self) -> bool {
+        match self {
+            Self::Space(proxy) => proxy.active(),
+            Self::Desktop(page) => page.active(),
+        }
+    }
+    pub async fn forward(
+        &self,
+        request: Request<Body>,
+        prefix: &str,
+        cancel: CancellationToken,
+    ) -> Result<Response> {
+        match self {
+            Self::Space(proxy) => proxy.forward(request, prefix, cancel).await,
+            Self::Desktop(page) => page.forward(request, prefix, cancel).await,
+        }
+    }
+}
+#[derive(Clone)]
+pub struct SpaceProxy {
     store: Store,
     id: Uuid,
     application: Application,
@@ -121,9 +147,9 @@ impl Store {
         Ok(target)
     }
     /// Only a locally managed space can become a proxy target. No address is accepted.
-    pub async fn application(&self, id: Uuid, application: Application) -> Result<Proxy> {
+    pub async fn application(&self, id: Uuid, application: Application) -> Result<SpaceProxy> {
         let target = self.application_target(id, application).await?;
-        let proxy = Proxy {
+        let proxy = SpaceProxy {
             store: self.clone(),
             id,
             application,
@@ -157,7 +183,7 @@ impl Store {
         Ok(proxy)
     }
 }
-impl Proxy {
+impl SpaceProxy {
     /// Cheap check used while streaming. New requests additionally inspect Docker.
     pub fn active(&self) -> bool {
         self.store.read().ok().is_some_and(|catalog| {
@@ -300,39 +326,13 @@ impl Proxy {
             }
             let upstream = response.upgrade().await?;
             let proxy = self.clone();
-            return Ok(upgrade.on_upgrade(move |mut browser| async move {
-                let mut upstream = WebSocketStream::from_raw_socket(upstream, Role::Client, None).await;
-                let mut check = tokio::time::interval(Duration::from_secs(1));
-                loop {
-                    tokio::select! {
-                        _ = cancel.cancelled() => break,
-                        _ = check.tick() => { if !proxy.active() { break; } },
-                        frame = browser.recv() => {
-                            let frame = match frame {
-                                Some(Ok(Message::Text(s))) => Frame::Text(s.as_str().into()),
-                                Some(Ok(Message::Binary(b))) => Frame::Binary(b),
-                                Some(Ok(Message::Ping(b))) => Frame::Ping(b),
-                                Some(Ok(Message::Pong(b))) => Frame::Pong(b),
-                                _ => break,
-                            };
-                            if !matches!(tokio::time::timeout(Duration::from_secs(10), upstream.send(frame)).await, Ok(Ok(()))) { break; }
-                        },
-                        frame = upstream.next() => {
-                            let frame = match frame {
-                                Some(Ok(Frame::Text(s))) => Message::Text(s.as_str().into()),
-                                Some(Ok(Frame::Binary(b))) => Message::Binary(b),
-                                Some(Ok(Frame::Ping(b))) => Message::Ping(b),
-                                Some(Ok(Frame::Pong(b))) => Message::Pong(b),
-                                Some(Ok(Frame::Frame(_))) => continue,
-                                _ => break,
-                            };
-                            if !matches!(tokio::time::timeout(Duration::from_secs(10), browser.send(frame)).await, Ok(Ok(()))) { break; }
-                        },
-                    }
-                }
-                let _ = tokio::time::timeout(Duration::from_secs(1), browser.send(Message::Close(None))).await;
-                let _ = tokio::time::timeout(Duration::from_secs(1), upstream.close(None)).await;
-            }).into_response());
+            return Ok(upgrade
+                .on_upgrade(move |browser| async move {
+                    let upstream =
+                        WebSocketStream::from_raw_socket(upstream, Role::Client, None).await;
+                    splice(browser, upstream, cancel, move || proxy.active()).await;
+                })
+                .into_response());
         }
         let mut output = Response::builder().status(response.status());
         for (name, value) in response.headers() {
@@ -368,6 +368,47 @@ impl Proxy {
         Ok(output.body(Body::from_stream(stream))?)
     }
 }
+/// Relay frames between the browser and an application WebSocket until either side
+/// closes, access is cancelled, or `active` turns false.
+pub(crate) async fn splice<S>(
+    mut browser: axum::extract::ws::WebSocket,
+    mut upstream: WebSocketStream<S>,
+    cancel: CancellationToken,
+    active: impl Fn() -> bool,
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    let mut check = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => break,
+            _ = check.tick() => { if !active() { break; } },
+            frame = browser.recv() => {
+                let frame = match frame {
+                    Some(Ok(Message::Text(s))) => Frame::Text(s.as_str().into()),
+                    Some(Ok(Message::Binary(b))) => Frame::Binary(b),
+                    Some(Ok(Message::Ping(b))) => Frame::Ping(b),
+                    Some(Ok(Message::Pong(b))) => Frame::Pong(b),
+                    _ => break,
+                };
+                if !matches!(tokio::time::timeout(Duration::from_secs(10), upstream.send(frame)).await, Ok(Ok(()))) { break; }
+            },
+            frame = upstream.next() => {
+                let frame = match frame {
+                    Some(Ok(Frame::Text(s))) => Message::Text(s.as_str().into()),
+                    Some(Ok(Frame::Binary(b))) => Message::Binary(b),
+                    Some(Ok(Frame::Ping(b))) => Message::Ping(b),
+                    Some(Ok(Frame::Pong(b))) => Message::Pong(b),
+                    Some(Ok(Frame::Frame(_))) => continue,
+                    _ => break,
+                };
+                if !matches!(tokio::time::timeout(Duration::from_secs(10), browser.send(frame)).await, Ok(Ok(()))) { break; }
+            },
+        }
+    }
+    let _ = tokio::time::timeout(Duration::from_secs(1), browser.send(Message::Close(None))).await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), upstream.close(None)).await;
+}
 fn connection_header(name: &str, headers: &HeaderMap) -> bool {
     headers
         .get_all("connection")
@@ -388,7 +429,7 @@ fn hop(name: &str, headers: &HeaderMap) -> bool {
             | "transfer-encoding"
     ) || connection_header(name, headers)
 }
-fn blocked_request(name: &str, headers: &HeaderMap) -> bool {
+pub(crate) fn blocked_request(name: &str, headers: &HeaderMap) -> bool {
     hop(name, headers)
         || matches!(
             name,
@@ -404,7 +445,7 @@ fn blocked_request(name: &str, headers: &HeaderMap) -> bool {
         || name.starts_with("x-forwarded-")
         || name.starts_with("sec-fetch-")
 }
-fn blocked_response(name: &str, headers: &HeaderMap) -> bool {
+pub(crate) fn blocked_response(name: &str, headers: &HeaderMap) -> bool {
     hop(name, headers)
         || matches!(
             name,
@@ -448,7 +489,25 @@ impl Hub {
         application: Application,
     ) -> Result<Invitation> {
         ensure!(!self.stop.is_cancelled(), "Application gateway stopped");
-        let proxy = store.application(id, application).await?;
+        let proxy = Proxy::Space(Box::new(store.application(id, application).await?));
+        self.insert(
+            owner,
+            format!("/cranibox-app-{id}-{}/", application.name()),
+            proxy,
+        )
+        .await
+    }
+    /// A shared desktop's own web page, under a fresh one-time path.
+    pub async fn issue_desktop(
+        &self,
+        owner: String,
+        page: crate::web::desktop_page::Page,
+    ) -> Result<Invitation> {
+        ensure!(!self.stop.is_cancelled(), "Application gateway stopped");
+        let prefix = format!("/cranibox-app-{}-page/", Uuid::new_v4());
+        self.insert(owner, prefix, Proxy::Desktop(page)).await
+    }
+    async fn insert(&self, owner: String, prefix: String, proxy: Proxy) -> Result<Invitation> {
         let mut entries = self.entries.lock().await;
         entries.retain(|_, entry| {
             let keep = entry.expires > Instant::now() && entry.proxy.active();
@@ -459,7 +518,6 @@ impl Hub {
         });
         ensure!(entries.len() < 64, "Too many open applications");
         let ticket = agent_workspace_runtime::config::token();
-        let prefix = format!("/cranibox-app-{id}-{}/", application.name());
         entries.insert(
             ticket.clone(),
             Entry {
@@ -477,13 +535,13 @@ impl Hub {
         let mut entries = self.entries.lock().await;
         let entry = entries
             .get(ticket)
-            .context("Application link expired; reopen it from Spaces")?;
+            .context("Application link expired; reopen it")?;
         ensure!(
             !entry.claimed
                 && entry.prefix == prefix
                 && entry.expires > Instant::now()
                 && entry.proxy.active(),
-            "Application link expired; reopen it from Spaces"
+            "Application link expired; reopen it"
         );
         let mut entry = entries.remove(ticket).unwrap();
         let cookie = agent_workspace_runtime::config::token();
@@ -501,13 +559,13 @@ impl Hub {
         let entries = self.entries.lock().await;
         let entry = entries
             .get(cookie)
-            .context("Application session expired; reopen it from Spaces")?;
+            .context("Application session expired; reopen it")?;
         ensure!(
             entry.claimed
                 && entry.prefix == prefix
                 && entry.expires > Instant::now()
                 && entry.proxy.active(),
-            "Application session expired; reopen it from Spaces"
+            "Application session expired; reopen it"
         );
         Ok(Access {
             owner: entry.owner.clone(),
@@ -534,7 +592,7 @@ impl Hub {
 pub fn prefix(path: &str) -> Option<&str> {
     let segment = path.strip_prefix("/cranibox-app-")?.split('/').next()?;
     let (id, application) = segment.rsplit_once('-')?;
-    if Uuid::parse_str(id).is_err() || !matches!(application, "desktop" | "code") {
+    if Uuid::parse_str(id).is_err() || !matches!(application, "desktop" | "code" | "page") {
         return None;
     }
     let end = 1 + "cranibox-app-".len() + segment.len();
@@ -606,6 +664,17 @@ impl Gateway {
         });
         Ok(Self { hub, origin })
     }
+    /// A shared desktop's own web page; the URL works once, in any local browser.
+    pub async fn open_desktop(&self, page: crate::web::desktop_page::Page) -> Result<String> {
+        self.hub
+            .retain(&std::collections::HashSet::from(["native".into()]))
+            .await;
+        let invitation = self.hub.issue_desktop("native".into(), page).await?;
+        Ok(format!(
+            "{}{}?open={}",
+            self.origin, invitation.prefix, invitation.ticket
+        ))
+    }
     pub async fn open(&self, store: &Store, id: Uuid, application: Application) -> Result<String> {
         self.hub
             .retain(&std::collections::HashSet::from(["native".into()]))
@@ -667,7 +736,7 @@ async fn native_request(
         );
         let access = hub
             .access(
-                cookie(request.headers()).context("Open this application from Spaces")?,
+                cookie(request.headers()).context("Open this application again")?,
                 &prefix,
             )
             .await?;

@@ -15,6 +15,9 @@ Model protocol translation includes code ported or adapted from:
 - yetone/magpie, commit 865b61808690bc9fd716257949414ec97618a5a5,
   MIT; crates/cranibox-llm/src/proto/port/magpie/ and provider adaptations.
 
+The VNC desktop page serves the noVNC web application 1.7.0
+(https://github.com/novnc/noVNC), MPL-2.0, with pako (MIT), from addons/novnc/.
+
 Original copyright and license texts are retained alongside the vendored
 code. See crates/cranibox-llm/tests/THIRD-PARTY.md for source paths,
 adaptations and provider protocol attribution.

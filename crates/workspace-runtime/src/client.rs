@@ -629,6 +629,27 @@ impl Api {
     }
     /// Use a bound direct target, or a gateway with authenticated caller identity.
     pub async fn desktop(&self, node: &str) -> Result<crate::peers::desktop::Stream> {
+        self.desktop_stream(node, "ws").await
+    }
+    /// One TCP connection to the target's Selkies web page (its own UI, unchanged).
+    pub async fn desktop_page(&self, node: &str) -> Result<crate::peers::desktop::Stream> {
+        self.desktop_stream(node, "page").await.map_err(|error| {
+            // Targets from before the page route answer 404.
+            match error.downcast_ref::<tokio_tungstenite::tungstenite::Error>() {
+                Some(tokio_tungstenite::tungstenite::Error::Http(response))
+                    if response.status() == 404 =>
+                {
+                    anyhow::anyhow!(crate::peers::desktop::PAGE_UNAVAILABLE)
+                }
+                _ => error,
+            }
+        })
+    }
+    async fn desktop_stream(
+        &self,
+        node: &str,
+        kind: &str,
+    ) -> Result<crate::peers::desktop::Stream> {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         anyhow::ensure!(
             crate::protocol::valid_node_id(node)
@@ -640,7 +661,7 @@ impl Api {
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
         url.set_scheme(scheme)
             .map_err(|_| anyhow::anyhow!("invalid desktop URL"))?;
-        url.set_path(&format!("/api/v1/mesh/nodes/{node}/desktop/ws"));
+        url.set_path(&format!("/api/v1/mesh/nodes/{node}/desktop/{kind}"));
         let mut request = url.as_str().into_client_request()?;
         let cipher = self
             .authorize_stream(&mut request, endpoint, url.path())

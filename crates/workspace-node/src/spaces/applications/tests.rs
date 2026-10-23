@@ -24,7 +24,7 @@ async fn serve(router: Router) -> (Url, Server) {
         })),
     )
 }
-fn proxy(target: Url) -> (tempfile::TempDir, Proxy) {
+fn proxy(target: Url) -> (tempfile::TempDir, SpaceProxy) {
     let directory = tempfile::tempdir().unwrap();
     let store = Store::new(directory.path().join("peers.json"));
     let owner = Config::update(&store.peers, |_| Ok(())).unwrap().node_id;
@@ -53,7 +53,7 @@ fn proxy(target: Url) -> (tempfile::TempDir, Proxy) {
         .unwrap();
     (
         directory,
-        Proxy {
+        SpaceProxy {
             store,
             id,
             application: Application::Desktop,
@@ -72,7 +72,7 @@ fn proxy(target: Url) -> (tempfile::TempDir, Proxy) {
         },
     )
 }
-async fn exchange(State(proxy): State<Proxy>, request: Request<Body>) -> Response {
+async fn exchange(State(proxy): State<SpaceProxy>, request: Request<Body>) -> Response {
     proxy
         .exchange(request, "/app/", CancellationToken::new())
         .await
@@ -195,7 +195,7 @@ async fn tickets_are_one_use_scoped_expiring_and_revocable() {
         Entry {
             owner: "session".into(),
             prefix: "/app/".into(),
-            proxy,
+            proxy: Proxy::Space(Box::new(proxy)),
             expires: Instant::now() + Duration::from_secs(30),
             claimed: false,
             cancel: cancel.clone(),

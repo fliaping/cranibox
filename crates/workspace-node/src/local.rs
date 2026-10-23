@@ -296,6 +296,15 @@ impl LocalNode {
             .desktop()
             .await
     }
+    pub async fn desktop_page(&self) -> Result<agent_workspace_runtime::peers::desktop::Stream> {
+        self.peer
+            .lock()
+            .await
+            .as_ref()
+            .context("local node is stopping")?
+            .desktop_page()
+            .await
+    }
 }
 
 pub(crate) async fn projects_in(
