@@ -181,6 +181,8 @@ class ImageCheck:
                     probe = json.loads(output)
                     failed = [key for key, passed in self.conditions(probe, credentials).items() if not passed]
                     self.report['unready_checks'] = failed
+                    # Service states hold no secrets and explain a stuck readiness.
+                    self.report['unready_service'] = probe.get('service')
                     if not failed:
                         self.report.setdefault('probes', {})[phase] = probe
                         for key in self.conditions(probe, credentials):
