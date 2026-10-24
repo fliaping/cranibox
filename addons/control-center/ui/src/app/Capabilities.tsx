@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { notAvailable, type Capabilities as CapabilityList, type Capability, type CapabilityAction, type InstallPlan, type PermissionState } from "../personal/api";
 import { request } from "../workspace";
 import { useApp } from "./store";
+import { inShell, shellCall } from "./shell";
 import { Alert, capabilityIcons, Card, Empty, Loading, localizeMessage, Pill, providerName, Sheet, Switch, type Translate } from "./ui";
 
 const order = ["terminal", "desktop", "computer", "browser"];
@@ -70,6 +71,12 @@ export function Capabilities() {
 }
 function CapabilityCard({ item, pending, act }: { item: Capability; pending: string; act: (item: Capability, action: CapabilityAction, body?: unknown) => Promise<void> }) {
   const { t } = useApp();
+  const [restart, setRestart] = useState(false), [restarting, setRestarting] = useState(false), [restartError, setRestartError] = useState("");
+  async function restartApp() {
+    setRestarting(true); setRestartError("");
+    try { await shellCall("restart"); }
+    catch (problem) { setRestartError(problem instanceof Error ? problem.message : String(problem)); setRestarting(false); }
+  }
   const [title, detail] = describe(item.id, t), Icon = capabilityIcons[item.id] || ShieldCheck;
   const busy = pending.startsWith(item.id + ":"), has = (action: CapabilityAction) => item.actions.includes(action);
   const missing = item.permissions.filter(permission => permission.state === "denied" || permission.state === "unknown");
@@ -99,14 +106,21 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
         {has("open_settings") && <button className="cx-btn small" disabled={busy} onClick={() => void act(item, "open_settings")}><ExternalLink size={14} aria-hidden="true" />{t("打开系统设置", "Open System Settings")}</button>}
       </div>}
       {missing.length > 0 && <p className="cx-muted cx-small">{item.provider.kind === "cua-embedded"
-        ? t("Computer Use 内置在 Cranibox 中，只需在系统设置里给 Cranibox 授权；授权后点击「重新检测」。", "Computer Use is built into Cranibox: grant access to Cranibox in System Settings, then check again.")
-        : t("权限授予提供者应用本身，与终端或浏览器无关；授权后点击「重新检测」。", "Permission belongs to the provider app itself, not your terminal or browser. Check again after granting.")}</p>}</div>}
+        ? t("请为 Cranibox 开启「屏幕录制」和「辅助功能」。若开关已打开仍未生效，请重启 Cranibox，让应用和内嵌驱动重新读取权限。关闭窗口只会隐藏到托盘。", "Enable Screen Recording and Accessibility for Cranibox. If the switches are already on, restart Cranibox so the app and embedded driver reload their permissions. Closing the window only hides it in the tray.")
+        : t("请为提供者应用 CuaDriver 开启「屏幕录制」和「辅助功能」，然后停止并重新启动驱动，再点击「重新检测」。", "Enable Screen Recording and Accessibility for the provider app CuaDriver, then stop and start the driver and check again.")}</p>}
+      {item.provider.kind === "cua-embedded" && inShell() && <button className="cx-btn small" disabled={busy || restarting} onClick={() => setRestart(true)}><RefreshCw size={14} aria-hidden="true" />{t("重启 Cranibox", "Restart Cranibox")}</button>}
+    </div>}
     <div className="cx-cap-section"><h4>{t("共享", "Sharing")}</h4>
       <Switch label={t("允许我的其他设备使用", "Available to my other devices")} detail={item.sharing.enabled && item.sharing.address ? <span className="cx-mono">{item.sharing.address}</span> : undefined}
         checked={item.sharing.enabled} disabled={busy || !(item.sharing.enabled ? has("disable") : has("enable"))} onChange={on => void act(item, on ? "enable" : "disable")} />
       <p className="cx-muted cx-small">{t("每台设备能否使用，在该设备详情的「授权」中单独设置。", "Choose which devices may use it on each device's Access tab.")}</p></div>
     {item.id === "computer" && <AgentComputers />}
     {item.error && <p className="cx-error" role="alert"><CircleAlert size={14} aria-hidden="true" /> {localizeMessage(item.error, t)}</p>}
+    {restart && <Sheet t={t} title={t("重启 Cranibox？", "Restart Cranibox?")} onClose={() => { if (!restarting) setRestart(false); }}>
+      <p>{t("这会暂时断开此设备的会话，并重新打开应用以应用系统权限。", "This temporarily disconnects this device's sessions and reopens the app to apply system permissions.")}</p>
+      {restartError && <Alert>{restartError}</Alert>}
+      <div className="cx-actions"><button className="cx-btn" disabled={restarting} onClick={() => setRestart(false)}>{t("取消", "Cancel")}</button><button className="cx-btn primary" disabled={restarting} onClick={() => void restartApp()}>{t("重启 Cranibox", "Restart Cranibox")}</button></div>
+    </Sheet>}
   </Card>;
 }
 /** Besides this screen, agents can use their own computers: running virtual spaces. */

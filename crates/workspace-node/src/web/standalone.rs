@@ -126,14 +126,6 @@ pub fn sign_in_url(address: SocketAddr, token: &str) -> String {
     format!("http://{host}:{}/?token={token}", address.port())
 }
 
-/// Address the running device service recorded, or the default one.
-pub fn recorded_address(peers: &Path) -> SocketAddr {
-    std::fs::read_to_string(peers.with_file_name("ui.address"))
-        .ok()
-        .and_then(|text| text.trim().parse().ok())
-        .unwrap_or_else(|| DEFAULT_LISTEN.parse().expect("default listen address"))
-}
-
 async fn bind(listen: Option<SocketAddr>) -> Result<tokio::net::TcpListener> {
     let address = listen.unwrap_or_else(|| DEFAULT_LISTEN.parse().expect("default listen address"));
     match tokio::net::TcpListener::bind(address).await {
@@ -208,11 +200,6 @@ pub async fn run(
         }
     };
     let address = listener.local_addr()?;
-    agent_workspace_runtime::config::write_private(
-        &peers.with_file_name("ui.address"),
-        address.to_string().as_bytes(),
-        true,
-    )?;
     // Service logs are often world-readable; print the secret link only to a terminal.
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         eprintln!(
@@ -292,6 +279,8 @@ pub async fn serve(
         address.ip().is_loopback(),
         "the device interface only listens on loopback; use an SSH tunnel or trusted proxy"
     );
+    let _endpoint =
+        super::endpoint::Registration::device(local.config_path(), address, &options.token)?;
     let port = address.port();
     let relay = options.relay.clone();
     let mut hosts = HashSet::new();
@@ -718,6 +707,8 @@ mod tests {
         let local = Arc::new(LocalNode::start(peers.clone()).await.unwrap());
         let token = access_token(&peers).unwrap();
         assert_eq!(access_token(&peers).unwrap(), token, "token is stable");
+        // Like the GUI, this launch may use a token different from the CLI token.
+        let token = agent_workspace_runtime::config::token();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let stop = CancellationToken::new();
@@ -754,11 +745,9 @@ mod tests {
             .unwrap();
         assert_eq!(foreign.status(), 403, "DNS rebinding hosts are refused");
 
-        let login = client
-            .get(sign_in_url(address, &token))
-            .send()
-            .await
-            .unwrap();
+        let discovered = super::super::endpoint::ui_url(&peers, None).await.unwrap();
+        assert_eq!(discovered, sign_in_url(address, &token));
+        let login = client.get(discovered).send().await.unwrap();
         assert_eq!(login.status(), 303);
         assert_eq!(login.headers()["location"], "/");
         let cookie = login.headers()["set-cookie"].to_str().unwrap().to_owned();
@@ -837,6 +826,7 @@ mod tests {
 
         stop.cancel();
         server.await.unwrap().unwrap();
+        assert!(!peers.with_file_name("ui.endpoint.json").exists());
         local.shutdown().await.unwrap();
     }
 }

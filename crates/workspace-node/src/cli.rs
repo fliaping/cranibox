@@ -74,10 +74,10 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     }
     let command = match args.command {
         Some(agent::Command::UiUrl { listen }) => {
-            let token = crate::web::standalone::access_token(&peer_path)?;
-            let listen =
-                listen.unwrap_or_else(|| crate::web::standalone::recorded_address(&peer_path));
-            println!("{}", crate::web::standalone::sign_in_url(listen, &token));
+            println!(
+                "{}",
+                crate::web::endpoint::ui_url(&peer_path, listen).await?
+            );
             return Ok(());
         }
         Some(agent::Command::AppMcp { data, service }) => {

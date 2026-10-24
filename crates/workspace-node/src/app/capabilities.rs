@@ -740,7 +740,7 @@ impl Service {
             actions,
             error: if missing {
                 Some(if cua::embedded::active() {
-                    "Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again.".into()
+                    "Grant Screen Recording and Accessibility to Cranibox in System Settings, then restart Cranibox to apply the permissions.".into()
                 } else {
                     "Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver.".into()
                 })

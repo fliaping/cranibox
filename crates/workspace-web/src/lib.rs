@@ -58,6 +58,9 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
         config.public_url = url;
     }
     config.validate()?;
+    let listener = tokio::net::TcpListener::bind((args.host, config.port)).await?;
+    // Build the Host/Origin allowlist from the bound port, including --port 0.
+    config.port = listener.local_addr()?.port();
     let command = args
         .command
         .unwrap_or_else(|| args.config_root.join("bin/workspacectl"));
@@ -81,7 +84,10 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
         state.local.as_ref().expect("local node").models().await?;
     }
     state.attach_node();
-    let listener = tokio::net::TcpListener::bind((args.host, config.port)).await?;
+    let _endpoint = cranibox_node::web::endpoint::Registration::workspace(
+        state.local.as_ref().expect("local node").config_path(),
+        listener.local_addr()?,
+    )?;
     println!(
         "Agent Workspace Web (Rust): http://{}",
         listener.local_addr()?

@@ -6,10 +6,21 @@
 
 Cranibox 桌面客户端在 macOS 上以 cua-driver 的嵌入模式运行它（`CUA_DRIVER_EMBEDDED=1`，`CUA_DRIVER_HOST_BUNDLE_ID=com.cranibox.node`）：驱动由 Cranibox 进程直接启动，处在 Cranibox 的 TCC 责任链中，所以只需给 **Cranibox** 授予「屏幕录制」和「辅助功能」，不需要单独的 CuaDriver.app 或第二份授权。驱动随应用退出而停止。
 
-- 驱动文件按需下载（固定版本 cua-driver 0.37.0，MIT，GitHub Release `darwin-universal-binary`，校验 SHA-256 后解压到 `~/Library/Application Support/cranibox/cua-driver/`），不增大安装包。已安装 CuaDriver.app 时直接复用其中的可执行文件，同样以嵌入模式运行。
+- 驱动文件按需下载（固定版本 cua-driver 0.37.0，MIT，GitHub Release `darwin-universal-binary`，校验 SHA-256 后解压到 `~/Library/Application Support/cranibox/cua-driver/`），不增大安装包。内嵌模式只使用这份固定版本的私有驱动；不会从 PATH 或 CuaDriver.app 借用另一份可执行文件。
 - 权限由 Cranibox 自己请求（`AXIsProcessTrustedWithOptions`、`CGRequestScreenCaptureAccess`），能力页和首次启动的设置向导里「全部开启」会依次弹出。
-- 命令行版 `cranibox` 不是 macOS 应用，仍使用独立安装的 CuaDriver.app 及其授权。
+- 独立服务程序使用 CuaDriver.app 及其授权；桌面应用内的服务使用 Cranibox 的授权。命令行工具链接到桌面应用时，`ui-url` 只是查询同一个已运行的界面。
+- 驱动运行时，能力页通过应用私有 socket 的 `check_permissions(prompt: false)` 读取实际驱动权限，不会触发截屏或系统提示。未知状态保持「待检测」。
+- 开关已打开却仍显示未授权时，在能力页点击「重启 Cranibox」，确认后会完整退出节点与内嵌驱动并重新打开应用。仅关闭窗口会隐藏到托盘，不能刷新进程的权限缓存。仍未生效时，核对系统设置中授权的是否为当前安装位置的 Cranibox（例如 `/Applications/Cranibox.app`），并同时核对「屏幕录制」和「辅助功能」。
+
 - 锁屏或屏保期间，macOS 对所有应用隐藏窗口的辅助功能信息，并把输入送到锁屏界面，所以真实桌面上的 Computer Use 会暂停（截图仍可用）。需要无人值守时，请让 Agent 使用虚拟空间里的桌面（Agent 自己的电脑），或在系统设置中延长锁屏时间。
+
+实现依据：[cua-driver 0.37.0 内嵌模式协议](https://github.com/trycua/cua/blob/cua-driver-rs-v0.37.0/libs/cua-driver/rust/Skills/cua-driver/EMBEDDING.md)。
+
+### 查询正在运行的界面
+
+`cranibox ui-url` 读取配置目录中的私有 `ui.endpoint.json`，使用服务实际绑定的地址。GUI 的随机端口和当次启动令牌由同一入口记录；工作区服务返回其实际地址（通常是 `http://127.0.0.1:9080/`），不附加独立节点的令牌。记录随正常退出清理，未启动或已停止时返回错误，不再猜测 `7377`。升级后须重启服务一次以写入记录。自定义配置使用 `cranibox --config /path/to/settings.json ui-url`。
+
+记录含登录凭据，文件仅允许当前用户读取，请勿粘贴其内容或将完整登录链接写入日志。旧 CLI 的 `ui.address` 与 `ui.token` 仍支持读取，但缺少记录时不会创建新令牌。
 
 ## 范围与权限
 

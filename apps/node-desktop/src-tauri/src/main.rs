@@ -95,14 +95,19 @@ async fn open_browser(url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 async fn quit_app(app: tauri::AppHandle, state: Arc<AppState>) {
+    if stop_app(&state).await {
+        app.exit(0);
+    }
+}
+async fn stop_app(state: &AppState) -> bool {
     if state.quitting.swap(true, Ordering::Relaxed) {
-        return;
+        return false;
     }
     state.stop.cancel();
     if let Some(local) = state.service.lock().await.local.take() {
         let _ = local.shutdown().await;
     }
-    app.exit(0);
+    true
 }
 
 static TERMINAL_LAUNCHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -196,6 +201,18 @@ impl Shell for NativeShell {
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                     quit_app(app, state).await;
+                });
+                Ok(json!({}))
+            }
+            "restart" => {
+                let (app, state) = (self.app.clone(), self.state.clone());
+                tauri::async_runtime::spawn(async move {
+                    // Finish the response, then release the node and its private
+                    // driver before relaunching the permission-owning process.
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if stop_app(&state).await {
+                        app.request_restart();
+                    }
                 });
                 Ok(json!({}))
             }
@@ -336,7 +353,7 @@ fn main() -> anyhow::Result<()> {
                     }
                 };
                 service.local = Some(local.clone());
-                // A fresh token per launch: only this window ever receives the link.
+                // A fresh token per launch, shared with ui-url through a private runtime record.
                 let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
                     Ok(listener) => listener,
                     Err(error) => {
