@@ -29,13 +29,13 @@ Download from [Releases](https://github.com/fliaping/cranibox/releases/latest):
 
 | Form | Files | For |
 |------|-------|-----|
-| Desktop app | macOS `.dmg`, Windows `.exe`, Linux `.deb` / `.AppImage` | Everyday computers: tray icon, start at login, a native terminal window |
-| Command line | `cranibox-macos-arm64`, `cranibox-linux-x86_64`, `cranibox-windows-x86_64.exe` | Servers, NAS and headless machines: the same interface in a browser, and it can serve as a relay |
+| Desktop app | macOS `.dmg`, Windows `.exe`, Linux `.deb` / `.AppImage` | Everyday computers: tray icon, start at login, a native terminal window; it is also the `cranibox` command |
+| Command line | `cranibox-linux-x86_64` | Linux servers, NAS and headless machines: the same interface in a browser, and it can serve as a relay |
 | Workspace image | `xuping/agent-workspace:ubuntu-xfce` and others | A Linux computer for your Agents with a desktop, browser and toolchain; see [Deploy the workspace image](#deploy-the-workspace-image) |
 
 Checksums are in `SHA256SUMS` in the same release.
 
-Command line:
+The desktop app is also the `cranibox` command: the Linux package and the Windows installer put it on PATH; on macOS choose Install command line tool under This device → Settings → Desktop app. With arguments it runs as the command line; without them it opens the window. Command-line usage:
 
 ```bash
 cranibox                 # run this device's node; the interface listens on loopback only (default 127.0.0.1:7377)

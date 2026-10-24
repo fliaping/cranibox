@@ -31,5 +31,8 @@ tauri-plugin-autostart = { version = "2", optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true }
 tauri-plugin-notification = { version = "2", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [], optional = true }

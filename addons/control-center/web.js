@@ -34422,6 +34422,7 @@ var ev = {
 	[/^macOS Screen Sharing on (.+)$/, "macOS 屏幕共享（$1）"],
 	[/^Desktop server on (.+)$/, "桌面服务（$1）"],
 	[/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重新检测。"],
+	[/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then restart Cranibox to apply the permissions\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重启 Cranibox 使权限生效。"],
 	[/^Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver\.?$/, "请在系统设置中为 CuaDriver 打开「屏幕录制」和「辅助功能」，然后重新打开 CuaDriver。"],
 	[/^Installing cua-driver…$/, "正在安装 cua-driver…"],
 	[/^The Computer Use bridge is not answering\.?$/, "Computer Use 桥接没有响应。"],
@@ -34801,31 +34802,40 @@ function vv() {
 	] });
 }
 function yv({ item: e, pending: t, act: n }) {
-	let { t: r } = V_(), [i, a] = pv(e.id, r), o = ev[e.id] || oo, s = t.startsWith(e.id + ":"), c = (t) => e.actions.includes(t), l = e.permissions.filter((e) => e.state === "denied" || e.state === "unknown"), u = e.provider.installed && e.provider.running && !l.length;
+	let { t: r } = V_(), [i, a] = (0, y.useState)(!1), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)("");
+	async function u() {
+		s(!0), l("");
+		try {
+			await Uo("restart");
+		} catch (e) {
+			l(e instanceof Error ? e.message : String(e)), s(!1);
+		}
+	}
+	let [d, f] = pv(e.id, r), p = ev[e.id] || oo, m = t.startsWith(e.id + ":"), h = (t) => e.actions.includes(t), g = e.permissions.filter((e) => e.state === "denied" || e.state === "unknown"), _ = e.provider.installed && e.provider.running && !g.length;
 	return /* @__PURE__ */ (0, J.jsxs)(U_, {
 		className: "cx-cap-card",
-		label: i,
+		label: d,
 		children: [
 			/* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-card-head",
 				children: [
 					/* @__PURE__ */ (0, J.jsx)("span", {
-						className: "cx-card-icon " + (u ? "" : "muted"),
-						children: /* @__PURE__ */ (0, J.jsx)(o, {
+						className: "cx-card-icon " + (_ ? "" : "muted"),
+						children: /* @__PURE__ */ (0, J.jsx)(p, {
 							size: 20,
 							"aria-hidden": "true"
 						})
 					}),
 					/* @__PURE__ */ (0, J.jsxs)("div", {
 						className: "cx-grow",
-						children: [/* @__PURE__ */ (0, J.jsx)("h3", { children: i }), /* @__PURE__ */ (0, J.jsx)("p", {
+						children: [/* @__PURE__ */ (0, J.jsx)("h3", { children: d }), /* @__PURE__ */ (0, J.jsx)("p", {
 							className: "cx-muted cx-small",
-							children: a
+							children: f
 						})]
 					}),
 					/* @__PURE__ */ (0, J.jsx)(W_, {
-						tone: u ? e.sharing.enabled ? "good" : "accent" : "warn",
-						children: u ? e.sharing.enabled ? r("已共享", "Shared") : r("就绪", "Ready") : e.provider.installed ? e.provider.running ? r("需要授权", "Needs permission") : r("未运行", "Not running") : r("未安装", "Not installed")
+						tone: _ ? e.sharing.enabled ? "good" : "accent" : "warn",
+						children: _ ? e.sharing.enabled ? r("已共享", "Shared") : r("就绪", "Ready") : e.provider.installed ? e.provider.running ? r("需要授权", "Needs permission") : r("未运行", "Not running") : r("未安装", "Not installed")
 					})
 				]
 			}),
@@ -34859,63 +34869,63 @@ function yv({ item: e, pending: t, act: n }) {
 					/* @__PURE__ */ (0, J.jsxs)("div", {
 						className: "cx-actions",
 						children: [
-							c("install_plan") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							h("install_plan") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small primary",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "install_plan"),
 								children: [/* @__PURE__ */ (0, J.jsx)(Jr, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("安装…", "Install…")]
 							}),
-							c("start") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							h("start") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "start"),
 								children: [/* @__PURE__ */ (0, J.jsx)(Oa, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("启动", "Start")]
 							}),
-							c("stop") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							h("stop") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "stop"),
 								children: [/* @__PURE__ */ (0, J.jsx)(_o, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("停止", "Stop")]
 							}),
-							c("use_profile") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							h("use_profile") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small primary",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "use_profile"),
 								children: [/* @__PURE__ */ (0, J.jsx)(mi, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("使用我的 Chrome（保留登录）", "Use my Chrome (signed in)")]
 							}),
-							e.id === "desktop" && !e.provider.running && c("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							e.id === "desktop" && !e.provider.running && h("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small primary",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "open_settings"),
 								children: [/* @__PURE__ */ (0, J.jsx)(Qr, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("打开共享设置", "Open Sharing settings")]
 							}),
-							e.id === "browser" && c("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							e.id === "browser" && h("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "open_settings"),
 								children: [/* @__PURE__ */ (0, J.jsx)(Qr, {
 									size: 14,
 									"aria-hidden": "true"
 								}), r("打开远程调试设置", "Open remote debugging setting")]
 							}),
-							c("refresh") && /* @__PURE__ */ (0, J.jsxs)("button", {
+							h("refresh") && /* @__PURE__ */ (0, J.jsxs)("button", {
 								className: "cx-btn small ghost",
-								disabled: s,
+								disabled: m,
 								onClick: () => void n(e, "refresh"),
 								children: [/* @__PURE__ */ (0, J.jsx)(Ba, {
 									size: 14,
@@ -34941,19 +34951,19 @@ function yv({ item: e, pending: t, act: n }) {
 							children: gv(e.state, r)
 						})]
 					}, e.id)),
-					l.length > 0 && /* @__PURE__ */ (0, J.jsxs)("div", {
+					g.length > 0 && /* @__PURE__ */ (0, J.jsxs)("div", {
 						className: "cx-actions",
-						children: [c("request_permissions") && /* @__PURE__ */ (0, J.jsxs)("button", {
+						children: [h("request_permissions") && /* @__PURE__ */ (0, J.jsxs)("button", {
 							className: "cx-btn small primary",
-							disabled: s,
+							disabled: m,
 							onClick: () => void n(e, "request_permissions"),
 							children: [/* @__PURE__ */ (0, J.jsx)(oo, {
 								size: 14,
 								"aria-hidden": "true"
 							}), r("去授权", "Grant access")]
-						}), c("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
+						}), h("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
 							className: "cx-btn small",
-							disabled: s,
+							disabled: m,
 							onClick: () => void n(e, "open_settings"),
 							children: [/* @__PURE__ */ (0, J.jsx)(Qr, {
 								size: 14,
@@ -34961,9 +34971,18 @@ function yv({ item: e, pending: t, act: n }) {
 							}), r("打开系统设置", "Open System Settings")]
 						})]
 					}),
-					l.length > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
+					g.length > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
 						className: "cx-muted cx-small",
-						children: e.provider.kind === "cua-embedded" ? r("Computer Use 内置在 Cranibox 中，只需在系统设置里给 Cranibox 授权；授权后点击「重新检测」。", "Computer Use is built into Cranibox: grant access to Cranibox in System Settings, then check again.") : r("权限授予提供者应用本身，与终端或浏览器无关；授权后点击「重新检测」。", "Permission belongs to the provider app itself, not your terminal or browser. Check again after granting.")
+						children: e.provider.kind === "cua-embedded" ? r("请为 Cranibox 开启「屏幕录制」和「辅助功能」。若开关已打开仍未生效，请重启 Cranibox，让应用和内嵌驱动重新读取权限。关闭窗口只会隐藏到托盘。", "Enable Screen Recording and Accessibility for Cranibox. If the switches are already on, restart Cranibox so the app and embedded driver reload their permissions. Closing the window only hides it in the tray.") : r("请为提供者应用 CuaDriver 开启「屏幕录制」和「辅助功能」，然后停止并重新启动驱动，再点击「重新检测」。", "Enable Screen Recording and Accessibility for the provider app CuaDriver, then stop and start the driver and check again.")
+					}),
+					e.provider.kind === "cua-embedded" && Ho() && /* @__PURE__ */ (0, J.jsxs)("button", {
+						className: "cx-btn small",
+						disabled: m || o,
+						onClick: () => a(!0),
+						children: [/* @__PURE__ */ (0, J.jsx)(Ba, {
+							size: 14,
+							"aria-hidden": "true"
+						}), r("重启 Cranibox", "Restart Cranibox")]
 					})
 				]
 			}),
@@ -34978,7 +34997,7 @@ function yv({ item: e, pending: t, act: n }) {
 							children: e.sharing.address
 						}) : void 0,
 						checked: e.sharing.enabled,
-						disabled: s || !(e.sharing.enabled ? c("disable") : c("enable")),
+						disabled: m || !(e.sharing.enabled ? h("disable") : h("enable")),
 						onChange: (t) => void n(e, t ? "enable" : "disable")
 					}),
 					/* @__PURE__ */ (0, J.jsx)("p", {
@@ -34998,6 +35017,31 @@ function yv({ item: e, pending: t, act: n }) {
 					}),
 					" ",
 					nv(e.error, r)
+				]
+			}),
+			i && /* @__PURE__ */ (0, J.jsxs)($_, {
+				t: r,
+				title: r("重启 Cranibox？", "Restart Cranibox?"),
+				onClose: () => {
+					o || a(!1);
+				},
+				children: [
+					/* @__PURE__ */ (0, J.jsx)("p", { children: r("这会暂时断开此设备的会话，并重新打开应用以应用系统权限。", "This temporarily disconnects this device's sessions and reopens the app to apply system permissions.") }),
+					c && /* @__PURE__ */ (0, J.jsx)(Z_, { children: c }),
+					/* @__PURE__ */ (0, J.jsxs)("div", {
+						className: "cx-actions",
+						children: [/* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn",
+							disabled: o,
+							onClick: () => a(!1),
+							children: r("取消", "Cancel")
+						}), /* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn primary",
+							disabled: o,
+							onClick: () => void u(),
+							children: r("重启 Cranibox", "Restart Cranibox")
+						})]
+					})
 				]
 			})
 		]
@@ -35025,8 +35069,8 @@ function bv() {
 //#endregion
 //#region src/app/DesktopAppSettings.tsx
 function xv({ section: e }) {
-	let { t } = V_(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(!1);
-	async function g(e) {
+	let { t } = V_(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(null), [u, d] = (0, y.useState)(!1), [f, p] = (0, y.useState)(""), [m, h] = (0, y.useState)(!1), [g, _] = (0, y.useState)(!1);
+	async function v(e) {
 		s(!0), a("");
 		try {
 			await e();
@@ -35037,7 +35081,7 @@ function xv({ section: e }) {
 		}
 	}
 	return (0, y.useEffect)(() => {
-		g(async () => r(await Uo("status")));
+		v(async () => r(await Uo("status"))), Uo("command_line").then((e) => l(typeof e?.program == "string" ? e : null), () => l(null));
 	}, []), /* @__PURE__ */ (0, J.jsxs)(J.Fragment, { children: [
 		e !== "agents" && /* @__PURE__ */ (0, J.jsxs)(U_, {
 			label: t("桌面应用", "Desktop app"),
@@ -35065,8 +35109,39 @@ function xv({ section: e }) {
 						detail: t("开机后在后台保持这台设备在线。", "Keeps this device online in the background after you sign in."),
 						checked: !!n?.autostart,
 						disabled: o || !n,
-						onChange: (e) => void g(async () => r(await Uo("autostart", { enabled: e })))
+						onChange: (e) => void v(async () => r(await Uo("autostart", { enabled: e })))
 					})
+				}),
+				c && /* @__PURE__ */ (0, J.jsxs)("div", {
+					className: "cx-command-line",
+					style: { marginTop: 12 },
+					children: [/* @__PURE__ */ (0, J.jsxs)("p", {
+						className: "cx-small",
+						children: [
+							/* @__PURE__ */ (0, J.jsx)(ho, {
+								size: 15,
+								"aria-hidden": "true"
+							}),
+							" ",
+							/* @__PURE__ */ (0, J.jsx)("strong", { children: t("命令行", "Command line") }),
+							" · ",
+							c.ready ? t("在终端里直接运行 cranibox，与窗口控制的是同一台设备。", "Run cranibox in a terminal to control this same device.") : c.command ? t("PATH 中的 cranibox 是另一个程序：", "The cranibox on PATH is another program: ") + c.command : t("cranibox 还不在 PATH 中。", "cranibox is not on PATH yet.")
+						]
+					}), !c.ready && (c.installable ? /* @__PURE__ */ (0, J.jsx)("div", {
+						className: "cx-actions",
+						children: /* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn",
+							disabled: o,
+							onClick: () => void v(async () => l(await Uo("install_command_line"))),
+							children: t("安装命令行工具", "Install command line tool")
+						})
+					}) : n?.platform !== "windows" && /* @__PURE__ */ (0, J.jsx)("div", {
+						className: "cx-plan",
+						children: /* @__PURE__ */ (0, J.jsx)("pre", {
+							"aria-label": t("加入 PATH 的命令", "Command that adds it to PATH"),
+							children: "ln -sf '" + c.program.replace(/'/g, "'\\''") + "' ~/.local/bin/cranibox"
+						})
+					}))]
 				}),
 				/* @__PURE__ */ (0, J.jsxs)("div", {
 					className: "cx-actions",
@@ -35074,12 +35149,12 @@ function xv({ section: e }) {
 					children: [/* @__PURE__ */ (0, J.jsx)("button", {
 						className: "cx-btn",
 						disabled: o,
-						onClick: () => void g(() => Uo("hide").then(() => void 0)),
+						onClick: () => void v(() => Uo("hide").then(() => void 0)),
 						children: t("隐藏窗口", "Hide window")
 					}), /* @__PURE__ */ (0, J.jsxs)("button", {
 						className: "cx-btn danger",
 						disabled: o,
-						onClick: () => h(!0),
+						onClick: () => _(!0),
 						children: [/* @__PURE__ */ (0, J.jsx)(Wi, {
 							size: 15,
 							"aria-hidden": "true"
@@ -35111,9 +35186,9 @@ function xv({ section: e }) {
 					className: "cx-check",
 					children: [/* @__PURE__ */ (0, J.jsx)("input", {
 						type: "checkbox",
-						checked: c,
+						checked: u,
 						onChange: (e) => {
-							l(e.target.checked), d("");
+							d(e.target.checked), p("");
 						}
 					}), t("包含托管运行工具", "Include managed run tools")]
 				}),
@@ -35122,42 +35197,42 @@ function xv({ section: e }) {
 					children: [/* @__PURE__ */ (0, J.jsx)("button", {
 						className: "cx-btn primary",
 						disabled: o,
-						onClick: () => void g(async () => d(JSON.stringify(await Uo("mcp_config", { include_runs: c }), null, 2))),
+						onClick: () => void v(async () => p(JSON.stringify(await Uo("mcp_config", { include_runs: u }), null, 2))),
 						children: t("生成配置", "Generate configuration")
-					}), u && /* @__PURE__ */ (0, J.jsxs)("button", {
+					}), f && /* @__PURE__ */ (0, J.jsxs)("button", {
 						className: "cx-btn",
-						onClick: () => void navigator.clipboard.writeText(u).then(() => p(!0), () => p(!1)),
+						onClick: () => void navigator.clipboard.writeText(f).then(() => h(!0), () => h(!1)),
 						children: [/* @__PURE__ */ (0, J.jsx)(Hr, {
 							size: 15,
 							"aria-hidden": "true"
-						}), f ? t("已复制", "Copied") : t("复制", "Copy")]
+						}), m ? t("已复制", "Copied") : t("复制", "Copy")]
 					})]
 				}),
-				u && /* @__PURE__ */ (0, J.jsx)("div", {
+				f && /* @__PURE__ */ (0, J.jsx)("div", {
 					className: "cx-plan",
 					style: { marginTop: 12 },
 					children: /* @__PURE__ */ (0, J.jsx)("pre", {
 						"aria-label": t("MCP 配置", "MCP configuration"),
-						children: u
+						children: f
 					})
 				})
 			]
 		}),
 		i && /* @__PURE__ */ (0, J.jsx)(Z_, { children: i }),
-		m && /* @__PURE__ */ (0, J.jsxs)($_, {
+		g && /* @__PURE__ */ (0, J.jsxs)($_, {
 			title: t("退出 Cranibox？", "Quit Cranibox?"),
 			t,
-			onClose: () => h(!1),
+			onClose: () => _(!1),
 			children: [/* @__PURE__ */ (0, J.jsx)("p", { children: t("退出后，其他设备将无法连接这台设备，正在这台设备上运行的终端和 Agent 会话也会结束。", "After quitting, your other devices can no longer reach this one, and terminal and agent sessions running on it end.") }), /* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-actions",
 				children: [/* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn",
-					onClick: () => h(!1),
+					onClick: () => _(!1),
 					children: t("取消", "Cancel")
 				}), /* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn danger",
 					disabled: o,
-					onClick: () => void g(() => Uo("quit").then(() => void 0)),
+					onClick: () => void v(() => Uo("quit").then(() => void 0)),
 					children: t("退出", "Quit")
 				})]
 			})]

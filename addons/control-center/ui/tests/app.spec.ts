@@ -306,11 +306,20 @@ test('desktop app settings use the shell API and confirm before quitting', async
     const body = route.request().postDataJSON(); operations.push(body);
     if (body.operation === 'status' || body.operation === 'autostart') return route.fulfill({ json: { autostart: body.operation === 'autostart' ? body.enabled : false, version: '0.9.0', platform: 'macos' } });
     if (body.operation === 'mcp_config') return route.fulfill({ json: { mcpServers: { cranibox: { command: 'cranibox', args: ['mcp'] } } } });
+    const program = '/Applications/Cranibox.app/Contents/MacOS/cranibox';
+    if (body.operation === 'command_line') return route.fulfill({ json: { program, command: null, ready: false, installable: true } });
+    if (body.operation === 'install_command_line') return route.fulfill({ json: { program, command: '/usr/local/bin/cranibox', ready: true, installable: false } });
     return route.fulfill({ json: {} });
   });
   await ready(page, '/app/settings');
   const app = page.getByRole('region', { name: 'Desktop app', exact: true });
   await expect(app).toContainText('Cranibox 0.9.0 · macos');
+  // The app is also the cranibox command; on macOS it links itself onto PATH when asked.
+  await expect(app).toContainText('cranibox is not on PATH yet.');
+  await app.getByRole('button', { name: 'Install command line tool' }).click();
+  await expect(app).toContainText('Run cranibox in a terminal to control this same device.');
+  expect(operations.at(-1)).toEqual({ operation: 'install_command_line' });
+  await expect(app.getByRole('button', { name: 'Install command line tool' })).toHaveCount(0);
   await app.getByText('Start at login').click();
   await expect.poll(() => operations.at(-1)).toEqual({ operation: 'autostart', enabled: true });
   await expect(app.getByRole('switch', { name: /Start at login/ })).toBeChecked();
@@ -325,3 +334,39 @@ test('desktop app settings use the shell API and confirm before quitting', async
   expect(operations.at(-1)).toEqual({ operation: 'mcp_config', include_runs: true });
   await expect(page.getByRole('link', { name: 'Workspace', exact: true })).toHaveCount(0);
 });
+
+for (const embedded of [true, false]) {
+  test(`Computer Use explains the ${embedded ? 'Cranibox' : 'CuaDriver'} permission owner and restart`, async ({ page }) => {
+    await page.addInitScript(() => {
+      let value: unknown;
+      Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+    });
+    const operations: string[] = [];
+    await page.route('**/api/shell', route => {
+      operations.push(route.request().postDataJSON().operation);
+      return route.fulfill({ json: {} });
+    });
+    await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: {
+      ...capabilities, items: capabilities.items.map(item => item.id === 'computer' ? {
+        ...item, provider: { ...item.provider, kind: embedded ? 'cua-embedded' : 'cua', installed: true, running: true },
+      } : item),
+    } }));
+    await ready(page, '/app/this');
+    const computer = page.getByRole('region', { name: 'Computer Use', exact: true });
+    if (!embedded) {
+      await expect(computer).toContainText('for the provider app CuaDriver');
+      await expect(computer.getByRole('button', { name: 'Restart Cranibox', exact: true })).toHaveCount(0);
+      return;
+    }
+    await expect(computer).toContainText('for Cranibox');
+    await expect(computer).toContainText('Closing the window only hides it in the tray.');
+    await computer.getByRole('button', { name: 'Restart Cranibox', exact: true }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Restart Cranibox?' });
+    await expect(confirmation).toContainText('temporarily disconnects');
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(operations).not.toContain('restart');
+    await computer.getByRole('button', { name: 'Restart Cranibox', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Restart Cranibox', exact: true }).click();
+    await expect.poll(() => operations.filter(operation => operation === 'restart')).toEqual(['restart']);
+  });
+}

@@ -17,6 +17,19 @@ pub async fn run() -> anyhow::Result<()> {
     Box::pin(run_from(std::env::args().collect())).await
 }
 
+/// The `cranibox` command line, shared by the device program and the desktop app so
+/// both answer the same commands. `cranibox node …` is the long form.
+pub async fn run_program(mut args: Vec<String>, version: &str) -> anyhow::Result<()> {
+    if args.get(1).is_some_and(|s| s == "node") {
+        args.remove(1);
+    }
+    if matches!(args.get(1).map(String::as_str), Some("-V" | "--version")) {
+        println!("cranibox {version}");
+        return Ok(());
+    }
+    Box::pin(run_from(args)).await
+}
+
 pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     if agent_workspace_runtime::peers::tasks::worker::maybe_serve(
         &std::env::args().collect::<Vec<_>>(),
@@ -61,10 +74,10 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     }
     let command = match args.command {
         Some(agent::Command::UiUrl { listen }) => {
-            let token = crate::web::standalone::access_token(&peer_path)?;
-            let listen =
-                listen.unwrap_or_else(|| crate::web::standalone::recorded_address(&peer_path));
-            println!("{}", crate::web::standalone::sign_in_url(listen, &token));
+            println!(
+                "{}",
+                crate::web::endpoint::ui_url(&peer_path, listen).await?
+            );
             return Ok(());
         }
         Some(agent::Command::AppMcp { data, service }) => {

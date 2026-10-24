@@ -95,14 +95,19 @@ async fn open_browser(url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 async fn quit_app(app: tauri::AppHandle, state: Arc<AppState>) {
+    if stop_app(&state).await {
+        app.exit(0);
+    }
+}
+async fn stop_app(state: &AppState) -> bool {
     if state.quitting.swap(true, Ordering::Relaxed) {
-        return;
+        return false;
     }
     state.stop.cancel();
     if let Some(local) = state.service.lock().await.local.take() {
         let _ = local.shutdown().await;
     }
-    app.exit(0);
+    true
 }
 
 static TERMINAL_LAUNCHES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -199,6 +204,20 @@ impl Shell for NativeShell {
                 });
                 Ok(json!({}))
             }
+            "restart" => {
+                let (app, state) = (self.app.clone(), self.state.clone());
+                tauri::async_runtime::spawn(async move {
+                    // Finish the response, then release the node and its private
+                    // driver before relaunching the permission-owning process.
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if stop_app(&state).await {
+                        app.request_restart();
+                    }
+                });
+                Ok(json!({}))
+            }
+            "command_line" => cranibox_node_desktop::command_line::status(),
+            "install_command_line" => cranibox_node_desktop::command_line::install().await,
             "mcp_config" => Ok(
                 cranibox_node_desktop::launch::Launcher::current()?.mcp_config(
                     &settings::default_path(),
@@ -223,13 +242,20 @@ async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<
 }
 
 fn main() -> anyhow::Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let argv: Vec<String> = std::env::args().collect();
+    let args = &argv[1..];
+    // With a command the app is the `cranibox` command line; without one it opens the window.
     if !args.is_empty() && args != ["--background"] {
+        #[cfg(target_os = "windows")]
+        cranibox_node_desktop::console::attach();
         return tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .build()?
-            .block_on(cranibox_node::cli::run());
+            .block_on(cranibox_node::cli::run_program(
+                argv.clone(),
+                env!("CARGO_PKG_VERSION"),
+            ));
     }
     let background = args == ["--background"];
     // Started from Finder or a login item, the app has a minimal PATH: take the login
@@ -327,7 +353,7 @@ fn main() -> anyhow::Result<()> {
                     }
                 };
                 service.local = Some(local.clone());
-                // A fresh token per launch: only this window ever receives the link.
+                // A fresh token per launch, shared with ui-url through a private runtime record.
                 let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
                     Ok(listener) => listener,
                     Err(error) => {

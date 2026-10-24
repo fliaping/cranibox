@@ -40,23 +40,30 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 /// One JSON-RPC line may carry a base64 PNG plus its metadata.
 const MAX_LINE: usize = MAX_RESPONSE + MAX_RESPONSE / 2;
 
-/// The driver: the macOS app's embedded copy, then PATH, `~/.local/bin` and the
-/// CuaDriver app bundle.
+/// The embedded app uses only its pinned private copy. A PATH driver may be an
+/// unrelated version or CuaDriver.app wrapper with a different permission owner.
 pub fn locate() -> Option<PathBuf> {
-    if embedded::active()
-        && let Some(binary) = embedded::binary().filter(|b| executable(b))
-    {
-        return Some(binary);
-    }
     let home =
         std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from);
-    std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let candidates = std::env::split_paths(&path)
         .map(|root| root.join(BINARY))
         .chain(home.map(|h| h.join(".local/bin").join(BINARY)))
         .chain(
             cfg!(target_os = "macos").then(|| Path::new(MAC_APP).join("Contents/MacOS/cua-driver")),
-        )
-        .find(|path| executable(path))
+        );
+    select_driver(embedded::active(), embedded::binary(), candidates)
+}
+fn select_driver(
+    embedded: bool,
+    private: Option<PathBuf>,
+    mut external: impl Iterator<Item = PathBuf>,
+) -> Option<PathBuf> {
+    if embedded {
+        private.filter(|path| executable(path))
+    } else {
+        external.find(|path| executable(path))
+    }
 }
 pub fn executable(path: &Path) -> bool {
     #[cfg(unix)]
@@ -121,7 +128,7 @@ pub async fn start_daemon(program: &Path) -> Result<()> {
     }
     let mut command = if cfg!(target_os = "macos") && Path::new(MAC_APP).is_dir() {
         let mut command = Command::new("/usr/bin/open");
-        command.args(["-n", "-g", "-a", "CuaDriver", "--args", "serve"]);
+        command.args(["-n", "-g", "-a", MAC_APP, "--args", "serve"]);
         command
     } else {
         let mut command = Command::new(program);
@@ -168,7 +175,7 @@ pub async fn permissions(program: &Path) -> Option<(Option<bool>, Option<bool>)>
         return None;
     }
     if embedded::active() {
-        return Some(embedded::permissions());
+        return embedded::permissions(program).await;
     }
     let (ok, text) = cli(
         program,
@@ -185,10 +192,41 @@ pub fn parse_permissions(value: &Value) -> Option<(Option<bool>, Option<bool>)> 
         direct
             .as_bool()
             .or_else(|| direct["granted"].as_bool())
-            .or_else(|| direct.as_str().map(|s| s == "granted"))
+            .or_else(|| match direct.as_str()? {
+                "granted" => Some(true),
+                "denied" | "not_granted" => Some(false),
+                _ => None,
+            })
     };
     let result = (find("screen_recording"), find("accessibility"));
     (result != (None, None)).then_some(result)
+}
+
+/// Query only the already-running private daemon. Do not start it or capture the
+/// screen while rendering the capabilities page, and never query the global daemon.
+async fn embedded_permissions(
+    program: &Path,
+    args: &[String],
+) -> Option<(Option<bool>, Option<bool>)> {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        let mut client = Client::spawn(program, args).await.ok()?;
+        let response = client
+            .request(
+                "tools/call",
+                json!({
+                    "name": "check_permissions", "arguments": {"prompt": false}
+                }),
+            )
+            .await
+            .ok()?;
+        if response["isError"] == true {
+            return None;
+        }
+        parse_permissions(&structured(&response))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 /// Raise the macOS prompts, attributed to CuaDriver.app.
 pub async fn request_permissions(program: &Path) -> Result<()> {
@@ -878,6 +916,7 @@ mod tests {
         let log_path = log.display();
         let script = root.join("fake-cua-driver");
         std::fs::write(&script, format!(r#"#!/bin/sh
+printf '%s\n' "$@" > '{log_path}.args'
 while IFS= read -r line; do
   id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   case "$line" in
@@ -887,6 +926,7 @@ while IFS= read -r line; do
     *'"method":"tools/call"'*)
       printf '%s\n' "$line" >> '{log_path}'
       case "$line" in
+        *'"name":"check_permissions"'*) printf '{{"jsonrpc":"2.0","id":%s,"result":{{"structuredContent":{{"screen_recording":true,"accessibility":false}}}}}}\n' "$id";;
         *'"name":"die"'*) exit 3;;
         *'"name":"get_desktop_state"'*) printf '{{"jsonrpc":"2.0","id":%s,"result":{{"content":[{{"type":"image","mimeType":"image/png","data":"{image}"}}]}}}}\n' "$id";;
         *'"name":"get_screen_size"'*) printf '{{"jsonrpc":"2.0","id":%s,"result":{{"content":[],"structuredContent":{{"width":100,"height":50,"scale_factor":2.0}}}}}}\n' "$id";;
@@ -1097,6 +1137,50 @@ done
     }
 
     #[test]
+    fn embedded_mode_never_borrows_the_external_driver() {
+        let root = tempfile::tempdir().unwrap();
+        let (external, _) = fake(root.path());
+        let missing = root.path().join("private/cua-driver");
+        assert!(select_driver(true, Some(missing), [external.clone()].into_iter()).is_none());
+        assert_eq!(
+            select_driver(false, None, [external.clone()].into_iter()),
+            Some(external.clone())
+        );
+        assert_eq!(
+            select_driver(true, Some(external.clone()), std::iter::empty()),
+            Some(external)
+        );
+    }
+
+    #[tokio::test]
+    async fn private_daemon_permissions_are_read_only() {
+        let root = tempfile::tempdir().unwrap();
+        let (script, log) = fake(root.path());
+        let args = vec![
+            "mcp".into(),
+            "--embedded".into(),
+            "--socket".into(),
+            "/private/cranibox.sock".into(),
+        ];
+        assert_eq!(
+            embedded_permissions(&script, &args).await,
+            Some((Some(true), Some(false)))
+        );
+        assert_eq!(
+            calls(&log),
+            vec![("check_permissions".into(), json!({"prompt": false}))]
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("calls.log.args")).unwrap(),
+            args.join("\n") + "\n"
+        );
+        assert_eq!(
+            embedded_permissions(&root.path().join("missing"), &args).await,
+            None
+        );
+    }
+
+    #[test]
     fn keys_and_permissions_parse() {
         assert_eq!(keys("Return"), ["return"]);
         assert_eq!(keys("ctrl+C"), ["ctrl", "C"]);
@@ -1110,5 +1194,15 @@ done
             Some((None, Some(true)))
         );
         assert_eq!(parse_permissions(&json!({"other":1})), None);
+        assert_eq!(
+            parse_permissions(
+                &json!({"screen_recording":"unknown", "accessibility":"not_checked"})
+            ),
+            None
+        );
+        assert_eq!(
+            parse_permissions(&json!({"screen_recording":"granted", "accessibility":"denied"})),
+            Some((Some(true), Some(false)))
+        );
     }
 }

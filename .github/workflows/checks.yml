@@ -1,0 +1,39 @@
+name: Repository checks
+
+# Installer, image definition and shell scripts; Rust and the apps are covered by
+# rust-runtime.yml, and image releases by build-webtop.yml.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Test image release gate
+        run: python3 -m unittest discover -s tests -p test_workspace_image_check.py -v
+
+      - name: Test install.sh syntax
+        run: bash -n install.sh
+
+      - name: Test Dockerfile syntax
+        run: docker buildx build --check --progress=plain -f Dockerfile .
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      # Errors fail the check; warnings are listed without failing it.
+      - name: ShellCheck
+        run: |
+          command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 shellcheck -S error
+          git ls-files -z '*.sh' | xargs -0 shellcheck -S warning -f gcc || true

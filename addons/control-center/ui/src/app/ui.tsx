@@ -75,6 +75,7 @@ const messages: [RegExp, string][] = [
   [/^macOS Screen Sharing on (.+)$/, "macOS 屏幕共享（$1）"],
   [/^Desktop server on (.+)$/, "桌面服务（$1）"],
   [/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then check again\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重新检测。"],
+  [/^Grant Screen Recording and Accessibility to Cranibox in System Settings, then restart Cranibox to apply the permissions\.?$/, "请在系统设置中为 Cranibox 打开「屏幕录制」和「辅助功能」，然后重启 Cranibox 使权限生效。"],
   [/^Grant Screen Recording and Accessibility to CuaDriver in System Settings, then reopen CuaDriver\.?$/, "请在系统设置中为 CuaDriver 打开「屏幕录制」和「辅助功能」，然后重新打开 CuaDriver。"],
   [/^Installing cua-driver…$/, "正在安装 cua-driver…"],
   [/^The Computer Use bridge is not answering\.?$/, "Computer Use 桥接没有响应。"],

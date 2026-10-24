@@ -29,15 +29,15 @@ Cranibox 把你的电脑、服务器和容器连成一张属于你自己的设�
 
 | 形态 | 文件 | 适合 |
 |------|------|------|
-| 桌面客户端 | macOS `.dmg`、Windows `.exe`、Linux `.deb` / `.AppImage` | 日常使用的电脑：托盘常驻、登录自启动、独立终端窗口 |
-| 命令行版 | `cranibox-macos-arm64`、`cranibox-linux-x86_64`、`cranibox-windows-x86_64.exe` | 服务器、NAS、无桌面环境：同一套界面经浏览器访问，可兼作 relay |
+| 桌面客户端 | macOS `.dmg`、Windows `.exe`、Linux `.deb` / `.AppImage` | 日常使用的电脑：托盘常驻、登录自启动、独立终端窗口；同时就是 `cranibox` 命令 |
+| 命令行版 | `cranibox-linux-x86_64` | Linux 服务器、NAS、无桌面环境：同一套界面经浏览器访问，可兼作 relay |
 | 工作区镜像 | `xuping/agent-workspace:ubuntu-xfce` 等 | 给 Agent 一台带桌面、浏览器和开发环境的 Linux 电脑，见[部署工作区镜像](#部署工作区镜像) |
 
 文件校验值见同一 Release 中的 `SHA256SUMS`。
 
 macOS 客户端使用自签名证书（未经 Apple 公证）：`.dmg` 可直接打开；把 Cranibox 拖进“应用程序”后，首次打开会提示“无法验证”，点“完成”，再到“系统设置 → 隐私与安全性”点“仍要打开”。只需一次，之后的更新会保留已授予的权限。
 
-命令行版：
+桌面客户端本身就是 `cranibox` 命令：Linux 安装包和 Windows 安装程序会把它加入 PATH，macOS 在“这台设备 → 设置 → 桌面应用”里点“安装命令行工具”。带参数运行时是命令行，不带参数时打开窗口。命令行用法：
 
 ```bash
 cranibox                 # 运行本机节点，界面只监听回环地址（默认 127.0.0.1:7377）
