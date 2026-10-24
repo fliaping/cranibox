@@ -35025,8 +35025,8 @@ function bv() {
 //#endregion
 //#region src/app/DesktopAppSettings.tsx
 function xv({ section: e }) {
-	let { t } = V_(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(!1), [m, h] = (0, y.useState)(!1);
-	async function g(e) {
+	let { t } = V_(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(null), [u, d] = (0, y.useState)(!1), [f, p] = (0, y.useState)(""), [m, h] = (0, y.useState)(!1), [g, _] = (0, y.useState)(!1);
+	async function v(e) {
 		s(!0), a("");
 		try {
 			await e();
@@ -35037,7 +35037,7 @@ function xv({ section: e }) {
 		}
 	}
 	return (0, y.useEffect)(() => {
-		g(async () => r(await Uo("status")));
+		v(async () => r(await Uo("status"))), Uo("command_line").then((e) => l(typeof e?.program == "string" ? e : null), () => l(null));
 	}, []), /* @__PURE__ */ (0, J.jsxs)(J.Fragment, { children: [
 		e !== "agents" && /* @__PURE__ */ (0, J.jsxs)(U_, {
 			label: t("桌面应用", "Desktop app"),
@@ -35065,8 +35065,39 @@ function xv({ section: e }) {
 						detail: t("开机后在后台保持这台设备在线。", "Keeps this device online in the background after you sign in."),
 						checked: !!n?.autostart,
 						disabled: o || !n,
-						onChange: (e) => void g(async () => r(await Uo("autostart", { enabled: e })))
+						onChange: (e) => void v(async () => r(await Uo("autostart", { enabled: e })))
 					})
+				}),
+				c && /* @__PURE__ */ (0, J.jsxs)("div", {
+					className: "cx-command-line",
+					style: { marginTop: 12 },
+					children: [/* @__PURE__ */ (0, J.jsxs)("p", {
+						className: "cx-small",
+						children: [
+							/* @__PURE__ */ (0, J.jsx)(ho, {
+								size: 15,
+								"aria-hidden": "true"
+							}),
+							" ",
+							/* @__PURE__ */ (0, J.jsx)("strong", { children: t("命令行", "Command line") }),
+							" · ",
+							c.ready ? t("在终端里直接运行 cranibox，与窗口控制的是同一台设备。", "Run cranibox in a terminal to control this same device.") : c.command ? t("PATH 中的 cranibox 是另一个程序：", "The cranibox on PATH is another program: ") + c.command : t("cranibox 还不在 PATH 中。", "cranibox is not on PATH yet.")
+						]
+					}), !c.ready && (c.installable ? /* @__PURE__ */ (0, J.jsx)("div", {
+						className: "cx-actions",
+						children: /* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn",
+							disabled: o,
+							onClick: () => void v(async () => l(await Uo("install_command_line"))),
+							children: t("安装命令行工具", "Install command line tool")
+						})
+					}) : n?.platform !== "windows" && /* @__PURE__ */ (0, J.jsx)("div", {
+						className: "cx-plan",
+						children: /* @__PURE__ */ (0, J.jsx)("pre", {
+							"aria-label": t("加入 PATH 的命令", "Command that adds it to PATH"),
+							children: "ln -sf '" + c.program.replace(/'/g, "'\\''") + "' ~/.local/bin/cranibox"
+						})
+					}))]
 				}),
 				/* @__PURE__ */ (0, J.jsxs)("div", {
 					className: "cx-actions",
@@ -35074,12 +35105,12 @@ function xv({ section: e }) {
 					children: [/* @__PURE__ */ (0, J.jsx)("button", {
 						className: "cx-btn",
 						disabled: o,
-						onClick: () => void g(() => Uo("hide").then(() => void 0)),
+						onClick: () => void v(() => Uo("hide").then(() => void 0)),
 						children: t("隐藏窗口", "Hide window")
 					}), /* @__PURE__ */ (0, J.jsxs)("button", {
 						className: "cx-btn danger",
 						disabled: o,
-						onClick: () => h(!0),
+						onClick: () => _(!0),
 						children: [/* @__PURE__ */ (0, J.jsx)(Wi, {
 							size: 15,
 							"aria-hidden": "true"
@@ -35111,9 +35142,9 @@ function xv({ section: e }) {
 					className: "cx-check",
 					children: [/* @__PURE__ */ (0, J.jsx)("input", {
 						type: "checkbox",
-						checked: c,
+						checked: u,
 						onChange: (e) => {
-							l(e.target.checked), d("");
+							d(e.target.checked), p("");
 						}
 					}), t("包含托管运行工具", "Include managed run tools")]
 				}),
@@ -35122,42 +35153,42 @@ function xv({ section: e }) {
 					children: [/* @__PURE__ */ (0, J.jsx)("button", {
 						className: "cx-btn primary",
 						disabled: o,
-						onClick: () => void g(async () => d(JSON.stringify(await Uo("mcp_config", { include_runs: c }), null, 2))),
+						onClick: () => void v(async () => p(JSON.stringify(await Uo("mcp_config", { include_runs: u }), null, 2))),
 						children: t("生成配置", "Generate configuration")
-					}), u && /* @__PURE__ */ (0, J.jsxs)("button", {
+					}), f && /* @__PURE__ */ (0, J.jsxs)("button", {
 						className: "cx-btn",
-						onClick: () => void navigator.clipboard.writeText(u).then(() => p(!0), () => p(!1)),
+						onClick: () => void navigator.clipboard.writeText(f).then(() => h(!0), () => h(!1)),
 						children: [/* @__PURE__ */ (0, J.jsx)(Hr, {
 							size: 15,
 							"aria-hidden": "true"
-						}), f ? t("已复制", "Copied") : t("复制", "Copy")]
+						}), m ? t("已复制", "Copied") : t("复制", "Copy")]
 					})]
 				}),
-				u && /* @__PURE__ */ (0, J.jsx)("div", {
+				f && /* @__PURE__ */ (0, J.jsx)("div", {
 					className: "cx-plan",
 					style: { marginTop: 12 },
 					children: /* @__PURE__ */ (0, J.jsx)("pre", {
 						"aria-label": t("MCP 配置", "MCP configuration"),
-						children: u
+						children: f
 					})
 				})
 			]
 		}),
 		i && /* @__PURE__ */ (0, J.jsx)(Z_, { children: i }),
-		m && /* @__PURE__ */ (0, J.jsxs)($_, {
+		g && /* @__PURE__ */ (0, J.jsxs)($_, {
 			title: t("退出 Cranibox？", "Quit Cranibox?"),
 			t,
-			onClose: () => h(!1),
+			onClose: () => _(!1),
 			children: [/* @__PURE__ */ (0, J.jsx)("p", { children: t("退出后，其他设备将无法连接这台设备，正在这台设备上运行的终端和 Agent 会话也会结束。", "After quitting, your other devices can no longer reach this one, and terminal and agent sessions running on it end.") }), /* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-actions",
 				children: [/* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn",
-					onClick: () => h(!1),
+					onClick: () => _(!1),
 					children: t("取消", "Cancel")
 				}), /* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn danger",
 					disabled: o,
-					onClick: () => void g(() => Uo("quit").then(() => void 0)),
+					onClick: () => void v(() => Uo("quit").then(() => void 0)),
 					children: t("退出", "Quit")
 				})]
 			})]

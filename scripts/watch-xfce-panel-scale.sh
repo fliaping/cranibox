@@ -1,4 +1,5 @@
 #!/usr/bin/with-contenv bash
+# shellcheck shell=bash
 # Keep XFCE panel rows and icons in step with the Wayland output scale.
 #
 # Pixelflux changes the compositor scale with wlr-randr, but XFCE 4.20 keeps

@@ -1,4 +1,5 @@
 #!/usr/bin/with-contenv bash
+# shellcheck shell=bash
 set -euo pipefail
 
 SERVICES_DIR="${CUSTOM_SERVICES_DIR:-/config/custom-services.d}"

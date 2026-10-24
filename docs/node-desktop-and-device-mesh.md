@@ -4,8 +4,10 @@
 
 | 形态 | 适用 | 界面 |
 | --- | --- | --- |
-| 图形版 Cranibox（Tauri） | 有桌面的 macOS/Windows/Linux | 应用窗口；托盘、登录自启动、系统通知、原生权限 |
-| 命令行版 `cranibox` | 服务器、无桌面、已有进程管理器 | 同一网页界面，经 `127.0.0.1` 的 HTTP 访问 |
+| 图形版 Cranibox（Tauri） | 有桌面的 macOS/Windows/Linux | 应用窗口；托盘、登录自启动、系统通知、原生权限；同时就是 `cranibox` 命令 |
+| 命令行版 `cranibox` | Linux 服务器、无桌面、已有进程管理器 | 同一网页界面，经 `127.0.0.1` 的 HTTP 访问 |
+
+图形版程序带参数运行时就是 `cranibox` 命令（与命令行版同一入口，`cranibox node …` 为长写法），不带参数或只带 `--background` 时打开窗口。Linux 的 deb 安装到 `/usr/bin/cranibox`；Windows 安装程序在安装目录的 `bin\cranibox.cmd` 加入当前用户 PATH（经批处理启动，终端会等待命令结束并显示输出）；macOS 在“桌面应用”设置里点“安装命令行工具”，经管理员授权链接到 `/usr/local/bin/cranibox`；AppImage 可自行链接到 `~/.local/bin/cranibox`。
 
 图形版启动时在随机回环端口运行内核自带的网页服务，窗口直接打开它；不再有单独的 IPC 界面。Docker 工作区镜像在此基础上增加容器控制台、服务管理和旧网关（`cranibox serve`），用于虚拟空间。同一持久 NodeID 配置目录只允许一个常驻节点进程，同一凭据文件也只允许一个网关连接进程。需要在同一主机模拟独立设备时，为各进程指定不同的 --config 目录。
 
@@ -15,18 +17,18 @@
 
 ## 一套界面
 
-浏览器、图形版窗口和 Docker 工作区都加载同一份 React 资源，经同一组 HTTP/WebSocket/SSE 接口（`cranibox_node::web`）访问本机内核：App API `/api/v1/app/*`、`/api/peers`、`/api/network`、`/api/desktop/*`、`/api/terminal/*`、`/api/spaces`。页面配置里的 `edition`（`node` 或 `workspace`）决定是否显示容器专用控制台；`shell: true` 表示运行在图形版窗口中，可调用 `POST /api/shell` 的原生操作（自启动、打开外链、隐藏窗口、退出、生成 MCP 配置）。浏览器操作设备时，以内核所在设备为接入端，不会因此获得浏览器所在电脑的本地系统能力。
+浏览器、图形版窗口和 Docker 工作区都加载同一份 React 资源，经同一组 HTTP/WebSocket/SSE 接口（`cranibox_node::web`）访问本机内核：App API `/api/v1/app/*`、`/api/peers`、`/api/network`、`/api/desktop/*`、`/api/terminal/*`、`/api/spaces`。页面配置里的 `edition`（`node` 或 `workspace`）决定是否显示容器专用控制台；`shell: true` 表示运行在图形版窗口中，可调用 `POST /api/shell` 的原生操作（自启动、打开外链、隐藏窗口、退出、生成 MCP 配置、命令行工具）。浏览器操作设备时，以内核所在设备为接入端，不会因此获得浏览器所在电脑的本地系统能力。
 
 ## 安装和连接
 
-打 `v*` 标签时，安装包和命令行程序会发布到 GitHub Release；平时可在 **Cranibox server and independent node client** 工作流的成功运行中下载 Artifacts：
+打 `v*` 标签时，安装包和 Linux 命令行版会发布到 GitHub Release；平时可在 **Cranibox server and desktop app** 工作流的成功运行中下载 Artifacts（保留 14 天）：
 
 | Artifact | 内容 |
 | --- | --- |
 | cranibox-desktop-macos-latest | macOS DMG（Apple Silicon） |
 | cranibox-desktop-windows-latest | Windows NSIS 安装程序 |
 | cranibox-desktop-ubuntu-latest | Linux AppImage、deb |
-| cranibox-cli-{os} | 命令行版 `cranibox`，一个可执行文件 |
+| cranibox-cli-linux | Linux 命令行版 `cranibox`（x86-64），一个可执行文件 |
 
 Linux 的托盘依赖桌面环境支持 AppIndicator；无桌面的机器使用命令行版。
 

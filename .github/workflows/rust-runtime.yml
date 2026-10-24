@@ -1,4 +1,4 @@
-name: Cranibox server and independent node client
+name: Cranibox server and desktop app
 
 on:
   push:
@@ -22,9 +22,9 @@ jobs:
     steps:
       - name: Install isolated desktop test dependencies
         run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 sway swaybg wayvnc fonts-dejavu-core
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - uses: Swatinem/rust-cache@v2
@@ -51,11 +51,11 @@ jobs:
             bundles: dmg
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - uses: Swatinem/rust-cache@v2
@@ -105,12 +105,30 @@ jobs:
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security find-identity -v -p codesigning "$keychain"
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+      # Linux servers have no desktop libraries, so they take the command line alone;
+      # elsewhere the app is the `cranibox` command. It is built first because the app
+      # bundle renames its own binary to target/release/cranibox; both share this job's
+      # compiled dependencies.
+      - name: Build the Linux command line
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --release --locked -p cranibox --no-default-features
+          mkdir -p "$RUNNER_TEMP/cli"
+          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-linux-x86_64"
+          "$RUNNER_TEMP/cli/cranibox-linux-x86_64" --version
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
         env:
           # On CI the bundler otherwise skips the Finder step that lays out the disk
           # image window: its background and the app/Applications icon positions.
           TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
+      - name: The app answers as the cranibox command
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=target/release/cranibox; [ -f "$app.exe" ] && app="$app.exe"
+          test "$("$app" --version)" = "cranibox $(node -p "require('./apps/node-desktop/src-tauri/tauri.conf.json').version")"
+          "$app" node --help | grep -q 'Usage: '
       # Gatekeeper assesses a signed disk image and blocks one signed by a
       # certificate Apple does not know; an unsigned image opens directly. Only the
       # app keeps the signature (opened once via Privacy & Security > Open Anyway).
@@ -152,10 +170,10 @@ jobs:
             codesign -dv --verbose=2 "$app" 2>&1 | grep -q "Authority=$APPLE_SIGNING_IDENTITY"
             codesign -dv "$app" 2>&1 | grep -q '^Identifier=com.cranibox.node$'
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cranibox-desktop-${{ matrix.os }}
           path: |
@@ -163,6 +181,14 @@ jobs:
             target/release/bundle/**/*.AppImage
             target/release/bundle/**/*.exe
             target/release/bundle/**/*.dmg
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: cranibox-cli-linux
+          path: ${{ runner.temp }}/cli/cranibox-linux-x86_64
+          retention-days: 14
           if-no-files-found: error
   native:
     strategy:
@@ -171,11 +197,14 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: actions/setup-python@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python scripts/install-herdr.py --output-directory target/herdr
@@ -186,7 +215,7 @@ jobs:
       - run: cargo test --locked
       - name: Contract snapshot (fixtures round-trip through cranibox-contracts types)
         run: cargo test --locked -p cranibox-contracts --test fixtures
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: runner.os == 'Linux'
         with:
           node-version: '22'
@@ -318,15 +347,6 @@ jobs:
         if: runner.os == 'Linux'
         env:
           CRANIBOX_BIN: target/release/cranibox
-      # Device CLI: one program with the node core and its web interface.
-      - run: cargo build --release --locked -p cranibox --no-default-features
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cranibox-cli-${{ matrix.os }}
-          path: |
-            target/release/cranibox
-            target/release/cranibox.exe
-          if-no-files-found: error
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -335,23 +355,18 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: cranibox-*
-      - name: Collect installers and command-line programs
+      - name: Collect installers and the Linux command line
         run: |
           set -euo pipefail
           mkdir -p release
+          # On Windows, macOS and Linux desktops the app is also the cranibox command.
           find dist -path 'dist/cranibox-desktop-*' -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} release/ \;
-          for pair in ubuntu-latest:linux-x86_64 macos-latest:macos-arm64 windows-latest:windows-x86_64; do
-            source="dist/cranibox-cli-${pair%%:*}"
-            if [ -f "$source/cranibox.exe" ]; then
-              cp "$source/cranibox.exe" "release/cranibox-${pair##*:}.exe"
-            else
-              cp "$source/cranibox" "release/cranibox-${pair##*:}"
-            fi
-          done
+          cp dist/cranibox-cli-linux/cranibox-linux-x86_64 release/
+          chmod +x release/cranibox-linux-x86_64
           (cd release && sha256sum -- * > SHA256SUMS)
           ls -l release
       - name: Create GitHub release

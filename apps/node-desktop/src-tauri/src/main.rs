@@ -199,6 +199,8 @@ impl Shell for NativeShell {
                 });
                 Ok(json!({}))
             }
+            "command_line" => cranibox_node_desktop::command_line::status(),
+            "install_command_line" => cranibox_node_desktop::command_line::install().await,
             "mcp_config" => Ok(
                 cranibox_node_desktop::launch::Launcher::current()?.mcp_config(
                     &settings::default_path(),
@@ -223,13 +225,20 @@ async fn quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) -> Result<
 }
 
 fn main() -> anyhow::Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let argv: Vec<String> = std::env::args().collect();
+    let args = &argv[1..];
+    // With a command the app is the `cranibox` command line; without one it opens the window.
     if !args.is_empty() && args != ["--background"] {
+        #[cfg(target_os = "windows")]
+        cranibox_node_desktop::console::attach();
         return tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .build()?
-            .block_on(cranibox_node::cli::run());
+            .block_on(cranibox_node::cli::run_program(
+                argv.clone(),
+                env!("CARGO_PKG_VERSION"),
+            ));
     }
     let background = args == ["--background"];
     // Started from Finder or a login item, the app has a minimal PATH: take the login

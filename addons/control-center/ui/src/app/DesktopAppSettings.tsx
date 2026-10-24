@@ -1,24 +1,37 @@
-import { Copy, LogOut, MonitorSmartphone, PlugZap } from "lucide-react";
+import { Copy, LogOut, MonitorSmartphone, PlugZap, SquareTerminal } from "lucide-react";
 import { useEffect, useState } from "react";
-import { shellCall, type ShellStatus } from "./shell";
+import { shellCall, type CommandLine, type ShellStatus } from "./shell";
 import { useApp } from "./store";
 import { Alert, Card, Sheet, Switch } from "./ui";
 
-/** Autostart, agent MCP access and quit: only inside the desktop app. */
+/** Autostart, the command line, agent MCP access and quit: only inside the desktop app. */
 export function DesktopAppSettings({ section }: { section?: "app" | "agents" }) {
   const { t } = useApp();
   const [status, setStatus] = useState<ShellStatus | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [cli, setCli] = useState<CommandLine | null>(null);
   const [runs, setRuns] = useState(false), [config, setConfig] = useState(""), [copied, setCopied] = useState(false), [quit, setQuit] = useState(false);
   async function step(action: () => Promise<void>) {
     setBusy(true); setError("");
     try { await action(); } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
   }
-  useEffect(() => { void step(async () => setStatus(await shellCall<ShellStatus>("status"))); }, []);
+  useEffect(() => {
+    void step(async () => setStatus(await shellCall<ShellStatus>("status")));
+    shellCall<CommandLine>("command_line").then(value => setCli(typeof value?.program === "string" ? value : null), () => setCli(null));
+  }, []);
   return <>
     {section !== "agents" && <Card label={t("桌面应用", "Desktop app")}>
       <div className="cx-card-head"><span className="cx-card-icon"><MonitorSmartphone size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("桌面应用", "Desktop app")}</h3>
         <p className="cx-muted cx-small">{status ? "Cranibox " + status.version + " · " + status.platform : t("正在读取…", "Loading…")}</p></div></div>
       <div className="cx-toggle-list"><Switch label={t("登录时自动启动", "Start at login")} detail={t("开机后在后台保持这台设备在线。", "Keeps this device online in the background after you sign in.")} checked={!!status?.autostart} disabled={busy || !status} onChange={enabled => void step(async () => setStatus(await shellCall<ShellStatus>("autostart", { enabled })))} /></div>
+      {cli && <div className="cx-command-line" style={{ marginTop: 12 }}>
+        <p className="cx-small"><SquareTerminal size={15} aria-hidden="true" /> <strong>{t("命令行", "Command line")}</strong> · {cli.ready
+          ? t("在终端里直接运行 cranibox，与窗口控制的是同一台设备。", "Run cranibox in a terminal to control this same device.")
+          : cli.command ? t("PATH 中的 cranibox 是另一个程序：", "The cranibox on PATH is another program: ") + cli.command
+          : t("cranibox 还不在 PATH 中。", "cranibox is not on PATH yet.")}</p>
+        {!cli.ready && (cli.installable
+          ? <div className="cx-actions"><button className="cx-btn" disabled={busy} onClick={() => void step(async () => setCli(await shellCall<CommandLine>("install_command_line")))}>{t("安装命令行工具", "Install command line tool")}</button></div>
+          : status?.platform !== "windows" && <div className="cx-plan"><pre aria-label={t("加入 PATH 的命令", "Command that adds it to PATH")}>{"ln -sf '" + cli.program.replace(/'/g, "'\\''") + "' ~/.local/bin/cranibox"}</pre></div>)}
+      </div>}
       <div className="cx-actions" style={{ marginTop: 12 }}>
         <button className="cx-btn" disabled={busy} onClick={() => void step(() => shellCall("hide").then(() => undefined))}>{t("隐藏窗口", "Hide window")}</button>
         <button className="cx-btn danger" disabled={busy} onClick={() => setQuit(true)}><LogOut size={15} aria-hidden="true" />{t("退出 Cranibox", "Quit Cranibox")}</button>
