@@ -48,17 +48,61 @@ Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、Linu
 Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下载完整附件后可运行
 `sha256sum --check SHA256SUMS`。现有桌面应用签名流程保持不变。
 
-## 首次配置
+## 首次发布（引导）
 
-1. 在 npm 创建入口包和三个平台包。首次发布可本机登录后按平台包、入口包顺序发布，
-   或在 GitHub 的 `npm` environment 临时配置具有对应发布权限的 `NPM_TOKEN`。
-2. 沿用 npm Trusted Publishing（OIDC）：为四个包配置 GitHub 仓库 `fliaping/cranibox`、
-   workflow `rust-runtime.yml`、environment `npm`。手动补发的调用方是 `distribute.yml`，
-   也需具备相应发布授权。复用工作流按调用方验证。流水线使用 Node.js 24、
-   `id-token: write` 和 provenance；OIDC 配置完成后移除临时 `NPM_TOKEN`。
-3. 设置仓库 Actions variable `CRANIBOX_PUBLISH_NPM=true`，启用正式版和 dev 自动发布。
-   默认包名为 `@fliaping/cranibox`；如需更改，设置 `CRANIBOX_NPM_PACKAGE`，并同步修改
-   安装说明和设备使用的包名。npmmirror 不需要发布凭据。
+首次四个包尚不存在时，可直接暂存创建，无需先运行 `npm publish`。现有 `NPM_TOKEN`
+只有 stage 权限：它可以暂存，但不能直接发布；暂存本身不要求 2FA，审批才需要。
+确认该 secret 已配置在仓库或 GitHub 的 `npm` environment，然后按以下顺序操作：
+
+1. 开启发布并选择暂存模式：
+
+   ```bash
+   gh variable set CRANIBOX_PUBLISH_NPM --body true --repo fliaping/cranibox
+   gh variable set CRANIBOX_NPM_PUBLISH_MODE --body stage --repo fliaping/cranibox
+   ```
+
+2. 将包含这些发布工具的修改推送到 main（`git push origin main`），等待 CI 完成。
+   CI 使用 Node.js 24，stage 模式在 setup-node 后升级 npm 并输出版本
+   （要求 npm >= 11.15.0、Node >= 22.14），从解包目录按三个平台包、入口包顺序暂存。
+   **stage 模式下每次 main push 都暂存一个 dev 构建**，每个 run 只调用一次实际暂存流程；
+   引导完成后及时切换 direct。Actions summary 给出结果和审批入口。
+
+3. 本机使用满足上述版本要求的 npm，以有审批权限且启用 2FA 的账号登录，先查看再审批：
+
+   ```bash
+   python scripts/release/approve-staged.py
+   python scripts/release/approve-staged.py --approve
+   ```
+
+   脚本仅处理这四个包的所有待审批版本，先列清单，再用 getpass 隐藏输入一次 OTP，
+   按平台包、入口包顺序连续审批。OTP 有效期很短，请一次完成四个包；失败后重跑，
+   使用新的 OTP 处理剩余项。也可运行 `npm stage list @fliaping/cranibox --json`
+   （平台包分别查询）、`npm stage approve <stage-id> --otp <OTP>`，或在 npmjs.com
+   对应包页面审批。操作有误时用 `python scripts/release/approve-staged.py --reject`
+   批量拒绝（同样需要 2FA），或逐项 `npm stage reject <stage-id> --otp <OTP>`。
+
+4. 在 npm Settings 为入口包及上表三个平台包**逐个**添加 Trusted Publisher：
+   GitHub repository 为 `fliaping/cranibox`，workflow filename 为 `rust-runtime.yml`，
+   environment 为 `npm`；tag 发布及手动补发还需配置 `distribute.yml` 的发布授权
+   （复用工作流按调用方验证）。流水线已有 `id-token: write` 和 provenance。
+
+5. 四个包的 OIDC 配置完成后，切回直接发布并删除临时 token：
+
+   ```bash
+   gh variable set CRANIBOX_NPM_PUBLISH_MODE --body direct --repo fliaping/cranibox
+   gh secret delete NPM_TOKEN --env npm --repo fliaping/cranibox
+   # 如果 token 配置在仓库级，则删除仓库级 secret；两处都有则都删除
+   gh secret delete NPM_TOKEN --repo fliaping/cranibox
+   ```
+
+   此后 main 的 dev 发布由 GitHub OIDC 自动完成，不需要 token、2FA 或人工审批。
+   `CRANIBOX_NPM_PUBLISH_MODE` 未设置时默认为 `direct`，只接受 `stage` / `direct`。
+
+**暂存会占用该 SemVer 版本号，且暂存的 dist-tag 不可修改。** 标签选错需要拒绝后重新
+暂存，并使用新版本号（dev 可通过下一次 main push 生成）；不能覆盖不同内容的同版本。
+默认包名为 `@fliaping/cranibox`；自定义时设置仓库变量 `CRANIBOX_NPM_PACKAGE`，
+本机审批脚本设置同名环境变量或传 `--package-name @scope/name`，并同步安装说明和设备包名。
+npmmirror 不需要发布凭据。
 
 ## 正式版、预发布与 dev
 
@@ -80,6 +124,9 @@ Actions 的 **Distribute Cranibox** 可输入已有 Release tag 补发；默认 
 只校验和打包，确认后关闭 dry run 发布。tag 必须包含发布工具。dev 重跑沿用原 run number，
 版本不变。两条路径共用 `publish-npm.py`：已发布版本只有 `dist.integrity` 与当前 tarball
 完全一致才跳过；内容不同则报错，必须发布新版本。跳过已有版本不会重设 dist-tag。
+stage 模式还查询 `npm stage list`，必要时查询 `npm stage view`：同版本、同标签且
+完整性相同才跳过已有暂存；标签或内容不同、元数据无法核实时均报错。
+`--mode stage --dry-run` 只演练目录暂存，不查询线上版本、不暂存，也不要求 OTP。
 
 打包结果保存在 Actions artifact `cranibox-distribution-<tag>` 或
 `cranibox-distribution-dev-<run_number>`，保留 14 天，包含校验后的产物、npm 包、

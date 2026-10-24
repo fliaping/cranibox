@@ -436,6 +436,8 @@ jobs:
     needs: [desktop, native, wayland, distribution-tests]
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      NPM_PUBLISH_MODE: ${{ vars.CRANIBOX_NPM_PUBLISH_MODE || 'direct' }}
     permissions:
       id-token: write
       contents: read
@@ -450,6 +452,15 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+      - name: Prepare npm publishing mode
+        run: |
+          set -euo pipefail
+          case "$NPM_PUBLISH_MODE" in
+            stage) npm install -g npm@latest ;;
+            direct) ;;
+            *) echo "CRANIBOX_NPM_PUBLISH_MODE must be stage or direct" >&2; exit 1 ;;
+          esac
+          npm --version
       - uses: actions/download-artifact@v8
         with:
           pattern: cranibox-cli-*
@@ -474,5 +485,11 @@ jobs:
           retention-days: 14
       - name: Publish platform packages before the CLI to dev
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev
+          NODE_AUTH_TOKEN: ${{ env.NPM_PUBLISH_MODE == 'stage' && secrets.NPM_TOKEN || '' }}
+        run: |
+          set -euo pipefail
+          if [ "$NPM_PUBLISH_MODE" = direct ]; then unset NODE_AUTH_TOKEN; fi
+          python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev --mode "$NPM_PUBLISH_MODE"
+          if [ "$NPM_PUBLISH_MODE" = direct ]; then
+            echo 'npm dev: direct publication completed (including verified existing versions). No 2FA approval needed; no maintainer action required.' >> "$GITHUB_STEP_SUMMARY"
+          fi

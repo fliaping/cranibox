@@ -1,7 +1,9 @@
 """Offline package installation, process forwarding and resumable publication."""
 import base64
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -29,6 +31,61 @@ def load(name):
 builder = load("build-npm")
 collector = load("collect-assets")
 npm_publisher = load("publish-npm")
+stage_approver = load("approve-staged")
+
+
+FAKE_NPM = r'''
+import base64
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+root = Path(__file__).parent
+state_path = root / 'state.json'
+state = json.loads(state_path.read_text())
+args = sys.argv[1:]
+logged = args.copy()
+if '--otp' in logged:
+    logged[logged.index('--otp') + 1] = '<redacted>'
+with (root / 'calls.jsonl').open('a') as stream:
+    stream.write(json.dumps(logged) + '\n')
+payload = b'deterministic packed data'
+integrity = 'sha512-' + base64.b64encode(hashlib.sha512(payload).digest()).decode()
+if args[0] == 'pack':
+    filename = Path.cwd().name + '.tgz'
+    (Path(args[args.index('--pack-destination') + 1]) / filename).write_bytes(payload)
+    print(json.dumps([{'filename': filename}]))
+elif args[:2] == ['stage', 'list']:
+    if state.get('list_error'):
+        print(json.dumps({'error': {'code': state['list_error']}}))
+        sys.exit(1)
+    records = [item for item in state.get('stages', []) if item['name'] == args[2]]
+    print(json.dumps(state.get('lists', {}).get(args[2], records)))
+elif args[:2] == ['stage', 'view']:
+    print(json.dumps(state['views'][args[2]]))
+elif args[:2] == ['stage', 'publish']:
+    package = Path(args[2])
+    assert package.is_dir(), 'stage must receive an unpacked directory'
+    if '--dry-run' not in args:
+        manifest = json.loads((package / 'package.json').read_text())
+        state.setdefault('stages', []).append(dict(
+            id='stage-' + package.name, name=manifest['name'], version=manifest['version'],
+            tag=args[args.index('--tag') + 1], integrity=integrity))
+        state_path.write_text(json.dumps(state))
+elif args[0] == 'stage' and args[1] in ('approve', 'reject'):
+    assert args[args.index('--otp') + 1] == '123456'
+    if state.get('fail_action'):
+        # Deliberately hostile child output must never reach the operator.
+        print(args[args.index('--otp') + 1])
+        print(args[args.index('--otp') + 1], file=sys.stderr)
+        sys.exit(1)
+    assert any(item['id'] == args[2] for item in state['stages'])
+    state['stages'] = [item for item in state['stages'] if item['id'] != args[2]]
+    state_path.write_text(json.dumps(state))
+else:
+    sys.exit('Unexpected fake npm command')
+'''
 
 
 def fixtures(directory):
@@ -75,6 +132,41 @@ class DistributionTests(unittest.TestCase):
                            npm_config_userconfig=str(self.root / "user.npmrc"),
                            npm_config_globalconfig=str(self.root / "global.npmrc"))
         return environment
+
+    def fake_npm(self, state=None):
+        directory = self.root / "fake-npm"
+        directory.mkdir(exist_ok=True)
+        executable = directory / "npm"
+        executable.write_text(f"#!{sys.executable}\n" + FAKE_NPM)
+        executable.chmod(0o755)
+        if os.name == "nt":
+            (directory / "npm.cmd").write_text(f'@"{sys.executable}" "{executable}" %*\n')
+        (directory / "state.json").write_text(json.dumps(state or {}))
+        (directory / "calls.jsonl").write_text("")
+        environment = self.npm_environment()
+        environment["PATH"] = str(directory) + os.pathsep + environment.get("PATH", "")
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        return environment
+
+    def fake_calls(self):
+        return [json.loads(line) for line in (self.root / "fake-npm/calls.jsonl").read_text().splitlines()]
+
+    def stage_fixtures(self, package_name="@fliaping/cranibox"):
+        integrity = "sha512-" + base64.b64encode(hashlib.sha512(b"deterministic packed data").digest()).decode()
+        return [dict(id=f"stage-{index}", name=name, version="99.0.0-dev.42", tag="dev", integrity=integrity)
+                for index, name in enumerate(stage_approver.package_names(package_name))]
+
+    def publish_with_fake(self, output, environment, published=None, **kwargs):
+        run = subprocess.run
+        stdout = io.StringIO()
+        with patch.object(npm_publisher.subprocess, "run", side_effect=lambda command, **options: run(command, env=environment, **options)), \
+                patch.object(npm_publisher, "existing_integrity", return_value=published), redirect_stdout(stdout):
+            npm_publisher.publish(output, mode="stage", **kwargs)
+        return stdout.getvalue()
+
+    def approve_with_fake(self, environment, *args):
+        return subprocess.run([sys.executable, str(ROOT / "scripts/release/approve-staged.py"), *args],
+                              env=environment, capture_output=True, text=True, timeout=10)
 
     def test_checksum_manifest_rejects_changed_extra_and_unsafe_files(self):
         verified_assets(self.assets)
@@ -233,6 +325,211 @@ class DistributionTests(unittest.TestCase):
         with patch.object(npm_publisher.subprocess, "run", side_effect=run), patch.object(npm_publisher, "existing_integrity", return_value="sha512-different"):
             with self.assertRaisesRegex(ValueError, "different contents"):
                 npm_publisher.publish(output, dist_tag="dev")
+
+    def test_stage_publishes_directories_in_order_and_retry_skips(self):
+        output = self.root / "npm"
+        plan = builder.build(self.assets, output, version="99.0.0-dev.42")
+        environment = self.fake_npm()
+        summary = self.publish_with_fake(output, environment, dist_tag="dev")
+        publications = [call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]
+        self.assertEqual([Path(call[2]).name for call in publications], plan)
+        for call in publications:
+            self.assertTrue(Path(call[2]).is_dir())
+            self.assertEqual(call[call.index("--tag") + 1], "dev")
+            self.assertEqual(call[call.index("--access") + 1], "public")
+            self.assertIn("--ignore-scripts", call)
+            self.assertIn("--provenance", call)
+        self.assertIn("approve-staged.py --package-name @fliaping/cranibox --approve", summary)
+        self.assertIn("https://www.npmjs.com/package/@fliaping/cranibox", summary)
+        summary = self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        self.assertIn("Already staged and verified", summary)
+        self.assertIn("npm stage approve stage-cli --otp <OTP>", summary)
+
+    def test_stage_skip_published_requires_identical_integrity(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        environment = self.fake_npm()
+        summary = self.publish_with_fake(output, environment, published=self.stage_fixtures()[0]["integrity"])
+        self.assertTrue(all(call[0] == "pack" for call in self.fake_calls()))
+        self.assertEqual(summary.count("Already published and verified"), 4)
+        with self.assertRaisesRegex(ValueError, "different contents"):
+            self.publish_with_fake(output, environment, published="sha512-different")
+
+    def test_stage_rejects_conflicting_tag_or_contents(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        for field, value, message in (("tag", "latest", "already staged with tag"),
+                                      ("integrity", "sha512-different", "different contents")):
+            with self.subTest(field=field):
+                stages = self.stage_fixtures()
+                stages[0][field] = value
+                environment = self.fake_npm({"stages": stages})
+                with self.assertRaisesRegex(ValueError, message):
+                    self.publish_with_fake(output, environment, dist_tag="dev")
+                self.assertFalse(any(call[:2] == ["stage", "publish"] for call in self.fake_calls()))
+
+    def test_stage_reads_view_for_missing_integrity_and_handles_wrapped_records(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        stages = self.stage_fixtures()
+        lists = {stage["name"]: {"stages": [{"stageId": stage["id"],
+                 "package": {"name": stage["name"], "version": stage["version"]}, "distTag": "dev"}]}
+                 for stage in stages}
+        views = {stage["id"]: {**stage, "integrity": None, "dist": {"integrity": stage["integrity"]}} for stage in stages}
+        environment = self.fake_npm({"lists": lists, "views": views})
+        self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "view"]]), 4)
+        self.assertFalse(any(call[:2] == ["stage", "publish"] for call in self.fake_calls()))
+
+    def test_stage_unknown_metadata_and_missing_integrity_fail_closed(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        stage = self.stage_fixtures()[0]
+        for listing in ({"unexpected": []}, None, ["bad-record"], [{**stage, "integrity": None}]):
+            with self.subTest(listing=listing):
+                environment = self.fake_npm({"lists": {stage["name"]: listing},
+                                             "views": {stage["id"]: {**stage, "integrity": None}}})
+                with self.assertRaises(ValueError):
+                    self.publish_with_fake(output, environment, dist_tag="dev")
+                self.assertFalse(any(call[:2] == ["stage", "publish"] for call in self.fake_calls()))
+
+    def test_stage_bootstraps_not_found_but_fails_on_auth_error(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        environment = self.fake_npm({"list_error": "E404"})
+        self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        environment = self.fake_npm({"list_error": "E401"})
+        with self.assertRaisesRegex(RuntimeError, "npm stage list failed"):
+            self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertFalse(any(call[:2] == ["stage", "publish"] for call in self.fake_calls()))
+
+    def test_stage_dry_run_is_offline_and_uses_default_tags(self):
+        for version, tag in (("99.0.0", "latest"), ("99.0.0-beta.1", "next")):
+            with self.subTest(version=version):
+                output = self.root / version
+                builder.build(self.assets, output, version=version)
+                environment = self.fake_npm()
+                # Invoke the CLI as well to cover --mode argument parsing.
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/release/publish-npm.py"),
+                                         "--directory", str(output), "--mode", "stage", "--dry-run"],
+                                        env=environment, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("nothing staged", result.stdout)
+                self.assertNotIn("--approve", result.stdout)
+                self.assertFalse(any(call[:2] in (["stage", "list"], ["stage", "view"]) for call in self.fake_calls()))
+                publications = [call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]
+                self.assertEqual(len(publications), 4)
+                for call in publications:
+                    self.assertIn("--dry-run", call)
+                    self.assertIn("--offline", call)
+                    self.assertNotIn("--provenance", call)
+                    self.assertEqual(call[call.index("--tag") + 1], tag)
+
+    def test_stage_partial_failure_writes_summary_with_exact_custom_package_name(self):
+        name = "@example/tools-win32-x64"
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42", package_name=name)
+        stages = self.stage_fixtures(name)[1:]
+        stages[0]["tag"] = "next"
+        environment = self.fake_npm({"stages": stages})
+        summary_path = self.root / "summary.md"
+        with patch.object(npm_publisher.os, "environ", {"GITHUB_STEP_SUMMARY": str(summary_path)}):
+            with self.assertRaisesRegex(ValueError, "already staged with tag"):
+                self.publish_with_fake(output, environment, dist_tag="dev")
+        summary = summary_path.read_text()
+        self.assertIn("stopped before completion", summary)
+        self.assertIn(f"--package-name {name} --approve", summary)
+        self.assertIn(f"{name}-darwin-arm64@99.0.0-dev.42: staged", summary)
+        self.assertNotIn("No new stages", summary)
+
+    def test_stage_different_version_does_not_skip_current_version(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        stages = self.stage_fixtures()
+        for stage in stages:
+            stage["version"] = "99.0.0-dev.41"
+        environment = self.fake_npm({"stages": stages})
+        self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+
+    def test_approve_lists_only_expected_packages_without_action(self):
+        stages = self.stage_fixtures()
+        foreign = {**stages[0], "id": "unrelated", "name": "@other/package"}
+        environment = self.fake_npm({"stages": stages + [foreign],
+                                     "lists": {stages[0]["name"]: [stages[0], foreign]}})
+        result = self.approve_with_fake(environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("@other/package", result.stdout)
+        self.assertEqual(len(self.fake_calls()), 4)
+        self.assertTrue(all(call[:2] == ["stage", "list"] for call in self.fake_calls()))
+        for stage in stages:
+            self.assertIn(stage["id"], result.stdout)
+
+    def test_approve_and_reject_all_four_with_custom_scope_and_redacted_otp(self):
+        for action in ("approve", "reject"):
+            with self.subTest(action=action):
+                stages = self.stage_fixtures("@example/tools")
+                environment = self.fake_npm({"stages": stages})
+                environment["CRANIBOX_NPM_PACKAGE"] = "@example/tools"
+                result = self.approve_with_fake(environment, f"--{action}", "--otp", "123456")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = self.fake_calls()
+                self.assertEqual([call[2] for call in calls[:4]], [stage["name"] for stage in stages])
+                self.assertEqual([call[2] for call in calls[4:]], [stage["id"] for stage in stages])
+                self.assertTrue(all(call[:2] == ["stage", action] for call in calls[4:]))
+                self.assertNotIn("123456", result.stdout + result.stderr + json.dumps(calls))
+
+    def test_approve_prompts_once_after_listing_all_packages(self):
+        stages = self.stage_fixtures()
+        environment = self.fake_npm({"stages": stages})
+        run = subprocess.run
+
+        def prompt(message):
+            self.assertEqual(len(self.fake_calls()), 4)
+            return "123456"
+
+        with patch.object(stage_approver.subprocess, "run", side_effect=lambda command, **options: run(command, env=environment, **options)), \
+                patch.object(stage_approver.getpass, "getpass", side_effect=prompt) as getpass, redirect_stdout(io.StringIO()):
+            stage_approver.manage("@fliaping/cranibox", "approve")
+        getpass.assert_called_once()
+        self.assertEqual(len(self.fake_calls()), 8)
+
+    def test_approve_failure_does_not_leak_otp_from_child_output(self):
+        environment = self.fake_npm({"stages": self.stage_fixtures(), "fail_action": True})
+        result = self.approve_with_fake(environment, "--approve", "--otp", "123456")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("fresh OTP", result.stderr)
+        self.assertNotIn("123456", result.stdout + result.stderr)
+        self.assertEqual(len(self.fake_calls()), 5)
+
+    def test_approve_rejects_unverifiable_identity_before_any_action(self):
+        stage = self.stage_fixtures()[0]
+        for detail in ({**stage, "name": "@other/package"}, {**stage, "id": "another-stage"}):
+            with self.subTest(detail=detail):
+                environment = self.fake_npm({"lists": {stage["name"]: [{"id": stage["id"]}]},
+                                             "views": {stage["id"]: detail}})
+                result = self.approve_with_fake(environment, "--approve", "--otp", "123456")
+                self.assertEqual(result.returncode, 1)
+                self.assertFalse(any(call[:2] == ["stage", "approve"] for call in self.fake_calls()))
+                self.assertNotIn("123456", result.stdout + result.stderr)
+
+    def test_approve_refuses_echoing_getpass_fallback(self):
+        with patch.object(stage_approver, "list_stages", return_value=self.stage_fixtures()[:1]), \
+                patch.object(stage_approver.getpass, "getpass", side_effect=stage_approver.getpass.GetPassWarning), \
+                patch.object(stage_approver.subprocess, "run") as run, redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(ValueError, "terminal is required"):
+                stage_approver.manage("@fliaping/cranibox", "approve")
+        run.assert_not_called()
+
+    def test_approve_empty_list_needs_no_otp_and_actions_are_exclusive(self):
+        environment = self.fake_npm()
+        result = self.approve_with_fake(environment, "--approve")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No staged", result.stdout)
+        result = self.approve_with_fake(environment, "--approve", "--reject")
+        self.assertEqual(result.returncode, 2)
 
     @unittest.skipUnless(shutil.which("npm"), "requires npm")
     def test_real_npm_dry_run_is_offline_and_reproducible_after_artifact_download(self):

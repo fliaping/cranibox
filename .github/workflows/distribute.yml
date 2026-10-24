@@ -95,6 +95,8 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      NPM_PUBLISH_MODE: ${{ vars.CRANIBOX_NPM_PUBLISH_MODE || 'direct' }}
     permissions:
       contents: read
       id-token: write
@@ -110,15 +112,33 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+      - name: Prepare npm publishing mode
+        run: |
+          set -euo pipefail
+          case "$NPM_PUBLISH_MODE" in
+            stage) npm install -g npm@latest ;;
+            direct) ;;
+            *) echo "CRANIBOX_NPM_PUBLISH_MODE must be stage or direct" >&2; exit 1 ;;
+          esac
+          npm --version
       - uses: actions/download-artifact@v4
         with:
           name: cranibox-distribution-${{ inputs.tag }}
           path: prepared
       - name: Publish platform packages before the CLI
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.NPM_PUBLISH_MODE == 'stage' && secrets.NPM_TOKEN || '' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          set -euo pipefail
+          if [ "$NPM_PUBLISH_MODE" = direct ]; then unset NODE_AUTH_TOKEN; fi
           args=()
           if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
-          python scripts/release/publish-npm.py --directory prepared/dist/npm "${args[@]}"
+          python scripts/release/publish-npm.py --directory prepared/dist/npm --mode "$NPM_PUBLISH_MODE" "${args[@]}"
+          if [ "$NPM_PUBLISH_MODE" = direct ]; then
+            if [ "$DRY_RUN" = true ]; then
+              echo 'npm direct: dry run completed; nothing published. No approval needed.' >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo 'npm direct: publication completed (including verified existing versions). No 2FA approval needed; no maintainer action required.' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
