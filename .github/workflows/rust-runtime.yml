@@ -144,7 +144,9 @@ jobs:
           app="$mount/Cranibox.app"
           # The Finder layout (background and icon positions) ships in the image.
           test -f "$mount/.DS_Store"
-          ls "$mount/.background/"*.png
+          swift apps/node-desktop/scripts/check-dmg-background.swift \
+            "$mount/.background/background.generated.tiff" \
+            apps/node-desktop/src-tauri/tauri.conf.json
           codesign --verify --deep --strict "$app"
           codesign -dv --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Authority|TeamIdentifier|Signature'
           codesign -d -r- "$app"

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/prepare-dmg.mjs && tsc --noEmit && vite build",
     "tauri": "tauri",
     "test": "playwright test"
   },

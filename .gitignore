@@ -16,3 +16,4 @@ core.*
 /apps/node-desktop/test-results/
 /apps/node-desktop/playwright-report/
 /apps/node-desktop/src-tauri/gen/
+/apps/node-desktop/src-tauri/dmg/background.generated.tiff
