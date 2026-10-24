@@ -42,6 +42,7 @@ mod multi_node;
 mod projects;
 mod spaces;
 mod tasks;
+mod update;
 mod vault;
 
 type Failure = (StatusCode, Json<Value>);
@@ -862,6 +863,14 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
             post(executions::manage).layer(DefaultBodyLimit::max(128 * 1024)),
         )
         .route("/nodes/{node}/spaces", get(spaces::list))
+        .route(
+            "/nodes/{node}/update",
+            get(update::read)
+                .post(update::start)
+                .layer(DefaultBodyLimit::max(4 * 1024)),
+        )
+        .route("/nodes/{node}/update/rollback", post(update::rollback))
+        .route("/nodes/{node}/update/{id}", get(update::progress))
         .route(
             "/nodes/{node}/files/write",
             post(file_write).layer(DefaultBodyLimit::max(

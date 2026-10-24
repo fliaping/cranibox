@@ -20,6 +20,7 @@ pub async fn run() -> anyhow::Result<()> {
 /// The `cranibox` command line, shared by the device program and the desktop app so
 /// both answer the same commands. `cranibox node …` is the long form.
 pub async fn run_program(mut args: Vec<String>, version: &str) -> anyhow::Result<()> {
+    crate::update::set_product_version(version);
     if args.get(1).is_some_and(|s| s == "node") {
         args.remove(1);
     }
@@ -64,15 +65,23 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         _ => None,
     };
     if let Some((listen, allow_hosts, relay)) = service {
-        return Box::pin(crate::web::standalone::run(
+        let result = Box::pin(crate::web::standalone::run(
             peer_path,
             listen,
             allow_hosts,
             relay,
         ))
         .await;
+        // An activated update asks the launcher to start the new version.
+        if crate::update::restart_requested() {
+            std::process::exit(crate::update::launcher::RESTART_EXIT_CODE);
+        }
+        return result;
     }
     let command = match args.command {
+        Some(agent::Command::Update { command }) => {
+            return crate::update::cli::run(peer_path, args.config, command).await;
+        }
         Some(agent::Command::UiUrl { listen }) => {
             println!(
                 "{}",

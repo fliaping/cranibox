@@ -1007,6 +1007,11 @@ impl Fleet {
         }
         Ok(value)
     }
+    /// GET `path` (an `/api/v1/…` route) on a peer.
+    pub async fn get(&self, node: &str, path: &str) -> Result<Value> {
+        anyhow::ensure!(valid_node_id(node), "invalid node ID");
+        self.api(node)?.get(path).await
+    }
     /// POST `body` to `path` (an `/api/v1/…` route) on a peer.
     pub async fn post(&self, node: &str, path: &str, body: Value) -> Result<Value> {
         anyhow::ensure!(valid_node_id(node), "invalid node ID");

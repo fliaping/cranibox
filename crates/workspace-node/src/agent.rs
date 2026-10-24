@@ -23,6 +23,11 @@ pub enum Command {
     },
     /// List devices accessible to this device's Agent.
     Nodes,
+    /// Update this device or other devices of your identity to a new version.
+    Update {
+        #[command(subcommand)]
+        command: crate::update::cli::Command,
+    },
     /// Execute on a paired or same-identity device.
     Exec {
         #[arg(long)]
@@ -103,6 +108,10 @@ pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()
     let fleet = client::Fleet::new(peers.clone());
     match command {
         Command::Nodes => client::print(fleet.nodes().await?),
+        // Needs the settings path, which only the command line entry point has.
+        Command::Update { .. } => {
+            anyhow::bail!("update is handled by the command line entry point")
+        }
         Command::Job { id, node } => client::print(fleet.job(&id, node.as_deref(), false).await?),
         Command::Cancel { id, node } => client::print(fleet.job(&id, node.as_deref(), true).await?),
         Command::Mcp => client::fleet_mcp(peers).await?,

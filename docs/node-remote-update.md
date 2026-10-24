@@ -149,6 +149,23 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 - Windows 节点目前没有远程桌面兜底（`desktop: false`）。
 - 未验证：Smart App Control 开启的 Windows、macOS 子进程的 TCC 归属、macOS App Management 权限。
 
+## 实现状态（2026-10-24）
+
+第一阶段的单进程版本已实现并用真实二进制验证（`tests/test_runtime_update.py`，Linux）：
+
+- `cranibox update adopt`：把当前程序安装为第一个受管版本。
+- `cranibox update launch`：启动器，设备的开机项应当运行它；按指针启动节点，崩溃退避重启，
+  新版本未确认或崩溃循环则本地回滚，不依赖网络。处理 SIGTERM / Ctrl-C。
+- `cranibox update status|apply|rollback [--node ID ...] [--all]`：本机直接执行；远程经 mesh 的端到端通道。
+- mesh 接口：`GET/POST /api/v1/nodes/{node}/update`、`GET …/update/{id}`、`POST …/update/rollback`。
+  仅限已核对配对码的 roster 成员，且必须走端到端加密通道（不新增 grant 权限位）。
+- 节点启动后稳定运行 20 秒才向受管指针确认；更新激活后以退出码 75 请求启动器重启。
+
+尚未实现：底座 / 上层拆分与互相拉起；桌面外壳（Tauri）启动受管运行时；远程更新的两节点集成测试；
+macOS、Windows 上的端到端测试；npm 平台包的发布（见下“已知问题”）。
+
+本阶段的整体更新会重启整个节点，终端和桌面会话会中断。
+
 ## 分期
 
 1. **运行时机制：** npm 客户端与解压、版本目录与回滚、版本比较（已分给 Codex 实现）；

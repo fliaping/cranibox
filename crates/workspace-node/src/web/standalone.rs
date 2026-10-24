@@ -235,6 +235,18 @@ pub async fn run(
         eprintln!("iroh relay listening on {address}");
     }
     embedded.spawn_self_check();
+    // Remote update: let an activated version restart this process through the launcher, and
+    // report this version healthy once it has stayed up.
+    let runtime = crate::update::runtime_root(peers.parent().unwrap_or(&peers));
+    crate::update::install_restart_hook(stop.clone());
+    crate::update::watch_restart_file(runtime.clone(), stop.clone());
+    if std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_some() {
+        crate::update::confirm_when_stable(
+            runtime,
+            std::time::Duration::from_secs(20),
+            stop.clone(),
+        );
+    }
     let ui = serve(
         local.clone(),
         listener,

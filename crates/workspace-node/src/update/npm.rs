@@ -1060,7 +1060,7 @@ mod tests {
 
     #[test]
     fn extraction_rejects_links_devices_fifos_and_extended_headers() {
-        for kind in [b'1', b'2', b'3', b'4', b'6', b'x', b'g', b'L', b'K', b'S'] {
+        for kind in *b"12346xgLKS" {
             assert_extraction_rejected(&tarball(&[("package/link", kind, 0o644, b"")]), 10, 100);
         }
     }
