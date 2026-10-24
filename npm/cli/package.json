@@ -1,0 +1,17 @@
+{
+  "name": "@fliaping/cranibox",
+  "version": "1.1.0",
+  "description": "Connect your devices to your agents with Cranibox",
+  "license": "Apache-2.0",
+  "bin": { "cranibox": "bin/cranibox.cjs" },
+  "files": ["bin/", "LICENSE", "licenses/"],
+  "engines": { "node": ">=22" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fliaping/cranibox.git",
+    "directory": "npm/cli"
+  },
+  "homepage": "https://github.com/fliaping/cranibox#readme",
+  "bugs": "https://github.com/fliaping/cranibox/issues",
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" }
+}

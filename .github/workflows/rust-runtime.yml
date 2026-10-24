@@ -5,15 +5,27 @@ on:
     branches: ['**']
     # Tag pushes skip path filters; a v* tag publishes the release below.
     tags: ['v*']
-    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_node_peers.py', 'tests/test_computer_use.py', 'tests/test_browser_use.py', 'tests/test_browser_real_chromium.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_federated_activity.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_background_agent_sync.py', 'tests/test_background_activity_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'addons/novnc/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['npm/**', 'scripts/release/**', 'tests/test_distribution.py', '.github/workflows/distribute.yml', 'apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_node_peers.py', 'tests/test_computer_use.py', 'tests/test_browser_use.py', 'tests/test_browser_real_chromium.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_federated_activity.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_background_agent_sync.py', 'tests/test_background_activity_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'addons/novnc/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   pull_request:
-    paths: ['apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_node_peers.py', 'tests/test_computer_use.py', 'tests/test_browser_use.py', 'tests/test_browser_real_chromium.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_federated_activity.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_background_agent_sync.py', 'tests/test_background_activity_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'addons/novnc/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
+    paths: ['npm/**', 'scripts/release/**', 'tests/test_distribution.py', '.github/workflows/distribute.yml', 'apps/node-desktop/**', 'Cargo.*', 'crates/**', 'tests/test_cranibox_terminal.py', 'tests/test_node_peers.py', 'tests/test_computer_use.py', 'tests/test_browser_use.py', 'tests/test_browser_real_chromium.py', 'tests/test_remote_desktops.py', 'tests/test_desktop_service.py', 'tests/test_desktop_real_vnc.py', 'tests/test_desktop_real_wayland.py', 'tests/test_device_networks.py', 'tests/test_device_messages.py', 'tests/test_device_tasks.py', 'tests/test_federated_activity.py', 'tests/test_task_runs.py', 'tests/test_task_worker_mcp.py', 'tests/test_automatic_task_worker.py', 'tests/test_collaboration_runs.py', 'tests/test_task_dependencies.py', 'tests/test_project_catalog_sync.py', 'tests/test_background_project_sync.py', 'tests/test_background_agent_sync.py', 'tests/test_background_activity_sync.py', 'tests/test_agent_executions.py', 'tests/test_remote_agent_executions.py', 'tests/test_project_handoffs.py', 'tests/test_project_streaming.py', 'tests/test_agent_runs_mcp.py', 'tests/desktop_vnc_fixture.py', 'tests/test_virtual_spaces.py', 'tests/test_space_catalog.py', 'tests/space_docker_fixture.py', 'docs/licenses/**', 'tests/test_web_direct_peers.py', 'tests/test_web_peer_paths.py', 'tests/test_web_host_node.py', 'tests/test_workspacectl_rust.py', 'tests/test_workspace_services.py', 'tests/test_workspace_bootstrap.py', 'tests/test_workspace_web_operations.py', 'tests/workspace_web_harness.py', 'scripts/measure-workspace-resources.py', 'scripts/workspacectl-web.py', 'scripts/check-control-center-web.mjs', 'scripts/build-control-center-ui.cjs', 'addons/control-center/**', 'addons/novnc/**', 'extensions/control-center/control-center.js', 'scripts/install-workspace-services.sh', 'scripts/install-workspace-web.sh', 's6-rc.d/**', 'services/**', 'Dockerfile', 'scripts/workspacectl', 'scripts/install-workspacectl.sh', 'scripts/install-cranibox.sh', 'scripts/install-cranibox.py', 'scripts/install-herdr.py', 'scripts/bootstrap-workspace-core.sh', '.github/workflows/rust-runtime.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  distribution-tests:
+    name: Distribution tooling and npm launcher
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m unittest discover -s tests -p test_distribution.py -v
   wayland:
     name: Real Wayland desktop (Sway and wayvnc)
     runs-on: ubuntu-latest
@@ -352,11 +364,19 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, native]
+    needs: [desktop, native, distribution-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check tag matches CLI and desktop versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python -c 'import os, sys; sys.path.insert(0, "scripts/release"); from release_common import check_versions; check_versions(os.environ["RELEASE_TAG"])'
       - uses: actions/download-artifact@v8
         with:
           path: dist
@@ -369,9 +389,27 @@ jobs:
           find dist -path 'dist/cranibox-desktop-*' -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} release/ \;
           cp dist/cranibox-cli-linux/cranibox-linux-x86_64 release/
           chmod +x release/cranibox-linux-x86_64
+          cp LICENSE release/LICENSE
+          for notice in docs/licenses/*.txt; do cp "$notice" "release/$(basename "$notice")"; done
           (cd release && sha256sum -- * > SHA256SUMS)
           ls -l release
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "Cranibox $GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: |
+          args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "Cranibox $GITHUB_REF_NAME" --generate-notes --verify-tag "${args[@]}"
+  distribute:
+    name: GitCode and npm distribution
+    if: startsWith(github.ref, 'refs/tags/v') && (vars.CRANIBOX_PUBLISH_GITCODE == 'true' || vars.CRANIBOX_PUBLISH_NPM == 'true')
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/distribute.yml
+    with:
+      tag: ${{ github.ref_name }}
+      gitcode: ${{ vars.CRANIBOX_PUBLISH_GITCODE == 'true' }}
+      npm: ${{ vars.CRANIBOX_PUBLISH_NPM == 'true' }}
+    secrets: inherit

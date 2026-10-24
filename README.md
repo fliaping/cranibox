@@ -25,7 +25,7 @@ Cranibox 把你的电脑、服务器和容器连成一张属于你自己的设�
 
 ## 安装
 
-从 [Releases](https://github.com/fliaping/cranibox/releases/latest) 下载：
+从 [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest) 下载；国内下载入口为 [GitCode 发行版](https://gitcode.com/fliaping0/agent-workspace/releases)（首次启用产物发布后提供同版本安装包）：
 
 | 形态 | 文件 | 适合 |
 |------|------|------|
@@ -37,7 +37,22 @@ Cranibox 把你的电脑、服务器和容器连成一张属于你自己的设�
 
 macOS 客户端使用自签名证书（未经 Apple 公证）：`.dmg` 可直接打开；把 Cranibox 拖进“应用程序”后，首次打开会提示“无法验证”，点“完成”，再到“系统设置 → 隐私与安全性”点“仍要打开”。只需一次，之后的更新会保留已授予的权限。
 
-桌面客户端本身就是 `cranibox` 命令：Linux 安装包和 Windows 安装程序会把它加入 PATH，macOS 在“这台设备 → 设置 → 桌面应用”里点“安装命令行工具”。带参数运行时是命令行，不带参数时打开窗口。命令行用法：
+桌面客户端本身就是 `cranibox` 命令：Linux 安装包和 Windows 安装程序会把它加入 PATH，macOS 在“这台设备 → 设置 → 桌面应用”里点“安装命令行工具”。带参数运行时是命令行，不带参数时打开窗口。
+
+CLI 的 npm 包发布后，也可以通过 npm 安装或更新（需要 Node.js 22+）：
+
+```bash
+npm install -g @fliaping/cranibox@latest
+# 国内安装或更新：二进制包含在 npm 平台包中，安装时不再从 GitHub 下载
+npm install -g @fliaping/cranibox@latest --registry=https://registry.npmmirror.com
+cranibox --version
+```
+
+npm 包名为 `@fliaping/cranibox`；镜像同步可能晚于发布。
+平台支持 macOS Apple Silicon、Windows x64 和 glibc Linux x64；其他平台暂不包含在 npm 包中。
+安装说明、首次配置、发布与重试流程见[客户端分发](docs/distribution.md)。
+
+命令行用法：
 
 ```bash
 cranibox                 # 运行本机节点，界面只监听回环地址（默认 127.0.0.1:7377）

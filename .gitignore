@@ -6,6 +6,7 @@ core
 !addons/novnc/core/
 core.*
 /target/
+/dist/
 /addons/control-center/ui/node_modules/
 
 /addons/control-center/ui/dist/

@@ -25,7 +25,7 @@ Cranibox connects your computers, servers and containers into a device network o
 
 ## Install
 
-Download from [Releases](https://github.com/fliaping/cranibox/releases/latest):
+Download from [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest). The mainland China download entry is [GitCode Releases](https://gitcode.com/fliaping0/agent-workspace/releases), populated with the same installers once artifact publishing is enabled:
 
 | Form | Files | For |
 |------|-------|-----|
@@ -35,7 +35,23 @@ Download from [Releases](https://github.com/fliaping/cranibox/releases/latest):
 
 Checksums are in `SHA256SUMS` in the same release.
 
-The desktop app is also the `cranibox` command: the Linux package and the Windows installer put it on PATH; on macOS choose Install command line tool under This device → Settings → Desktop app. With arguments it runs as the command line; without them it opens the window. Command-line usage:
+The desktop app is also the `cranibox` command: the Linux package and the Windows installer put it on PATH; on macOS choose Install command line tool under This device → Settings → Desktop app. With arguments it runs as the command line; without them it opens the window.
+
+Once the CLI npm packages have been published, install or upgrade with Node.js 22+:
+
+```bash
+npm install -g @fliaping/cranibox@latest
+# Mainland China: the native binary is included in the npm platform package.
+npm install -g @fliaping/cranibox@latest --registry=https://registry.npmmirror.com
+cranibox --version
+```
+
+The npm package name is `@fliaping/cranibox`. Mirror synchronization may lag behind
+a release. Initial npm platforms are
+macOS Apple Silicon, Windows x64 and glibc Linux x64. See the [distribution guide](docs/distribution.md)
+for first-time publisher setup, release validation and retries.
+
+Command-line usage:
 
 ```bash
 cranibox                 # run this device's node; the interface listens on loopback only (default 127.0.0.1:7377)
