@@ -24,6 +24,24 @@ def validate_version(version):
     return version
 
 
+def dev_version(base, run_number):
+    """Version of a dev build made from source version `base`.
+
+    SemVer sorts 1.1.0-dev.N below 1.1.0, so a device running the 1.1.0 release would refuse
+    its own dev channel. A dev build is therefore a prerelease of the NEXT patch version:
+    it is newer than the release it was built after and older than the one that follows.
+    A source version that is already a prerelease just gets a `.dev.N` suffix.
+    """
+    validate_version(base)
+    if not str(run_number).isdigit() or str(run_number).startswith("0"):
+        raise ValueError("The run number must be a positive integer.")
+    core, _, pre = base.partition("-")
+    if pre:
+        return validate_version(f"{base}.dev.{run_number}")
+    major, minor, patch = core.split(".")
+    return validate_version(f"{major}.{minor}.{int(patch) + 1}-dev.{run_number}")
+
+
 def version_for_tag(tag):
     if not tag.startswith("v"):
         raise ValueError("Expected a release tag like v1.1.0 or v1.2.0-beta.1 (no build metadata).")

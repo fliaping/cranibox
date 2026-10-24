@@ -142,6 +142,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dev_builds_of_the_next_patch_are_newer_than_the_installed_release() {
+        // CI names dev builds `<next patch>-dev.N` (scripts/release/release_common.py): a device
+        // on the 1.1.0 release must accept them, and the following release must replace them.
+        let v = |s| Version::parse(s).unwrap();
+        assert!(v("1.1.1-dev.7") > v("1.1.0"));
+        assert!(v("1.1.1-dev.17") > v("1.1.1-dev.7"));
+        assert!(v("1.1.1") > v("1.1.1-dev.17"));
+        // The mistake this guards against: a dev build of the same version sorts below it.
+        assert!(v("1.1.0-dev.7") < v("1.1.0"));
+    }
+
+    #[test]
     fn round_trip() {
         for value in [
             "0.0.0",

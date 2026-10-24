@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
-from release_common import PLATFORMS, check_binary, sha256, verified_assets, version_for_tag
+from release_common import PLATFORMS, check_binary, dev_version, sha256, verified_assets, version_for_tag
 
 
 def load(name):
@@ -116,6 +116,16 @@ class DistributionTests(unittest.TestCase):
             self.assertNotIn("bin", native)
         with self.assertRaisesRegex(ValueError, "not empty"):
             builder.build(self.assets, output, self.tag)
+
+    def test_dev_versions_sort_above_the_release_they_follow(self):
+        self.assertEqual(dev_version("1.1.0", 7), "1.1.1-dev.7")
+        self.assertEqual(dev_version("1.2.0-beta.1", 9), "1.2.0-beta.1.dev.9")
+        for bad in ("1.1", "1.1.0+build"):
+            with self.assertRaises(ValueError):
+                dev_version(bad, 1)
+        for bad in (0, "07", "x", -1):
+            with self.assertRaises(ValueError):
+                dev_version("1.1.0", bad)
 
     def test_version_override_pins_every_package_and_skips_source_version_check(self):
         output = self.root / "npm"

@@ -460,7 +460,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/release/collect-assets.py --artifacts dist/artifacts --output dist/assets
-          version=$(python -c 'import os, tomllib; from pathlib import Path; version = tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"]; print(version + "-dev." + os.environ["GITHUB_RUN_NUMBER"])')
+          version=$(python -c 'import os, sys, tomllib; from pathlib import Path; sys.path.insert(0, "scripts/release"); from release_common import dev_version; print(dev_version(tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"], os.environ["GITHUB_RUN_NUMBER"]))')
           python scripts/release/build-npm.py --version "$version" --assets dist/assets --output dist/npm --package-name "$NPM_PACKAGE_NAME"
           python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev --dry-run
       - uses: actions/upload-artifact@v4
