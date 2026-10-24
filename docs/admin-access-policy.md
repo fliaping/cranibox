@@ -4,7 +4,7 @@
 
 ## 背景
 
-现状（`cranibox-security-review-2026-10-23.md` 第 3 条）：
+现状（[`security-review-2026-10-23.md`](security-review-2026-10-23.md) 第 3 条）：
 
 - `OwnerDevice` 配对时双方都签发凭据（`cranibox-net/src/pair.rs` 的 `issues`），并各自写入 `owner_permissions()` 全部能力、`Inbound::Accept`（`workspace-node/src/peer/transport_iroh.rs` 的 `ensure_peer`）。
 - `Models::trust_members()` 为每个名册成员补齐全权限 grant 与 route，名册内两两全互信。
@@ -80,7 +80,7 @@ SessionCert { admin_pub, session_pub, node, method, issued_at,
 - 发起请求只要求名册成员资格，不要求任何访问权限；每个成员同时最多 1 个待批准请求，被拒绝后 1 分钟内不得再发，防止用弹窗轰炸诱导误批。
 - 客户端批准时用本机 Touch ID / Windows Hello 解锁管理员私钥、建立自己的会话并签名。
 
-**原型**：Secure Enclave 签名原型在 `/config/Workspace/cranibox-se-probe/`（`probe.swift`、`run.sh`、`verify.py`），可作为 Swift 胶水代码的起点。
+**原型**：Secure Enclave 签名原型在 [`validation/2026-10-23-secure-enclave-probe/`](validation/2026-10-23-secure-enclave-probe/)（`probe.swift`、`run.sh`、`verify.py`；在 Mac 上运行 `sh run.sh`），可作为 Swift 胶水代码的起点。
 
 ### macOS Secure Enclave 验证记录（2026-10-23）
 
@@ -239,6 +239,50 @@ AccessEdge { from: NodeId, to: NodeId, permissions: Permissions }
 ## 不在本期范围
 
 审查报告第 1、2、4、5 条（管理页认证、默认桌面不设密码、`ui.token` 重复使用、旧 grant 兼容模式）；iroh-gossip；USB 安全密钥；WebAuthn/passkey；多管理员；离线暴力破解的门限 OPRF 防护；重新生成恢复码。
+
+## 附录：备选方案与后续
+
+记录讨论过但未采用的方案及理由，避免重复讨论。
+
+### 为什么不用 WebAuthn / passkey
+
+- WebAuthn 要求固定的 rpId。浏览器要求它与页面域名一致；macOS / iOS 原生 App 要求它是真实域名，系统经 Apple CDN 读取 `https://<rpId>/.well-known/apple-app-site-association`，且 App 需要 Associated Domains 授权（即 Apple 开发者签名）；Android 同理需要 `assetlinks.json`。只有 Windows `webauthn.dll` 和直连 USB 安全密钥（CTAP）不校验域名。
+- 域名不是我们的信任根（设备只验证登记的公钥、rpId 哈希与 challenge），但域名过期后新版 App 在苹果、安卓上无法再调起 passkey。
+- passkey 会随 iCloud / Google 账号同步，把管理员凭据的安全交给云账号。
+- passkey 的防钓鱼（按 origin 绑定）在本方案中用不上：challenge 是变更哈希，摘要由自己的客户端显示。
+- 结论：用系统密钥库（Secure Enclave、Windows Hello）直接派生加密密钥，不需要域名，也不需要开发者账号（Secure Enclave 已实测）。以后需要“免客户端、在任意浏览器里批准”时，可把 passkey 作为另一种解锁方式加入。
+
+### 为什么 Touch ID / Windows Hello 解锁同一把私钥，而不是各自独立的硬件密钥
+
+- 曾考虑每台客户端在安全芯片里各生成一把不可导出的签名密钥，作为管理员的独立认证方式，私钥永不出芯片。
+- 采用当前方案的原因：管理员身份就是一把密钥，与设备无关；密码、Touch ID、Windows Hello 只是同一身份的不同解锁方式，模型更简单，任意节点都能用密码完成所有操作。
+- 接受的代价：解锁瞬间管理员私钥会出现在进程内存中；在失陷节点上输入密码可能被截获。缓解措施见“会话关闭”“使用通知”“远程批准”，以及用恢复码更换管理员密钥。
+- 同样未采用：一旦登记了硬件解锁方式就限制密码的权力；USB 安全密钥（成本高）。
+- 不允许“`LAContext` 弹窗通过后读取普通密钥”：那只是界面确认，挡不住同机恶意程序。
+
+### 离线暴力破解
+
+密码密文随名册分发给所有成员，任一成员失陷即可离线猜测。本期只用 Argon2id 加最低密码长度。更强的方案是门限 OPRF：解锁时需要其他在线成员协助计算并限制尝试速度，拿到密文也无法离线猜测；代价是解锁依赖其他设备在线，实现复杂。
+
+### 参考的项目
+
+| 项目 | 参考点 |
+| --- | --- |
+| Tailscale Tailnet Lock（Go `tka` 包） | 最接近：不信任协调服务器，由用户持有的密钥授权节点，节点独立验证、互相同步授权状态，有“禁用密钥”作为应急。参考其冲突处理与防冻结 |
+| Keybase sigchain | 用户身份 + 多设备密钥 + 纸质备份密钥，对应本方案的管理员身份与恢复码 |
+| TUF / Uptane | 签名元数据的防回滚、防冻结检查清单 |
+| UCAN | 能力委托令牌：“X 可以对 Y 做什么”由管理员签发、持有者出示、目标验证。未采用：设备数量少，一份全局名册更容易理解和展示 |
+| Keyhive（Ink & Switch） | 本地优先应用的去中心化访问控制，研究阶段，仅作参考 |
+
+不适合的：etcd / Consul（Raft，要求多数节点在线）；Automerge / Yjs 等 CRDT（解决多写者合并，不管认证，我们只有一个写入者）；Syncthing（设备两两互信）；Nebula（中心 CA）。本方案不需要工作量证明或共识算法：写入权由管理员签名确定，节点只复制签名状态。Tailnet Lock 使用哈希链是因为它传播增量更新；本方案每次传完整名册，不需要哈希链。
+
+### iroh-gossip（以后设备规模增大时）
+
+- 兼容性：`iroh-gossip 0.101.0` 依赖 `iroh ^1`，与当前 iroh 1.3 兼容，依赖较轻；仍是 0.x，升级 iroh 时可能需要等待其新版本。
+- 接入点：`cranibox-net/src/node.rs` 的 ALPN 列表；`workspace-node/src/peer/transport_iroh.rs` 的 `accept` 分派；每个身份一个主题（由恢复公钥派生），种子节点为名册成员。
+- 前置要求：gossip 连接必须先检查名册成员白名单（现有 `ALPN_PAIR` 分支不检查，peer-http 在 `serve_connection` 中检查）；Guest 不加入主题。
+- 限制：gossip 只广播给当前在线的已连接节点，不保证送达，所以“连接时互报版本、按需拉取”仍然必需；消息大小有限，只广播 epoch 与哈希，完整名册仍经 `/vault/roster` 拉取。
+- 现在不需要：`trust_members()` 已让成员两两直连，几十台设备以内直接推送版本号即可。推送与拉取按“通知 + 拉取”设计，以后只需把推送替换为 gossip。
 
 ## English summary
 
