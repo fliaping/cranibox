@@ -4,12 +4,14 @@ import { DesktopAppSettings } from "./DesktopAppSettings";
 import { inShell } from "./shell";
 import { useApp, type Theme } from "./store";
 import { Card } from "./ui";
+import { UpdatePanel } from "./UpdatePanel";
 
 export function Settings() {
   const { t, theme, setTheme, locale, setLocale } = useApp();
   const themes: [Theme, string, typeof Sun][] = [["system", t("跟随系统", "System"), SunMoon], ["light", t("浅色", "Light"), Sun], ["dark", t("深色", "Dark"), Moon]];
   return <div className="cx-stack loose">
     {inShell() && <DesktopAppSettings section="app" />}
+    <UpdatePanel node="self" />
     <Card label={t("外观", "Appearance")}><div className="cx-between"><div><h3>{t("外观", "Appearance")}</h3><p className="cx-muted cx-small">{t("浅色、深色，或跟随系统。", "Light, dark, or follow your system.")}</p></div>
       <div className="cx-segment" role="group" aria-label={t("外观", "Appearance")}>{themes.map(([value, label, Icon]) => <button key={value} aria-pressed={theme === value} onClick={() => setTheme(value)}><Icon size={15} aria-hidden="true" /> {label}</button>)}</div></div></Card>
     <Card label={t("语言", "Language")}><div className="cx-between"><div><h3><Languages size={16} aria-hidden="true" /> {t("语言", "Language")}</h3><p className="cx-muted cx-small">{t("所有页面都会切换。", "Applies to every page.")}</p></div>

@@ -21,6 +21,7 @@ pub struct Service {
     local: Weak<LocalNode>,
     pub models: Arc<Models>,
     agent_updates: tokio::sync::Mutex<()>,
+    update_tasks: tokio::sync::Mutex<tokio::task::JoinSet<()>>,
     /// First time each inviter-side pairing flow was seen, for stable approval cards.
     pair_seen: std::sync::Mutex<BTreeMap<String, u64>>,
     /// Local capability providers, created on first use.
@@ -56,6 +57,7 @@ impl Service {
             local,
             models,
             agent_updates: tokio::sync::Mutex::new(()),
+            update_tasks: Default::default(),
             pair_seen: Default::default(),
             capabilities: Default::default(),
             reach: Default::default(),
@@ -975,6 +977,19 @@ async fn route(
     path: &str,
     body: Value,
 ) -> Result<Value, AppError> {
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    if path == "/update" || path.starts_with("/update/") {
+        let local = service.as_ref().map(|s| s.local()).transpose()?;
+        let context = local
+            .as_ref()
+            .zip(service.as_ref())
+            .map(|(local, service)| crate::update::app::Context {
+                node: &local.id,
+                peers: local.config_path(),
+                tasks: &service.update_tasks,
+            });
+        return crate::update::app::route(context, method, path, query, body).await;
+    }
     let api: &dyn AppApi = service
         .as_ref()
         .map_or(&*MOCK as &dyn AppApi, |s| s.as_ref());
@@ -1557,5 +1572,94 @@ mod grant_tests {
         .await
         .unwrap();
         assert_eq!(updated, grant);
+    }
+
+    #[tokio::test]
+    async fn mock_update_routes_walk_progress_and_distinguish_devices() {
+        let me = route(None, "GET", "/update?check=1", Value::Null)
+            .await
+            .unwrap();
+        assert_eq!(me["self"], true);
+        assert_eq!(me["version"], "1.1.0");
+        assert_eq!(me["runtime"]["state"], "confirmed");
+        assert_eq!(me["available"]["dev"], "1.1.1-dev.7");
+        let devices = route(None, "GET", "/devices", Value::Null).await.unwrap();
+        let managed = devices[1]["node_id"].as_str().unwrap();
+        let unmanaged = devices[2]["node_id"].as_str().unwrap();
+        for (node, expected) in [(managed, true), (unmanaged, false)] {
+            let info = route(None, "GET", &format!("/update?node={node}"), Value::Null)
+                .await
+                .unwrap();
+            assert_eq!(info["self"], false);
+            assert_eq!(info["runtime"]["can_update"], expected);
+            assert!(info["available"].is_null());
+        }
+        let started = route(
+            None,
+            "POST",
+            "/update",
+            serde_json::json!({"node":managed,"action":"apply","spec":"dev"}),
+        )
+        .await
+        .unwrap();
+        let path = format!("/update/{}?node={managed}", started["id"].as_str().unwrap());
+        for phase in ["resolving", "downloading", "activated", "done"] {
+            let status = route(None, "GET", &path, Value::Null).await.unwrap();
+            assert_eq!(status["phase"], phase);
+            assert_eq!(status["id"], started["id"]);
+        }
+        assert_eq!(
+            route(None, "GET", "/update/missing", Value::Null)
+                .await
+                .unwrap_err()
+                .status,
+            404
+        );
+        for action in ["rollback", "adopt"] {
+            route(
+                None,
+                "POST",
+                "/update",
+                serde_json::json!({"node":"self","action":action}),
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(
+            route(
+                None,
+                "POST",
+                "/update",
+                serde_json::json!({"node":managed,"action":"adopt"})
+            )
+            .await
+            .unwrap_err()
+            .status,
+            400
+        );
+        assert_eq!(
+            route(
+                None,
+                "POST",
+                "/update",
+                serde_json::json!({"node":unmanaged,"action":"apply","spec":"dev"})
+            )
+            .await
+            .unwrap_err()
+            .status,
+            502
+        );
+        assert_eq!(
+            route(
+                None,
+                "POST",
+                "/update",
+                serde_json::json!({"action":"apply","spec":"../bad"})
+            )
+            .await
+            .unwrap_err()
+            .status,
+            400
+        );
     }
 }

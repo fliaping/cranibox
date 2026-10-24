@@ -37,7 +37,7 @@ pub async fn handle(services: Services, request: Request) -> Response {
                 .into_response();
         }
     }
-    let Some(path) = decode_path(
+    let Some(mut path) = decode_path(
         request
             .uri()
             .path()
@@ -50,7 +50,11 @@ pub async fn handle(services: Services, request: Request) -> Response {
         )
             .into_response();
     };
-    if path == "/events" && request.method() == Method::GET {
+    if let Some(query) = request.uri().query() {
+        path.push('?');
+        path.push_str(query);
+    }
+    if path.split('?').next() == Some("/events") && request.method() == Method::GET {
         let local = services.local.clone();
         let events = stream::unfold(
             (local, crate::app::EventCursor::default()),
@@ -97,12 +101,24 @@ pub async fn handle(services: Services, request: Request) -> Response {
         Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
     };
     match crate::app::dispatch(services.local.clone(), &method, &path, body).await {
-        Ok(value) => Json(value).into_response(),
+        Ok(value) => (success_status(&method, &path, &value), Json(value)).into_response(),
         Err(error) => (
             StatusCode::from_u16(error.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
             Json(error),
         )
             .into_response(),
+    }
+}
+
+fn success_status(method: &str, path: &str, value: &Value) -> StatusCode {
+    if method == "POST"
+        && path.split('?').next() == Some("/update")
+        && value["id"].is_string()
+        && value.get("phase").is_none()
+    {
+        StatusCode::ACCEPTED
+    } else {
+        StatusCode::OK
     }
 }
 
@@ -151,5 +167,140 @@ mod tests {
             Some("/approvals/中")
         );
         assert_eq!(decode_path("/approvals/%FF"), None, "invalid UTF-8");
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use crate::web::SessionStore;
+    use axum::{
+        body::Body,
+        http::{HeaderMap, Request as HttpRequest},
+    };
+    use std::sync::Arc;
+
+    struct Sessions;
+    #[async_trait::async_trait]
+    impl SessionStore for Sessions {
+        async fn session(&self, headers: &HeaderMap) -> Option<String> {
+            (headers.get("cookie")?.to_str().ok()? == "fixture=session").then(|| "session".into())
+        }
+        async fn csrf(&self, _: &str) -> Option<String> {
+            Some("fixture-csrf".into())
+        }
+        async fn alive(&self, _: &str) -> bool {
+            true
+        }
+    }
+
+    const TEST: &str = "web::app_api::update_tests::mock_http_update_queries_status_codes_and_auth";
+
+    #[tokio::test]
+    async fn mock_http_update_queries_status_codes_and_auth() {
+        if std::env::var("CRANIBOX_APP_HTTP_TEST").as_deref() != Ok("1") {
+            let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", TEST, "--nocapture"])
+                .env("CRANIBOX_APP_HTTP_TEST", "1")
+                .env("CRANIBOX_APP_MOCK", "1")
+                .kill_on_drop(true)
+                .output()
+                .await
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let (_, closing) = tokio::sync::watch::channel(false);
+        let services = Services::new(None, Default::default(), Arc::new(Sessions), closing);
+        let call = |method: &str, path: &str, body: Value, cookie: bool, csrf: bool| {
+            let mut request = HttpRequest::builder()
+                .method(method)
+                .uri(format!("/api/v1/app{path}"));
+            if cookie {
+                request = request.header("cookie", "fixture=session");
+            }
+            if csrf {
+                request = request.header("x-workspace-csrf", "fixture-csrf");
+            }
+            handle(
+                services.clone(),
+                request.body(Body::from(body.to_string())).unwrap(),
+            )
+        };
+        assert_eq!(
+            call("GET", "/update", Value::Null, false, false)
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            call("POST", "/update", json!({"action":"apply"}), true, false)
+                .await
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+        let info = call(
+            "GET",
+            "/update?node=node-0a1b2c3d4e5f60718293a4b5c6d7e8f9&check=1",
+            Value::Null,
+            true,
+            false,
+        )
+        .await;
+        assert_eq!(info.status(), StatusCode::OK);
+        let info: Value =
+            serde_json::from_slice(&axum::body::to_bytes(info.into_body(), 65536).await.unwrap())
+                .unwrap();
+        assert_eq!(info["self"], false);
+        assert_eq!(info["available"]["dev"], "1.1.1-dev.7");
+        let started = call(
+            "POST",
+            "/update",
+            json!({"action":"apply","spec":"dev"}),
+            true,
+            true,
+        )
+        .await;
+        assert_eq!(started.status(), StatusCode::ACCEPTED);
+        let started: Value = serde_json::from_slice(
+            &axum::body::to_bytes(started.into_body(), 65536)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let progress = call(
+            "GET",
+            &format!("/update/{}?node=self", started["id"].as_str().unwrap()),
+            Value::Null,
+            true,
+            false,
+        )
+        .await;
+        assert_eq!(progress.status(), StatusCode::OK);
+        assert_eq!(
+            call("GET", "/update/unknown", Value::Null, true, false)
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            call("GET", "/update?check=bad", Value::Null, true, false)
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+        for action in ["rollback", "adopt"] {
+            assert_eq!(
+                call("POST", "/update", json!({"action":action}), true, true)
+                    .await
+                    .status(),
+                StatusCode::OK
+            );
+        }
     }
 }

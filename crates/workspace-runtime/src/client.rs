@@ -1012,6 +1012,21 @@ impl Fleet {
         anyhow::ensure!(valid_node_id(node), "invalid node ID");
         self.api(node)?.get(path).await
     }
+    /// Update polling preserves a missing task separately from a refused/unreachable peer.
+    pub async fn update_progress(&self, node: &str, id: &str) -> Result<Option<Value>> {
+        anyhow::ensure!(
+            !id.is_empty() && id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-'),
+            "invalid update id"
+        );
+        match self
+            .get(node, &format!("/api/v1/nodes/{node}/update/{id}"))
+            .await
+        {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if not_found(&error) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
     /// POST `body` to `path` (an `/api/v1/…` route) on a peer.
     pub async fn post(&self, node: &str, path: &str, body: Value) -> Result<Value> {
         anyhow::ensure!(valid_node_id(node), "invalid node ID");

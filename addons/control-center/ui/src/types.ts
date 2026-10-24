@@ -31,4 +31,21 @@ export interface Operation { id: string; title?: string; node?: string; program?
 export interface PollState { cursor: number; snapshot?: Snapshot | null; snapshotAt?: number; busy: boolean; refreshing?: boolean; output?: string; prompt?: Prompt | null; forceWelcome?: boolean; error?: string; outputDelta?: string; outputReset?: boolean; events?: { type: string; message?: string; url?: string }[] }
 export interface BootConfig { csrf: string; language: string; cursor: number; workspaceUrl: string; desktopUrl: string; /** "node": CLI node or desktop app; "workspace": Docker container server with its consoles. */ edition?: 'workspace' | 'node'; /** This device's node ID. */ node?: string; /** True only inside the desktop app, which serves /api/shell. */ shell?: boolean; /** @deprecated alias of edition. */ mode?: 'workspace' | 'node'; /** Saved beside the node configuration (the desktop app's origin changes per launch). */ preferences?: Preferences }
 export interface Preferences { language?: 'en' | 'zh-cn'; theme?: 'light' | 'dark' | 'system'; onboarded?: boolean }
+export type UpdateChannel = 'latest' | 'next' | 'dev';
+export type UpdatePhase = 'resolving' | 'downloading' | 'verifying' | 'staged' | 'activated' | 'done' | 'failed' | 'rolled_back';
+export interface UpdateStatus {
+  id: string; spec: string; phase: UpdatePhase;
+  from: string | null; to: string | null; error: string | null;
+  downloaded: number; total: number | null; started_at: number; updated_at: number;
+}
+export interface NodeUpdate {
+  node: string; self: boolean; version: string;
+  runtime: { managed: boolean; state: 'pending' | 'confirmed' | null; version: string | null; os: 'linux' | 'macos' | 'windows'; arch: 'x86_64' | 'aarch64'; can_update: boolean; reasons: string[] };
+  status: UpdateStatus | null;
+  available?: Record<UpdateChannel, string | null> | null;
+  available_error?: string | null;
+}
+export type UpdateRequest = { node: string; action: 'apply'; spec: string; force?: boolean } | { node: string; action: 'rollback' | 'adopt' };
+export interface UpdateAccepted { id: string }
+export interface UpdateAdopted { adopted: string; needs_restart: boolean }
 declare global { interface Window { workspaceWeb: BootConfig } }

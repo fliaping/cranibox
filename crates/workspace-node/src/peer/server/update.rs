@@ -2,7 +2,7 @@
 //! an update runs new code on this machine, so a capability grant is never enough.
 use super::*;
 use crate::update::{
-    manager::{Phase, Updater, default_entry_package},
+    manager::{Updater, default_entry_package},
     npm::Registries,
 };
 use axum::extract::Json as BodyJson;
@@ -46,16 +46,25 @@ pub(super) async fn read(
     Extension(caller): Extension<Caller>,
     encrypted: Option<Extension<Encrypted>>,
     Path(node): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<Check>,
 ) -> Result<Json<Value>, Failure> {
     let updater = authorize(&app, &caller, &node, encrypted.is_some())?;
-    let info = updater.info().map_err(unavailable)?;
-    let status = updater.status().map_err(unavailable)?;
-    Ok(Json(json!({
-        "node": app.node,
-        "version": crate::update::product_version(),
-        "runtime": info,
-        "status": status,
-    })))
+    Ok(Json(
+        updater
+            .snapshot(
+                &app.node,
+                crate::update::product_version(),
+                query.check == 1,
+            )
+            .await
+            .map_err(unavailable)?,
+    ))
+}
+
+#[derive(Deserialize, Default)]
+pub(super) struct Check {
+    #[serde(default)]
+    check: u8,
 }
 
 #[derive(Deserialize)]
@@ -75,7 +84,7 @@ pub(super) async fn start(
 ) -> Result<(StatusCode, Json<Value>), Failure> {
     let updater = authorize(&app, &caller, &node, encrypted.is_some())?;
     let spec = body.spec.trim().to_owned();
-    if spec.is_empty() || spec.len() > 64 || spec.chars().any(|c| c.is_whitespace() || c == '/') {
+    if !crate::update::valid_spec(&spec) {
         return Err(failure(
             StatusCode::BAD_REQUEST,
             "spec must be a version or a dist-tag",
@@ -91,21 +100,10 @@ pub(super) async fn start(
             ),
         ));
     }
-    let id = uuid::Uuid::new_v4().to_string();
-    let (task_id, force) = (id.clone(), body.force);
-    app.tasks.lock().await.spawn(async move {
-        match updater.apply_as(task_id, &spec, force).await {
-            // Leave the requester time to read the activated status before the connection drops.
-            Ok(status) if matches!(status.phase, Phase::Activated | Phase::Done) => {
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                if !crate::update::request_restart() {
-                    eprintln!("update: activated {spec} but this process cannot restart itself");
-                }
-            }
-            // The failure, with its reason, is already persisted for the requester.
-            Ok(_) | Err(_) => {}
-        }
-    });
+    let (id, task) = updater
+        .start(spec, body.force)
+        .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))?;
+    app.tasks.lock().await.spawn(task);
     Ok((StatusCode::ACCEPTED, Json(json!({"id": id}))))
 }
 
@@ -132,9 +130,138 @@ pub(super) async fn rollback(
     let status = updater
         .rollback("requested by an owner device")
         .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))?;
-    app.tasks.lock().await.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        crate::update::request_restart();
-    });
+    app.tasks
+        .lock()
+        .await
+        .spawn(crate::update::restart_after_response());
     Ok(Json(json!(status)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_workspace_runtime::peers::{
+        config::{Permissions, Pinned},
+        roster::{OwnerKey, RosterStore},
+    };
+    use cranibox_contracts::roster::{Role, RosterMember};
+    use tower::ServiceExt;
+
+    const TEST: &str = "peer::server::update::tests::mesh_check_keeps_status_on_registry_failure";
+
+    #[tokio::test]
+    async fn mesh_check_keeps_status_on_registry_failure() {
+        let Ok(root) = std::env::var("CRANIBOX_MESH_CHECK_TEST_ROOT") else {
+            use crate::update::npm::tests::{packument, serve_body};
+            let root = tempfile::tempdir().unwrap();
+            let good = serve_body(StatusCode::OK, serde_json::to_vec(&packument()).unwrap()).await;
+            let down = serve_body(StatusCode::SERVICE_UNAVAILABLE, Vec::new()).await;
+            for (name, registry) in [("good", &good.base), ("down", &down.base)] {
+                let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", TEST, "--nocapture"])
+                    .env("CRANIBOX_MESH_CHECK_TEST_ROOT", root.path().join(name))
+                    .env("CRANIBOX_NPM_REGISTRY", registry)
+                    .env(
+                        "CRANIBOX_MESH_CHECK_TEST_DOWN",
+                        if name == "down" { "1" } else { "0" },
+                    )
+                    .env_remove("CRANIBOX_RUNTIME_ROOT")
+                    .env_remove("CRANIBOX_NPM_PACKAGE")
+                    .kill_on_drop(true)
+                    .output()
+                    .await
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            return;
+        };
+        let root = PathBuf::from(root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("peers.json");
+        Config::update(&path, |_| Ok(())).unwrap();
+        let identity = Config::identity(&path).unwrap();
+        let public = identity.public().clone();
+        let owner = OwnerKey::load_or_create(&root.join("fixture-owner")).unwrap();
+        let roster_path = root.join("models/roster.json");
+        std::fs::create_dir_all(roster_path.parent().unwrap()).unwrap();
+        RosterStore::pin(&roster_path, &owner.public()).unwrap();
+        RosterStore::load(roster_path)
+            .unwrap()
+            .issue(
+                &owner,
+                vec![RosterMember {
+                    node_id: public.node_id.clone(),
+                    signing_key: public.signing_key.clone(),
+                    x25519_pub: public.noise_key.clone(),
+                    role: Role::Node,
+                    priority: 0,
+                    is_claude_node: false,
+                    name: "Update fixture".into(),
+                    added_at: 0,
+                    identity: None,
+                }],
+            )
+            .unwrap();
+        let mut pinned = Pinned::new(public.clone());
+        pinned.verified = true;
+        let mut grant = Grant::issue("fixture-only", Permissions::default());
+        grant.peer = Some(pinned);
+        let running = start_with_catalog(
+            path.clone(),
+            Engine::new(root.join("home")),
+            Arc::new(Semaphore::new(1)),
+            CancellationToken::new(),
+            agent_workspace_runtime::projects::Store::new(root.join("projects.json")),
+        )
+        .await
+        .unwrap();
+        let app = running.app.clone();
+        let caller = Caller {
+            node: public.node_id.clone(),
+            grant,
+        };
+        let router = Router::new()
+            .route("/api/v1/nodes/{node}/update", get(read))
+            .layer(Extension(caller))
+            .layer(Extension(Encrypted))
+            .with_state(app);
+        for check in [0, 1] {
+            let response = router
+                .clone()
+                .oneshot(
+                    axum::http::Request::get(format!(
+                        "/api/v1/nodes/{}/update?check={check}",
+                        public.node_id
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let value: Value = serde_json::from_slice(
+                &axum::body::to_bytes(response.into_body(), 65536)
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(value["node"], public.node_id);
+            assert!(value["runtime"].is_object());
+            if check == 0 {
+                assert!(value["available"].is_null());
+            } else if std::env::var("CRANIBOX_MESH_CHECK_TEST_DOWN").as_deref() == Ok("1") {
+                assert!(value["available"].is_null());
+                assert!(value["available_error"].is_string());
+            } else {
+                assert_eq!(value["available"]["dev"], "1.2.3");
+                assert!(value["available_error"].is_null());
+            }
+        }
+        running.shutdown().await.unwrap();
+    }
 }

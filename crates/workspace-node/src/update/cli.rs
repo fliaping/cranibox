@@ -9,7 +9,7 @@ use super::{
 use agent_workspace_runtime::client::{self, Fleet};
 use anyhow::{Context, Result, bail, ensure};
 use clap::Subcommand;
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -25,7 +25,17 @@ pub enum Command {
         /// Every reachable device of your identity.
         #[arg(long)]
         all: bool,
+        /// Resolve latest, next and dev on each target's platform.
+        #[arg(long)]
+        check: bool,
     },
+    /// Check the available latest, next and dev versions.
+    Check {
+        #[arg(long)]
+        node: Vec<String>,
+    },
+    /// Print an autostart definition and installation instructions; write no files.
+    ServiceUnit,
     /// Update to a version or a dist-tag (latest, next, dev), then restart into it.
     Apply {
         spec: String,
@@ -60,20 +70,17 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
     let root = super::runtime_root(peers.parent().unwrap_or(&peers));
     let fleet = Fleet::new(peers);
     match command {
-        Command::Status { node, all } => {
-            let mut out = Vec::new();
-            if node.is_empty() && !all {
-                out.push(local_status(&root)?);
-            }
-            for id in targets(&fleet, node, all).await? {
-                out.push(
-                    match fleet.get(&id, &format!("/api/v1/nodes/{id}/update")).await {
-                        Ok(value) => value,
-                        Err(error) => json!({"node": id, "error": format!("{error:#}")}),
-                    },
-                );
-            }
-            client::print(json!({"devices": out}));
+        Command::Check { node } => print_status(&fleet, &root, node, false, true).await?,
+        Command::ServiceUnit => println!(
+            "{}",
+            super::service::definition(
+                std::env::consts::OS,
+                &std::env::current_exe()?,
+                &std::path::absolute(&config)?,
+            )?
+        ),
+        Command::Status { node, all, check } => {
+            print_status(&fleet, &root, node, all, check).await?
         }
         Command::Apply {
             spec,
@@ -111,7 +118,13 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
                 client::print(status);
             }
         }
-        Command::Adopt => adopt(&root)?,
+        Command::Adopt => {
+            let version = adopt(&root)?;
+            println!(
+                "Adopted {version} in {}. Start the device with cranibox update launch from now on.",
+                root.display()
+            );
+        }
         Command::Launch { args } => {
             ensure!(
                 Layout::new(&root).pointer()?.is_some(),
@@ -150,16 +163,31 @@ fn updater(root: &Path) -> Result<Updater> {
     ))
 }
 
-fn local_status(root: &Path) -> Result<Value> {
-    let updater = updater(root)?;
-    let runtime = updater.info()?;
-    // This process is only the command line; the managed pointer names what the node runs.
-    Ok(json!({
-        "node": "this device",
-        "version": runtime.version.clone().unwrap_or_else(super::product_version),
-        "runtime": runtime,
-        "status": updater.status()?,
-    }))
+async fn print_status(
+    fleet: &Fleet,
+    root: &Path,
+    node: Vec<String>,
+    all: bool,
+    check: bool,
+) -> Result<()> {
+    let mut out = Vec::new();
+    if node.is_empty() && !all {
+        let updater = updater(root)?;
+        let version = updater
+            .info()?
+            .version
+            .unwrap_or_else(super::product_version);
+        out.push(updater.snapshot("this device", version, check).await?);
+    }
+    for id in targets(fleet, node, all).await? {
+        let path = format!("/api/v1/nodes/{id}/update?check={}", u8::from(check));
+        out.push(match fleet.get(&id, &path).await {
+            Ok(value) => value,
+            Err(error) => json!({"node": id, "error": format!("{error:#}")}),
+        });
+    }
+    client::print(json!({"devices": out}));
+    Ok(())
 }
 
 /// The named devices, or every reachable other device for `--all`.
@@ -265,7 +293,7 @@ async fn apply_remote(
 
 /// Make the running program the first managed version: stage a copy, activate, and mark it
 /// confirmed because it is demonstrably working.
-fn adopt(root: &Path) -> Result<()> {
+pub fn adopt(root: &Path) -> Result<String> {
     let layout = Layout::new(root);
     ensure!(
         layout.pointer()?.is_none(),
@@ -286,9 +314,5 @@ fn adopt(root: &Path) -> Result<()> {
     layout.commit_stage(&version)?;
     layout.activate_forced(&version)?;
     layout.confirm(&version)?;
-    println!(
-        "Adopted {version} in {}. Start the device with `cranibox update launch` from now on.",
-        root.display()
-    );
-    Ok(())
+    Ok(version.to_string())
 }

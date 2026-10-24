@@ -107,7 +107,62 @@ impl Registries {
         )
     }
 
-    async fn resolve_at(&self, url: Url, package: &str, spec: &str) -> Result<Release> {
+    /// Resolve tags without requiring a release manifest or downloading a tarball.
+    /// Missing tags/packages are a successful empty result; outages remain errors.
+    pub async fn tags(&self, package: &str) -> Result<super::manager::Available> {
+        validate_package(package)?;
+        let mut available = super::manager::Available::default();
+        let mut reached = false;
+        let mut errors = Vec::new();
+        for base in &self.bases {
+            let url = base.join(&package.replace('/', "%2F"))?;
+            match self.metadata(url).await {
+                Ok(metadata) => {
+                    let mut tags = super::manager::Available::default();
+                    let parsed = (|| -> Result<()> {
+                        for (name, slot) in [
+                            ("latest", &mut tags.latest),
+                            ("next", &mut tags.next),
+                            ("dev", &mut tags.dev),
+                        ] {
+                            if let Some(value) = metadata["dist-tags"].get(name) {
+                                let version = value.as_str().context("invalid dist-tag")?;
+                                ensure!(plain_semver(version), "invalid dist-tag version");
+                                *slot = Some(version.to_owned());
+                            }
+                        }
+                        Ok(())
+                    })();
+                    if let Err(error) = parsed {
+                        errors.push(format!("{base}: {error:#}"));
+                        continue;
+                    }
+                    reached = true;
+                    available.latest = available.latest.or(tags.latest);
+                    available.next = available.next.or(tags.next);
+                    available.dev = available.dev.or(tags.dev);
+                    if available.latest.is_some()
+                        && available.next.is_some()
+                        && available.dev.is_some()
+                    {
+                        break;
+                    }
+                }
+                Err(error)
+                    if error
+                        .downcast_ref::<reqwest::Error>()
+                        .is_some_and(|e| e.status() == Some(reqwest::StatusCode::NOT_FOUND)) =>
+                {
+                    reached = true
+                }
+                Err(error) => errors.push(format!("{base}: {error:#}")),
+            }
+        }
+        ensure!(reached, "could not check {package}: {}", errors.join("; "));
+        Ok(available)
+    }
+
+    async fn metadata(&self, url: Url) -> Result<Value> {
         let mut response = self.client.get(url).send().await?.error_for_status()?;
         // Full packuments grow over time, but must not consume unbounded memory.
         const MAX_METADATA: usize = 16 * 1024 * 1024;
@@ -120,6 +175,12 @@ impl Registries {
             bytes.extend_from_slice(&chunk);
         }
         let metadata: Value = serde_json::from_slice(&bytes).context("invalid npm metadata")?;
+        ensure!(metadata.is_object(), "invalid npm metadata");
+        Ok(metadata)
+    }
+
+    async fn resolve_at(&self, url: Url, package: &str, spec: &str) -> Result<Release> {
+        let metadata = self.metadata(url).await?;
         let version = if plain_semver(spec) {
             spec
         } else {
@@ -309,7 +370,7 @@ fn validate_package(package: &str) -> Result<()> {
     Ok(())
 }
 
-fn plain_semver(version: &str) -> bool {
+pub(super) fn plain_semver(version: &str) -> bool {
     let identifiers = |value: &str, numeric_zeroes: bool| {
         value.split('.').all(|part| {
             !part.is_empty()
@@ -515,7 +576,7 @@ fn safe_relative_path(raw: &[u8]) -> Result<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use axum::{
         Router,
@@ -534,8 +595,8 @@ mod tests {
 
     const PACKAGE: &str = "@fliaping/cranibox-linux-x64-gnu";
 
-    struct Server {
-        base: String,
+    pub(crate) struct Server {
+        pub(crate) base: String,
         task: JoinHandle<()>,
     }
 
@@ -554,7 +615,7 @@ mod tests {
         Server { base, task }
     }
 
-    async fn serve_body(status: StatusCode, body: Vec<u8>) -> Server {
+    pub(crate) async fn serve_body(status: StatusCode, body: Vec<u8>) -> Server {
         serve(Router::new().fallback(move || {
             let body = body.clone();
             async move { (status, body) }
@@ -593,7 +654,7 @@ mod tests {
         format!("sha512-{}", STANDARD.encode(Sha512::digest(bytes)))
     }
 
-    fn packument() -> Value {
+    pub(crate) fn packument() -> Value {
         json!({
             "dist-tags": {"latest": "1.2.3", "next": "1.2.3", "dev": "1.2.3"},
             "versions": {"1.2.3": {
@@ -610,6 +671,74 @@ mod tests {
             tarball: url.into(),
             integrity: sri(bytes),
         }
+    }
+
+    #[tokio::test]
+    async fn available_tags_absent_fallback_and_unreachable() {
+        use crate::update::manager::Updater;
+        let root = scratch();
+        let full = serve_body(StatusCode::OK, serde_json::to_vec(&packument()).unwrap()).await;
+        let mut metadata = packument();
+        metadata["dist-tags"] = json!({"dev":"1.1.1-dev.7"});
+        // Tag lookup needs only metadata; manifests and tarballs are not fetched.
+        metadata["versions"] = json!({});
+        let partial = serve_body(StatusCode::OK, serde_json::to_vec(&metadata).unwrap()).await;
+        let absent = serve_body(StatusCode::OK, br#"{"dist-tags":{}}"#.to_vec()).await;
+        let missing = serve_body(StatusCode::NOT_FOUND, Vec::new()).await;
+        let down = serve_body(StatusCode::SERVICE_UNAVAILABLE, Vec::new()).await;
+        for (bases, expected) in [
+            (
+                vec![full.base.clone()],
+                json!({"latest":"1.2.3","next":"1.2.3","dev":"1.2.3"}),
+            ),
+            (
+                vec![partial.base.clone()],
+                json!({"latest":null,"next":null,"dev":"1.1.1-dev.7"}),
+            ),
+            (
+                vec![absent.base.clone()],
+                json!({"latest":null,"next":null,"dev":null}),
+            ),
+            (
+                vec![missing.base.clone()],
+                json!({"latest":null,"next":null,"dev":null}),
+            ),
+            (
+                vec![down.base.clone(), partial.base.clone(), full.base.clone()],
+                json!({"latest":"1.2.3","next":"1.2.3","dev":"1.1.1-dev.7"}),
+            ),
+        ] {
+            let updater = Updater::new(
+                root.path().into(),
+                Registries::new(bases).unwrap(),
+                "@fliaping/cranibox".into(),
+            );
+            assert_eq!(
+                serde_json::to_value(updater.available().await.unwrap()).unwrap(),
+                expected
+            );
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let closed = format!("http://{}", listener.local_addr().unwrap());
+        drop(listener);
+        let updater = Updater::new(
+            root.path().into(),
+            Registries::new(vec![closed, down.base.clone()]).unwrap(),
+            "@fliaping/cranibox".into(),
+        );
+        assert!(updater.available().await.is_err());
+        let status = updater
+            .snapshot("self", "1.1.0".into(), true)
+            .await
+            .unwrap();
+        assert!(status["available"].is_null());
+        assert!(
+            status["available_error"]
+                .as_str()
+                .unwrap()
+                .contains("could not check")
+        );
+        assert_eq!(status["version"], "1.1.0");
     }
 
     // Set the raw name field so hostile paths aren't sanitized by the builder.

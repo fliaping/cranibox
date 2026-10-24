@@ -1,4 +1,5 @@
 //! Remote self-update: npm download, versioned runtime directories and rollback.
+pub(crate) mod app;
 pub mod cli;
 pub mod duo;
 pub mod launcher;
@@ -6,6 +7,7 @@ pub mod layout;
 pub mod manager;
 pub mod npm;
 pub mod platform;
+pub mod service;
 pub mod version;
 
 use std::{
@@ -64,6 +66,18 @@ pub fn request_restart() -> bool {
 
 pub fn restart_requested() -> bool {
     RESTART.load(Ordering::SeqCst)
+}
+
+/// Let a successful HTTP response reach its caller before disconnecting the node.
+pub async fn restart_after_response() {
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    if !request_restart() {
+        eprintln!("update: this process cannot restart itself");
+    }
+}
+
+pub fn valid_spec(spec: &str) -> bool {
+    matches!(spec, "latest" | "next" | "dev") || npm::plain_semver(spec)
 }
 
 /// The local `cranibox update` command runs in another process: it drops `restart.request`

@@ -1339,7 +1339,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn concurrent_supervisors_respect_persisted_spawn_grace() {
         for actor in ROLES {
-            let fixture = Fixture::new();
+            let mut fixture = Fixture::new();
+            // This checks the persisted lease, not retry timing. Leave enough time
+            // for both blocking workers to be scheduled during the parallel suite.
+            fixture.fake.config.respawn_grace = Duration::from_secs(5);
             let version = fixture.install(actor.other(), "2.0.0");
             fixture
                 .fake

@@ -270,6 +270,9 @@
 /* Device detail cards */
 .cx-detail-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
 .cx-detail-grid > .cx-card + .cx-card { margin-top: 0; }
+.cx-detail-grid > .cx-update-panel { grid-column: 1 / -1; }
+.cx-update-panel { overflow-wrap: anywhere; }
+.cx-update-progress { width: 100%; accent-color: var(--accent); }
 .cx-detail-grid > .cx-card:nth-child(-n+2) { grid-column: span 2; }
 .cx-detail-grid .cx-facts { margin-top: var(--space-3); }
 .cx-cap-tile { display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3); }

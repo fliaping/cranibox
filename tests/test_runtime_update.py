@@ -88,6 +88,8 @@ class RuntimeUpdate(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="cranibox-update-test-"))
         self.cfg = self.tmp / "cfg" / "settings.json"
         self.cfg.parent.mkdir()
+        # This test only uses the loopback npm registry and local runtime supervision.
+        (self.cfg.parent / "networks.json").write_text(json.dumps({"iroh": {"enabled": False}}))
         self.exe = self.tmp / ("cranibox.exe" if WIN else "cranibox")
         shutil.copy(BIN, self.exe)
         if not WIN and self.exe.stat().st_size > 100_000_000 and shutil.which("strip"):
@@ -109,6 +111,7 @@ class RuntimeUpdate(unittest.TestCase):
             except subprocess.TimeoutExpired:
                 self.launcher.kill()
         self.registry.shutdown()
+        self.registry.server_close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def cranibox(self, *args, check=True):
@@ -117,6 +120,22 @@ class RuntimeUpdate(unittest.TestCase):
         if check:
             self.assertEqual(r.returncode, 0, r.stderr)
         return r
+
+
+    def app_api(self, path, method="GET", body=None):
+        """Call the node's local app API the way the web UI does: sign-in link, cookie, CSRF."""
+        import http.cookiejar, re, urllib.request
+        link = self.cranibox("ui-url").stdout.strip()
+        jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        html = opener.open(link, timeout=20).read().decode()
+        csrf = json.loads(html.split("window.workspaceWeb=")[1].split(";</script>")[0])["csrf"]
+        base = link.split("/?")[0].split("/#")[0].rstrip("/")
+        request = urllib.request.Request(base + path, method=method, headers={
+            "X-Workspace-CSRF": csrf, "Content-Type": "application/json"},
+            data=None if body is None else json.dumps(body).encode())
+        with opener.open(request, timeout=30) as response:
+            return json.loads(response.read().decode())
 
     def status(self):
         return json.loads(self.cranibox("update", "status").stdout)["devices"][0]
@@ -142,12 +161,20 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual((s["runtime"]["version"], s["runtime"]["managed"]), (self.base, True))
 
         self.registry.publish("1.1.1-dev.1", self.exe_bytes, tag="dev")
-        self.launcher = subprocess.Popen(
-            [str(self.exe), "--config", str(self.cfg), "update", "launch"],
-            env=self.env, stdout=self.log.open("wb"), stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if WIN else 0)
+        with self.log.open("wb") as log:
+            self.launcher = subprocess.Popen(
+                [str(self.exe), "--config", str(self.cfg), "update", "launch"],
+                env=self.env, stdout=log, stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if WIN else 0)
         # adopt already marks the version confirmed, so wait for a node that is actually serving.
         self.wait_for(lambda s: "device interface" in self.log.read_text(errors="replace"), 90, "the node to start")
+
+        # The web UI's update panel talks to the running node's app API: check the real shapes.
+        info = self.app_api("/api/v1/app/update?node=self&check=1")
+        self.assertEqual((info["self"], info["version"], info["runtime"]["managed"]), (True, self.base, True))
+        self.assertTrue(info["runtime"]["can_update"], info["runtime"]["reasons"])
+        self.assertEqual(info["available"]["dev"], "1.1.1-dev.1")
+        self.assertIsNone(info.get("available_error"))
 
         # Update through the dist-tag; the running node restarts into the new version.
         self.cranibox("update", "apply", "dev")
@@ -165,6 +192,12 @@ class RuntimeUpdate(unittest.TestCase):
         again = self.cranibox("update", "apply", "1.1.2-dev.1", check=False)
         self.assertNotEqual(again.returncode, 0)
         self.assertIn("failed", again.stderr)
+
+        available = json.loads(self.cranibox("update", "check").stdout)["devices"][0]
+        self.assertEqual(available["available"]["dev"], "1.1.2-dev.1")
+        self.assertIsNone(available["available"]["latest"])
+        self.assertIsNone(available["available"]["next"])
+        self.assertIsNone(available["available_error"])
 
 
 if __name__ == "__main__":

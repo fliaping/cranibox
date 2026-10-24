@@ -60,6 +60,13 @@ pub struct RuntimeInfo {
     pub reasons: Vec<String>,
 }
 
+#[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Available {
+    pub latest: Option<String>,
+    pub next: Option<String>,
+    pub dev: Option<String>,
+}
+
 pub struct Updater {
     root: PathBuf,
     registries: Registries,
@@ -87,6 +94,49 @@ impl Drop for Stage<'_> {
 }
 
 impl Updater {
+    pub async fn available(&self) -> Result<Available> {
+        self.registries
+            .tags(&npm::platform_package(&self.entry_package)?)
+            .await
+    }
+
+    /// Shared CLI, mesh and app status, with registry failures kept separate.
+    pub async fn snapshot(
+        &self,
+        node: &str,
+        version: String,
+        check: bool,
+    ) -> Result<serde_json::Value> {
+        let mut value = serde_json::json!({
+            "node": node, "version": version, "runtime": self.info()?, "status": self.status()?,
+            "available": null, "available_error": null,
+        });
+        if check {
+            match self.available().await {
+                Ok(available) => value["available"] = serde_json::to_value(available)?,
+                Err(error) => value["available_error"] = format!("{error:#}").into(),
+            }
+        }
+        Ok(value)
+    }
+
+    /// Hold the update lock and publish resolving before returning an id to the caller.
+    pub fn start(
+        self,
+        spec: String,
+        force: bool,
+    ) -> Result<(String, impl Future<Output = ()> + Send)> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (lock, pointer, status) = self.prepare(id.clone(), &spec)?;
+        Ok((id, async move {
+            if let Ok(status) = self.apply_prepared(lock, pointer, status, force).await
+                && matches!(status.phase, Phase::Activated)
+            {
+                super::restart_after_response().await;
+            }
+        }))
+    }
+
     pub fn new(root: PathBuf, registries: Registries, entry_package: String) -> Self {
         Self {
             root,
@@ -146,7 +196,16 @@ impl Updater {
     /// Like [`apply`](Self::apply) with a caller-chosen id, so a request handler can hand the
     /// id to the requester before the download finishes.
     pub async fn apply_as(&self, id: String, spec: &str, force: bool) -> Result<Status> {
-        let _lock = self.lock()?;
+        let (lock, pointer, status) = self.prepare(id, spec)?;
+        self.apply_prepared(lock, pointer, status, force).await
+    }
+
+    fn prepare(
+        &self,
+        id: String,
+        spec: &str,
+    ) -> Result<(UpdateLock, super::layout::Pointer, Status)> {
+        let lock = self.lock()?;
         let layout = Layout::new(&self.root);
         let pointer = layout
             .pointer()?
@@ -157,6 +216,17 @@ impl Updater {
         );
         let mut status = new_status(id, spec, Some(pointer.current.clone()));
         self.save(&mut status)?;
+        Ok((lock, pointer, status))
+    }
+
+    async fn apply_prepared(
+        &self,
+        _lock: UpdateLock,
+        pointer: super::layout::Pointer,
+        mut status: Status,
+        force: bool,
+    ) -> Result<Status> {
+        let layout = Layout::new(&self.root);
         let result = self
             .apply_inner(&layout, &pointer, &mut status, force)
             .await;
@@ -431,7 +501,7 @@ fn replace_status(temporary: tempfile::NamedTempFile, destination: &Path) -> Res
 // The fixture is intentionally an unsigned shell script. macOS signature validation
 // is tested through platform's pure helpers, not bypassed for a fake runtime.
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::Arc;
 
@@ -452,9 +522,9 @@ mod tests {
     const ENTRY: &str = "@fliaping/cranibox";
     const SCRIPT: &[u8] = b"#!/bin/sh\nexit 0\n";
 
-    struct Fixture {
-        root: tempfile::TempDir,
-        base: String,
+    pub(crate) struct Fixture {
+        pub(crate) root: tempfile::TempDir,
+        pub(crate) base: String,
         server: JoinHandle<()>,
         requested: Arc<Notify>,
         release: Arc<Semaphore>,
@@ -467,7 +537,7 @@ mod tests {
     }
 
     impl Fixture {
-        async fn new(
+        pub(crate) async fn new(
             current: &str,
             missing_executable: bool,
             bad_integrity: bool,

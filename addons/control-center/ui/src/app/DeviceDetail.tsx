@@ -12,6 +12,7 @@ import { request, useWorkspace } from "../workspace";
 import { deviceCaps, devicePath } from "./Home";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
+import { UpdatePanel } from "./UpdatePanel";
 import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Switch, Tabs, type Translate } from "./ui";
 
 const tabs = ["overview", "terminal", "desktop", "browser", "projects", "access"] as const;
@@ -93,6 +94,7 @@ function Overview({ device }: { device: Device }) {
       </Card>;
     })}
     {!local && !device.guest && device.same_identity === false && <OtherIdentity />}
+    {!local && <UpdatePanel node={device.node_id} />}
     {!local && <RemoveDevice device={device} />}
   </div>;
 }

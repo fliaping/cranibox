@@ -109,14 +109,13 @@
 ## 协议（mesh，仅 owner 设备）
 
 ```
-GET  /api/v1/mesh/nodes/{node}/update             版本、build、平台、形态、可否自更新及原因、进行中的任务
-POST /api/v1/mesh/nodes/{node}/update             {spec: 版本或通道, force?}   开始更新
-GET  /api/v1/mesh/nodes/{node}/update/{id}        进度：resolving → downloading → verifying → staged → activating → restarting → done | failed | rolled_back
-POST /api/v1/mesh/nodes/{node}/update/{id}/cancel
-POST /api/v1/mesh/nodes/{node}/update/rollback
+GET  /api/v1/nodes/{node}/update?check=1         版本、build、平台、形态、可否自更新及原因、进行中的任务
+POST /api/v1/nodes/{node}/update                 {spec: 版本或通道, force?}   开始更新
+GET  /api/v1/nodes/{node}/update/{id}            进度：resolving → downloading → verifying → staged → activated → done | failed | rolled_back
+POST /api/v1/nodes/{node}/update/rollback
 ```
 
-重启会断开连接，状态持久化在 `<data>/update/state.json`，节点回来后由发起方读取最终结果；
+重启会断开连接，状态持久化在 `<data>/runtime/update-state.json`，节点回来后由发起方读取最终结果；
 以节点用新版本重新响应 `GET …/update` 作为成功的依据。
 
 ## 降级与版本
@@ -126,7 +125,42 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 
 ## 管理入口
 
-- CLI：`cranibox update status|check|apply --node <id>|--all --to <版本或通道>|rollback --node <id>`。
+当前命令（省略 --node 时操作本机）：
+
+~~~sh
+cranibox update status --check
+cranibox update check --node <device-id>
+cranibox update apply dev --node <device-id>
+cranibox update rollback --node <device-id>
+cranibox update adopt
+cranibox update launch
+cranibox update service-unit
+~~~
+
+check 与 status --check 返回 latest / next / dev 标签；不存在的标签为 null。
+远程查询由目标设备解析自己的平台包，registry 不可达只填 available_error，仍返回版本与运行时状态。
+adopt 把当前程序接管为受管版本；之后必须经 update launch 重启，才可由正在运行的节点更新自身。
+service-unit 只打印定义和安装命令，不写文件：Linux 为 systemd 用户 unit（Restart=always、
+KillMode=control-group），macOS 为 launchd plist，Windows 为 schtasks /Create 命令。
+
+本地界面复用 session cookie 与 CSRF，经以下 app API 调用：
+
+~~~text
+GET  /api/v1/app/update?node=<device-id|self>&check=1
+POST /api/v1/app/update  {"node":"self","action":"apply","spec":"dev","force":false}
+POST /api/v1/app/update  {"node":"self","action":"rollback"}
+POST /api/v1/app/update  {"node":"self","action":"adopt"}
+GET  /api/v1/app/update/<update-id>?node=<device-id|self>
+~~~
+
+node 可省略或为 self。GET 返回 node、self、version、runtime、status、available、available_error；
+不带 check=1 时 available 为 null。apply 返回 202 和任务 id，随后后台下载、激活并请求启动器重启；
+进度保存在磁盘上。rollback 返回 200 和状态；adopt 仅限本机，返回 adopted 与 needs_restart=true，
+已接管时为 409。未受管的本机 apply 返回 409 并列出原因；远程操作经 Fleet 的 owner E2E mesh 通道，
+拒绝或不可达映射为 502（保留目标错误），未知进度 id 为 404，远程 adopt 为 400。
+CRANIBOX_APP_MOCK=1 提供相同路由的本机、受管远端与未受管远端 fixture；连续轮询模拟更新进度。
+
+- CLI: `cranibox update status [--check]`, `check [--node <id>]`, `apply <version|tag> [--node <id>|--all]`, `rollback [--node <id>]`, `adopt`, `launch`, `service-unit`.
 - 控制中心节点页：版本列、可更新标记、多选更新、实时进度、失败原因、回滚。
 - 更新前显示提醒：该节点是否有独立的远程桌面兜底（例如目前 Windows 节点没有）。
 - 批量更新时先更新一台、确认后再更新其余；更新自己放在最后。
@@ -134,7 +168,7 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 ## 开发 / 测试闭环
 
 1. CI 构建各平台，向 npm 发布 `x.y.z-dev.N`，`dev` 通道指向最新。
-2. 开发者在任一设备执行 `cranibox update apply --all --to dev`。
+2. 开发者在任一设备执行 `cranibox update apply dev --all`。
 3. 各节点下载、校验、切换、重启、确认；失败则自动回滚。
 4. 开发者在各平台验证功能。
 5. CI 在 Linux / macOS / Windows runner 上起两个节点，A 把 B 更新到新版本，断言版本、重启后可达，
