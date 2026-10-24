@@ -20,6 +20,7 @@ pub const RESTART_EXIT_CODE: i32 = 75;
 pub struct LauncherConfig {
     pub root: PathBuf,
     pub args: Vec<OsString>,
+    pub env: Vec<(OsString, OsString)>,
     pub max_attempts: u32,
     pub confirm_window: Duration,
     pub backoff_base: Duration,
@@ -31,6 +32,7 @@ impl Default for LauncherConfig {
         Self {
             root: PathBuf::new(),
             args: Vec::new(),
+            env: Vec::new(),
             max_attempts: 3,
             confirm_window: Duration::from_secs(120),
             backoff_base: Duration::from_millis(500),
@@ -130,6 +132,7 @@ async fn spawn_runtime(config: &LauncherConfig, version: &Version) -> Result<(Ch
     let mut command = Command::new(executable);
     command
         .args(&config.args)
+        .envs(config.env.iter().cloned())
         .env("CRANIBOX_RUNTIME_ROOT", &config.root)
         .env("CRANIBOX_RUNTIME_VERSION", version.to_string())
         .env("CRANIBOX_RUNTIME_MANAGED", "1")
@@ -309,10 +312,32 @@ mod tests {
         let config = LauncherConfig::new("runtime", vec![OsString::from("node")]);
         assert_eq!(config.root, PathBuf::from("runtime"));
         assert_eq!(config.args, [OsString::from("node")]);
+        assert!(config.env.is_empty());
         assert_eq!(config.max_attempts, 3);
         assert_eq!(config.confirm_window, Duration::from_secs(120));
         assert_eq!(config.backoff_base, Duration::from_millis(500));
         assert_eq!(config.backoff_max, Duration::from_secs(30));
+    }
+
+    #[tokio::test]
+    async fn extra_environment_reaches_child() {
+        let (root, layout, mut config) = fixture();
+        activate(
+            &layout,
+            "1.0.0",
+            [
+                "printf '%s' \"$CRANIBOX_LAUNCHER_TEST\" > environment\nexit 0",
+                "<nul set /p =%CRANIBOX_LAUNCHER_TEST%>environment\r\nexit /b 0",
+            ],
+        );
+        config
+            .env
+            .push(("CRANIBOX_LAUNCHER_TEST".into(), "value with spaces".into()));
+        assert_eq!(run_to_exit(config).await, 0);
+        assert_eq!(
+            fs::read_to_string(root.path().join("environment")).unwrap(),
+            "value with spaces"
+        );
     }
 
     #[tokio::test]

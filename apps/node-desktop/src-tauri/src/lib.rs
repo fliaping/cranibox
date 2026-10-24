@@ -3,3 +3,4 @@ pub mod command_line;
 pub mod console;
 pub mod launch;
 pub mod notify;
+pub mod shell_server;

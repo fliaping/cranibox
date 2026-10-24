@@ -158,6 +158,7 @@ pub async fn run(
     mut allow_hosts: Vec<String>,
     relay: RelayFlags,
 ) -> Result<()> {
+    let shell = super::http_shell::HttpShell::from_env()?;
     // Register for SIGTERM before starting services: a stop request that arrives while
     // the node restores its networks must still run the cleanup below.
     let stop = CancellationToken::new();
@@ -191,7 +192,11 @@ pub async fn run(
     if let Err(error) = local.models().await {
         eprintln!("model service: {error:#}");
     }
-    let token = access_token(&peers)?;
+    let token = if shell.is_some() {
+        agent_workspace_runtime::config::token()
+    } else {
+        access_token(&peers)?
+    };
     let listener = match bind(listen).await {
         Ok(listener) => listener,
         Err(e) => {
@@ -253,7 +258,7 @@ pub async fn run(
         Options {
             token,
             allow_hosts,
-            shell: None,
+            shell,
             relay: relay.listen.is_none().then(|| embedded.clone()),
         },
         stop.clone(),
@@ -530,7 +535,17 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
             }
             page if is_page(page) => {
                 let token = query_token(&request);
-                return page_response(&state, &headers, &path, token).await;
+                // A terminal window signs in independently after a runtime restart.
+                let destination = if url::form_urlencoded::parse(
+                    request.uri().query().unwrap_or_default().as_bytes(),
+                )
+                .any(|(key, value)| key == "window" && value == "terminal")
+                {
+                    format!("{path}?window=terminal")
+                } else {
+                    path.clone()
+                };
+                return page_response(&state, &headers, &destination, token).await;
             }
             _ => {}
         }
@@ -711,6 +726,90 @@ fn sign_in_required(status: StatusCode) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn desktop_client_uses_sessions_csrf_and_terminal_sign_in() {
+        let root = tempfile::tempdir().unwrap();
+        let peers = root.path().join("peers.json");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let token = "a".repeat(64);
+        let sessions = Arc::new(Sessions {
+            cookie: "desktop_test".into(),
+            map: Mutex::default(),
+        });
+        let (_closing, closed) = watch::channel(false);
+        let state = State {
+            services: Services::new(None, peers.clone(), sessions.clone(), closed),
+            sessions,
+            token: Arc::new(token.clone()),
+            hosts: Arc::new(HashSet::from([address.to_string()])),
+            origins: Arc::new(HashSet::from([format!("http://{address}")])),
+            node: "test".into(),
+            peers: peers.clone(),
+            shell: None,
+            gateway: Arc::default(),
+        };
+        let stop = CancellationToken::new();
+        let stopped = stop.clone();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(state))
+                .with_graceful_shutdown(stopped.cancelled_owned())
+                .await
+                .unwrap();
+        });
+        let sign_in = sign_in_url(address, &token);
+        let interface = super::super::http_shell::LocalInterface::connect(&sign_in)
+            .await
+            .unwrap();
+        let identity = interface
+            .request("POST", "/api/peers", json!({"operation":"identity"}))
+            .await
+            .unwrap();
+        assert!(
+            identity["node_id"].is_string(),
+            "Cookie and CSRF authenticate the existing API"
+        );
+        // This fixture has no LocalNode: reaching dispatch proves the App API accepted the session.
+        let error = interface
+            .request("GET", "/api/v1/app/approvals", Value::Null)
+            .await
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("Local device service unavailable")
+        );
+        let _ = interface
+            .request(
+                "POST",
+                "/api/peers",
+                json!({
+                    "operation":"computer_owner", "command":{"action":"emergency_stop"}
+                }),
+            )
+            .await;
+        assert!(
+            crate::peer::config::Config::read(&peers)
+                .unwrap()
+                .computer_paused,
+            "Emergency stop reaches the existing owner API and persists its fence"
+        );
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let login = client
+            .get(format!("{sign_in}&window=terminal"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(login.status(), StatusCode::SEE_OTHER);
+        assert_eq!(login.headers()["location"], "/?window=terminal");
+        stop.cancel();
+        server.await.unwrap();
+    }
 
     #[tokio::test]
     async fn sign_in_link_session_and_browser_guards() {

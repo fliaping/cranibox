@@ -1,5 +1,6 @@
 //! Remote self-update: npm download, versioned runtime directories and rollback.
 pub mod cli;
+pub mod duo;
 pub mod launcher;
 pub mod layout;
 pub mod manager;

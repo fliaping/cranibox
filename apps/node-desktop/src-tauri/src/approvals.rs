@@ -20,11 +20,10 @@ pub fn decide(app: &tauri::AppHandle, id: String, decision: String) {
     let handle = app.clone();
     let state = app.state::<Arc<AppState>>().inner().clone();
     tauri::async_runtime::spawn(async move {
-        let local = state.service.lock().await.local.clone();
         // Never trust a stale tray item or notification: the service rechecks
         // the current queue, expiration and offered actions before release.
-        if cranibox_node::app::dispatch(
-            local,
+        if crate::managed::dispatch(
+            &state,
             "POST",
             &format!("/approvals/{id}"),
             json!({"decision":decision}),

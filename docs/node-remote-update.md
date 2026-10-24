@@ -151,20 +151,29 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 
 ## 实现状态（2026-10-24）
 
-第一阶段的单进程版本已实现并用真实二进制验证（`tests/test_runtime_update.py`，Linux）：
+已实现并在 Linux 上验证：
 
-- `cranibox update adopt`：把当前程序安装为第一个受管版本。
-- `cranibox update launch`：启动器，设备的开机项应当运行它；按指针启动节点，崩溃退避重启，
-  新版本未确认或崩溃循环则本地回滚，不依赖网络。处理 SIGTERM / Ctrl-C。
-- `cranibox update status|apply|rollback [--node ID ...] [--all]`：本机直接执行；远程经 mesh 的端到端通道。
-- mesh 接口：`GET/POST /api/v1/nodes/{node}/update`、`GET …/update/{id}`、`POST …/update/rollback`。
-  仅限已核对配对码的 roster 成员，且必须走端到端加密通道（不新增 grant 权限位）。
-- 节点启动后稳定运行 20 秒才向受管指针确认；更新激活后以退出码 75 请求启动器重启。
+- **运行时与回滚：** `cranibox update adopt|launch|status|apply|rollback`。启动器按指针启动节点，崩溃退避重启，
+  新版本未确认或崩溃循环则本地回滚，不依赖网络；处理 SIGTERM / Ctrl-C。节点稳定运行 20 秒后才确认，
+  激活后以退出码 75 请求重启。真实二进制端到端测试：`tests/test_runtime_update.py`
+  （接管、启动、经 npm `dev` 标签更新并重启、起不来的版本自动回滚、失败版本不再重试）。
+- **远程更新：** mesh 接口 `GET/POST /api/v1/nodes/{node}/update`、`GET …/update/{id}`、`POST …/update/rollback`，
+  仅限已核对配对码的 roster 成员且必须走端到端加密通道。两节点集成测试
+  `peer/server/multi_node_update.rs`：owner 设备经真实 Noise 通道更新并回滚另一节点，roster 之外的对端被拒绝。
+- **分发：** npm 是唯一渠道。CI 在三个平台构建独立的 `cranibox`，主干推送发布 `x.y.z-dev.N` 到 `dev` 标签，
+  打 tag 发布正式版（`docs/distribution.md`）。
+- **互相拉起协议：** `update/duo.rs` 实现底座与上层互相监督、互相更新、超时回滚、崩溃循环回滚及全部不变量，
+  含按角色独立的版本指针；有模拟进程的测试和一个 Linux 真实分离进程测试。
+- **桌面外壳的受管模式：** 设备已 `adopt` 时，桌面应用只做外壳（托盘、窗口、自启），内嵌启动器运行受管版本，
+  窗口加载其本地界面，原生操作经带令牌的回环通道回调外壳；未 `adopt` 的设备行为与以前完全相同。
 
-尚未实现：底座 / 上层拆分与互相拉起；桌面外壳（Tauri）启动受管运行时；远程更新的两节点集成测试；
-macOS、Windows 上的端到端测试。npm 平台包发布流水线已补齐，首次发布需完成[分发配置](distribution.md)。
+尚未实现 / 尚未验证：
 
-本阶段的整体更新会重启整个节点，终端和桌面会话会中断。
+- **底座 / 上层的进程拆分。** `duo.rs` 是协议部分，尚未接到真实节点上；节点仍是单进程，
+  所以整体更新会重启整个节点，终端和桌面会话会中断。拆分的范围与未知项见 [node-base-layer-split.md](node-base-layer-split.md)。
+- **真机验证：** macOS、Windows 上的端到端，桌面外壳受管模式的实际 GUI 行为，macOS 上子进程与 TCC 授权的归属，
+  Smart App Control 开启的 Windows，首次 npm 发布和 `dev` 通道的真实 Actions 运行。
+- 桌面外壳的托盘“紧急停止”在受管模式下走既有的 `/api/peers` 接口，未在真机验证。
 
 ## 分期
 

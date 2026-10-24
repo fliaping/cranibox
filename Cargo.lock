@@ -1380,6 +1380,7 @@ dependencies = [
  "agent-workspace-runtime",
  "anyhow",
  "async-trait",
+ "axum",
  "base64 0.22.1",
  "cranibox-node",
  "serde",

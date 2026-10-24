@@ -2,6 +2,7 @@
 //! The desktop app is the node core plus a window, tray and system integration. Its
 //! window shows the same loopback web interface that the CLI node serves.
 mod approvals;
+mod managed;
 
 use cranibox_node::{
     settings,
@@ -23,6 +24,8 @@ use tauri_plugin_autostart::ManagerExt;
 #[derive(Default)]
 struct Service {
     local: Option<Arc<cranibox_node::local::LocalNode>>,
+    managed: bool,
+    interface: Option<Arc<cranibox_node::web::http_shell::LocalInterface>>,
     /// Sign-in link of this window's interface server.
     url: Option<String>,
     error: Option<String>,
@@ -31,6 +34,7 @@ struct AppState {
     service: tokio::sync::Mutex<Service>,
     stop: tokio_util::sync::CancellationToken,
     quitting: AtomicBool,
+    managed_task: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 fn show(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -104,6 +108,9 @@ async fn stop_app(state: &AppState) -> bool {
         return false;
     }
     state.stop.cancel();
+    if let Some(task) = state.managed_task.lock().await.take() {
+        let _ = task.await;
+    }
     if let Some(local) = state.service.lock().await.local.take() {
         let _ = local.shutdown().await;
     }
@@ -268,6 +275,7 @@ fn main() -> anyhow::Result<()> {
         service: Default::default(),
         stop: Default::default(),
         quitting: AtomicBool::new(false),
+        managed_task: Default::default(),
     });
     let setup_state = state.clone();
     let app = tauri::Builder::default()
@@ -315,9 +323,21 @@ fn main() -> anyhow::Result<()> {
                     "pause-screen" => {
                         let state = app.state::<Arc<AppState>>().inner().clone();
                         tauri::async_runtime::spawn(async move {
-                            let local = state.service.lock().await.local.clone();
-                            if let Some(local) = local {
-                                let _ = local.manage_peers(agent_workspace_runtime::peers::Command::ComputerOwner { command: agent_workspace_runtime::peers::computer::OwnerCommand::EmergencyStop {} }).await;
+                            let (managed, interface, local) = {
+                                let service = state.service.lock().await;
+                                (service.managed, service.interface.clone(), service.local.clone())
+                            };
+                            let command = agent_workspace_runtime::peers::Command::ComputerOwner { command: agent_workspace_runtime::peers::computer::OwnerCommand::EmergencyStop {} };
+                            if managed {
+                                if let Some(interface) = interface {
+                                    let result = interface.request("POST", "/api/peers", json!({
+                                        "operation": "computer_owner",
+                                        "command": {"action": "emergency_stop"},
+                                    })).await;
+                                    if let Err(error) = result { eprintln!("Emergency stop: {error:#}"); }
+                                } else { eprintln!("Emergency stop: runtime interface unavailable"); }
+                            } else if let Some(local) = local {
+                                let _ = local.manage_peers(command).await;
                             }
                         });
                     }
@@ -340,6 +360,21 @@ fn main() -> anyhow::Result<()> {
                 state: setup_state.clone(),
             });
             let url = tauri::async_runtime::block_on(async {
+                let root = cranibox_node::update::runtime_root(path.parent().unwrap_or(&path));
+                let adopted = match managed::adopted(&root) {
+                    Ok(adopted) => adopted,
+                    Err(error) => {
+                        setup_state.service.lock().await.error = Some(format!("Read runtime pointer: {error:#}"));
+                        return None;
+                    }
+                };
+                if adopted {
+                    setup_state.service.lock().await.managed = true;
+                    if let Err(error) = managed::start(handle.clone(), setup_state.clone(), path.clone(), root, shell).await {
+                        setup_state.service.lock().await.error = Some(format!("Start runtime: {error:#}"));
+                    }
+                    return None;
+                }
                 let mut service = setup_state.service.lock().await;
                 let local = match cranibox_node::local::LocalNode::start(
                     cranibox_node::peer::config::path_for(&path),
@@ -384,7 +419,11 @@ fn main() -> anyhow::Result<()> {
             {
                 window.navigate(url::Url::parse(url)?)?;
             }
-            if !background || url.is_none() {
+            let managed_starting = tauri::async_runtime::block_on(async {
+                let service = setup_state.service.lock().await;
+                service.managed && service.error.is_none()
+            });
+            if !background || (url.is_none() && !managed_starting) {
                 show(app.handle());
             }
             let status_state = setup_state.clone();
@@ -393,16 +432,26 @@ fn main() -> anyhow::Result<()> {
                 let mut seen = std::collections::BTreeSet::new();
                 let mut previous_cards = Value::Null;
                 loop {
-                    let (status, local) = {
+                    let (status, managed, interface) = {
                         let service = status_state.service.lock().await;
-                        let status = if service.local.is_some() {
+                        let status = if service.local.is_some() || service.interface.is_some() {
                             "本机服务运行中 / Running"
                         } else {
                             "本机服务不可用 / Unavailable"
                         };
-                        (status, service.local.clone())
+                        (status, service.managed, service.interface.clone())
                     };
-                    let cards = cranibox_node::app::dispatch(local, "GET", "/approvals", Value::Null).await.ok();
+                    let cards = managed::dispatch(&status_state, "GET", "/approvals", Value::Null).await.ok();
+                    let status = if managed && cards.is_none() {
+                        let mut service = status_state.service.lock().await;
+                        if service.interface.as_ref().zip(interface.as_ref()).is_some_and(|(current, queried)| Arc::ptr_eq(current, queried)) {
+                            service.interface = None;
+                            service.url = None;
+                            service.error = Some("Runtime interface unavailable".into());
+                        }
+                        "本机服务不可用 / Unavailable"
+                    } else { status };
+                    let cards = if managed { Some(cards.unwrap_or_else(|| json!([]))) } else { cards };
                     let held = cards.as_ref().and_then(Value::as_array).map_or(0, |v| v.len() as u64);
                     if let Some(cards) = cards && cards != previous_cards
                         && approvals::refresh(&handle, &decisions, cards.as_array().map_or(&[], Vec::as_slice), &mut seen).is_ok() {
@@ -417,7 +466,10 @@ fn main() -> anyhow::Result<()> {
                     }
                     let _ = status_item.set_text(status);
                     let _ = held_menu.set_text(cranibox_node_desktop::notify::menu_label(held));
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    tokio::select! {
+                        _ = status_state.stop.cancelled() => break,
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {},
+                    }
                 }
             });
             Ok(())
