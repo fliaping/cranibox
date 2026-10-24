@@ -92,6 +92,8 @@ class RuntimeUpdate(unittest.TestCase):
         shutil.copy(BIN, self.exe)
         if not WIN and self.exe.stat().st_size > 100_000_000 and shutil.which("strip"):
             subprocess.run(["strip", str(self.exe)], check=False)  # debug builds are huge
+            if sys.platform == "darwin":  # stripping invalidates the signature arm64 requires
+                subprocess.run(["codesign", "-s", "-", "-f", str(self.exe)], check=True)
         self.exe_bytes = self.exe.read_bytes()
         self.base = subprocess.run([str(self.exe), "--version"], capture_output=True, text=True).stdout.split()[1]
         self.registry = Registry(f"@fliaping/cranibox-{platform_suffix()}")

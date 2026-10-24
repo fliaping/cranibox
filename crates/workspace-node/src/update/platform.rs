@@ -84,14 +84,17 @@ fn parse_sac_state(output: &str) -> Option<u32> {
 #[cfg(any(windows, test))]
 fn sac_blockers(state: Option<u32>) -> Vec<String> {
     match state {
-        Some(0) => Vec::new(),
         Some(state @ (1 | 2)) => vec![format!(
             "Windows Smart App Control is {}; the unsigned runtime would be silently blocked and a signed build is needed",
-            if state == 1 { "on" } else { "in evaluation mode" }
+            if state == 1 {
+                "on"
+            } else {
+                "in evaluation mode"
+            }
         )],
-        _ => vec![
-            "unable to determine Windows Smart App Control state; cannot verify that an unsigned runtime is allowed".into(),
-        ],
+        // Off (0), or no policy value at all: Windows 10 and Windows Server do not have
+        // Smart App Control, so there is nothing that could block an unsigned runtime.
+        _ => Vec::new(),
     }
 }
 
@@ -172,8 +175,9 @@ mod tests {
             assert!(reasons[0].contains("silently blocked"));
             assert!(reasons[0].contains("signed build is needed"));
         }
-        assert!(!sac_blockers(None).is_empty());
-        assert!(!sac_blockers(Some(3)).is_empty());
+        // No policy value: the system has no Smart App Control (Windows 10, Windows Server).
+        assert!(sac_blockers(None).is_empty());
+        assert!(sac_blockers(Some(3)).is_empty());
     }
 
     #[cfg(not(target_os = "macos"))]

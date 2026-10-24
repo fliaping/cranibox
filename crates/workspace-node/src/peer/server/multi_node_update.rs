@@ -22,6 +22,15 @@ const TEST: &str = "peer::server::multi_node_update::owner_updates_and_rolls_bac
 const CHILD_ROOT: &str = "CRANIBOX_UPDATE_TEST_ROOT";
 const SCRIPT: &[u8] = b"#!/bin/sh\n# runtime 1.0.1\nexit 0\n";
 
+/// The runtime payload. macOS refuses unsigned code (`platform::verify_runtime` runs
+/// `codesign --verify`), so there a copy of a signed system binary stands in for the script.
+fn payload() -> Vec<u8> {
+    #[cfg(target_os = "macos")]
+    return fs::read("/usr/bin/true").unwrap();
+    #[cfg(not(target_os = "macos"))]
+    SCRIPT.to_vec()
+}
+
 fn tarball(package: &str) -> Vec<u8> {
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut archive = tar::Builder::new(gzip);
@@ -30,7 +39,7 @@ fn tarball(package: &str) -> Vec<u8> {
     }))
     .unwrap();
     for (path, bytes, mode) in [
-        ("package/bin/cranibox", SCRIPT, 0o755),
+        ("package/bin/cranibox", payload().as_slice(), 0o755),
         ("package/package.json", manifest.as_slice(), 0o644),
     ] {
         let mut header = tar::Header::new_gnu();
@@ -199,7 +208,7 @@ async fn exercise_nodes(root: &FsPath) {
     let stage = layout.begin_stage(&old).unwrap();
     fs::create_dir(stage.join("bin")).unwrap();
     let exe = stage.join(npm::executable_relative_path());
-    fs::write(&exe, b"#!/bin/sh\n# runtime 1.0.0\nexit 0\n").unwrap();
+    fs::write(&exe, payload()).unwrap();
     crate::update::platform::verify_runtime(&exe).unwrap();
     layout.commit_stage(&old).unwrap();
     layout.activate(&old).unwrap();
@@ -307,7 +316,7 @@ async fn exercise_nodes(root: &FsPath) {
     let installed = layout.version_dir(&Version::parse("1.0.1").unwrap());
     assert!(installed.is_dir());
     let exe = installed.join(npm::executable_relative_path());
-    assert_eq!(fs::read(&exe).unwrap(), SCRIPT);
+    assert_eq!(fs::read(&exe).unwrap(), payload());
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

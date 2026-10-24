@@ -472,34 +472,14 @@ fn replace_pointer(temporary: tempfile::NamedTempFile, destination: &Path) -> Re
 
 #[cfg(windows)]
 fn replace_pointer(temporary: tempfile::NamedTempFile, destination: &Path) -> Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
-    }
-    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
-    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
-
     // Keep clears tempfile's temporary attribute and closes its handle before replacement.
+    // `MoveFileExW(REPLACE_EXISTING)` fails with "access denied" while any process has the
+    // old pointer open, which the launcher and status commands routinely do. The standard
+    // library renames with POSIX semantics (replacing a file other handles keep open), and
+    // the temporary file was synced before it was handed over.
     let source = temporary.into_temp_path().keep()?;
-    let source_wide: Vec<_> = source.as_os_str().encode_wide().chain(Some(0)).collect();
-    let destination_wide: Vec<_> = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-    // SAFETY: Both paths are live, NUL-terminated UTF-16, and rename stays in one directory.
-    let replaced = unsafe {
-        MoveFileExW(
-            source_wide.as_ptr(),
-            destination_wide.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if replaced == 0 {
-        let error = std::io::Error::last_os_error();
-        let _ = fs::remove_file(source);
+    if let Err(error) = fs::rename(&source, destination) {
+        let _ = fs::remove_file(&source);
         return Err(error).context("replace current.json");
     }
     Ok(())
