@@ -3,6 +3,7 @@
 pub mod app_api;
 pub mod desktop;
 pub mod desktop_page;
+pub mod endpoint;
 mod novnc_files;
 pub mod relay;
 pub mod standalone;

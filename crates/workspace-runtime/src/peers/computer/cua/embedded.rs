@@ -166,7 +166,10 @@ pub async fn start_daemon(program: &Path) -> Result<()> {
         .context("start the embedded cua-driver")?;
     *DAEMON.lock().unwrap() = Some(child);
     for _ in 0..40 {
-        if socket.exists() {
+        // A stale socket file is not a live daemon. Do not claim it is running
+        // when startup failed before accepting connections.
+        #[cfg(unix)]
+        if daemon_running() && tokio::net::UnixStream::connect(&socket).await.is_ok() {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -181,9 +184,14 @@ pub fn stop_daemon() {
     }
 }
 
-/// This app's own grants: the driver inherits them.
-pub fn permissions() -> (Option<bool>, Option<bool>) {
-    tcc::grants()
+/// Report the process that actually captures and sends input. A host's cached
+/// preflight result is not evidence that a running child has received new grants.
+pub async fn permissions(program: &Path) -> Option<(Option<bool>, Option<bool>)> {
+    if daemon_running() {
+        super::embedded_permissions(program, &mcp_args()?).await
+    } else {
+        Some(tcc::grants())
+    }
 }
 /// Ask macOS for both grants on behalf of this app.
 pub fn request_permissions() {
