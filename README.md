@@ -25,12 +25,12 @@ Cranibox 把你的电脑、服务器和容器连成一张属于你自己的设�
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest) 下载；国内下载入口为 [GitCode 发行版](https://gitcode.com/fliaping0/agent-workspace/releases)（首次启用产物发布后提供同版本安装包）：
+从 [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest) 下载桌面安装包或独立 CLI；节点运行时通过 npm 分发和更新：
 
 | 形态 | 文件 | 适合 |
 |------|------|------|
 | 桌面客户端 | macOS `.dmg`、Windows `.exe`、Linux `.deb` / `.AppImage` | 日常使用的电脑：托盘常驻、登录自启动、独立终端窗口；同时就是 `cranibox` 命令 |
-| 命令行版 | `cranibox-linux-x86_64` | Linux 服务器、NAS、无桌面环境：同一套界面经浏览器访问，可兼作 relay |
+| 命令行版 | `cranibox-macos-arm64`、`cranibox-linux-x86_64`、`cranibox-windows-x86_64.exe` | 无 GUI 的节点运行时：同一套界面经浏览器访问，可兼作 relay |
 | 工作区镜像 | `xuping/agent-workspace:ubuntu-xfce` 等 | 给 Agent 一台带桌面、浏览器和开发环境的 Linux 电脑，见[部署工作区镜像](#部署工作区镜像) |
 
 文件校验值见同一 Release 中的 `SHA256SUMS`。
@@ -50,6 +50,7 @@ cranibox --version
 
 npm 包名为 `@fliaping/cranibox`；镜像同步可能晚于发布。
 平台支持 macOS Apple Silicon、Windows x64 和 glibc Linux x64；其他平台暂不包含在 npm 包中。
+受管设备可直接执行 `cranibox update apply latest`（正式）、`next`（预发布）或 `dev`（main 开发构建），无需 Node.js / npm。
 安装说明、首次配置、发布与重试流程见[客户端分发](docs/distribution.md)。
 
 命令行用法：

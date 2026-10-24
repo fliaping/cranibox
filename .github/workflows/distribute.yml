@@ -6,9 +6,6 @@ on:
       tag:
         type: string
         required: true
-      gitcode:
-        type: boolean
-        default: true
       npm:
         type: boolean
         default: true
@@ -16,10 +13,6 @@ on:
         type: boolean
         default: false
     secrets:
-      GITCODE_TOKEN:
-        required: false
-      GITCODE_SSH_PRIVATE_KEY:
-        required: false
       NPM_TOKEN:
         required: false
   workflow_dispatch:
@@ -28,10 +21,6 @@ on:
         description: 'Existing GitHub release tag (must include the distribution tooling)'
         type: string
         required: true
-      gitcode:
-        description: 'Publish GitCode release attachments'
-        type: boolean
-        default: true
       npm:
         description: 'Publish npm CLI packages'
         type: boolean
@@ -69,12 +58,12 @@ jobs:
         run: |
           python -c 'import os, sys; sys.path.insert(0, "scripts/release"); from release_common import check_versions; check_versions(os.environ["RELEASE_TAG"])'
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
-      - name: Download existing release and notes
+      - name: Download existing release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,body > release-metadata.json
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease > release-metadata.json
           python - <<'PY'
           import json, os
           from pathlib import Path
@@ -82,7 +71,6 @@ jobs:
           tag = os.environ["RELEASE_TAG"]
           assert metadata["tagName"] == tag and not metadata["isDraft"], "Expected a published GitHub release"
           assert metadata["isPrerelease"] == ("-" in tag), "Use a prerelease tag (e.g. v1.2.0-beta.1) for prereleases"
-          Path("release-notes.md").write_text(metadata["body"] or "")
           PY
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir release-assets
       - name: Verify checksums and prepare npm packages
@@ -97,62 +85,10 @@ jobs:
           name: cranibox-distribution-${{ inputs.tag }}
           path: |
             release-assets/
-            release-notes.md
             release-metadata.json
             dist/npm/
           if-no-files-found: error
           retention-days: 14
-
-  gitcode:
-    if: inputs.gitcode
-    needs: prepare
-    runs-on: ubuntu-latest
-    environment: gitcode
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@v4
-        with:
-          name: cranibox-distribution-${{ inputs.tag }}
-          path: prepared
-      - name: Synchronize the exact release tag before uploading
-        if: ${{ !inputs.dry_run }}
-        env:
-          GITCODE_REPOSITORY: ${{ vars.CRANIBOX_GITCODE_REPOSITORY || 'fliaping0/agent-workspace' }}
-          GITCODE_SSH_PRIVATE_KEY: ${{ secrets.GITCODE_SSH_PRIVATE_KEY }}
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          test -n "$GITCODE_TOKEN" || { echo 'Configure GITCODE_TOKEN in the gitcode environment.'; exit 1; }
-          test -n "$GITCODE_SSH_PRIVATE_KEY" || { echo 'Configure GITCODE_SSH_PRIVATE_KEY in the gitcode environment.'; exit 1; }
-          python -c 'import os, re; assert re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", os.environ["GITCODE_REPOSITORY"]), "Invalid GitCode repository"'
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$GITCODE_SSH_PRIVATE_KEY" > ~/.ssh/cranibox_gitcode
-          chmod 600 ~/.ssh/cranibox_gitcode
-          ssh-keyscan gitcode.com >> ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND='ssh -i ~/.ssh/cranibox_gitcode -o IdentitiesOnly=yes'
-          git push "git@gitcode.com:$GITCODE_REPOSITORY.git" "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-      - name: Upload and verify public downloads
-        env:
-          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
-          GITCODE_REPOSITORY: ${{ vars.CRANIBOX_GITCODE_REPOSITORY || 'fliaping0/agent-workspace' }}
-          RELEASE_TAG: ${{ inputs.tag }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          args=()
-          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
-          if python -c 'import json; import sys; sys.exit(not json.load(open("prepared/release-metadata.json"))["isPrerelease"])'; then args+=(--prerelease); fi
-          python scripts/release/publish-gitcode.py --repository "$GITCODE_REPOSITORY" --tag "$RELEASE_TAG" --assets prepared/release-assets --notes-file prepared/release-notes.md "${args[@]}"
-      - name: Remove temporary SSH key
-        if: always()
-        run: rm -f ~/.ssh/cranibox_gitcode
 
   npm:
     if: inputs.npm

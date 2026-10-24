@@ -117,10 +117,8 @@ jobs:
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security find-identity -v -p codesigning "$keychain"
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-      # Linux servers have no desktop libraries, so they take the command line alone;
-      # elsewhere the app is the `cranibox` command. It is built first because the app
-      # bundle renames its own binary to target/release/cranibox; both share this job's
-      # compiled dependencies.
+      # npm ships the standalone node on every platform. Build and copy it first:
+      # the app bundle renames its own binary to target/release/cranibox[.exe].
       - name: Build the Linux command line
         if: runner.os == 'Linux'
         run: |
@@ -128,6 +126,22 @@ jobs:
           mkdir -p "$RUNNER_TEMP/cli"
           cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-linux-x86_64"
           "$RUNNER_TEMP/cli/cranibox-linux-x86_64" --version
+      - name: Build the macOS command line
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cargo build --release --locked -p cranibox --no-default-features
+          mkdir -p "$RUNNER_TEMP/cli"
+          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-macos-arm64"
+          "$RUNNER_TEMP/cli/cranibox-macos-arm64" --version
+      - name: Build the Windows command line
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo build --release --locked -p cranibox --no-default-features
+          mkdir -p "$RUNNER_TEMP/cli"
+          cp target/release/cranibox.exe "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe"
+          "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe" --version
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
         env:
@@ -202,6 +216,20 @@ jobs:
         with:
           name: cranibox-cli-linux
           path: ${{ runner.temp }}/cli/cranibox-linux-x86_64
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'macOS'
+        with:
+          name: cranibox-cli-macos
+          path: ${{ runner.temp }}/cli/cranibox-macos-arm64
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Windows'
+        with:
+          name: cranibox-cli-windows
+          path: ${{ runner.temp }}/cli/cranibox-windows-x86_64.exe
           retention-days: 14
           if-no-files-found: error
   native:
@@ -381,18 +409,8 @@ jobs:
         with:
           path: dist
           pattern: cranibox-*
-      - name: Collect installers and the Linux command line
-        run: |
-          set -euo pipefail
-          mkdir -p release
-          # On Windows, macOS and Linux desktops the app is also the cranibox command.
-          find dist -path 'dist/cranibox-desktop-*' -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} release/ \;
-          cp dist/cranibox-cli-linux/cranibox-linux-x86_64 release/
-          chmod +x release/cranibox-linux-x86_64
-          cp LICENSE release/LICENSE
-          for notice in docs/licenses/*.txt; do cp "$notice" "release/$(basename "$notice")"; done
-          (cd release && sha256sum -- * > SHA256SUMS)
-          ls -l release
+      - name: Collect installers and all three command lines
+        run: python scripts/release/collect-assets.py --artifacts dist --output release --installers
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -401,8 +419,8 @@ jobs:
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then args+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "Cranibox $GITHUB_REF_NAME" --generate-notes --verify-tag "${args[@]}"
   distribute:
-    name: GitCode and npm distribution
-    if: startsWith(github.ref, 'refs/tags/v') && (vars.CRANIBOX_PUBLISH_GITCODE == 'true' || vars.CRANIBOX_PUBLISH_NPM == 'true')
+    name: npm distribution
+    if: startsWith(github.ref, 'refs/tags/v') && vars.CRANIBOX_PUBLISH_NPM == 'true'
     needs: release
     permissions:
       contents: read
@@ -410,6 +428,51 @@ jobs:
     uses: ./.github/workflows/distribute.yml
     with:
       tag: ${{ github.ref_name }}
-      gitcode: ${{ vars.CRANIBOX_PUBLISH_GITCODE == 'true' }}
       npm: ${{ vars.CRANIBOX_PUBLISH_NPM == 'true' }}
     secrets: inherit
+  publish-dev:
+    name: Publish npm dev channel
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CRANIBOX_PUBLISH_NPM == 'true'
+    needs: [desktop, native, wayland, distribution-tests]
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: cranibox-cli-*
+          path: dist/artifacts
+      - name: Collect standalone runtimes and verify npm packages
+        env:
+          NPM_PACKAGE_NAME: ${{ vars.CRANIBOX_NPM_PACKAGE || '@fliaping/cranibox' }}
+        run: |
+          set -euo pipefail
+          python scripts/release/collect-assets.py --artifacts dist/artifacts --output dist/assets
+          version=$(python -c 'import os, tomllib; from pathlib import Path; version = tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"]; print(version + "-dev." + os.environ["GITHUB_RUN_NUMBER"])')
+          python scripts/release/build-npm.py --version "$version" --assets dist/assets --output dist/npm --package-name "$NPM_PACKAGE_NAME"
+          python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev --dry-run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cranibox-distribution-dev-${{ github.run_number }}
+          overwrite: true
+          path: |
+            dist/assets/
+            dist/npm/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish platform packages before the CLI to dev
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev

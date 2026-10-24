@@ -11,18 +11,23 @@ PLATFORMS = {
     "linux-x64-gnu": ("cranibox-linux-x86_64", "linux", "x64"),
     "win32-x64": ("cranibox-windows-x86_64.exe", "win32", "x64"),
 }
-VERSION_RE = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
+VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
 
 
-def version_for_tag(tag):
-    if not tag.startswith("v") or not VERSION_RE.fullmatch(tag[1:]):
-        raise ValueError("Expected a release tag like v1.1.0 or v1.2.0-beta.1 (no build metadata).")
-    version = tag[1:]
+def validate_version(version):
+    if not VERSION_RE.fullmatch(version):
+        raise ValueError("Expected a semver like 1.1.0 or 1.2.0-beta.1 (no build metadata).")
     if "-" in version:
         for part in version.split("-", 1)[1].split("."):
             if part.isdigit() and len(part) > 1 and part.startswith("0"):
                 raise ValueError("Numeric prerelease identifiers cannot have leading zeros.")
     return version
+
+
+def version_for_tag(tag):
+    if not tag.startswith("v"):
+        raise ValueError("Expected a release tag like v1.1.0 or v1.2.0-beta.1 (no build metadata).")
+    return validate_version(tag[1:])
 
 
 def check_versions(tag, root=ROOT):

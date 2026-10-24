@@ -25,7 +25,7 @@ def existing_integrity(name, version):
         raise RuntimeError(f"Could not reach npm registry for {name}.") from None
 
 
-def publish(directory, dry_run=False):
+def publish(directory, dry_run=False, dist_tag=None):
     directory = directory.resolve()
     plan = json.loads((directory / "publish-plan.json").read_text())
     npm = "npm.cmd" if __import__("os").name == "nt" else "npm"
@@ -52,7 +52,7 @@ def publish(directory, dry_run=False):
                 print(f"Already published and verified {name}@{version}", flush=True)
                 continue
         command = [npm, "publish", str(archive), "--access", "public", "--ignore-scripts",
-                   "--registry", REGISTRY, "--tag", "next" if "-" in version else "latest"]
+                   "--registry", REGISTRY, "--tag", dist_tag or ("next" if "-" in version else "latest")]
         command += ["--dry-run", "--offline"] if dry_run else ["--provenance"]
         subprocess.run(command, check=True)
 
@@ -61,9 +61,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--dist-tag", help="npm channel (default: latest for stable, next for prerelease). Use dev for CI builds.")
     args = parser.parse_args()
     try:
-        publish(args.directory, args.dry_run)
+        publish(args.directory, args.dry_run, args.dist_tag)
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"publish-npm: {error}\n")
 

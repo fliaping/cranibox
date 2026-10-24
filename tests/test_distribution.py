@@ -1,7 +1,6 @@
 """Offline package installation, process forwarding and resumable publication."""
 import base64
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import json
 import os
@@ -12,10 +11,8 @@ import subprocess
 import sys
 import tempfile
 import tarfile
-import threading
 import unittest
 from unittest.mock import patch
-from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
@@ -30,7 +27,7 @@ def load(name):
 
 
 builder = load("build-npm")
-publisher = load("publish-gitcode")
+collector = load("collect-assets")
 npm_publisher = load("publish-npm")
 
 
@@ -58,41 +55,26 @@ def checksums(directory):
         f"{sha256(file)}  {file.name}\n" for file in sorted(directory.iterdir()) if file.name != "SHA256SUMS"))
 
 
-class FakeGitCode:
-    def __init__(self):
-        self.value = None
-        self.files = {}
-        self.statuses = []
-        self.uploaded = []
-        self.fail_on = None
-
-    def release(self, tag):
-        if self.value is None:
-            return None
-        return {**self.value, "assets": [{"name": name} for name in self.files]}
-
-    def request(self, method, suffix, data):
-        self.statuses.append(data["release_status"])
-        self.value = {**(self.value or {}), **data}
-
-    def upload(self, tag, file):
-        if file.name == self.fail_on:
-            raise RuntimeError("interrupted upload")
-        self.files[file.name] = file.read_bytes()
-        self.uploaded.append(file.name)
-
-    def download_digest(self, tag, filename):
-        return hashlib.sha256(self.files[filename]).hexdigest()
-
-
 class DistributionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="cranibox packages ")
+        self.temporary = tempfile.TemporaryDirectory(prefix="cranibox packages ", dir=ROOT / "scripts/release")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.assets = fixtures(self.root / "assets")
         self.version = json.loads((ROOT / "npm/cli/package.json").read_text())["version"]
         self.tag = "v" + self.version
+
+    def npm_environment(self):
+        # Keep credentials, user configuration, caches and network out of fixtures.
+        environment = {key: os.environ[key] for key in
+                       ("PATH", "SystemRoot", "COMSPEC", "PATHEXT", "TMPDIR", "TEMP", "TMP") if key in os.environ}
+        for name in ("user.npmrc", "global.npmrc"):
+            (self.root / name).touch()
+        environment.update(npm_config_update_notifier="false", npm_config_offline="true",
+                           npm_config_cache=str(self.root / "cache"),
+                           npm_config_userconfig=str(self.root / "user.npmrc"),
+                           npm_config_globalconfig=str(self.root / "global.npmrc"))
+        return environment
 
     def test_checksum_manifest_rejects_changed_extra_and_unsafe_files(self):
         verified_assets(self.assets)
@@ -135,38 +117,97 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not empty"):
             builder.build(self.assets, output, self.tag)
 
-    def test_gitcode_interrupted_upload_resumes_and_promotes_only_when_complete(self):
-        client = FakeGitCode()
-        client.fail_on = "cranibox-linux-x86_64"
-        with self.assertRaisesRegex(RuntimeError, "interrupted"):
-            publisher.publish(client, self.tag, self.assets, "Release notes")
-        self.assertEqual(client.statuses, ["pre"])
-        uploaded_before_retry = list(client.uploaded)
-        client.fail_on = None
-        publisher.publish(client, self.tag, self.assets, "Release notes")
-        self.assertEqual(client.statuses, ["pre", "latest"])
-        self.assertEqual(len(client.uploaded), len(verified_assets(self.assets)))
-        self.assertEqual(client.uploaded[:len(uploaded_before_retry)], uploaded_before_retry)
+    def test_version_override_pins_every_package_and_skips_source_version_check(self):
+        output = self.root / "npm"
+        version = "99.2.3-dev.42"
+        plan = builder.build(self.assets, output, "v0.0.0", version=version)
+        self.assertEqual(len(plan), 4)
+        self.assertEqual(plan[-1], "cli")
+        for entry in plan:
+            manifest = json.loads((output / entry / "package.json").read_text())
+            self.assertEqual(manifest["version"], version)
+        self.assertEqual(manifest["optionalDependencies"],
+                         {f"@fliaping/cranibox-{target}": version for target in PLATFORMS})
 
-    def test_gitcode_does_not_overwrite_conflicting_public_attachment(self):
-        client = FakeGitCode()
-        client.value = {"tag_name": self.tag}
-        client.files["Cranibox installer.dmg"] = b"different existing release"
-        with self.assertRaisesRegex(ValueError, "refusing to overwrite"):
-            publisher.publish(client, self.tag, self.assets, "Notes")
-        self.assertEqual(client.uploaded, [])
-        self.assertEqual(client.statuses, [])
+    def test_version_override_rejects_bad_semver_and_build_metadata(self):
+        for version in ("", "v1.2.3", "1.2", "01.2.3", "1.2.3-dev.01", "1.2.3+build",
+                        "1.2.3-dev.1+build", "1.2.3-", "1.2.3-dev..1", "1.2.3;echo", "1.２.3"):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                builder.build(self.assets, self.root / "invalid", version=version)
+        self.assertFalse((self.root / "invalid").exists())
+        with self.assertRaisesRegex(ValueError, "Provide --tag or --version"):
+            builder.build(self.assets, self.root / "invalid")
 
-    def test_gitcode_download_failure_never_promotes_release(self):
-        client = FakeGitCode()
-        with patch.object(client, "download_digest", return_value="0" * 64):
-            with self.assertRaisesRegex(RuntimeError, "checksum"):
-                publisher.publish(client, self.tag, self.assets, "Notes")
-        self.assertEqual(client.statuses, ["pre"])
+    def test_build_command_accepts_version_without_tag(self):
+        output = self.root / "npm"
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/release/build-npm.py"),
+                                 "--assets", str(self.assets), "--output", str(output),
+                                 "--version", "99.0.0-dev.42"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((output / "cli/package.json").read_text())["version"], "99.0.0-dev.42")
+
+    def test_collect_cli_artifacts_with_installers_and_licenses(self):
+        artifacts = self.root / "artifacts"
+        # These names are the upload-artifact contract, including Windows .exe.
+        names = {"macos": "cranibox-macos-arm64", "linux": "cranibox-linux-x86_64",
+                 "windows": "cranibox-windows-x86_64.exe"}
+        for platform, filename in names.items():
+            directory = artifacts / f"cranibox-cli-{platform}"
+            directory.mkdir(parents=True)
+            shutil.copyfile(self.assets / filename, directory / filename)
+            (directory / filename).chmod(0o644)
+        desktop = artifacts / "cranibox-desktop-macos-latest/bundle/dmg"
+        desktop.mkdir(parents=True)
+        shutil.copyfile(self.assets / "Cranibox installer.dmg", desktop / "Cranibox installer.dmg")
+        for installers in (False, True):
+            with self.subTest(installers=installers):
+                output = self.root / f"collected-{installers}"
+                collector.collect(artifacts, output, installers=installers)
+                expected = set(names.values()) | {"LICENSE", "SHA256SUMS"}
+                expected.update(p.name for p in (ROOT / "docs/licenses").glob("*.txt"))
+                if installers:
+                    expected.add("Cranibox installer.dmg")
+                self.assertEqual({p.name for p in verified_assets(output)}, expected)
+                for platform, filename in names.items():
+                    self.assertEqual((output / filename).read_bytes(), (self.assets / filename).read_bytes())
+                    if os.name != "nt" and platform != "windows":
+                        self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
+                builder.build(output, self.root / f"npm-{installers}", version="99.0.0-dev.42")
+        (artifacts / "cranibox-cli-windows" / names["windows"]).unlink()
+        with self.assertRaisesRegex(ValueError, "Missing release asset.*cranibox-windows-x86_64.exe"):
+            collector.collect(artifacts, self.root / "missing")
+        self.assertFalse((self.root / "missing").exists())
+
+    def test_npm_dist_tags_and_publication_order(self):
+        for version, override, expected in (("99.0.0", None, "latest"),
+                                            ("99.0.0-beta.1", None, "next"),
+                                            ("99.0.0-dev.42", "dev", "dev")):
+            with self.subTest(version=version):
+                output = self.root / version
+                plan = builder.build(self.assets, output, version=version)
+                commands = []
+
+                def run(command, **kwargs):
+                    commands.append(command)
+                    if command[1] == "pack":
+                        name = Path(kwargs["cwd"]).name + ".tgz"
+                        (output / name).write_bytes(b"packed data")
+                        return subprocess.CompletedProcess(command, 0, json.dumps([{"filename": name}]))
+                    return subprocess.CompletedProcess(command, 0)
+
+                with patch.object(npm_publisher.subprocess, "run", side_effect=run), \
+                        patch.object(npm_publisher, "existing_integrity", return_value=None):
+                    npm_publisher.publish(output, dist_tag=override)
+                publications = [command for command in commands if command[1] == "publish"]
+                self.assertEqual([Path(command[2]).stem for command in publications], plan)
+                self.assertEqual(len(publications), 4)
+                for command in publications:
+                    self.assertEqual(command[command.index("--tag") + 1], expected)
+                    self.assertIn("--provenance", command)
 
     def test_npm_retry_verifies_identical_tarball_instead_of_overwriting(self):
         output = self.root / "npm"
-        builder.build(self.assets, output, self.tag)
+        builder.build(self.assets, output, version="99.0.0-dev.42")
         commands = []
 
         def run(command, **kwargs):
@@ -177,20 +218,18 @@ class DistributionTests(unittest.TestCase):
 
         integrity = "sha512-" + base64.b64encode(hashlib.sha512(b"deterministic packed data").digest()).decode()
         with patch.object(npm_publisher.subprocess, "run", side_effect=run), patch.object(npm_publisher, "existing_integrity", return_value=integrity):
-            npm_publisher.publish(output)
+            npm_publisher.publish(output, dist_tag="dev")
         self.assertTrue(all(command[1] == "pack" for command in commands))
         with patch.object(npm_publisher.subprocess, "run", side_effect=run), patch.object(npm_publisher, "existing_integrity", return_value="sha512-different"):
             with self.assertRaisesRegex(ValueError, "different contents"):
-                npm_publisher.publish(output)
+                npm_publisher.publish(output, dist_tag="dev")
 
     @unittest.skipUnless(shutil.which("npm"), "requires npm")
     def test_real_npm_dry_run_is_offline_and_reproducible_after_artifact_download(self):
         output = self.root / "npm"
-        plan = builder.build(self.assets, output, self.tag)
-        env = {**os.environ, "npm_config_update_notifier": "false", "npm_config_cache": str(self.root / "cache"),
-               "npm_config_userconfig": str(self.root / "empty.npmrc")}
-        (self.root / "empty.npmrc").touch()
-        command = [sys.executable, str(ROOT / "scripts/release/publish-npm.py"), "--directory", str(output), "--dry-run"]
+        plan = builder.build(self.assets, output, version="99.0.0-dev.42")
+        env = self.npm_environment()
+        command = [sys.executable, str(ROOT / "scripts/release/publish-npm.py"), "--directory", str(output), "--dist-tag", "dev", "--dry-run"]
         for attempt in range(2):
             if attempt:
                 for entry in plan:
@@ -230,10 +269,8 @@ if (process.argv[2] === '--wait') {
   console.log(JSON.stringify({args: process.argv.slice(2), input: fs.readFileSync(0, 'utf8')}));
 }
 ''')
-        environment = {**os.environ, "npm_config_update_notifier": "false", "npm_config_cache": str(self.root / "cache"),
-                       "npm_config_userconfig": str(self.root / "empty.npmrc")}
-        (self.root / "empty.npmrc").touch()
-        metadata, tarballs = {}, {}
+        environment = self.npm_environment()
+        tarballs = {}
         for entry in plan:
             package = output / entry
             # Simulate Actions losing permissions and verify the publisher restores them.
@@ -243,43 +280,13 @@ if (process.argv[2] === '--wait') {
                                     cwd=package, env=environment, text=True, capture_output=True, check=True)
             packed = json.loads(result.stdout)[0]
             manifest = json.loads((package / "package.json").read_text())
-            filename = packed["filename"]
-            tarballs[filename] = (output / filename).read_bytes()
-            metadata[manifest["name"]] = (manifest, filename, packed["integrity"])
+            tarballs[manifest["name"]] = output / packed["filename"]
 
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                key = unquote(urlsplit(self.path).path.lstrip("/"))
-                if key in tarballs:
-                    content = tarballs[key]
-                    content_type = "application/octet-stream"
-                elif key in metadata:
-                    manifest, filename, integrity = metadata[key]
-                    version = manifest["version"]
-                    version_info = {**manifest, "dist": {"tarball": f"http://127.0.0.1:{self.server.server_port}/{filename}", "integrity": integrity}}
-                    content = json.dumps({"name": key, "dist-tags": {"latest": version}, "versions": {version: version_info}}).encode()
-                    content_type = "application/json"
-                else:
-                    self.send_error(404)
-                    return
-                self.send_response(200)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(len(content)))
-                self.end_headers()
-                self.wfile.write(content)
-
-            def log_message(self, *args):
-                pass
-
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        self.addCleanup(server.server_close)
-        self.addCleanup(server.shutdown)
+        # Install the local native and entry archives together. --offline also
+        # prevents registry lookups for the other platforms' optional packages.
         prefix = self.root / "installed"
-        entry_tarball = output / metadata["@fliaping/cranibox"][1]
-        result = subprocess.run(["npm", "install", "--prefix", str(prefix), "--ignore-scripts", "--include=optional", "--no-audit", "--no-fund",
-                                 "--registry", f"http://127.0.0.1:{server.server_port}", str(entry_tarball)],
+        result = subprocess.run(["npm", "install", "--prefix", str(prefix), "--ignore-scripts", "--include=optional", "--no-audit", "--no-fund", "--offline",
+                                 str(tarballs["@fliaping/cranibox-linux-x64-gnu"]), str(tarballs["@fliaping/cranibox"])],
                                 env=environment, text=True, capture_output=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         command = prefix / "node_modules/.bin/cranibox"

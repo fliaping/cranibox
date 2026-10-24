@@ -39,6 +39,8 @@ mod messages;
 use crate::peer::secure_ws::SecureSocket;
 #[cfg(test)]
 mod multi_node;
+#[cfg(test)]
+mod multi_node_update;
 mod projects;
 mod spaces;
 mod tasks;

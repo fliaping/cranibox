@@ -25,12 +25,12 @@ Cranibox connects your computers, servers and containers into a device network o
 
 ## Install
 
-Download from [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest). The mainland China download entry is [GitCode Releases](https://gitcode.com/fliaping0/agent-workspace/releases), populated with the same installers once artifact publishing is enabled:
+Download desktop installers or standalone CLI binaries from [GitHub Releases](https://github.com/fliaping/cranibox/releases/latest). Node runtimes are distributed and updated through npm:
 
 | Form | Files | For |
 |------|-------|-----|
 | Desktop app | macOS `.dmg`, Windows `.exe`, Linux `.deb` / `.AppImage` | Everyday computers: tray icon, start at login, a native terminal window; it is also the `cranibox` command |
-| Command line | `cranibox-linux-x86_64` | Linux servers, NAS and headless machines: the same interface in a browser, and it can serve as a relay |
+| Command line | `cranibox-macos-arm64`, `cranibox-linux-x86_64`, `cranibox-windows-x86_64.exe` | Node runtimes without a GUI: the same interface in a browser, and they can serve as a relay |
 | Workspace image | `xuping/agent-workspace:ubuntu-xfce` and others | A Linux computer for your Agents with a desktop, browser and toolchain; see [Deploy the workspace image](#deploy-the-workspace-image) |
 
 Checksums are in `SHA256SUMS` in the same release.
@@ -50,6 +50,7 @@ The npm package name is `@fliaping/cranibox`. Mirror synchronization may lag beh
 a release. Initial npm platforms are
 macOS Apple Silicon, Windows x64 and glibc Linux x64. See the [distribution guide](docs/distribution.md)
 for first-time publisher setup, release validation and retries.
+Managed devices can run `cranibox update apply latest` (stable), `next` (prerelease), or `dev` (main builds) directly, without Node.js or npm.
 
 Command-line usage:
 

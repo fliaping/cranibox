@@ -6,11 +6,13 @@ from pathlib import Path
 import re
 import shutil
 
-from release_common import ROOT, PLATFORMS, check_binary, check_versions, verified_assets
+from release_common import ROOT, PLATFORMS, check_binary, check_versions, validate_version, verified_assets
 
 
-def build(assets, output, tag, package_name="@fliaping/cranibox", root=ROOT):
-    version = check_versions(tag, root)
+def build(assets, output, tag=None, package_name="@fliaping/cranibox", root=ROOT, version=None):
+    if version is None and tag is None:
+        raise ValueError("Provide --tag or --version.")
+    version = validate_version(version) if version is not None else check_versions(tag, root)
     if not re.fullmatch(r"@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*", package_name):
         raise ValueError("The npm package must be a scoped lowercase name, e.g. @fliaping/cranibox.")
     files = {p.name: p for p in verified_assets(assets)}
@@ -66,11 +68,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "dist/npm")
-    parser.add_argument("--tag", required=True)
+    parser.add_argument("--tag")
+    parser.add_argument("--version", help="Override all package versions without checking the tag/source versions.")
     parser.add_argument("--package-name", default="@fliaping/cranibox")
     args = parser.parse_args()
     try:
-        for package in build(args.assets, args.output, args.tag, args.package_name):
+        for package in build(args.assets, args.output, args.tag, args.package_name, version=args.version):
             print(f"Prepared {package}")
     except (OSError, ValueError) as error:
         parser.exit(1, f"build-npm: {error}\n")

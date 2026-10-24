@@ -142,9 +142,9 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 
 ## 已知问题与前置条件
 
-- **发布产物与现状不一致：** 合并后的 CI 不再单独构建 macOS / Windows 命令行二进制（桌面应用本身就是 `cranibox` 命令），
-  只构建 Linux 的。npm 平台包要求三个平台各有独立二进制，发布路径需要先改。运行时包的内容也要重新定义
-  （无界面的运行时二进制，还是桌面应用同一个二进制）。
+- **运行时产物已补齐：** CI 在 macOS / Windows / Linux 均先构建并保存无 GUI 的独立 CLI，
+  再打包桌面应用；npm 平台包使用该 CLI 作为节点运行时。完成 npm 发布配置后，main 的
+  开发构建进入 `dev` 通道，设备可执行 `cranibox update apply dev`。
 - **引导：** 已安装的旧版本没有更新能力，需要手动安装一次包含本功能的版本。
 - Windows 节点目前没有远程桌面兜底（`desktop: false`）。
 - 未验证：Smart App Control 开启的 Windows、macOS 子进程的 TCC 归属、macOS App Management 权限。
@@ -162,7 +162,7 @@ POST /api/v1/mesh/nodes/{node}/update/rollback
 - 节点启动后稳定运行 20 秒才向受管指针确认；更新激活后以退出码 75 请求启动器重启。
 
 尚未实现：底座 / 上层拆分与互相拉起；桌面外壳（Tauri）启动受管运行时；远程更新的两节点集成测试；
-macOS、Windows 上的端到端测试；npm 平台包的发布（见下“已知问题”）。
+macOS、Windows 上的端到端测试。npm 平台包发布流水线已补齐，首次发布需完成[分发配置](distribution.md)。
 
 本阶段的整体更新会重启整个节点，终端和桌面会话会中断。
 
