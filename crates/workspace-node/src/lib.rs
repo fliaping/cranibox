@@ -13,6 +13,7 @@ pub mod settings;
 pub mod spaces;
 mod supervisor;
 mod task_worker;
+pub mod update;
 
 pub mod models;
 
