@@ -20,6 +20,7 @@ use std::{fs, path::Path as FsPath};
 
 const TEST: &str = "peer::server::multi_node_update::owner_updates_and_rolls_back_over_noise";
 const CHILD_ROOT: &str = "CRANIBOX_UPDATE_TEST_ROOT";
+#[cfg(not(target_os = "macos"))]
 const SCRIPT: &[u8] = b"#!/bin/sh\n# runtime 1.0.1\nexit 0\n";
 
 /// The runtime payload. macOS refuses unsigned code (`platform::verify_runtime` runs
@@ -38,8 +39,10 @@ fn tarball(package: &str) -> Vec<u8> {
         "name": package, "version": "1.0.1"
     }))
     .unwrap();
+    // The executable's name differs by platform (`cranibox.exe` on Windows).
+    let executable = format!("package/{}", npm::executable_relative_path());
     for (path, bytes, mode) in [
-        ("package/bin/cranibox", payload().as_slice(), 0o755),
+        (executable.as_str(), payload().as_slice(), 0o755),
         ("package/package.json", manifest.as_slice(), 0o644),
     ] {
         let mut header = tar::Header::new_gnu();
