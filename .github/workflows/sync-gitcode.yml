@@ -17,14 +17,21 @@ jobs:
           fetch-depth: 0
 
       - name: Setup SSH key
+        env:
+          GITCODE_SSH_PRIVATE_KEY: ${{ secrets.GITCODE_SSH_PRIVATE_KEY }}
         run: |
+          test -n "$GITCODE_SSH_PRIVATE_KEY" || { echo 'Configure GITCODE_SSH_PRIVATE_KEY in the gitcode environment.'; exit 1; }
           mkdir -p ~/.ssh
-          echo "${{ secrets.GITCODE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "$GITCODE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -t rsa gitcode.com >> ~/.ssh/known_hosts
 
       - name: Sync to GitCode
+        env:
+          GITCODE_REPOSITORY: ${{ vars.CRANIBOX_GITCODE_REPOSITORY || 'fliaping0/agent-workspace' }}
         run: |
-          git remote add gitcode git@gitcode.com:fliaping0/agent-workspace.git || true
+          python -c 'import os, re; assert re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", os.environ["GITCODE_REPOSITORY"]), "Invalid GitCode repository"'
+          git remote add gitcode "git@gitcode.com:$GITCODE_REPOSITORY.git"
           git push gitcode --all --force
-          git push gitcode --tags --force
+          # Published tags are immutable; fail instead of replacing a released build.
+          git push gitcode --tags
