@@ -35,7 +35,7 @@ let cookie, csrf;
 async function request(route, body, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(base + route, { method: body === undefined ? 'GET' : 'POST',
-    headers: { Host: 'localhost:0', Cookie: cookie || '', 'X-Workspace-CSRF': csrf || '',
+    headers: { Host: 'localhost:' + new URL(base).port, Cookie: cookie || '', 'X-Workspace-CSRF': csrf || '',
       'Content-Type': 'application/json', ...headers } }, res => {
       let text = '';
       res.on('data', chunk => { text += chunk; });
