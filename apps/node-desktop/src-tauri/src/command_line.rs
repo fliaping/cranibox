@@ -99,11 +99,10 @@ pub async fn install() -> Result<Value> {
     anyhow::bail!("The installer already puts cranibox on PATH on this system")
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn a_link_on_path_runs_the_app_and_another_program_does_not() {
         let root = std::env::temp_dir().join(format!("cranibox-cli-{}", std::process::id()));
