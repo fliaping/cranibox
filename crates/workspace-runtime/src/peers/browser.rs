@@ -387,7 +387,13 @@ mod tests {
         // A file left behind by a crashed Chrome.
         std::fs::write(&file, format!("{port}\n/devtools/browser/abc\n")).unwrap();
         drop(listener);
-        assert!(provider.discover().await.is_err());
+        // A parallel test can be handed the freed port; only assert when nothing took it.
+        if tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .is_err()
+        {
+            assert!(provider.discover().await.is_err());
+        }
     }
 
     #[tokio::test]

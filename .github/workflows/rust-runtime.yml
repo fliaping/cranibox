@@ -270,11 +270,15 @@ jobs:
       - run: npx --prefix addons/control-center/ui playwright install --with-deps chromium
         if: runner.os == 'Linux'
       - run: npm test --prefix addons/control-center/ui
-      - run: npm run test:terminal --prefix addons/control-center/ui
-      - run: npm run test:paths --prefix addons/control-center/ui
         if: runner.os == 'Linux'
         env:
           CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
+      - run: npm run test:terminal --prefix addons/control-center/ui
+        if: runner.os == 'Linux'
+        env:
+          CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
+      - run: npm run test:paths --prefix addons/control-center/ui
+        if: runner.os == 'Linux'
       - name: Verify Browser Use with an isolated real Chromium and official MCP
         if: runner.os == 'Linux'
         shell: bash
