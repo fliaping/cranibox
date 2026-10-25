@@ -67,7 +67,8 @@ pub enum Command {
 }
 
 pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()> {
-    let root = super::runtime_root(peers.parent().unwrap_or(&peers));
+    let state = peers.parent().unwrap_or(&peers).to_owned();
+    let root = super::runtime_root(&state);
     let fleet = Fleet::new(peers);
     match command {
         Command::Check { node } => print_status(&fleet, &root, node, false, true).await?,
@@ -90,7 +91,7 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
             no_wait,
         } => {
             if node.is_empty() && !all {
-                return apply_local(&root, &spec, force).await;
+                return apply_local(&root, &state, &spec, force).await;
             }
             let mut failed = Vec::new();
             for id in targets(&fleet, node, all).await? {
@@ -192,8 +193,8 @@ async fn targets(fleet: &Fleet, named: Vec<String>, all: bool) -> Result<Vec<Str
         .collect())
 }
 
-async fn apply_local(root: &Path, spec: &str, force: bool) -> Result<()> {
-    let updater = updater(root)?;
+async fn apply_local(root: &Path, state: &Path, spec: &str, force: bool) -> Result<()> {
+    let updater = updater(root)?.with_terminal_state(state.to_owned());
     let status = updater.apply(spec, force).await?;
     let to = status.to.clone();
     client::print(json!(status));

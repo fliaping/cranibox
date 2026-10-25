@@ -3,14 +3,22 @@
 > **更正（2026-10-24）**：herdr 是用户自行安装的应用层工具（多用于 Vibe Coding），不属于底座，也不加入我们的依赖。
 > 本文早先把它当作“重启后找回 Shell”的最小改动，并据此写了“Windows 不支持”，这两点都不成立。
 > 终端由我们自己的 Native 引擎提供（`crates/workspace-pty/src/persistent.rs`，`portable-pty`，Windows 为 ConPTY，默认 `COMSPEC`/cmd.exe，PowerShell 同样可用），三个平台走同一套接口。
-> 让终端在上层更新时保持，不需要单独的终端进程，直接把这个引擎放进底座进程。底座 = 网络 + 授权 + 终端 + 远程桌面，共一个进程；上层是另一个进程。文中凡涉及 herdr 的内容仅作旁证。
+> 完整拆分的目标是把这个引擎放进底座进程：底座 = 网络 + 授权 + 终端 + 远程桌面，共一个进程；上层是另一个进程。当前先用独立 terminal host 实现终端生命周期边界，见下节。文中凡涉及 herdr 的内容仅作旁证。
 
 
 评估日期：2026-10-24；对象：当前 worktree 源码。只读检查，未构建、未运行测试、未连接设备。行号指本次源码；表中行数包含注释与测试，目录递归计数，同名 `.rs` 与目录分别统计。BASE / UPPER 是建议归属，SPLIT 表示现有条目需拆职责，不代表已有进程边界。
 
 ## 1. 结论与边界
 
-当前 `LocalNode` 同时拥有网络、终端、桌面、业务 worker 和共享停止信号；`shutdown` 一起结束它们（`crates/workspace-node/src/local.rs:15`、`:257`）。不是调整重启顺序就能得到两层节点。
+### 已落地的第一块 BASE：terminal host
+
+独立的 `cranibox terminal-host --state <节点配置目录>` 现在持有 Native PTY 引擎，
+节点通过带 token 的本地 IPC 管理和连接终端。它是第一块已经能跨 UPPER 重启存活的 BASE：
+节点关闭、退出码 75 自更新后，同一个 Shell 和最近 256 KiB 输出仍可重新连接。
+完整的网络、授权与桌面 BASE 拆分仍待实施；现有连接在节点重启时会断开。
+设置 `CRANIBOX_TERMINAL_HOST=0` 可退回进程内 Native；容器的 herdr 路径保持原样。
+
+评估时 `LocalNode` 同时拥有网络、终端、桌面、业务 worker 和共享停止信号；`shutdown` 一起结束它们。现在终端已移交 terminal host，其余服务仍共享停止边界；不是调整重启顺序就能得到完整的两层节点。
 
 建议渐进采用方案 (b)：BASE 持有 mesh HTTP 入口、身份与 roster、Noise、网络、PTY、桌面及最小恢复页面；业务 handler 移至 UPPER，经方案 (a) 的认证本地 IPC 转发。必须覆盖目标端、浏览器接入端和必要中继的整条连接链。UPPER UI/API 可以停机，BASE 恢复页面不能依赖 Models、Agent 或业务前端加载成功。
 

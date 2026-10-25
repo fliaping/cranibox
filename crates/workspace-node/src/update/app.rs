@@ -147,7 +147,8 @@ pub(crate) async fn route(
         root.clone(),
         Registries::from_env().map_err(unavailable)?,
         super::manager::default_entry_package(),
-    );
+    )
+    .with_terminal_state(context.peers.parent().unwrap_or(context.peers).to_owned());
     if let Some(id) = id {
         return updater
             .status()

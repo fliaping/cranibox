@@ -79,6 +79,14 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         return result;
     }
     let command = match args.command {
+        Some(agent::Command::TerminalHost { state, home }) => {
+            return agent_workspace_pty::hosted::run(
+                state,
+                home.map(Ok).unwrap_or_else(crate::peer::home)?,
+                crate::update::product_version(),
+            )
+            .await;
+        }
         Some(agent::Command::Update { command }) => {
             return crate::update::cli::run(peer_path, args.config, command).await;
         }
@@ -127,6 +135,18 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::{peer, spaces};
+
+    #[test]
+    fn terminal_host_is_a_hidden_local_command() {
+        use clap::CommandFactory;
+        let help = Args::command().render_long_help().to_string();
+        assert!(!help.contains("terminal-host"));
+        let args = Args::try_parse_from(["cranibox", "terminal-host", "--state", "private-state"])
+            .unwrap();
+        assert!(
+            matches!(args.command, Some(agent::Command::TerminalHost { state, home: None }) if state == std::path::Path::new("private-state"))
+        );
+    }
 
     #[test]
     fn space_job_and_peer_arguments_keep_their_own_ids() {

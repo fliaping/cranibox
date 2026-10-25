@@ -146,7 +146,11 @@ async fn spawn_runtime(config: &LauncherConfig, version: &Version) -> Result<(Ch
     #[cfg(windows)]
     command.creation_flags(windows_sys::Win32::System::Threading::CREATE_SUSPENDED);
     let mut child = command.spawn().context("spawn runtime")?;
-    match ProcessTree::new(&child) {
+    #[cfg(unix)]
+    let tree = ProcessTree::new(&child);
+    #[cfg(windows)]
+    let tree = ProcessTree::new_runtime(&child);
+    match tree {
         Ok(tree) => Ok((child, tree)),
         Err(error) => {
             let _ = child.kill().await;

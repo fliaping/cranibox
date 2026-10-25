@@ -1,7 +1,7 @@
 //! Node-owned shells whose lifetime is independent of network attachments.
 use crate::{Event, Session, validate_size};
 use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -29,7 +29,7 @@ struct Stored {
     exited: watch::Receiver<Option<u32>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Manage {
     List,

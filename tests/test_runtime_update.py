@@ -110,9 +110,18 @@ class RuntimeUpdate(unittest.TestCase):
                 self.launcher.wait(15)
             except subprocess.TimeoutExpired:
                 self.launcher.kill()
+        self.stop_terminal_host()  # after the node, which would start another one
         self.registry.shutdown()
         self.registry.server_close()
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def stop_terminal_host(self):
+        # The host outlives the node on purpose; a test must not leave one behind.
+        record = self.tmp / "cfg" / "terminal-host.json"
+        try:
+            os.kill(json.loads(record.read_text())["pid"], signal.SIGTERM)
+        except (OSError, ValueError, KeyError):
+            pass
 
     def cranibox(self, *args, check=True):
         r = subprocess.run([str(self.exe), "--config", str(self.cfg), *args], capture_output=True,
@@ -176,10 +185,17 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual(info["available"]["dev"], "1.1.1-dev.1")
         self.assertIsNone(info.get("available_error"))
 
+        # A terminal session is owned by the terminal host, not by the runtime being replaced.
+        created = self.app_api("/api/terminal/sessions", "POST", {"operation": "create", "name": "kept"})
+        session = (created.get("session") or created)["id"]
+
         # Update through the dist-tag; the running node restarts into the new version.
         self.cranibox("update", "apply", "dev")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "done", 120, "the update to finish")
         self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        listed = self.app_api("/api/terminal/sessions", "POST", {"operation": "list"})
+        kept = [x for x in listed["sessions"] if x["id"] == session]
+        self.assertEqual([x.get("status", "running") for x in kept], ["running"], listed)
 
         # A version that cannot start is rolled back by the launcher without any network.
         bad = b"#!/bin/sh\nexit 1\n" if not WIN else b"MZ not a program"

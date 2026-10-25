@@ -901,7 +901,8 @@ async fn serve(path: &Path) -> Result<()> {
         agent_workspace_runtime::shutdown_signal().await;
         signal.cancel();
     });
-    let engine = Engine::new(home()?);
+    let state = std::path::absolute(path.parent().unwrap_or(Path::new(".")))?;
+    let engine = Engine::hosted(home()?, state).await;
     let slots = Arc::new(tokio::sync::Semaphore::new(MAX_PARALLEL));
     let started = async {
         Config::update(path, |_| Ok(()))?;

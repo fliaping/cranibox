@@ -4,6 +4,13 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    #[command(hide = true)]
+    TerminalHost {
+        #[arg(long)]
+        state: std::path::PathBuf,
+        #[arg(long, hide = true)]
+        home: Option<std::path::PathBuf>,
+    },
     /// Cranibox MCP services; this command never starts another node service.
     AppMcp {
         #[arg(long)]

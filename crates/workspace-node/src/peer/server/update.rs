@@ -34,7 +34,8 @@ fn authorize(app: &App, caller: &Caller, node: &str, encrypted: bool) -> Result<
             "update service unavailable",
         )
     })?;
-    Ok(Updater::new(root, registries, default_entry_package()))
+    Ok(Updater::new(root, registries, default_entry_package())
+        .with_terminal_state(app.path.parent().unwrap_or(&app.path).to_owned()))
 }
 
 fn unavailable(error: anyhow::Error) -> Failure {

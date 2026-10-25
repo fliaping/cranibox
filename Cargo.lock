@@ -48,10 +48,13 @@ name = "agent-workspace-pty"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fs2",
  "libc",
  "portable-pty",
+ "rand 0.9.5",
  "serde",
  "serde_json",
+ "subtle",
  "tempfile",
  "tokio",
  "uuid",

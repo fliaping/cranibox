@@ -69,6 +69,7 @@ pub struct Available {
 
 pub struct Updater {
     root: PathBuf,
+    terminal_state: Option<PathBuf>,
     registries: Registries,
     entry_package: String,
 }
@@ -140,9 +141,15 @@ impl Updater {
     pub fn new(root: PathBuf, registries: Registries, entry_package: String) -> Self {
         Self {
             root,
+            terminal_state: None,
             registries,
             entry_package,
         }
+    }
+
+    pub fn with_terminal_state(mut self, state: PathBuf) -> Self {
+        self.terminal_state = Some(state);
+        self
     }
 
     pub fn info(&self) -> Result<RuntimeInfo> {
@@ -336,7 +343,11 @@ impl Updater {
         }
         // Activation is the commit point. Cleanup failure must not report a failed update
         // after the pointer has switched; a later update can retry pruning.
-        let _ = layout.prune(3);
+        if let Some(state) = &self.terminal_state {
+            let _ = layout.prune_with_terminal_state(3, state);
+        } else {
+            let _ = layout.prune(3);
+        }
         Ok(())
     }
 

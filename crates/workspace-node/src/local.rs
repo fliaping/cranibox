@@ -36,7 +36,9 @@ pub struct LocalNode {
 impl LocalNode {
     pub async fn start(path: PathBuf) -> Result<Self> {
         let catalog = Store::new(path.with_file_name("node-projects.json"));
-        Self::start_with(path, Engine::new(peer::home()?), catalog).await
+        let state = std::path::absolute(path.parent().unwrap_or(std::path::Path::new(".")))?;
+        let engine = Engine::hosted(peer::home()?, state).await;
+        Self::start_with(path, engine, catalog).await
     }
     /// Embed a node in an existing host without starting another terminal engine.
     pub async fn start_with(path: PathBuf, engine: Engine, catalog: Store) -> Result<Self> {
@@ -382,9 +384,15 @@ mod tests {
     async fn local_catalog_and_shell_survive_detach_and_restart() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("peers.json");
-        let local = Arc::new(LocalNode::start(path.clone()).await.unwrap());
+        // This test exercises the embedded native engine's shutdown contract.
+        async fn start(path: PathBuf) -> Result<LocalNode> {
+            let catalog = Store::new(path.with_file_name("node-projects.json"));
+            let home = path.parent().unwrap().to_owned();
+            LocalNode::start_with(path, Engine::new(home), catalog).await
+        }
+        let local = Arc::new(start(path.clone()).await.unwrap());
         assert!(
-            LocalNode::start(path.clone()).await.is_err(),
+            start(path.clone()).await.is_err(),
             "one Shell owner per identity"
         );
         assert!(!root.path().join("settings.json").exists());
@@ -465,7 +473,7 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        let reopened = LocalNode::start(path).await.unwrap();
+        let reopened = start(path).await.unwrap();
         drop(local);
         assert_eq!(reopened.id, identity);
         assert_eq!(reopened.projects(Command::List {}).await.unwrap(), saved);

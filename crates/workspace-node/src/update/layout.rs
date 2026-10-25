@@ -298,8 +298,15 @@ impl Layout {
     /// All staging directories and `.current-*.tmp` pointer remnants are disposable.
     /// Call after staging has finished: the lock does not cover a caller writing stage contents.
     pub fn prune(&self, keep: usize) -> Result<Vec<Version>> {
+        self.prune_with_terminal_state(keep, self.root.parent().unwrap_or(&self.root))
+    }
+
+    /// The terminal owner can still be running the version we just replaced.
+    pub fn prune_with_terminal_state(&self, keep: usize, state: &Path) -> Result<Vec<Version>> {
         let _lock = self.lock()?;
         let pointer = self.pointer()?;
+        let host_exe = agent_workspace_pty::hosted::live_executable(state)
+            .and_then(|exe| fs::canonicalize(exe).ok());
         let protected: HashSet<_> = pointer
             .iter()
             .flat_map(|p| {
@@ -310,7 +317,10 @@ impl Layout {
             .collect();
         let mut others = Vec::new();
         for version in self.versions()? {
-            if !protected.contains(version.to_string().as_str()) {
+            let hosts_terminal = host_exe.as_ref().is_some_and(|exe| {
+                fs::canonicalize(self.version_dir(&version)).is_ok_and(|dir| exe.starts_with(dir))
+            });
+            if !hosts_terminal && !protected.contains(version.to_string().as_str()) {
                 others.push(version);
             }
         }
@@ -824,6 +834,47 @@ mod tests {
         assert!(!temporary.exists());
         assert!(unrelated.exists());
         assert!(root.path().join("layout.lock").exists());
+    }
+
+    #[test]
+    fn prune_preserves_live_terminal_host_runtime_only() {
+        let (root, layout) = fixture();
+        let old = install(&layout, "1.0.0");
+        let current = install(&layout, "2.0.0");
+        layout.activate(&current).unwrap();
+        layout.confirm(&current).unwrap();
+        // Keep state separate to cover CRANIBOX_RUNTIME_ROOT overrides too.
+        let state = root.path().join("node-state");
+        fs::create_dir(&state).unwrap();
+        let record = state.join("terminal-host.json");
+        fs::write(
+            &record,
+            serde_json::to_vec(&serde_json::json!({
+                "pid": std::process::id(),
+                "exe": layout.version_dir(&old).join("runtime")
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            layout
+                .prune_with_terminal_state(0, &state)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(layout.version_dir(&old).is_dir());
+        // A dead host's stale record must not pin a runtime indefinitely.
+        fs::write(
+            &record,
+            serde_json::to_vec(&serde_json::json!({
+                "pid": u32::MAX,
+                "exe": layout.version_dir(&old).join("runtime")
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(layout.prune_with_terminal_state(0, &state).unwrap(), [old]);
+        assert!(layout.version_dir(&current).is_dir());
     }
 
     #[test]

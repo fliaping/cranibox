@@ -191,6 +191,13 @@ unsafe impl Sync for ProcessTree {}
 #[cfg(windows)]
 impl ProcessTree {
     pub(crate) fn new(child: &tokio::process::Child) -> Result<Self> {
+        Self::with_breakaway(child, false)
+    }
+    /// Only the runtime may launch a terminal owner outside its shutdown job.
+    pub(crate) fn new_runtime(child: &tokio::process::Child) -> Result<Self> {
+        Self::with_breakaway(child, true)
+    }
+    fn with_breakaway(child: &tokio::process::Child, breakaway: bool) -> Result<Self> {
         use windows_sys::Win32::System::JobObjects::*;
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -202,6 +209,9 @@ impl ProcessTree {
             let tree = Self { job };
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
             info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if breakaway {
+                info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+            }
             anyhow::ensure!(
                 SetInformationJobObject(
                     job,
