@@ -49,6 +49,14 @@ def until(check, seconds=12):
     raise AssertionError('Timed out waiting for transition')
 
 
+
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
 class EventStream:
     def __init__(self, harness, port=None):
         self.connection = http.client.HTTPConnection('127.0.0.1', port or harness.web_port, timeout=20)
@@ -253,11 +261,19 @@ else:
                     environment = {**os.environ, 'HERDR_CONFIG_PATH': str(state / 'config.toml'), 'HERDR_SOCKET_PATH': str(state / 'h.sock')}
                     subprocess.run([herdr, 'server', 'stop'], env=environment, capture_output=True, timeout=8)
         # So do standalone nodes' terminal hosts (terminal-host.json next to each config).
+        hosts = []
         for record in self.root.rglob('terminal-host.json'):
             try:
-                os.kill(json.loads(record.read_text())['pid'], signal.SIGTERM)
+                pid = json.loads(record.read_text())['pid']
+                os.kill(pid, signal.SIGTERM)
+                hosts.append(pid)
             except (OSError, ValueError, KeyError):
                 pass
+        # A host and its shells (which get SIGHUP when it exits) still write into the tree.
+        deadline = time.time() + 5
+        while hosts and time.time() < deadline:
+            hosts = [pid for pid in hosts if _alive(pid)]
+            time.sleep(0.05)
         child = self.root / 'child.pid'
         if child.exists():
             try:
@@ -266,4 +282,11 @@ else:
                 pass
         for log in self.logs:
             log.close()
-        self.temp.cleanup()
+        for attempt in range(20):
+            try:
+                self.temp.cleanup()
+                break
+            except OSError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.1)

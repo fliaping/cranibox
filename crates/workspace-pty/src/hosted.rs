@@ -501,9 +501,12 @@ async fn serve(state: PathBuf, home: PathBuf, version: String, idle: Duration) -
             IsProcessInJob(GetCurrentProcess(), std::ptr::null_mut(), &mut in_job) != 0,
             "check terminal host Job Object"
         );
+        // Only the managed runtime's job is closed (killing everything in it) on an update.
+        // A host the launcher starts stays in whatever job the launcher itself runs in, such
+        // as a CI runner's or a service manager's, which does not allow breaking away.
         ensure!(
-            in_job == 0,
-            "terminal host could not escape parent Job Object"
+            in_job == 0 || std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_none(),
+            "terminal host could not escape the runtime's Job Object"
         );
     }
     #[cfg(unix)]

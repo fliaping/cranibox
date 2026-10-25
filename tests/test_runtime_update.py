@@ -85,7 +85,9 @@ class Registry(http.server.ThreadingHTTPServer):
 @unittest.skipUnless(Path(BIN).exists(), "build the cranibox program or set CRANIBOX_BIN")
 class RuntimeUpdate(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="cranibox-update-test-"))
+        # macOS's per-user temporary directory is long enough that the node's Unix sockets
+        # would exceed SUN_LEN.
+        self.tmp = Path(tempfile.mkdtemp(prefix="cranibox-update-test-", dir=None if WIN else "/tmp"))
         self.cfg = self.tmp / "cfg" / "settings.json"
         self.cfg.parent.mkdir()
         # This test only uses the loopback npm registry and local runtime supervision.
@@ -211,7 +213,9 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
         # Started by the launcher, outside the runtime that updates replace (and on Windows
         # outside the runtime's Job Object).
-        host = json.loads((self.tmp / "cfg" / "terminal-host.json").read_text())
+        record = self.tmp / "cfg" / "terminal-host.json"
+        self.assertTrue(record.exists(), self.diagnostics())
+        host = json.loads(record.read_text())
         self.assertEqual(Path(host["exe"]).resolve(), self.exe.resolve(), self.diagnostics())
         listed = self.app_api("/api/terminal/sessions", "POST", {"operation": "list"})
         kept = [x for x in listed["sessions"] if x["id"] == session]
