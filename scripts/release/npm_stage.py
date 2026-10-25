@@ -42,6 +42,10 @@ def stage_records(data):
                 return stage_records(data[key])
         if any(key in data for key in ("id", "stageId", "stage_id")):
             data = [data]
+        elif data and all(re.fullmatch(r"@[^/\s]+/\S+", str(key)) and isinstance(value, (dict, list))
+                          for key, value in data.items()):
+            # npm 12 keys results by package name.
+            data = [item for value in data.values() for item in (value if isinstance(value, list) else [value])]
     if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
         raise ValueError("Unrecognized npm stage metadata; refusing to assume no staged versions.")
     return data

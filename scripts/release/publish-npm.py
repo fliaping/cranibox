@@ -83,7 +83,10 @@ def publish_packages(directory, plan, dry_run, dist_tag, mode, outcomes):
             executable.chmod(0o755)
         result = subprocess.run([npm, "pack", "--json", "--ignore-scripts", "--pack-destination", str(directory)],
                                 cwd=package, check=True, capture_output=True, text=True)
-        archive = directory / json.loads(result.stdout)[0]["filename"]
+        packed = json.loads(result.stdout)
+        if isinstance(packed, dict):  # npm 12 keys the result by package name
+            packed = list(packed.values())
+        archive = directory / packed[0]["filename"]
         with archive.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha512").digest()
         integrity = "sha512-" + base64.b64encode(digest).decode()
