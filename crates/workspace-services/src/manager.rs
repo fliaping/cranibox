@@ -381,7 +381,35 @@ fn scan(paths: &Paths) -> Result<()> {
             .spawn()?;
         wait_for(|| control.exists(), Duration::from_secs(3))?;
     }
+    prune(paths);
     Ok(())
+}
+/// A unit file removed by hand leaves its supervisor behind, still listed as a stopped
+/// service. Only a stopped one is removed: a running process keeps its supervisor.
+fn prune(paths: &Paths) {
+    let Ok(entries) = fs::read_dir(&paths.scan) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.')
+            || !entry.path().is_dir()
+            || paths.unit(&name).is_file()
+            || pid(paths, &name).is_some()
+        {
+            continue;
+        }
+        // -d keeps it down, -x makes the supervisor exit once it is down.
+        let _ = Command::new("s6-svc").arg("-dx").arg(entry.path()).status();
+        let _ = wait_for(
+            || !entry.path().join("supervise/control").exists(),
+            Duration::from_secs(3),
+        );
+        let _ = fs::remove_dir_all(entry.path());
+        for extension in ["pid", "lock", "exit.json", "stop", "supervisor.pid"] {
+            remove(&paths.file(&name, extension));
+        }
+    }
 }
 fn wait_for(mut predicate: impl FnMut() -> bool, timeout: Duration) -> Result<()> {
     let end = Instant::now() + timeout;
@@ -871,6 +899,10 @@ pub fn entry(original: Vec<String>) -> Result<i32> {
         return Ok(0);
     }
     if action == "daemon-reload" {
+        // Units are read on use; a reload only has to drop supervisors of removed units.
+        if paths.scan.join(".s6-svscan/control").exists() {
+            prune(&paths);
+        }
         return Ok(0);
     }
     if action == "list-unit-files" {
