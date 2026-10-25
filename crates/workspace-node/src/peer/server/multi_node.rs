@@ -547,6 +547,7 @@ mod access_policy {
                 self.running.app.node
             )
         }
+        #[cfg(unix)]
         async fn socket(
             &self,
             session: &str,

@@ -52,7 +52,7 @@ if (!u.preferences?.language) try {
 } catch {}
 document.documentElement.lang = u.language;
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/scheduler/cjs/scheduler.production.js
+//#region node_modules/scheduler/cjs/scheduler.production.js
 var d = /* @__PURE__ */ o(((e) => {
 	function t(e, t) {
 		var n = e.length;
@@ -11119,10 +11119,10 @@ function mr({ children: e }) {
 	});
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
 var hr = (e) => e?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
 function gr(e, t, n = []) {
 	if (t == null) throw Error("[lucide]: iconNode is required when icon name is used");
 	return {
@@ -11133,7 +11133,7 @@ function gr(e, t, n = []) {
 	};
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
 var _r = (e) => {
 	let t = "", n = !1;
 	for (let r of e) r === "-" || r === "_" || r <= " " ? n = t.length > 0 : (t.length === 0 ? t += r.toLowerCase() : t += n ? r.toUpperCase() : r, n = !1);
@@ -11153,7 +11153,7 @@ var _r = (e) => {
 	"stroke-linejoin": "round"
 };
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
 function xr(e) {
 	return e != null;
 }
@@ -11190,7 +11190,7 @@ function Sr(e, t = {}) {
 	];
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
 function Cr(e, t = {}) {
 	return Sr(e, {
 		...t,
@@ -11205,7 +11205,7 @@ function Cr(e, t = {}) {
 	});
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+//#region node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
 var wr = (e) => {
 	for (let t in e) if (t.startsWith("aria-") || t === "role" || t === "title") return !0;
 	return !1;
@@ -11231,7 +11231,7 @@ var wr = (e) => {
 	}, [...C.map(([e, t]) => (0, y.createElement)(e, t)), ...Array.isArray(c) ? c : [c]]);
 });
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+//#region node_modules/lucide-react/dist/esm/createLucideIcon.mjs
 function X(e, t = [], n = []) {
 	let r = typeof e == "string" ? gr(e, t, n) : e, i = (0, y.forwardRef)(({ className: e, ...t }, n) => (0, y.createElement)(Dr, {
 		ref: n,
@@ -11242,7 +11242,7 @@ function X(e, t = [], n = []) {
 	return r.name && (i.displayName = vr(r.name)), i;
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/icons/activity.mjs
+//#region node_modules/lucide-react/dist/esm/icons/activity.mjs
 var Or = {
 	name: "activity",
 	size: 24,
@@ -24533,7 +24533,7 @@ function fu({ title: e, children: t, onCancel: n, className: r = "" }) {
 	});
 }
 //#endregion
-//#region ../../../../../cranibox/addons/control-center/ui/node_modules/@xterm/xterm/lib/xterm.mjs
+//#region node_modules/@xterm/xterm/lib/xterm.mjs
 var pu = Object.defineProperty, mu = Object.getOwnPropertyDescriptor, hu = (e, t) => {
 	for (var n in t) pu(e, n, {
 		get: t[n],
