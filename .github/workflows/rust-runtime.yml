@@ -142,13 +142,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/cli"
           cp target/release/cranibox.exe "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe"
           "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe" --version
-      # The shipped program on each platform: adopt, update through npm, roll back,
-      # and default management for a plain start (with a loopback registry).
-      - name: Self-update with the real program
-        shell: bash
-        timeout-minutes: 15
-        run: |
-          CRANIBOX_BIN="$(ls "$RUNNER_TEMP"/cli/cranibox-*)" python -m unittest tests.test_runtime_update -v
       - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
         working-directory: apps/node-desktop
         env:
@@ -239,6 +232,14 @@ jobs:
           path: ${{ runner.temp }}/cli/cranibox-windows-x86_64.exe
           retention-days: 14
           if-no-files-found: error
+      # Last, so the binaries above are uploaded for inspection even when it fails.
+      # The shipped program on each platform: adopt, update through npm, roll back,
+      # and default management for a plain start (with a loopback registry).
+      - name: Self-update with the real program
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          CRANIBOX_BIN="$(ls "$RUNNER_TEMP"/cli/cranibox-*)" python -m unittest tests.test_runtime_update -v
   native:
     strategy:
       fail-fast: false

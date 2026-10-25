@@ -67,6 +67,7 @@ pub async fn start(
         shell,
         stop.clone(),
     ));
+    cranibox_node::update::start_terminal_host(peers.parent().unwrap_or(&peers)).await;
     let mut launcher = tokio::spawn(launcher::run(config, stop.clone()));
     let running = state.clone();
     *task = Some(tokio::spawn(async move {

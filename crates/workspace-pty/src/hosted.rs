@@ -390,10 +390,17 @@ fn spawn(state: &Path, home: &Path) -> Result<()> {
         ])
         .env("CRANIBOX_TEST_TERMINAL_STATE", state)
         .env("CRANIBOX_TEST_TERMINAL_HOME", home);
+    // Keep the host's own errors: it outlives the node whose log would show them.
+    let log = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(state.join("terminal-host.log"))
+        .map(Stdio::from)
+        .unwrap_or_else(|_| Stdio::null());
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(log);
     #[cfg(unix)]
     unsafe {
         use std::os::unix::process::CommandExt;

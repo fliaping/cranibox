@@ -135,6 +135,7 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
             // default settings (and its single-instance lock) unless the launcher forwards it.
             let mut runtime_args: Vec<std::ffi::OsString> = vec!["--config".into(), config.into()];
             runtime_args.extend(args.into_iter().map(Into::into));
+            super::start_terminal_host(&state).await;
             let code = launch_foreground(&root, runtime_args).await?;
             std::process::exit(code);
         }
@@ -361,5 +362,6 @@ pub async fn auto_launch(args: &[String]) -> Result<Option<i32>> {
         return Ok(None);
     }
     let runtime_args = args.iter().skip(1).map(Into::into).collect();
+    super::start_terminal_host(peers.parent().unwrap_or(&peers)).await;
     Ok(Some(launch_foreground(&root, runtime_args).await?))
 }

@@ -231,7 +231,8 @@ class TerminalTests(unittest.TestCase):
         self.assertEqual(int((self.h.root / 'reattached-shell').read_text()), shell_pid)
         self.assertEqual(self.h.node.pid, node_pid)
 
-    def test_client_restart_ends_owned_sessions(self):
+    def test_remote_node_restart_keeps_its_sessions(self):
+        # The node's terminal host owns the shells, not the node process.
         session = self.create(self.remote)
         ws = self.open(self.remote, session_id=session)
         shell_file = self.h.root / 'client-owned-shell'
@@ -240,11 +241,14 @@ class TerminalTests(unittest.TestCase):
         shell_pid = int(shell_file.read_text())
         self.h.stop(self.h.node)
         until(lambda: self.h.post('/api/peers', {'operation': 'probe', 'node': self.remote})[0] != 200)
-        until(lambda: not Path(f'/proc/{shell_pid}/stat').exists() or Path(f'/proc/{shell_pid}/stat').read_text().split(') ')[1][0] == 'Z')
+        self.assertEqual(Path(f'/proc/{shell_pid}/stat').read_text().split(') ')[1][0] != 'Z', True)
         self.h.restart_remote()
         until(lambda: self.h.post('/api/peers', {'operation': 'probe', 'node': self.remote})[0] == 200)
-        self.assertEqual(self.manage(self.remote, operation='list')['sessions'], [])
-        self.assertEqual(self.h.post('/api/terminal/sessions', {'node':self.remote, 'operation':'end', 'id':session})[0], 400)
+        self.assertEqual([s['id'] for s in self.manage(self.remote, operation='list')['sessions']], [session])
+        again = self.open(self.remote, session_id=session)
+        again.command("printf '%s%s\\n' STILL _HERE")
+        again.expect('STILL_HERE')
+        self.manage(self.remote, operation='end', id=session)
 
     def test_takeover_keeps_session_and_transfers_attachment(self):
         for node in (None, self.remote):

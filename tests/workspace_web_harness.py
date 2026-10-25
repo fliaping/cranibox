@@ -252,6 +252,12 @@ else:
                 if state.exists():
                     environment = {**os.environ, 'HERDR_CONFIG_PATH': str(state / 'config.toml'), 'HERDR_SOCKET_PATH': str(state / 'h.sock')}
                     subprocess.run([herdr, 'server', 'stop'], env=environment, capture_output=True, timeout=8)
+        # So do standalone nodes' terminal hosts (terminal-host.json next to each config).
+        for record in self.root.rglob('terminal-host.json'):
+            try:
+                os.kill(json.loads(record.read_text())['pid'], signal.SIGTERM)
+            except (OSError, ValueError, KeyError):
+                pass
         child = self.root / 'child.pid'
         if child.exists():
             try:

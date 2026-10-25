@@ -133,7 +133,7 @@ class RuntimeUpdate(unittest.TestCase):
 
     def app_api(self, path, method="GET", body=None):
         """Call the node's local app API the way the web UI does: sign-in link, cookie, CSRF."""
-        import http.cookiejar, re, urllib.request
+        import http.cookiejar, re, urllib.error, urllib.request
         link = self.cranibox("ui-url").stdout.strip()
         jar = http.cookiejar.CookieJar()
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
@@ -143,8 +143,24 @@ class RuntimeUpdate(unittest.TestCase):
         request = urllib.request.Request(base + path, method=method, headers={
             "X-Workspace-CSRF": csrf, "Content-Type": "application/json"},
             data=None if body is None else json.dumps(body).encode())
-        with opener.open(request, timeout=30) as response:
-            return json.loads(response.read().decode())
+        try:
+            with opener.open(request, timeout=30) as response:
+                return json.loads(response.read().decode())
+        except urllib.error.HTTPError as error:
+            raise AssertionError(f"{method} {path}: HTTP {error.code}: {error.read().decode(errors='replace')}"
+                                 f"\n{self.diagnostics()}") from None
+
+    def diagnostics(self):
+        cfg = self.tmp / "cfg"
+        parts = []
+        for name in ("terminal-host.json", "terminal-host.log"):
+            path = cfg / name
+            text = path.read_text(errors="replace")[-2000:] if path.exists() else "(missing)"
+            if name.endswith(".json") and path.exists():
+                text = json.dumps({k: v for k, v in json.loads(text).items() if k != "token"})
+            parts.append(f"{name}: {text}")
+        log = self.log.read_text(errors="replace")[-3000:] if self.log.exists() else ""
+        return "\n".join(parts) + f"\nlauncher log:\n{log}"
 
     def status(self):
         return json.loads(self.cranibox("update", "status").stdout)["devices"][0]
@@ -193,9 +209,14 @@ class RuntimeUpdate(unittest.TestCase):
         self.cranibox("update", "apply", "dev")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "done", 120, "the update to finish")
         self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        # Started by the launcher, outside the runtime that updates replace (and on Windows
+        # outside the runtime's Job Object).
+        host = json.loads((self.tmp / "cfg" / "terminal-host.json").read_text())
+        self.assertEqual(Path(host["exe"]).resolve(), self.exe.resolve(), self.diagnostics())
         listed = self.app_api("/api/terminal/sessions", "POST", {"operation": "list"})
         kept = [x for x in listed["sessions"] if x["id"] == session]
-        self.assertEqual([x.get("status", "running") for x in kept], ["running"], listed)
+        self.assertEqual([x.get("status", "running") for x in kept], ["running"],
+                         f"{listed}\n{self.diagnostics()}")
 
         # A version that cannot start is rolled back by the launcher without any network.
         bad = b"#!/bin/sh\nexit 1\n" if not WIN else b"MZ not a program"

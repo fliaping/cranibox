@@ -45,6 +45,18 @@ pub fn runtime_root(config_dir: &Path) -> PathBuf {
         .unwrap_or_else(|| config_dir.join("runtime"))
 }
 
+/// Start the terminal host from the launcher, before the runtime it restarts. On Windows the
+/// runtime runs in a Job Object that kills its children, and breaking away from it is refused
+/// when an enclosing job (a service manager, a CI runner) disallows breakaway.
+/// `state` is the node's state directory, the parent of its peers file.
+pub async fn start_terminal_host(state: &Path) {
+    let state = std::path::absolute(state);
+    if let (Ok(state), Ok(home)) = (state, crate::peer::home()) {
+        // Dropping the client leaves the host running; the runtime connects to it.
+        drop(agent_workspace_pty::engine::Engine::hosted(home, state).await);
+    }
+}
+
 const RESTART_GRACE: Duration = Duration::from_secs(10);
 
 /// A host that can restart through the launcher registers its shutdown token here.
