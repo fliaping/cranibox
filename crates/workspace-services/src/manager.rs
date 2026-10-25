@@ -399,13 +399,29 @@ fn prune(paths: &Paths) {
         {
             continue;
         }
-        // -d keeps it down, -x makes the supervisor exit once it is down.
-        let _ = Command::new("s6-svc").arg("-dx").arg(entry.path()).status();
+        // s6-svscan respawns a supervisor for any directory still in the scan
+        // directory, so park it under a dot name first (svscan ignores those),
+        // then let svscan stop the supervisor of the vanished service (-n).
+        let _ = Command::new("s6-svc").arg("-d").arg(entry.path()).status();
+        let parked = paths.scan.join(format!(".removed-{name}"));
+        let _ = fs::remove_dir_all(&parked);
+        if fs::rename(entry.path(), &parked).is_err() {
+            continue;
+        }
+        let _ = Command::new("s6-svscanctl")
+            .arg("-an")
+            .arg(&paths.scan)
+            .status();
         let _ = wait_for(
-            || !entry.path().join("supervise/control").exists(),
+            || {
+                !Command::new("s6-svok")
+                    .arg(&parked)
+                    .status()
+                    .is_ok_and(|s| s.success())
+            },
             Duration::from_secs(3),
         );
-        let _ = fs::remove_dir_all(entry.path());
+        let _ = fs::remove_dir_all(&parked);
         for extension in ["pid", "lock", "exit.json", "stop", "supervisor.pid"] {
             remove(&paths.file(&name, extension));
         }

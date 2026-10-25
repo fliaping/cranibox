@@ -75,6 +75,20 @@ class ServiceTests(unittest.TestCase):
         self.command('disable', '--now', 'demo')
         self.assertEqual(self.command('is-active', 'demo', check=False).returncode, 3)
 
+    def test_reload_removes_the_supervisor_of_a_deleted_unit(self):
+        self.unit('/bin/sleep 60')
+        self.command('start', 'demo')
+        supervisor = int((self.state / 'demo.supervisor.pid').read_text())
+        self.command('stop', 'demo')
+        (self.units / 'demo.service').unlink()
+        self.command('daemon-reload')
+        scan = self.home / '.local/run/workspace-services/services'
+        self.assertFalse((scan / 'demo').exists())
+        self.assertEqual([p.name for p in scan.iterdir() if p.name.startswith('.removed-')], [])
+        # The supervisor is gone too, not left running in a deleted directory.
+        until(lambda: not Path(f'/proc/{supervisor}').exists() or
+              Path(f'/proc/{supervisor}/stat').read_text().split()[2] == 'Z')
+
     def test_restart_policy_failure_and_clean_exit(self):
         marker = self.home / 'count'
         self.unit(self.python('from pathlib import Path\np=Path(' + repr(str(marker)) +
