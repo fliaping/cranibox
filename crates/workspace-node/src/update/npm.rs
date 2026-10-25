@@ -128,7 +128,9 @@ impl Registries {
                             if let Some(value) = metadata["dist-tags"].get(name) {
                                 let version = value.as_str().context("invalid dist-tag")?;
                                 ensure!(plain_semver(version), "invalid dist-tag version");
-                                *slot = Some(version.to_owned());
+                                if !staging_placeholder(version) {
+                                    *slot = Some(version.to_owned());
+                                }
                             }
                         }
                         Ok(())
@@ -189,6 +191,10 @@ impl Registries {
                 .with_context(|| format!("missing dist-tag {spec}"))?
         };
         ensure!(plain_semver(version), "invalid release version {version:?}");
+        ensure!(
+            !staging_placeholder(version),
+            "no published release for {spec}"
+        );
         let manifest = &metadata["versions"][version];
         ensure!(manifest.is_object(), "missing version {version}");
         ensure!(
@@ -370,6 +376,10 @@ fn validate_package(package: &str) -> Result<()> {
     Ok(())
 }
 
+/// npm points `latest` at `0.0.0-stage` while a package's first release awaits staged approval.
+fn staging_placeholder(version: &str) -> bool {
+    version.starts_with("0.0.0-")
+}
 pub(super) fn plain_semver(version: &str) -> bool {
     let identifiers = |value: &str, numeric_zeroes: bool| {
         value.split('.').all(|part| {
@@ -679,7 +689,8 @@ pub(crate) mod tests {
         let root = scratch();
         let full = serve_body(StatusCode::OK, serde_json::to_vec(&packument()).unwrap()).await;
         let mut metadata = packument();
-        metadata["dist-tags"] = json!({"dev":"1.1.1-dev.7"});
+        // npm's placeholder for a package whose first release awaits staged approval.
+        metadata["dist-tags"] = json!({"dev":"1.1.1-dev.7","latest":"0.0.0-stage"});
         // Tag lookup needs only metadata; manifests and tarballs are not fetched.
         metadata["versions"] = json!({});
         let partial = serve_body(StatusCode::OK, serde_json::to_vec(&metadata).unwrap()).await;
