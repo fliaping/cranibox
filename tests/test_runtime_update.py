@@ -222,8 +222,17 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual([x.get("status", "running") for x in kept], ["running"],
                          f"{listed}\n{self.diagnostics()}")
 
+        if sys.platform == "darwin":
+            # An unsigned program is refused before it is activated: the kernel would kill it.
+            self.registry.publish("1.1.2-dev.0", b"#!/bin/sh\nexit 1\n")
+            unsigned = self.cranibox("update", "apply", "1.1.2-dev.0", check=False)
+            self.assertNotEqual(unsigned.returncode, 0)
+            self.assertIn("signature", unsigned.stderr)
+
         # A version that cannot start is rolled back by the launcher without any network.
-        bad = b"#!/bin/sh\nexit 1\n" if not WIN else b"MZ not a program"
+        # On macOS that is a signed program that exits at once.
+        bad = (b"MZ not a program" if WIN else Path("/usr/bin/false").read_bytes() if sys.platform == "darwin"
+               else b"#!/bin/sh\nexit 1\n")
         self.registry.publish("1.1.2-dev.1", bad, tag="dev")
         self.cranibox("update", "apply", "1.1.2-dev.1")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "rolled_back", 180, "the rollback")

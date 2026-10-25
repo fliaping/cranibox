@@ -5,6 +5,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import signal
 import socket
 import subprocess
 import sys
@@ -79,6 +80,17 @@ class PeerTests(unittest.TestCase):
     def close(self):
         for process in reversed(self.processes):
             self.stop(process)
+        # Terminal hosts outlive the nodes that started them; one may still be publishing
+        # its record, so find them by their state directory.
+        found = subprocess.run(['pgrep', '-f', f'terminal-host --state {self.root}/'], capture_output=True, text=True)
+        for pid in map(int, found.stdout.split()):
+            try:
+                os.kill(pid, signal.SIGTERM)
+                for _ in range(100):
+                    os.kill(pid, 0)
+                    time.sleep(0.05)
+            except OSError:
+                pass
         for log in self.logs:
             log.close()
 
@@ -256,8 +268,8 @@ class PeerTests(unittest.TestCase):
         self.start()
         reopened = self.cli(self.a, 'call', '--node', self.target, 'projects', 'list')
         self.assertEqual(reopened['projects'][0]['replicas'][0]['sessions'][0], binding)
-        # Node restart ends native shells, but never silently creates a replacement.
-        self.assertFalse(self.manage(operation='list')['sessions'])
+        # The terminal host keeps shells across a node restart and never creates a replacement.
+        self.assertEqual([s['id'] for s in self.manage(operation='list')['sessions']], [shell['id']])
         self.cli(self.a, 'call', '--node', self.target, 'projects', 'unbind', replica['id'], shell['id'])
         kept = self.cli(self.a, 'call', '--node', self.target, 'projects', 'forget', replica['id'])
         self.assertEqual(len(kept['projects'][0]['replicas']), 1)
@@ -332,13 +344,13 @@ class PeerTests(unittest.TestCase):
         again.expect('survived')
         self.manage(operation='end', id=session)
 
-    def test_restart_retains_identity_and_grants_but_not_processes_and_corruption_fails_closed(self):
+    def test_restart_retains_identity_grants_and_terminal_sessions_and_corruption_fails_closed(self):
         process = self.start()
-        session = self.manage(operation='create', name='Ephemeral')['session']['id']
+        session = self.manage(operation='create', name='Kept')['session']['id']
         self.stop(process)
         self.start()
         self.assertEqual(self.cli(self.b, 'identity')['node_id'], self.target)
-        self.assertNotIn(session, [s['id'] for s in self.manage(operation='list')['sessions']])
+        self.assertIn(session, [s['id'] for s in self.manage(operation='list')['sessions']])
         path = self.b.with_name('peers.json')
         original = path.read_bytes()
         path.write_bytes(b'broken')

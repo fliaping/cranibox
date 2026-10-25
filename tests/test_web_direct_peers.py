@@ -550,9 +550,10 @@ class WebDirectPeersTests(unittest.TestCase):
         self.assertNotIn('sync', fresh)
         self.assertEqual(fresh['projects'], catalog['projects'])
         # Fresh authority repairs a disposable corrupt cache; nothing is written
-        # back to the owner from that cache, and no missing Shell is recreated.
+        # back to the owner from that cache. The terminal host kept the bound Shell across the
+        # owner's restart, and nothing created another one.
         self.assertEqual(json.loads(cache.read_text())['catalog']['projects'], catalog['projects'])
-        self.assertEqual(self.api(operation='sessions', node=self.target, command={'operation': 'list'})['sessions'], [])
+        self.assertEqual([s['id'] for s in self.api(operation='sessions', node=self.target, command={'operation': 'list'})['sessions']], [shell['id']])
         self.api(operation='forget', node=self.target)
         self.assertFalse(cache.exists())
 
