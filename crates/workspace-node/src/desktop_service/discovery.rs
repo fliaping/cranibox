@@ -36,19 +36,32 @@ pub(super) async fn discover(current: Option<Desktop>, managed: Option<Desktop>)
     let checked = candidates.len();
     // At most six loopback probes run together. A silent or unrelated service
     // cannot stall local service management for a complete network timeout.
-    let services = futures_util::future::join_all(candidates.into_iter().map(|desktop| {
+    let results = futures_util::future::join_all(candidates.into_iter().map(|desktop| {
         let configured = current.as_ref() == Some(&desktop);
         async move {
-            let ready = tokio::time::timeout(Duration::from_secs(3), async {
+            let result = tokio::time::timeout(Duration::from_secs(3), async {
                 match desktop.protocol {
                     DesktopProtocol::Vnc => super::rfb(desktop.address).await,
                     DesktopProtocol::Selkies => {
-                        agent_workspace_runtime::peers::desktop::selkies::check(desktop.address).await
+                        agent_workspace_runtime::peers::desktop::selkies::check(desktop.address)
+                            .await
                     }
                 }
-            }).await.is_ok_and(|result| result.is_ok());
-            ready.then(|| json!({"address":desktop.address,"protocol":desktop.protocol,"configured":configured}))
+            })
+            .await
+            .unwrap_or_else(|_| Err(anyhow::anyhow!("no answer within 3 seconds")));
+            (desktop, configured, result)
         }
-    })).await.into_iter().flatten().collect::<Vec<_>>();
-    Ok(json!({"services":services,"checked":checked}))
+    }))
+    .await;
+    let mut services = Vec::new();
+    let mut failures = Vec::new();
+    for (desktop, configured, result) in results {
+        match result {
+            Ok(()) => services.push(json!({"address":desktop.address,"protocol":desktop.protocol,"configured":configured})),
+            // Nothing listening is the normal case for most candidates; keep real answers.
+            Err(error) => failures.push(json!({"address":desktop.address,"protocol":desktop.protocol,"error":format!("{error:#}")})),
+        }
+    }
+    Ok(json!({"services":services,"checked":checked,"failures":failures}))
 }

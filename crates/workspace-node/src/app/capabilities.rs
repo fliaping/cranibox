@@ -429,9 +429,17 @@ impl Service {
                     .map_err(failed)?;
             }
             (CapabilityId::Desktop, Enable) => {
-                let desktop = self.detected_desktop(host).await.ok_or_else(|| {
-                    conflict("No desktop server answers on this device; turn on screen sharing, then retry.")
-                })?;
+                let desktop = match self.detected_desktop(host).await {
+                    Some(desktop) => desktop,
+                    // One more look: a server that was just busy answers the second time.
+                    None => {
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        match self.detected_desktop(host).await {
+                            Some(desktop) => desktop,
+                            None => return Err(conflict(self.desktop_probe_report(host).await)),
+                        }
+                    }
+                };
                 share_desktop(&path, Some(desktop)).map_err(failed)?;
             }
             (CapabilityId::Desktop, Disable) => {
@@ -503,6 +511,26 @@ impl Service {
     }
 
     /// The desktop server to share: macOS Screen Sharing, else a detected Selkies or VNC.
+    /// Why no desktop server was found, with what each candidate answered.
+    async fn desktop_probe_report(&self, host: &dyn Host) -> String {
+        let mut report = String::from(
+            "No desktop server answers on this device; turn on screen sharing, then retry.",
+        );
+        match host.desktop(desktop_service::Command::Discover {}).await {
+            Ok(found) => {
+                for failure in found["failures"].as_array().into_iter().flatten().take(6) {
+                    report.push_str(&format!(
+                        "\n{} ({}): {}",
+                        failure["address"].as_str().unwrap_or("?"),
+                        failure["protocol"].as_str().unwrap_or("?"),
+                        failure["error"].as_str().unwrap_or("?")
+                    ));
+                }
+            }
+            Err(error) => report.push_str(&format!("\nDiscovery failed: {error:#}")),
+        }
+        report
+    }
     async fn detected_desktop(&self, host: &dyn Host) -> Option<Desktop> {
         if cfg!(target_os = "macos") {
             return desktop_service::rfb(SCREEN_SHARING)
