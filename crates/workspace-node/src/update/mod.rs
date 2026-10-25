@@ -64,7 +64,9 @@ pub fn request_restart() -> bool {
             // sockets) and can hang for good; the launcher is waiting to start the new version.
             std::thread::spawn(|| {
                 std::thread::sleep(RESTART_GRACE);
-                eprintln!("update: shutdown did not finish in {RESTART_GRACE:?}; exiting for the restart");
+                eprintln!(
+                    "update: shutdown did not finish in {RESTART_GRACE:?}; exiting for the restart"
+                );
                 std::process::exit(launcher::RESTART_EXIT_CODE);
             });
             true

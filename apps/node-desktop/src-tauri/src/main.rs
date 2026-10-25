@@ -365,15 +365,15 @@ fn main() -> anyhow::Result<()> {
                 let root = cranibox_node::update::runtime_root(path.parent().unwrap_or(&path));
                 // Remote updates are on by default: the first start makes this program the first
                 // managed version. If that fails the app keeps running unmanaged as before.
-                let adopted = match managed::adopted(&root).and_then(|adopted| {
+                let adopted = match managed::adopted(&root).map(|adopted| {
                     if adopted || std::env::var_os("CRANIBOX_NO_MANAGED").is_some() {
-                        return Ok(adopted);
+                        return adopted;
                     }
                     match cranibox_node::update::cli::adopt(&root) {
-                        Ok(_) => Ok(true),
+                        Ok(_) => true,
                         Err(error) => {
                             eprintln!("Remote updates are not available on this device: {error:#}");
-                            Ok(false)
+                            false
                         }
                     }
                 }) {
