@@ -199,6 +199,23 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertIsNone(available["available"]["next"])
         self.assertIsNone(available["available_error"])
 
+    def test_plain_start_is_managed_by_default(self):
+        """No adopt, no launcher command: starting the program is enough for remote updates."""
+        self.registry.publish("1.1.1-dev.1", self.exe_bytes, tag="dev")
+        with self.log.open("wb") as log:
+            self.launcher = subprocess.Popen(
+                [str(self.exe), "--config", str(self.cfg)],
+                env=self.env, stdout=log, stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if WIN else 0)
+        self.wait_for(lambda s: "device interface" in self.log.read_text(errors="replace"), 90, "the node to start")
+        s = self.status()
+        self.assertEqual((s["runtime"]["version"], s["runtime"]["managed"]), (self.base, True))
+        self.cranibox("update", "apply", "dev")
+        s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "done", 120, "the update to finish")
+        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        # The same process keeps supervising: one entry point for the service manager.
+        self.assertIsNone(self.launcher.poll())
+
 
 if __name__ == "__main__":
     unittest.main()

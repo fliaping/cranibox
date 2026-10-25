@@ -38,5 +38,12 @@ async fn main() -> Result<()> {
             _ => {}
         }
     }
+    #[cfg(not(feature = "workspace"))]
+    {
+        cranibox_node::update::set_product_version(env!("CARGO_PKG_VERSION"));
+        if let Some(code) = cranibox_node::update::cli::auto_launch(&args).await? {
+            std::process::exit(code);
+        }
+    }
     cranibox_node::cli::run_program(args, env!("CARGO_PKG_VERSION")).await
 }

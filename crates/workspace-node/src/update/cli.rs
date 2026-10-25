@@ -130,25 +130,11 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
                 Layout::new(&root).pointer()?.is_some(),
                 "nothing to launch: run `cranibox update adopt` once on this device first"
             );
-            let stop = tokio_util::sync::CancellationToken::new();
-            let signal = stop.clone();
-            // Service managers stop a service with SIGTERM; without it the launcher would
-            // die and leave the node running in its own process group.
-            #[cfg(unix)]
-            let mut terminate =
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-            tokio::spawn(async move {
-                #[cfg(unix)]
-                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
-                #[cfg(not(unix))]
-                let _ = tokio::signal::ctrl_c().await;
-                signal.cancel();
-            });
             // `--config` is a global option, so the runtime would silently fall back to the
             // default settings (and its single-instance lock) unless the launcher forwards it.
             let mut runtime_args: Vec<std::ffi::OsString> = vec!["--config".into(), config.into()];
             runtime_args.extend(args.into_iter().map(Into::into));
-            let code = launcher::run(LauncherConfig::new(&root, runtime_args), stop).await?;
+            let code = launch_foreground(&root, runtime_args).await?;
             std::process::exit(code);
         }
     }
@@ -315,4 +301,64 @@ pub fn adopt(root: &Path) -> Result<String> {
     layout.activate_forced(&version)?;
     layout.confirm(&version)?;
     Ok(version.to_string())
+}
+
+/// Run the managed runtime in the foreground until a stop signal; returns the exit code.
+async fn launch_foreground(root: &Path, runtime_args: Vec<std::ffi::OsString>) -> Result<i32> {
+    let stop = tokio_util::sync::CancellationToken::new();
+    let signal = stop.clone();
+    // Service managers stop a service with SIGTERM; without it the launcher would
+    // die and leave the node running in its own process group.
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+        #[cfg(not(unix))]
+        let _ = tokio::signal::ctrl_c().await;
+        signal.cancel();
+    });
+    launcher::run(LauncherConfig::new(root, runtime_args), stop).await
+}
+
+/// Remote updates are on by default: a plain `cranibox` or `cranibox serve` makes itself the
+/// first managed version on first start and from then on only supervises the managed runtime
+/// (same process, same service-manager unit). `Ok(None)` means run unmanaged as before:
+/// another command, an opt-out (`CRANIBOX_NO_MANAGED`), or a runtime that cannot be adopted.
+pub async fn auto_launch(args: &[String]) -> Result<Option<i32>> {
+    if std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_some()
+        || std::env::var_os("CRANIBOX_NO_MANAGED").is_some()
+    {
+        return Ok(None);
+    }
+    let mut config = None;
+    let mut positional = Vec::new();
+    let mut rest = args.iter().skip(1);
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--config" => config = rest.next().map(PathBuf::from),
+            "-h" | "--help" | "-V" | "--version" => return Ok(None),
+            _ if arg.starts_with("--config=") => config = Some(PathBuf::from(&arg[9..])),
+            _ if arg.starts_with('-') => {}
+            _ => positional.push(arg.as_str()),
+        }
+    }
+    let service = matches!(
+        positional.as_slice(),
+        [] | ["serve", ..] | ["peer", "serve"]
+    );
+    if !service {
+        return Ok(None);
+    }
+    let config = config.unwrap_or_else(crate::settings::default_path);
+    let peers = crate::peer::config::path_for(&config);
+    let root = super::runtime_root(peers.parent().unwrap_or(&peers));
+    if Layout::new(&root).pointer()?.is_none()
+        && let Err(error) = adopt(&root)
+    {
+        eprintln!("Remote updates are not available on this device: {error:#}");
+        return Ok(None);
+    }
+    let runtime_args = args.iter().skip(1).map(Into::into).collect();
+    Ok(Some(launch_foreground(&root, runtime_args).await?))
 }
