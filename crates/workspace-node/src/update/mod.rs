@@ -45,6 +45,8 @@ pub fn runtime_root(config_dir: &Path) -> PathBuf {
         .unwrap_or_else(|| config_dir.join("runtime"))
 }
 
+const RESTART_GRACE: Duration = Duration::from_secs(10);
+
 /// A host that can restart through the launcher registers its shutdown token here.
 pub fn install_restart_hook(stop: CancellationToken) {
     *HOOK.lock().unwrap() = Some(stop);
@@ -58,6 +60,13 @@ pub fn request_restart() -> bool {
         Some(stop) if std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_some() => {
             RESTART.store(true, Ordering::SeqCst);
             stop.cancel();
+            // A graceful stop waits for open connections (a window's event streams, terminal
+            // sockets) and can hang for good; the launcher is waiting to start the new version.
+            std::thread::spawn(|| {
+                std::thread::sleep(RESTART_GRACE);
+                eprintln!("update: shutdown did not finish in {RESTART_GRACE:?}; exiting for the restart");
+                std::process::exit(launcher::RESTART_EXIT_CODE);
+            });
             true
         }
         _ => false,

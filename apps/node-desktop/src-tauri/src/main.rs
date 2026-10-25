@@ -264,6 +264,8 @@ fn main() -> anyhow::Result<()> {
                 env!("CARGO_PKG_VERSION"),
             ));
     }
+    // Adoption in the window names the first managed version after this program.
+    cranibox_node::update::set_product_version(env!("CARGO_PKG_VERSION"));
     let background = args == ["--background"];
     // Started from Finder or a login item, the app has a minimal PATH: take the login
     // shell's, so installed agents and their tools are found.
