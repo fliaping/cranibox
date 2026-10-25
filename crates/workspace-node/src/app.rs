@@ -1,6 +1,6 @@
 //! One App API implementation shared by the browser and native IPC.
 mod capabilities;
-mod known;
+pub(crate) mod known;
 pub mod preferences;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
@@ -85,6 +85,7 @@ impl Service {
                     probing: true,
                 },
             );
+            let owner = self.models.roster.is_owner_node(node);
             let (local, reach, node) = (self.local.clone(), self.reach.clone(), node.to_owned());
             tokio::spawn(async move {
                 let online = match local.upgrade() {
@@ -99,6 +100,12 @@ impl Service {
                             let _ = known::update(local.config_path(), &node, |k| {
                                 k.learn(&answer, now)
                             });
+                            if owner {
+                                let _ = known::merge_labels(
+                                    local.config_path(),
+                                    &answer["nodes"][0]["labels"],
+                                );
+                            }
                             true
                         }
                         _ => false,
@@ -348,6 +355,7 @@ impl Service {
             }
             known::update(local.config_path(), node, |k| {
                 k.alias = (!name.is_empty()).then(|| name.to_owned());
+                k.alias_at = Some(cranibox_llm::auth::now().saturating_mul(1000));
             })
             .map_err(unavailable)?;
             if input.get("caps").is_none() && input.get("revoke").is_none() {

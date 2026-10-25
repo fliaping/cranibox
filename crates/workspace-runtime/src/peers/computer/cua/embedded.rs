@@ -35,10 +35,17 @@ fn home() -> Option<&'static Path> {
 /// Embedded mode applies only to the macOS app: the host must be an identifiable
 /// application for macOS to attribute the driver to it.
 pub fn active() -> bool {
-    cfg!(target_os = "macos")
-        && home().is_some()
-        && std::env::current_exe()
-            .is_ok_and(|exe| exe.to_string_lossy().contains(".app/Contents/MacOS/"))
+    cfg!(target_os = "macos") && home().is_some() && (in_app_bundle() || started_by_app())
+}
+fn in_app_bundle() -> bool {
+    std::env::current_exe().is_ok_and(|exe| exe.to_string_lossy().contains(".app/Contents/MacOS/"))
+}
+/// A managed runtime lives outside the bundle (`runtime/versions/<v>/bin/cranibox`), but the
+/// app shell started it. macOS attributes Screen Recording and Accessibility to the
+/// responsible process, the app, for everything below it, so the driver belongs to the app.
+fn started_by_app() -> bool {
+    std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_some()
+        && std::env::var_os("CRANIBOX_SHELL_URL").is_some()
 }
 pub fn binary() -> Option<PathBuf> {
     home().map(|h| h.join(super::BINARY))

@@ -277,8 +277,21 @@ fn check_permission(caller: &Caller, terminals: bool) -> Result<(), Failure> {
 }
 async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> Json<Value> {
     let info = crate::device_info::local();
+    // Device names chosen by the owner travel with the owner's devices only.
+    let owner = agent_workspace_runtime::peers::roster::RosterStore::load(
+        app.path.with_file_name("models").join("roster.json"),
+    )
+    .is_ok_and(|r| {
+        use cranibox_contracts::roster::RosterView;
+        r.is_owner_node(&app.node) && r.is_owner_node(&caller.node)
+    });
+    let labels = if owner {
+        crate::app::known::labels(&app.path)
+    } else {
+        Value::Null
+    };
     Json(
-        json!({"nodes":[{"id":app.node,"name":info.name,"online":true,"os":info.os,
+        json!({"nodes":[{"id":app.node,"name":info.name,"labels":labels,"online":true,"os":info.os,
         "os_version":info.os_version,"model":info.model,"kind":info.kind,
         "arch":info.arch,"terminal":caller.grant.permissions.terminals,
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,

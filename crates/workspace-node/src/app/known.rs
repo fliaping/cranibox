@@ -13,6 +13,9 @@ pub struct Known {
     pub name: Option<String>,
     /// A name the owner chose here; wins over `name`.
     pub alias: Option<String>,
+    /// When `alias` was last set or cleared (ms). Names sync between owner devices; the
+    /// latest change wins, and a cleared name stays as a dated blank so it wins too.
+    pub alias_at: Option<u64>,
     pub kind: Option<String>,
     pub os_version: Option<String>,
     pub model: Option<String>,
@@ -66,6 +69,45 @@ impl Known {
     }
 }
 
+/// The names this device knows, for owner devices to merge: `{node: {label, at}}`.
+pub fn labels(peers: &Path) -> Value {
+    load(peers)
+        .into_iter()
+        .filter_map(|(node, known)| {
+            let at = known.alias_at?;
+            Some((
+                node,
+                serde_json::json!({"label": known.alias.unwrap_or_default(), "at": at}),
+            ))
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
+}
+
+/// Take newer names from an owner device's answer. Only the owner's own devices may rename.
+pub fn merge_labels(peers: &Path, remote: &Value) -> Result<()> {
+    let Some(remote) = remote.as_object() else {
+        return Ok(());
+    };
+    for (node, entry) in remote.iter().take(256) {
+        let valid =
+            node.len() <= 96 && node.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        let (Some(label), Some(at)) = (entry["label"].as_str(), entry["at"].as_u64()) else {
+            continue;
+        };
+        if !valid || label.chars().count() > 64 {
+            continue;
+        }
+        update(peers, node, |k| {
+            if k.alias_at.is_none_or(|have| at > have) {
+                k.alias = (!label.trim().is_empty()).then(|| label.trim().to_owned());
+                k.alias_at = Some(at);
+            }
+        })?;
+    }
+    Ok(())
+}
+
 pub fn path(peers: &Path) -> std::path::PathBuf {
     peers.with_file_name("devices.json")
 }
@@ -104,7 +146,11 @@ mod tests {
         let known = load(&peers)["node-a"].clone();
         assert_eq!(known.display("node-a"), "Studio");
         assert!(matches!(known.kind(), DeviceKind::Laptop));
-        update(&peers, "node-a", |k| k.alias = Some("Work Mac".into())).unwrap();
+        update(&peers, "node-a", |k| {
+            k.alias = Some("Work Mac".into());
+            k.alias_at = Some(100);
+        })
+        .unwrap();
         let legacy = json!({"nodes":[{"id":"node-a","name":"node-a"}]});
         update(&peers, "node-a", |k| k.learn(&legacy, 20)).unwrap();
         let known = load(&peers)["node-a"].clone();
@@ -112,5 +158,29 @@ mod tests {
         assert_eq!(known.name.as_deref(), Some("Studio"), "an ID is not a name");
         assert_eq!(known.os_version.as_deref(), Some("macOS 26.6"));
         assert_eq!(known.last_seen, Some(20));
+    }
+
+    #[test]
+    fn newer_names_win_and_a_cleared_name_is_remembered() {
+        let dir = tempfile::tempdir().unwrap();
+        let peers = dir.path().join("peers.json");
+        update(&peers, "node-a", |k| {
+            k.alias = Some("Old".into());
+            k.alias_at = Some(10);
+        })
+        .unwrap();
+        merge_labels(&peers, &json!({"node-a": {"label": "Mac mini", "at": 20}, "node-b": {"label": "NAS", "at": 5}})).unwrap();
+        merge_labels(
+            &peers,
+            &json!({"node-a": {"label": "Stale", "at": 15}, "bad id!": {"label": "x", "at": 1}}),
+        )
+        .unwrap();
+        let known = load(&peers);
+        assert_eq!(known["node-a"].display("node-a"), "Mac mini");
+        assert_eq!(known["node-b"].display("node-b"), "NAS");
+        assert!(!known.contains_key("bad id!"));
+        merge_labels(&peers, &json!({"node-a": {"label": "", "at": 30}})).unwrap();
+        assert_eq!(load(&peers)["node-a"].display("node-a"), "node-a");
+        assert_eq!(labels(&peers)["node-a"], json!({"label": "", "at": 30}));
     }
 }
