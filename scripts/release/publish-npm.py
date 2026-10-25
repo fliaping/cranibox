@@ -101,7 +101,7 @@ def publish_packages(directory, plan, dry_run, dist_tag, mode, outcomes):
                 outcomes.append((name, version, "already published and verified", []))
                 continue
             if mode == "stage":
-                staged = [stage for stage in list_stages(name, require_integrity=True) if stage["version"] == version]
+                staged = [stage for stage in list_stages(name, require_integrity=True, version=version) if stage["version"] == version]
                 for stage in staged:
                     if stage["tag"] != tag:
                         raise ValueError(f"{name}@{version} is already staged with tag {stage['tag']!r}, requested {tag!r}. "

@@ -78,13 +78,17 @@ def normalize_stage(item):
     return result
 
 
-def list_stages(name, require_integrity=False):
+def list_stages(name, require_integrity=False, version=None):
+    """With version, stages of other versions are skipped before their metadata is required:
+    an approved or superseded stage need not report integrity to publish a new version."""
     stages = []
     seen = set()
     for item in stage_records(stage_json("list", name)):
         stage = normalize_stage(item)
         # Never act on another package, even if npm returns an unfiltered list.
         if stage["name"] and stage["name"] != name:
+            continue
+        if version and stage["version"] and stage["version"] != version:
             continue
         required = ("name", "version", "tag") + (("integrity",) if require_integrity else ())
         if any(not stage[key] for key in required):
@@ -98,6 +102,8 @@ def list_stages(name, require_integrity=False):
                 stage[key] = value or stage[key]
         if stage["name"] != name:
             raise ValueError(f"Cannot verify staged package identity for {stage['id']}.")
+        if version and stage["version"] and stage["version"] != version:
+            continue
         if any(not stage[key] for key in required):
             raise ValueError(f"Cannot verify staged metadata for {stage['id']}; inspect npm stage view before retrying.")
         validate_version(stage["version"])

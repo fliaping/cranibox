@@ -454,6 +454,17 @@ class DistributionTests(unittest.TestCase):
         self.publish_with_fake(output, environment, dist_tag="dev")
         self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
 
+    def test_stage_of_another_version_without_integrity_does_not_block(self):
+        # An approved or superseded stage may no longer report integrity in npm stage view.
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42")
+        old = {**self.stage_fixtures()[0], "version": "99.0.0-dev.41", "integrity": None}
+        unversioned = {**old, "id": "older-unversioned", "version": None}
+        environment = self.fake_npm({"lists": {old["name"]: [old, unversioned]},
+                                     "views": {old["id"]: old, unversioned["id"]: {**old, "id": unversioned["id"]}}})
+        self.publish_with_fake(output, environment, dist_tag="dev")
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+
     def test_approve_lists_only_expected_packages_without_action(self):
         stages = self.stage_fixtures()
         foreign = {**stages[0], "id": "unrelated", "name": "@other/package"}
@@ -585,7 +596,8 @@ if (process.argv[2] === '--wait') {
                 file.chmod(0o755)
             result = subprocess.run(["npm", "pack", "--json", "--ignore-scripts", "--pack-destination", str(output)],
                                     cwd=package, env=environment, text=True, capture_output=True, check=True)
-            packed = json.loads(result.stdout)[0]
+            packed = json.loads(result.stdout)
+            packed = (list(packed.values()) if isinstance(packed, dict) else packed)[0]  # npm 12 keys by name
             manifest = json.loads((package / "package.json").read_text())
             tarballs[manifest["name"]] = output / packed["filename"]
 
