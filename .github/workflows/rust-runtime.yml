@@ -287,6 +287,13 @@ jobs:
           CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
       - run: npm run test:paths --prefix addons/control-center/ui
         if: runner.os == 'Linux'
+      - uses: actions/upload-artifact@v7
+        if: failure() && runner.os == 'Linux'
+        with:
+          name: playwright-results
+          path: addons/control-center/ui/test-results*/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify Browser Use with an isolated real Chromium and official MCP
         if: runner.os == 'Linux'
         shell: bash
