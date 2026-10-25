@@ -363,7 +363,20 @@ fn main() -> anyhow::Result<()> {
             });
             let url = tauri::async_runtime::block_on(async {
                 let root = cranibox_node::update::runtime_root(path.parent().unwrap_or(&path));
-                let adopted = match managed::adopted(&root) {
+                // Remote updates are on by default: the first start makes this program the first
+                // managed version. If that fails the app keeps running unmanaged as before.
+                let adopted = match managed::adopted(&root).and_then(|adopted| {
+                    if adopted || std::env::var_os("CRANIBOX_NO_MANAGED").is_some() {
+                        return Ok(adopted);
+                    }
+                    match cranibox_node::update::cli::adopt(&root) {
+                        Ok(_) => Ok(true),
+                        Err(error) => {
+                            eprintln!("Remote updates are not available on this device: {error:#}");
+                            Ok(false)
+                        }
+                    }
+                }) {
                     Ok(adopted) => adopted,
                     Err(error) => {
                         setup_state.service.lock().await.error = Some(format!("Read runtime pointer: {error:#}"));

@@ -111,6 +111,29 @@ pub fn watch_restart_file(root: PathBuf, stop: CancellationToken) {
     });
 }
 
+/// A managed runtime must not outlive the launcher that supervises it: an orphan keeps the
+/// device's locks and ports, so the next launcher can never start its own runtime. Stop
+/// (and, if that hangs, exit) as soon as the launcher's process is gone.
+#[cfg(unix)]
+pub fn stop_with_launcher(stop: CancellationToken) {
+    // SAFETY: getppid has no preconditions.
+    let launcher = unsafe { libc::getppid() };
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = stop.cancelled() => return,
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {}
+            }
+            if unsafe { libc::getppid() } != launcher {
+                eprintln!("update: the launcher is gone; stopping");
+                stop.cancel();
+                tokio::time::sleep(RESTART_GRACE).await;
+                std::process::exit(1);
+            }
+        }
+    });
+}
+
 /// Mark the running version healthy once it has stayed up for `after`.
 pub fn confirm_when_stable(root: PathBuf, after: Duration, stop: CancellationToken) {
     tokio::spawn(async move {

@@ -246,6 +246,8 @@ pub async fn run(
     crate::update::install_restart_hook(stop.clone());
     crate::update::watch_restart_file(runtime.clone(), stop.clone());
     if std::env::var_os("CRANIBOX_RUNTIME_MANAGED").is_some() {
+        #[cfg(unix)]
+        crate::update::stop_with_launcher(stop.clone());
         crate::update::confirm_when_stable(
             runtime,
             std::time::Duration::from_secs(20),
