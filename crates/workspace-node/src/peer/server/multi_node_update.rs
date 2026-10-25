@@ -274,6 +274,16 @@ async fn exercise_nodes(root: &FsPath) {
             Ok(())
         })
         .unwrap();
+        for identity in &identities {
+            if identity.public().node_id != Config::read(path).unwrap().node_id {
+                use crate::access::Capability::*;
+                crate::access::allow_fixture(
+                    path,
+                    &identity.public().node_id,
+                    &[Update, Exec, Terminals],
+                );
+            }
+        }
     }
 
     let a = Fleet::new(paths[0].clone());

@@ -91,8 +91,9 @@ pub(super) async fn upgrade(
     Path(node): Path<String>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
+    Extension(access_key): Extension<access::AccessKey>,
 ) -> Result<Response<Body>, Failure> {
-    relay(app, caller, node, secret, ws, false).await
+    relay(app, caller, node, secret, ws, false, access_key).await
 }
 pub(super) async fn page_upgrade(
     State(app): State<App>,
@@ -100,8 +101,9 @@ pub(super) async fn page_upgrade(
     Path(node): Path<String>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
+    Extension(access_key): Extension<access::AccessKey>,
 ) -> Result<Response<Body>, Failure> {
-    relay(app, caller, node, secret, ws, true).await
+    relay(app, caller, node, secret, ws, true, access_key).await
 }
 async fn relay(
     app: App,
@@ -110,6 +112,7 @@ async fn relay(
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
     web: bool,
+    access_key: access::AccessKey,
 ) -> Result<Response<Body>, Failure> {
     check_target(&app, &node)?;
     if !caller.grant.permissions.desktop {
@@ -118,6 +121,12 @@ async fn relay(
             "desktop capability not granted by target node",
         ));
     }
+    let access_session = access::begin(
+        &app,
+        &caller,
+        crate::access::Capability::Desktop,
+        &access_key,
+    )?;
     let opened = if web {
         page(&app, Some(caller), true).await
     } else {
@@ -127,15 +136,17 @@ async fn relay(
     let margin = crate::peer::secure_ws::MARGIN;
     Ok(ws.max_message_size(MAX_CHUNK + margin).max_frame_size(MAX_CHUNK + margin).on_upgrade(move |socket| async move {
         let mut socket = crate::peer::secure_ws::SecureSocket::new(socket, secret.as_ref().map(|Extension(s)| s));
+        let mut access_check = tokio::time::interval(Duration::from_millis(250));
         let run: Result<()> = async {
             loop {
                 tokio::select! {
+                    _ = access_check.tick() => if !access_session.valid() { break; },
                     event = desktop.output.recv() => match event {
                         Some(Event::Data(data)) => { tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Binary(data.into()))).await??; }
                         _ => break,
                     },
                     message = socket.recv() => match message {
-                        Some(Ok(Message::Binary(bytes))) => desktop.send(bytes.to_vec())?,
+                        Some(Ok(Message::Binary(bytes))) => { anyhow::ensure!(access_session.valid(), "access revoked"); desktop.send(bytes.to_vec())?; },
                         Some(Ok(Message::Ping(data))) => { tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Pong(data))).await??; }
                         Some(Ok(Message::Pong(_))) => {},
                         _ => break,

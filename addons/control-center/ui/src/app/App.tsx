@@ -1,3 +1,4 @@
+import { AccessLog, AccessSurfaces } from "../access/Access";
 import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, RefreshCw, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
@@ -35,6 +36,7 @@ function pages(models: ReactNode): Page[] {
   return [
     { path: "/app/home", section: "home", title: t => t("首页", "Home"), element: needsSetup() ? <Navigate to="/app/setup" replace /> : <Home /> },
     { path: "/app/setup", section: "home", title: t => t("设置向导", "Setup guide"), element: <SetupGuide /> },
+    { path: "/app/access-log", section: "devices", title: t => t("访问记录", "Access log"), element: <AccessLog /> },
     { path: "/app/devices", section: "devices", title: t => t("设备", "Devices"), element: <Devices /> },
     { path: "/nodes", section: "devices", title: t => t("网络设置", "Network settings"), element: <NetworkPage /> },
     { path: "/spaces", section: "spaces", title: t => t("虚拟空间", "Virtual spaces"), heading: true, description: t => t("在设备上创建隔离的工作空间，带桌面和编辑器；也是 Agent 自己的电脑。", "Isolated workspaces with their own desktop and editor, created on your devices — your agents' own computers."), element: <Spaces /> },
@@ -69,7 +71,7 @@ const sections: { id: SectionId; to: string; icon: LucideIcon; label: (t: Transl
   { id: "settings", to: "/app/settings", icon: SettingsIcon, label: t => t("本机设置", "Settings") },
 ];
 function sectionTabs(section: SectionId, t: Translate, workspace: boolean, approvals: number): TabItem[] {
-  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/nodes", label: t("网络设置", "Network settings") }];
+  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/nodes", label: t("网络设置", "Network settings") }, { to: "/app/access-log", label: t("访问记录", "Access log") }];
   if (section === "inbox") return [{ to: "/app/inbox", label: t("审批", "Approvals"), count: approvals }, { to: "/tasks", label: t("任务", "Tasks") }, { to: "/messages", label: t("消息", "Messages") }];
   if (section === "models") return workspace ? [{ to: "/app/models", label: t("模型与 Agent", "Models & agents") }, { to: "/agents", label: t("工作区 Agent", "Workspace agents") }] : [];
   if (section === "settings") return [{ to: "/app/settings", label: t("通用", "General") }, { to: "/app/this", label: t("能力与权限", "Capabilities") }, { to: "/app/identity", label: t("身份与安全", "Identity & security") }, { to: "/app/agent-access", label: t("Agent 接入", "Agent access") }, ...(workspace ? [{ to: "/overview", label: t("工作区", "Workspace") }] : [])];
@@ -173,6 +175,7 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
           <button className="cx-icon-btn" aria-label={dark ? t("切换浅色主题", "Switch to light theme") : t("切换深色主题", "Switch to dark theme")} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}</button>
         </div>
       </header>
+      <AccessSurfaces />
       <main id="main-content" ref={main} tabIndex={-1} className="cx-content">
         {error && <Alert action={<button className="cx-btn small" onClick={() => void refresh()}>{t("重试", "Retry")}</button>}>{error}</Alert>}
         {inWorkspace && workspace.error && <Alert tone="warn" action={<button className="cx-btn small" onClick={workspace.refresh}>{t("重试", "Retry")}</button>}><strong>{t("无法获取最新状态", "Unable to get the latest status")}</strong> {workspace.error}{workspace.snapshot && " " + t("下方保留上次成功更新的数据。", "The last successful snapshot is shown below.")}</Alert>}

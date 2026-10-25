@@ -1,3 +1,4 @@
+import { accessFetch } from "../access/request";
 export type Api = {
   call<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
   subscribe?(refresh: () => void): () => void;
@@ -159,7 +160,7 @@ export const agentNames: Record<string, string> = {
 export function httpApi(csrf: string): Api {
   return {
     async call<T>(method: string, path: string, body?: unknown) {
-      const response = await fetch("/api/v1/app" + path, {
+      const response = await accessFetch("/api/v1/app" + path, {
         method,
         credentials: "same-origin",
         headers: {
@@ -185,7 +186,7 @@ export function httpApi(csrf: string): Api {
     },
     subscribe(refresh) {
       const events = new EventSource("/api/v1/app/events");
-      for (const type of ["status", "approval", "device", "account"])
+      for (const type of ["status", "approval", "device", "account", "access"])
         events.addEventListener(type, refresh);
       return () => events.close();
     },

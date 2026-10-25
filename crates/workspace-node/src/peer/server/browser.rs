@@ -48,6 +48,9 @@ pub(super) async fn manage(
     })?;
     let mut result = match command {
         Request::EmergencyStop {} => {
+            access::store(&app).revoke(None, true).map_err(|_| {
+                failure(StatusCode::SERVICE_UNAVAILABLE, "access store unavailable")
+            })?;
             browser::owner(&app.path, browser::OwnerCommand::EmergencyStop {}).await
         }
         Request::Status {} => browser::owner(&app.path, browser::OwnerCommand::Status {}).await,
@@ -76,6 +79,7 @@ pub(super) async fn upgrade(
     Path(node): Path<String>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     ws: WebSocketUpgrade,
+    Extension(access_key): Extension<access::AccessKey>,
 ) -> Result<Response, Failure> {
     check_target(&app, &node)?;
     let c = access(&app, &caller)?;
@@ -116,7 +120,13 @@ pub(super) async fn upgrade(
             "Browser CDP connection unavailable",
         )
     })?;
-    let check = move || valid(&app, &caller, &provider, c.browser_epoch);
+    let access_session = access::begin(
+        &app,
+        &caller,
+        crate::access::Capability::Browser,
+        &access_key,
+    )?;
+    let check = move || access_session.valid() && valid(&app, &caller, &provider, c.browser_epoch);
     if !check() {
         return Err(failure(
             StatusCode::CONFLICT,

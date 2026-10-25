@@ -108,7 +108,7 @@ export function capabilityName(id: string, t: Translate) {
   return ({
     terminal: t("终端", "Terminal"), terminals: t("终端", "Terminal"), desktop: t("远程桌面", "Remote desktop"),
     computer: "Computer Use", browser: t("浏览器", "Browser"), exec: t("执行命令", "Run commands"),
-    projects: t("项目", "Projects"), messages: t("消息", "Messages"), activity: t("活动记录", "Activity"),
+    update: t("远程更新", "Remote updates"), projects: t("项目", "Projects"), messages: t("消息", "Messages"), activity: t("活动记录", "Activity"),
     spaces: t("虚拟空间", "Virtual spaces"), llm: t("模型调用", "Model access"), vault: t("凭据同步", "Credential sync"),
   } as Record<string, string>)[id] || id;
 }

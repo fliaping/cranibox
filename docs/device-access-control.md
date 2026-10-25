@@ -76,8 +76,29 @@ Tailscale 的情况相同，它也有对应的机制：
 4. 请求方的界面轮询请求状态，看到批准后自动继续，看到拒绝或过期就显示结果。请求方界面上一直显示
    “等待 <目标设备> 上的批准…”。
 
-没有本地界面的设备（无桌面的服务器）在第一阶段只能设成“关闭”或“允许”，“询问”需要等第二阶段的管理员远程批准。
-在这类设备上选择“允许”时，界面要明确警告。
+没有本地界面的设备（无桌面的服务器）可以在本机用 CLI 批准“询问”请求。第一阶段不接受其他设备代为批准，
+远程管理员批准留到第二阶段。在这类设备上选择“允许”时，界面要明确警告。
+
+### 本机 CLI
+
+以下命令直接操作本机存储，无需启动服务。设备参数可用节点 ID 或不重名的设备名称；所有命令都支持
+`--json` 输出，适合脚本。能力组为 `messages`、`terminal`、`screen`、`browser`、`update`、
+`spaces`、`activity`、`models`，也可使用表格中的单项能力。
+
+~~~sh
+cranibox access list
+cranibox access set "Design Mac" terminal=ask browser=off
+cranibox access approve <request-id> --for session
+cranibox access approve <request-id> --for 30m
+cranibox access approve <request-id> --for 8h
+cranibox access deny <request-id>
+cranibox access revoke <approval-id>
+cranibox access revoke --all
+cranibox access log --limit 50 --node "Design Mac" --capability terminals --verify
+cranibox access list --json
+~~~
+
+`--verify` 校验失败时返回非零退出码；记录完整性状态也始终包含在普通输出和 JSON 中。
 
 ## 使用审计与提示
 
@@ -147,6 +168,85 @@ Tailscale 的情况相同，它也有对应的机制：
 6. 测试：多节点用例覆盖默认拒绝、询问到批准到使用、过期、拒绝冷却、远程放宽被拒绝、审计哈希链和篡改检测。
 
 第二阶段：`admin-access-policy.md` 的第 1–5 步，加上上面的调整。第三阶段：Touch ID 与 Windows Hello（同文档第 6–8 步）。
+
+### Phase 1 backend implementation
+
+The target stores `access-policy.json` beside `peers.json`, using the same private atomic-write
+and file-lock helpers as other node stores. It contains the `peers` policy map and persisted
+requests, approvals, cooldowns, active sessions and job-result authorizations. Transport grants
+are unchanged: admission requires the existing grant check **and** target policy authorization.
+Update has no legacy grant bit; its existing verified, encrypted owner-roster admission remains
+required, followed by the new `update` policy check. Update, LLM and vault still require an
+approval when their mode is `allow`, as specified under “关键操作必须批准”.
+
+**One-time migration:** startup creates the policy only when the file does not exist. All current
+roster members other than this node receive `allow` for messages/activity and `ask` for the
+remaining capabilities, including members whose transport grant has not yet been populated.
+Non-member direct grants retain their explicitly granted capabilities as `allow`; ungranted
+capabilities and update are `off`. No credentials are rewritten or re-signed. Subsequent peers
+without an entry get messages=`allow` and everything else=`off`; loading an existing policy
+never repeats migration or silently widens it.
+
+The cookie/CSRF-protected local app adapter and native app dispatcher expose:
+
+| Method and route (under `/api/v1/app`) | Request / response |
+| --- | --- |
+| `GET /access` | `{peers:[{node,name,capabilities}],pending,approvals,sessions}` |
+| `PUT /access/{node}` | `{"terminals":"ask","exec":"off"}` → `{}` |
+| `POST /access/requests/{id}` | `{decision:"deny"}` or `{decision:"approve",scope:"session"\|"30m"\|"8h"}` → request record |
+| `POST /access/revoke` | `{}` / `null` for all, or `{id:"approval-id"}` → `{}` |
+| `GET /access/audit?limit=&before=&node=&capability=` | `{entries,verified,broken_index}`; descending stable indexes, maximum 10,000 |
+| `GET /access/requests/{id}?node={target}` | Requester convenience proxy to target request state |
+
+The mesh exposes only `GET /api/v1/mesh/access/requests/{id}`, limited to the authenticated
+requester that created it (other requesters get 404). Its state is `pending`, `approved`,
+`denied` or `expired`. Mesh calls to the local access routes get 403. The local HTTP adapter
+also rejects the transport-injected `Authenticated` extension; no caller-supplied origin header
+can confer local authority. Existing `/api/v1/app/events` SSE snapshots now include `access`
+events, with the same three-second polling cadence as other app data.
+
+Capability refusals retain HTTP 403 and their JSON across HTTP, encrypted mesh and WebSocket
+handshake errors, including the requesting node's HTTP adapter:
+Terminal tickets open their target connection during the HTTP ticket request, so browser code
+can read approval errors before attempting its WebSocket upgrade. Unused tickets disconnect
+after 30 seconds. Both standalone and gateway web adapters preserve remote errors.
+
+```json
+{"error":"capability_off","capability":"exec","target_name":"Desktop","hint":"On Desktop, open Settings > Access and allow Laptop to use exec."}
+{"error":"approval_required","request_id":"uuid","capability":"terminals","expires_at":1792886520}
+{"error":"approval_cooldown","capability":"terminals","expires_at":1792886460}
+```
+
+Requests expire after 120 seconds, with one pending per requester and a 60-second denial
+cooldown. An unused session approval expires after 120 seconds. Active session approvals are
+bound to a terminal session ID, the originating Computer Use acquisition, or a digest of the
+HTTP method/path/query/body and optional `access_session` query or idempotency key. The digest avoids
+persisting command bodies or credentials. Retrying an approved operation must preserve that
+key and body. A new connection may supply a distinct `access_session` to distinguish identical
+operations. Terminal detach/restart preserves approval for 60 seconds; other connection
+approvals end with the session. Timed approvals last exactly 1,800 or 28,800 seconds.
+
+Exec and update jobs carry their original authorization into result polling/cancellation.
+These persisted records authorize only that requester's existing job and expire no later than
+ten minutes after completion/restart (or the original timed approval, if sooner). They never
+authorize a second execution. Policy changes and approval revocation invalidate them. Session
+guards audit start/end, recheck policy during active use, and close transports/cancel jobs on
+revocation. Both existing local Computer Use and Browser emergency-stop paths revoke all
+approvals and active sessions, including when no Computer Use provider is configured.
+
+The audit hashes the preceding JSON line's UTF-8 bytes, excluding the newline. Rotation keeps
+at most 10,000 records, including a checkpoint committing to the dropped prefix, and re-links
+the retained suffix without changing event indexes. Queries verify the entire retained chain
+before filtering and report the first broken index. This is local integrity evidence, not a
+signature or an external trust anchor: a privileged attacker can rewrite the entire log or
+remove a complete suffix; phase 2 replication is still needed for independent evidence.
+
+Shared DTOs, populated fixtures and mock routes live in `cranibox-contracts`. The React UI
+provides grouped access settings, queued approval dialogs, active-session controls and a
+verified audit view. Both HTTP adapters share approval polling and automatic action retries.
+The desktop app uses its existing system notification plugin to open the approval window;
+headless devices can review and decide requests with the local CLI above. Administrator
+signatures and roster changes remain part of phase 2.
 
 ## English summary
 

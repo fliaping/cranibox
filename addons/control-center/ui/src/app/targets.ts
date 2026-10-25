@@ -18,7 +18,7 @@ export function terminalDeviceName(id: string, nodes: TerminalTarget[], devices:
 }
 
 export function useTerminalDevices() {
-  const { devices } = useApp();
+  const { devices, access } = useApp();
   const { targets, localNode } = useTerminalEnvironment();
   const nodes = useMemo(() => {
     const result = targets.map(node => {
@@ -33,7 +33,14 @@ export function useTerminalDevices() {
     }
     return result;
   }, [targets, devices, localNode]);
-  return { nodes, displayName: (id: string) => terminalDeviceName(id, nodes, devices) };
+  return { nodes, displayName: (id: string) => {
+    const node = terminalTarget(id).node;
+    const device = devices.find(device => device.node_id === node);
+    if (device?.name.trim() && device.name !== node) return device.name;
+    const records = [...(access?.peers || []).map(peer => ({ from: peer.node, name: peer.name })), ...(access?.pending || []), ...(access?.sessions || [])];
+    const name = records.find(record => record.from === node && record.name.trim() && record.name !== node)?.name;
+    return name || terminalDeviceName(id, nodes, devices);
+  } };
 }
 
 /** Terminal routes: this device uses the local engine, every other peer its direct route. */

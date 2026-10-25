@@ -35,7 +35,7 @@ impl Default for Hub {
 struct Ticket {
     session: String,
     expires: Instant,
-    options: Options,
+    terminal: Terminal,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,7 +54,12 @@ struct Options {
     takeover: bool,
 }
 impl Hub {
-    pub(crate) async fn issue(&self, session: String, body: Value) -> anyhow::Result<Value> {
+    pub(crate) async fn issue(
+        &self,
+        services: &Services,
+        session: String,
+        body: Value,
+    ) -> anyhow::Result<Value> {
         let options: Options = serde_json::from_value(body)?;
         agent_workspace_pty::validate_size(options.cols, options.rows)?;
         anyhow::ensure!(
@@ -72,6 +77,13 @@ impl Hub {
             );
         }
         anyhow::ensure!(uuid_is_valid(&options.session_id), "invalid session ID");
+        {
+            let mut tickets = self.tickets.lock().await;
+            tickets.retain(|_, t| t.expires > Instant::now());
+            anyhow::ensure!(tickets.len() < 64, "too many terminal requests");
+        }
+        // Fail on the HTTP ticket request so browser code can read approval JSON.
+        let terminal = open(services, options).await?;
         let mut tickets = self.tickets.lock().await;
         tickets.retain(|_, t| t.expires > Instant::now());
         anyhow::ensure!(tickets.len() < 64, "too many terminal requests");
@@ -79,11 +91,29 @@ impl Hub {
         tickets.insert(
             token.clone(),
             Ticket {
-                session,
+                session: session.clone(),
                 expires: Instant::now() + Duration::from_secs(30),
-                options,
+                terminal,
             },
         );
+        let tickets = self.tickets.clone();
+        let expired = token.clone();
+        let owner = services.clone();
+        tokio::spawn(async move {
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+            let mut check = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                check.tick().await;
+                if tokio::time::Instant::now() >= deadline
+                    || *owner.closing.borrow()
+                    || !owner.sessions.alive(&session).await
+                    || !tickets.lock().await.contains_key(&expired)
+                {
+                    break;
+                }
+            }
+            tickets.lock().await.remove(&expired);
+        });
         Ok(json!({"ticket":token}))
     }
 }
@@ -119,24 +149,13 @@ pub async fn upgrade(
     let Ok(permit) = services.terminals.slots.clone().try_acquire_owned() else {
         return error(StatusCode::TOO_MANY_REQUESTS, "Maximum eight terminals");
     };
+    let terminal = ticket.terminal;
     let closing = services.closing.clone();
     ws.max_message_size(16 * 1024)
         .max_frame_size(16 * 1024)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
-            match open(&services, ticket.options).await {
-                Ok(terminal) => run(socket, terminal, closing).await,
-                Err(error) => {
-                    let mut socket = socket;
-                    let _ = socket
-                        .send(Message::Text(
-                            json!({"type":"error","message":error.to_string()})
-                                .to_string()
-                                .into(),
-                        ))
-                        .await;
-                }
-            }
+            run(socket, terminal, closing).await;
         })
         .into_response()
 }

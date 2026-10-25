@@ -42,7 +42,7 @@ fn conflict(e: impl std::fmt::Display) -> AppError {
     error(409, "conflict", e.to_string())
 }
 fn remote(e: anyhow::Error) -> AppError {
-    error(502, "remote", format!("{e:#}"))
+    crate::app::remote_error(e)
 }
 fn missing() -> AppError {
     error(404, "not_found", "Unknown update id")

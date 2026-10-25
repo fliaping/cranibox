@@ -22,6 +22,7 @@
 //! Public keys and signatures are lowercase hex; ciphertexts are standard
 //! padded base64. Timestamps are Unix seconds (`u64`).
 
+pub mod access;
 pub mod agents;
 pub mod app;
 pub mod canonical;

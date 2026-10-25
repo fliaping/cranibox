@@ -79,6 +79,9 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         return result;
     }
     let command = match args.command {
+        Some(agent::Command::Access { args }) => {
+            return crate::access::cli::run(&peer_path, args);
+        }
         Some(agent::Command::TerminalHost { state, home }) => {
             return agent_workspace_pty::hosted::run(
                 state,

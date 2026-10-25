@@ -194,6 +194,7 @@ async fn handle(
 /// end marker is an error. Dropping the downstream body closes upstream work.
 async fn upgrade(
     State(app): State<App>,
+    Extension(access_key): Extension<super::access::AccessKey>,
     Extension(caller): Extension<Caller>,
     Path(params): Path<HashMap<String, String>>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
@@ -210,13 +211,21 @@ async fn upgrade(
         return failure(StatusCode::TOO_MANY_REQUESTS, "model stream limit reached")
             .into_response();
     };
+    let access =
+        match super::access::begin(&app, &caller, crate::access::Capability::Llm, &access_key) {
+            Ok(access) => access,
+            Err(error) => return error.into_response(),
+        };
     upgrade
         .max_message_size(33 * 1024 * 1024)
         .max_frame_size(33 * 1024 * 1024)
         .on_upgrade(move |raw| async move {
             let _permit = permit;
             let mut socket = crate::peer::secure_ws::SecureSocket::new(raw, Some(&secret));
-            let _ = serve_stream(&mut socket, app, caller, node).await;
+            tokio::select! {
+                _ = serve_stream(&mut socket, app, caller, node) => {},
+                _ = access.revoked() => {},
+            }
         })
         .into_response()
 }

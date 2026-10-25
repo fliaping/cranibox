@@ -46,6 +46,7 @@ struct Reach {
 const REACH_TTL: std::time::Duration = std::time::Duration::from_secs(15);
 pub fn error(status: u16, code: &str, message: impl Into<String>) -> AppError {
     AppError {
+        body: None,
         status,
         code: code.into(),
         message: message.into(),
@@ -53,6 +54,19 @@ pub fn error(status: u16, code: &str, message: impl Into<String>) -> AppError {
 }
 fn unavailable(e: impl std::fmt::Display) -> AppError {
     error(503, "unavailable", e.to_string())
+}
+pub(crate) fn remote_error(e: anyhow::Error) -> AppError {
+    if let Some((status, body)) = agent_workspace_runtime::client::access_refusal(&e) {
+        let mut error = error(
+            status,
+            body["error"].as_str().unwrap_or("remote"),
+            e.to_string(),
+        );
+        error.body = Some(body);
+        error
+    } else {
+        error(502, "remote", format!("{e:#}"))
+    }
 }
 impl Service {
     pub fn new(local: Weak<LocalNode>, models: Arc<Models>) -> Self {
@@ -1057,6 +1071,19 @@ async fn route(
     body: Value,
 ) -> Result<Value, AppError> {
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    if path == "/access" || path.starts_with("/access/") {
+        if let Some(service) = service.as_ref() {
+            return crate::access::api::route(
+                service.local()?.config_path(),
+                method,
+                path,
+                query,
+                body,
+            )
+            .await;
+        }
+        return cranibox_contracts::mock::access_route(method, path, body);
+    }
     if path == "/update" || path.starts_with("/update/") {
         let local = service.as_ref().map(|s| s.local()).transpose()?;
         let context = local
@@ -1320,8 +1347,9 @@ impl EventCursor {
         let status = dispatch(local.clone(), "GET", "/status", Value::Null).await?;
         let devices = dispatch(local.clone(), "GET", "/devices", Value::Null).await?;
         let approvals = dispatch(local.clone(), "GET", "/approvals", Value::Null).await?;
+        let access = dispatch(local.clone(), "GET", "/access", Value::Null).await?;
         let accounts = dispatch(local, "GET", "/models/accounts", Value::Null).await?;
-        let snapshot = serde_json::json!({"status":status,"devices":devices,"approvals":approvals,"accounts":accounts});
+        let snapshot = serde_json::json!({"status":status,"devices":devices,"approvals":approvals,"accounts":accounts,"access":access});
         if self.0.as_ref() == Some(&snapshot) {
             return Ok(Vec::new());
         }
@@ -1348,6 +1376,15 @@ impl EventCursor {
                         .map_err(unavailable)?,
                 );
             }
+        }
+        if self
+            .0
+            .as_ref()
+            .is_none_or(|old| old["access"] != snapshot["access"])
+        {
+            events.push(AppEvent::Access(
+                serde_json::from_value(snapshot["access"].clone()).map_err(unavailable)?,
+            ));
         }
         self.0 = Some(snapshot);
         Ok(events)

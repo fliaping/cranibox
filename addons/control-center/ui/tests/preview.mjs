@@ -9,7 +9,8 @@ import { rfbFixture } from './rfb-fixture.mjs';
 import { selkiesFixture } from './selkies-fixture.mjs';
 
 const uiRoot = fileURLToPath(new URL('..', import.meta.url));
-const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cranibox-ui-preview-'));
+// Leave room for herdr's Unix socket names when TMPDIR is inside a worktree.
+const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ui-'));
 const command = path.join(directory, 'workspacectl');
 snapshot.locale.current = process.env.UI_PREVIEW_LANGUAGE || 'en';
 await fs.mkdir(path.join(directory, '.local/state/agent-workspace'), { recursive: true });

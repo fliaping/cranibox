@@ -285,10 +285,13 @@ pub async fn connect(
     )
     .await?
     .map_err(|error| match error {
-        tungstenite::Error::Http(response) => anyhow::anyhow!(
-            "Browser connection rejected (HTTP {}); check target sharing, grant and controller",
-            response.status()
-        ),
+        // Keep the response in the chain: approval refusals are forwarded as JSON.
+        tungstenite::Error::Http(ref response) => {
+            let status = response.status();
+            anyhow::Error::from(error).context(format!(
+                "Browser connection rejected (HTTP {status}); check target sharing, grant and controller"
+            ))
+        }
         _ => anyhow::anyhow!("Browser connection unavailable"),
     })?;
     Ok(Socket::new(socket, cipher))

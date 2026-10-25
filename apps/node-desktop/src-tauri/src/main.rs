@@ -445,6 +445,7 @@ fn main() -> anyhow::Result<()> {
             let held_menu = held_item.clone();
             tauri::async_runtime::spawn(async move {
                 let mut seen = std::collections::BTreeSet::new();
+                let mut access_seen = std::collections::BTreeSet::new();
                 let mut previous_cards = Value::Null;
                 loop {
                     let (status, managed, interface) = {
@@ -467,7 +468,10 @@ fn main() -> anyhow::Result<()> {
                         "本机服务不可用 / Unavailable"
                     } else { status };
                     let cards = if managed { Some(cards.unwrap_or_else(|| json!([]))) } else { cards };
-                    let held = cards.as_ref().and_then(Value::as_array).map_or(0, |v| v.len() as u64);
+                    let access = managed::dispatch(&status_state, "GET", "/access", Value::Null).await.ok();
+                    let pending = access.as_ref().and_then(|a| a["pending"].as_array());
+                    approvals::access_refresh(&handle, pending.map_or(&[], Vec::as_slice), &mut access_seen);
+                    let held = cards.as_ref().and_then(Value::as_array).map_or(0, |v| v.len() as u64) + pending.map_or(0, |p| p.len() as u64);
                     if let Some(cards) = cards && cards != previous_cards
                         && approvals::refresh(&handle, &decisions, cards.as_array().map_or(&[], Vec::as_slice), &mut seen).is_ok() {
                         previous_cards = cards;

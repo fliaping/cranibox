@@ -245,6 +245,7 @@ pub struct AgentUpdate {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "event", content = "data", rename_all = "snake_case")]
 pub enum AppEvent {
+    Access(crate::access::AccessView),
     Status(StatusPill),
     Approval(ApprovalCard),
     Device(Device),
@@ -255,6 +256,8 @@ pub enum AppEvent {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{status} {code}: {message}")]
 pub struct AppError {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<serde_json::Value>,
     #[serde(skip)]
     pub status: u16,
     /// Stable machine code (C8 codes, or `not_found`, `invalid`, `forbidden`).

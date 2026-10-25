@@ -2,8 +2,8 @@ import { createContext, useContext, type ReactNode } from 'react';
 
 export type TerminalInput = { type: 'input'; data: string } | { type: 'resize'; cols: number; rows: number };
 export type TerminalConnection = { send: (input: TerminalInput) => void; close: () => void };
-export type TerminalEvents = { ready: () => void; output: (data: Uint8Array) => void; error: (message: string, fatal: boolean) => void; ended: () => void; closed: () => void };
-export type TerminalOptions = { node: string; session_id: string; cols: number; rows: number; takeover: boolean };
+export type TerminalEvents = { ready: () => void; output: (data: Uint8Array) => void; error: (message: string, fatal: boolean) => void; ended: () => void; closed: () => void; waiting?: (waiting: boolean) => void };
+export type TerminalOptions = { node: string; session_id: string; cols: number; rows: number; takeover: boolean; signal?: AbortSignal };
 export type TerminalTarget = { id: string; aliases?: string[]; name: string; available: boolean };
 export type TerminalEnvironment = {
   t: (cn: string, en: string) => string;

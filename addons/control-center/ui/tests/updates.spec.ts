@@ -7,6 +7,7 @@ function update(phase: UpdateStatus['phase'] = 'resolving'): UpdateStatus {
   return { id: 'update-1', spec: 'latest', phase, from: '1.1.0', to: '1.2.0', error: null, downloaded: 25, total: 100, started_at: 1792843200, updated_at: 1792843200 };
 }
 async function mock(page: Page, node = 'self', managed = true) {
+  await page.route('**/api/v1/app/access', route => route.fulfill({ json: { peers: [], pending: [], approvals: [], sessions: [] } }));
   const model = {
     data: { node: node === 'self' ? 'local-device' : node, self: node === 'self', version: '1.1.0', runtime: { managed, state: managed ? 'confirmed' : null, version: managed ? '1.1.0' : null, os: 'linux', arch: 'x86_64', can_update: managed, reasons: managed ? [] : ['Unmanaged runtime'] }, status: null } as NodeUpdate,
     commands: [] as UpdateRequest[], queries: [] as string[], statusReads: 0, overallReads: 0,

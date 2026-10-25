@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DirectClient } from './DirectDevicesView';
+import { RequesterStatus } from '../access/Access';
 
 export function BrowserTargetPanel({ client, node, language }: { client: DirectClient; node: string; language: string }) {
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
@@ -23,5 +24,6 @@ export function BrowserTargetPanel({ client, node, language }: { client: DirectC
     <p role="status">{status ? status.paused ? t('已停止，请在目标设备恢复。', 'Stopped. Resume on the target device.') : !status.backend_available ? t('目标浏览器不可用。', 'Target browser unavailable.') : status.control_busy ? t('浏览器正在被远程控制。', 'Browser has a remote controller.') : t('目标浏览器就绪。', 'Target browser ready.') : t('尚未检查目标浏览器。', 'Target browser not checked.')}</p>
     <div className="direct-actions"><button disabled={busy || stopping} onClick={() => void call('status')}>{busy ? t('检查中…', 'Checking…') : t('检查目标浏览器', 'Check target browser')}</button><button disabled={stopping} onClick={() => void call('emergency_stop')}>{stopping ? t('正在停止…', 'Stopping…') : t('停止目标浏览器操作', 'Stop target browser control')}</button></div>
     {error && <p role="alert" className="direct-error">{error}</p>}
+    <RequesterStatus target={node} />
   </section>;
 }

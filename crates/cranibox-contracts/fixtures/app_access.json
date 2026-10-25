@@ -1,0 +1,58 @@
+{
+  "peers": [
+    {
+      "node": "node-0123456789abcdef0123456789abcdef",
+      "name": "Laptop",
+      "capabilities": {
+        "messages": "allow",
+        "terminals": "ask",
+        "exec": "off",
+        "projects": "off",
+        "desktop": "ask",
+        "computer": "off",
+        "browser": "off",
+        "update": "off",
+        "spaces": "off",
+        "activity": "off",
+        "llm": "off",
+        "vault": "off"
+      }
+    }
+  ],
+  "pending": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "from": "node-0123456789abcdef0123456789abcdef",
+      "name": "Laptop",
+      "capability": "terminals",
+      "session_key": "00000000-0000-4000-8000-000000000002",
+      "created_at": 1792886400,
+      "expires_at": 1792886520,
+      "state": "pending",
+      "path": null
+    }
+  ],
+  "approvals": [
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "from": "node-0123456789abcdef0123456789abcdef",
+      "capability": "desktop",
+      "scope": "until",
+      "session_key": null,
+      "expires_at": 1792888200,
+      "approved_by": "local",
+      "approved_at": 1792886400
+    }
+  ],
+  "sessions": [
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "from": "node-0123456789abcdef0123456789abcdef",
+      "name": "Laptop",
+      "capability": "desktop",
+      "session_key": "desktop-connection",
+      "started_at": 1792886405,
+      "basis": "00000000-0000-4000-8000-000000000003"
+    }
+  ]
+}

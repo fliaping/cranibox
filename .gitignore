@@ -12,6 +12,7 @@ core.*
 
 /addons/control-center/ui/dist/
 /addons/control-center/ui/test-results/
+/addons/control-center/ui/test-results-access/
 /addons/control-center/ui/playwright-report/
 /apps/node-desktop/node_modules/
 /apps/node-desktop/dist/

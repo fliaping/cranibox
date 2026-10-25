@@ -1,5 +1,5 @@
 import { Grip, Maximize2, Minimize2, Minus, Terminal, X } from 'lucide-react';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { TerminalPage } from '../pages/TerminalPage';
 import { useTerminalEnvironment } from './TerminalEnvironment';
 import { TerminalMenu } from './TerminalMenu';
@@ -38,7 +38,7 @@ export function TerminalWindowToggle() {
 }
 
 /** `standalone`: the desktop app's own terminal window, filled edge to edge. */
-export function TerminalWindow({ suspended = false, standalone = false }: { suspended?: boolean; standalone?: boolean }) {
+export function TerminalWindow({ suspended = false, standalone = false, banner }: { suspended?: boolean; standalone?: boolean; banner?: ReactNode }) {
   const terminal = useTerminalWindow(), { t, available } = useTerminalEnvironment();
   const [rect, setRect] = useState(savedRect), [area, setArea] = useState(viewport), [maximized, setMaximized] = useState(false), [moving, setMoving] = useState(false);
   const gesture = useRef<{ pointer: number; edge: string; startX: number; startY: number; rect: Rect } | null>(null);
@@ -104,6 +104,7 @@ export function TerminalWindow({ suspended = false, standalone = false }: { susp
         <button aria-label={t('关闭终端窗口', 'Close terminal window')} title={t('关闭窗口，保留后台会话', 'Close window, keep sessions running')} onClick={terminal.close}><X size={18} aria-hidden="true" /></button>
       </div>}
     </header>
+    {banner}
     <div className="terminal-window-body"><TerminalPage visible={!hidden} /></div>
     {!area.mobile && !maximized && ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(edge => <button key={edge} className={'terminal-window-resize edge-' + edge} tabIndex={edge === 'se' ? 0 : -1} aria-hidden={edge === 'se' ? undefined : true} aria-label={edge === 'se' ? t('调整终端窗口大小，使用方向键调整', 'Resize terminal window, use arrow keys to adjust') : undefined} title={edge === 'se' ? t('拖动调整大小 · 方向键调整', 'Drag or use arrow keys to resize') : undefined} onPointerDown={event => start(event, edge)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;

@@ -194,6 +194,12 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
             Ok(())
         })
         .unwrap();
+        for identity in &identities {
+            if identity.public().node_id != Config::read(path).unwrap().node_id {
+                use crate::access::Capability::*;
+                crate::access::allow_fixture(path, &identity.public().node_id, &[Llm, Vault]);
+            }
+        }
     }
     let a = &models[0];
     let b = &models[1];
@@ -400,5 +406,574 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
     stop.cancel();
     for node in running {
         node.shutdown().await.unwrap();
+    }
+}
+
+// Exercise authenticated mesh ingress without binding sockets or starting providers.
+mod access_policy {
+    use super::*;
+    use crate::access::{Capability, Mode, Store};
+    use agent_workspace_runtime::peers::config::Permissions;
+    use cranibox_contracts::net::{Authenticated, TransportKind};
+    use tower::ServiceExt;
+
+    struct Fixture {
+        _root: tempfile::TempDir,
+        running: Running,
+        caller: String,
+        key: [u8; 32],
+        store: Store,
+    }
+    impl Fixture {
+        async fn new() -> Self {
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("target/peers.json");
+            let other = root.path().join("caller/peers.json");
+            for path in [&path, &other] {
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                Config::update(path, |_| Ok(())).unwrap();
+            }
+            let running = start_with_catalog(
+                path.clone(),
+                Engine::new(root.path().join("home")),
+                Arc::new(Semaphore::new(1)),
+                CancellationToken::new(),
+                agent_workspace_runtime::projects::Store::new(root.path().join("projects.json")),
+            )
+            .await
+            .unwrap();
+            let identities = [
+                Config::identity(&path).unwrap(),
+                Config::identity(&other).unwrap(),
+            ];
+            let caller = identities[1].public().clone();
+            Config::update(&path, |c| {
+                let mut grant = Grant::issue(
+                    "synthetic-access-fixture",
+                    super::super::super::config::Permissions {
+                        terminals: true,
+                        exec: true,
+                        llm: true,
+                        vault: true,
+                        messages: true,
+                        projects: true,
+                        desktop: true,
+                        computer: true,
+                        browser: true,
+                        spaces: true,
+                        activity: true,
+                    },
+                );
+                let mut pinned = Pinned::new(caller.clone());
+                pinned.verified = true;
+                grant.peer = Some(pinned);
+                c.grants.insert(caller.node_id.clone(), grant);
+                Ok(())
+            })
+            .unwrap();
+            let owner = OwnerKey::load_or_create(&root.path().join("fixture-owner")).unwrap();
+            let roster = path.with_file_name("models").join("roster.json");
+            std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
+            RosterStore::pin(&roster, &owner.public()).unwrap();
+            RosterStore::load(roster)
+                .unwrap()
+                .issue(
+                    &owner,
+                    identities
+                        .iter()
+                        .map(|i| {
+                            let p = i.public();
+                            RosterMember {
+                                node_id: p.node_id.clone(),
+                                signing_key: p.signing_key.clone(),
+                                x25519_pub: p.noise_key.clone(),
+                                role: Role::Node,
+                                priority: 0,
+                                is_claude_node: false,
+                                name: "Access fixture".into(),
+                                added_at: 0,
+                                identity: None,
+                            }
+                        })
+                        .collect(),
+                )
+                .unwrap();
+            Self {
+                store: Store::new(&path),
+                caller: caller.node_id,
+                key: agent_workspace_runtime::peers::identity::unhex(&caller.signing_key).unwrap(),
+                running,
+                _root: root,
+            }
+        }
+        async fn call(&self, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
+            let mut request = axum::http::Request::builder()
+                .method(method)
+                .uri(path)
+                .header("x-cranibox-target", &self.running.app.node)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            request.extensions_mut().insert(Authenticated {
+                node_id: self.caller.clone(),
+                endpoint_id: Some(self.key),
+                transport: TransportKind::Iroh,
+                e2e: true,
+            });
+            let response = self.running.mesh_router().oneshot(request).await.unwrap();
+            let status = response.status();
+            let bytes = axum::body::to_bytes(response.into_body(), 65536)
+                .await
+                .unwrap();
+            (
+                status,
+                serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+            )
+        }
+        async fn approve(&self, id: &str, scope: &str) {
+            crate::access::api::route(
+                &self.running.app.path,
+                "POST",
+                &format!("/access/requests/{id}"),
+                "",
+                json!({"decision":"approve", "scope":scope}),
+            )
+            .await
+            .unwrap();
+        }
+        fn terminal(&self, session: &str) -> String {
+            format!(
+                "/api/v1/mesh/nodes/{}/terminal/ws?session={session}",
+                self.running.app.node
+            )
+        }
+        async fn socket(
+            &self,
+            session: &str,
+        ) -> Result<
+            tokio_tungstenite::WebSocketStream<tokio::io::DuplexStream>,
+            tokio_tungstenite::tungstenite::Error,
+        > {
+            use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+            let (client, server) = tokio::io::duplex(65536);
+            let router = self.running.mesh_router();
+            let authenticated = Authenticated {
+                node_id: self.caller.clone(),
+                endpoint_id: Some(self.key),
+                transport: TransportKind::Iroh,
+                e2e: true,
+            };
+            tokio::spawn(async move {
+                let service = hyper::service::service_fn(
+                    move |request: hyper::Request<hyper::body::Incoming>| {
+                        let mut request = request.map(Body::new);
+                        request.extensions_mut().insert(authenticated.clone());
+                        router.clone().oneshot(request)
+                    },
+                );
+                hyper::server::conn::http1::Builder::new()
+                    .serve_connection(hyper_util::rt::TokioIo::new(server), service)
+                    .with_upgrades()
+                    .await
+                    .unwrap();
+            });
+            let mut request = format!("ws://access.fixture{}", self.terminal(session))
+                .into_client_request()
+                .unwrap();
+            request
+                .headers_mut()
+                .insert("x-cranibox-target", self.running.app.node.parse().unwrap());
+            tokio_tungstenite::client_async(request, client)
+                .await
+                .map(|(socket, _)| socket)
+        }
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn terminal_attaches_with_session_and_timed_approvals_without_network() {
+        const TEST: &str = "peer::server::multi_node::access_policy::terminal_attaches_with_session_and_timed_approvals_without_network";
+        if std::env::var_os("CRANIBOX_ACCESS_PTY_TEST").is_none() {
+            use std::os::unix::fs::PermissionsExt;
+            let root = tempfile::tempdir().unwrap();
+            let shell = root.path().join("fixture-shell");
+            // This fixture cannot read interactive shell startup files.
+            std::fs::write(&shell, "#!/bin/sh\nexec /bin/cat\n").unwrap();
+            std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", TEST, "--nocapture"])
+                .env_clear()
+                .env("CRANIBOX_ACCESS_PTY_TEST", "1")
+                .env("SHELL", shell)
+                .env("PATH", "/usr/bin:/bin")
+                .env("TMPDIR", root.path())
+                .kill_on_drop(true)
+                .output()
+                .await
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::{Error, Message};
+        let f = Fixture::new().await;
+        let home = f._root.path().join("home");
+        std::fs::create_dir_all(&home).unwrap();
+        let mut ids = Vec::new();
+        for name in ["first", "second", "third"] {
+            let created = f
+                .running
+                .app
+                .engine
+                .manage(Manage::Create {
+                    name: name.into(),
+                    cwd: None,
+                })
+                .await
+                .unwrap();
+            ids.push(created["session"]["id"].as_str().unwrap().to_owned());
+        }
+        f.store
+            .change(&f.caller, [(Capability::Terminals, Mode::Ask)].into())
+            .unwrap();
+        let Error::Http(response) = f.socket(&ids[0]).await.unwrap_err() else {
+            panic!("HTTP rejection")
+        };
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body: Value = serde_json::from_slice(response.body().as_ref().unwrap()).unwrap();
+        assert_eq!(body["error"], "approval_required");
+        f.approve(body["request_id"].as_str().unwrap(), "session")
+            .await;
+        let mut first = f.socket(&ids[0]).await.unwrap();
+        first
+            .send(Message::Text(
+                json!({"type":"input","data":STANDARD.encode(b"access-terminal-ok\n")})
+                    .to_string()
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Message::Text(text) = first.next().await.unwrap().unwrap() {
+                    let output: Value = serde_json::from_str(&text).unwrap();
+                    if let Some(data) = output["data"].as_str() {
+                        let bytes = STANDARD.decode(data).unwrap();
+                        if String::from_utf8_lossy(&bytes).contains("access-terminal-ok") {
+                            break;
+                        }
+                    }
+                }
+            }
+        })
+        .await
+        .unwrap();
+        let Error::Http(response) = f.socket(&ids[1]).await.unwrap_err() else {
+            panic!("second session must ask")
+        };
+        let body: Value = serde_json::from_slice(response.body().as_ref().unwrap()).unwrap();
+        assert_eq!(body["error"], "approval_required");
+        f.approve(body["request_id"].as_str().unwrap(), "30m").await;
+        let mut second = f.socket(&ids[1]).await.unwrap();
+        let mut third = f.socket(&ids[2]).await.unwrap();
+        assert_eq!(f.store.view().unwrap().sessions.len(), 3);
+        f.store.revoke(None, true).unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for socket in [&mut first, &mut second, &mut third] {
+                while let Some(Ok(message)) = socket.next().await {
+                    if matches!(message, Message::Close(_)) {
+                        break;
+                    }
+                }
+            }
+        })
+        .await
+        .unwrap();
+        for id in ids {
+            f.running
+                .app
+                .engine
+                .manage(Manage::End { id })
+                .await
+                .unwrap();
+        }
+        f.running.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn default_off_and_nested_routes_are_enforced() {
+        let f = Fixture::new().await;
+        let (status, body) = f.call("GET", &f.terminal("one"), Value::Null).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["error"], "capability_off");
+        assert!(body["hint"].as_str().unwrap().contains("Settings > Access"));
+        for capability in ["llm/health", "vault/roster", "update"] {
+            let (status, body) = f
+                .call(
+                    "GET",
+                    &format!("/api/v1/mesh/nodes/{}/{capability}", f.running.app.node),
+                    Value::Null,
+                )
+                .await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+            assert_eq!(body["error"], "capability_off");
+        }
+        for (method, route) in [
+            ("POST", "exec"),
+            ("POST", "executions"),
+            ("POST", "files/read"),
+            ("POST", "projects"),
+            ("POST", "projects/export"),
+            ("POST", "projects/sync"),
+            ("GET", "desktop/ws"),
+            ("GET", "desktop/page"),
+            ("POST", "computer"),
+            ("POST", "browser"),
+            ("GET", "browser/ws"),
+            ("GET", "activity"),
+            ("GET", "spaces"),
+            ("POST", "update"),
+            ("POST", "update/rollback"),
+            ("GET", "update/job-id"),
+        ] {
+            let (status, body) = f
+                .call(
+                    method,
+                    &format!("/api/v1/mesh/nodes/{}/{route}", f.running.app.node),
+                    Value::Null,
+                )
+                .await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{route}: {body}");
+            assert_eq!(body["error"], "capability_off", "{route}: {body}");
+        }
+        f.store
+            .change(&f.caller, [(Capability::Projects, Mode::Allow)].into())
+            .unwrap();
+        let (status, body) = f
+            .call(
+                "POST",
+                &format!("/api/v1/mesh/nodes/{}/projects", f.running.app.node),
+                json!({"operation":"bind","replica_id":"replica","terminal_id":"terminal"}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["capability"], "terminals");
+        f.store
+            .change(&f.caller, [(Capability::Messages, Mode::Off)].into())
+            .unwrap();
+        for route in ["messages", "tasks"] {
+            assert_eq!(
+                f.call(
+                    "POST",
+                    &format!("/api/v1/mesh/nodes/{}/{route}", f.running.app.node),
+                    Value::Null
+                )
+                .await
+                .1["error"],
+                "capability_off"
+            );
+        }
+        f.store
+            .change(&f.caller, [(Capability::Terminals, Mode::Allow)].into())
+            .unwrap();
+        Config::update(&f.running.app.path, |c| {
+            c.grants.get_mut(&f.caller).unwrap().permissions.terminals = false;
+            Ok(())
+        })
+        .unwrap();
+        let (status, body) = f.call("GET", &f.terminal("one"), Value::Null).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["error"], "capability not granted by target node");
+        f.running.shutdown().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn exec_session_approval_covers_job_polling_but_not_another_execution() {
+        let f = Fixture::new().await;
+        f.store
+            .change(&f.caller, [(Capability::Exec, Mode::Ask)].into())
+            .unwrap();
+        let path = format!("/api/v1/mesh/nodes/{}/exec", f.running.app.node);
+        let command = json!({"program":"/bin/echo", "args":["access-exec-ok"]});
+        let (_, pending) = f.call("POST", &path, command.clone()).await;
+        f.approve(pending["request_id"].as_str().unwrap(), "session")
+            .await;
+        let (status, job) = f.call("POST", &path, command.clone()).await;
+        assert_eq!(status, StatusCode::OK, "{job}");
+        let job_path = format!("/api/v1/mesh/jobs/{}", job["id"].as_str().unwrap());
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let (status, job) = f.call("GET", &job_path, Value::Null).await;
+                assert_eq!(status, StatusCode::OK, "{job}");
+                if job["outcome"] != "running" {
+                    assert_eq!(job["stdout"], "access-exec-ok\n");
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            while !f.store.view().unwrap().sessions.is_empty() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        let (status, result) = f.call("GET", &job_path, Value::Null).await;
+        assert_eq!(status, StatusCode::OK, "{result}");
+        let (status, pending) = f.call("POST", &path, command).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(pending["error"], "approval_required");
+        f.store.revoke(None, true).unwrap();
+        assert_eq!(
+            f.call("GET", &job_path, Value::Null).await.0,
+            StatusCode::FORBIDDEN
+        );
+        f.running.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn session_approval_polling_cooldown_and_emergency_revoke() {
+        let f = Fixture::new().await;
+        f.store
+            .change(&f.caller, [(Capability::Terminals, Mode::Ask)].into())
+            .unwrap();
+        let (_, first) = f.call("GET", &f.terminal("one"), Value::Null).await;
+        assert_eq!(first["error"], "approval_required");
+        let id = first["request_id"].as_str().unwrap();
+        let (_, pending) = f
+            .call(
+                "GET",
+                &format!("/api/v1/mesh/access/requests/{id}"),
+                Value::Null,
+            )
+            .await;
+        assert_eq!(pending["state"], "pending");
+        assert!(f.store.request(id, "another-requester").unwrap().is_none());
+        let third_path = f._root.path().join("third/peers.json");
+        std::fs::create_dir_all(third_path.parent().unwrap()).unwrap();
+        Config::update(&third_path, |_| Ok(())).unwrap();
+        let third = Config::identity(&third_path).unwrap().public().clone();
+        Config::update(&f.running.app.path, |c| {
+            let mut grant = Grant::issue(
+                "third-fixture",
+                Permissions {
+                    messages: true,
+                    ..Default::default()
+                },
+            );
+            let mut pinned = Pinned::new(third.clone());
+            pinned.verified = true;
+            grant.peer = Some(pinned);
+            c.grants.insert(third.node_id.clone(), grant);
+            Ok(())
+        })
+        .unwrap();
+        let mut request = axum::http::Request::get(format!("/api/v1/mesh/access/requests/{id}"))
+            .header("x-cranibox-target", &f.running.app.node)
+            .body(Body::empty())
+            .unwrap();
+        request.extensions_mut().insert(Authenticated {
+            node_id: third.node_id,
+            endpoint_id: Some(
+                agent_workspace_runtime::peers::identity::unhex(&third.signing_key).unwrap(),
+            ),
+            transport: TransportKind::Iroh,
+            e2e: true,
+        });
+        assert_eq!(
+            f.running
+                .mesh_router()
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        f.approve(id, "session").await;
+        let session = f
+            .store
+            .start(&f.caller, Capability::Terminals, "one")
+            .unwrap();
+        assert!(session.valid());
+        let (_, second) = f.call("GET", &f.terminal("two"), Value::Null).await;
+        assert_eq!(second["error"], "approval_required");
+        assert_ne!(first["request_id"], second["request_id"]);
+        let second_id = second["request_id"].as_str().unwrap();
+        crate::access::api::route(
+            &f.running.app.path,
+            "POST",
+            &format!("/access/requests/{second_id}"),
+            "",
+            json!({"decision":"deny"}),
+        )
+        .await
+        .unwrap();
+        let (_, denied) = f.call("GET", &f.terminal("two"), Value::Null).await;
+        assert_eq!(denied["error"], "approval_cooldown");
+        computer::owner(
+            &f.running.app,
+            agent_workspace_runtime::peers::computer::OwnerCommand::EmergencyStop {},
+        )
+        .await
+        .unwrap();
+        assert!(!session.valid());
+        assert!(f.store.view().unwrap().approvals.is_empty());
+        assert!(
+            f.store
+                .audit(100, None, None, None)
+                .unwrap()
+                .entries
+                .iter()
+                .any(|e| e.event == crate::access::EventKind::EmergencyDisconnect)
+        );
+        f.running.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn timed_approval_allows_second_session_and_mesh_cannot_approve() {
+        let f = Fixture::new().await;
+        f.store
+            .change(&f.caller, [(Capability::Terminals, Mode::Ask)].into())
+            .unwrap();
+        let (_, body) = f.call("GET", &f.terminal("one"), Value::Null).await;
+        let id = body["request_id"].as_str().unwrap();
+        for (method, path, body) in [
+            ("GET", "/api/v1/app/access".into(), Value::Null),
+            (
+                "PUT",
+                format!("/api/v1/app/access/{}", f.caller),
+                json!({"terminals":"allow"}),
+            ),
+            (
+                "POST",
+                format!("/api/v1/app/access/requests/{id}"),
+                json!({"decision":"approve","scope":"8h"}),
+            ),
+        ] {
+            assert_eq!(f.call(method, &path, body).await.0, StatusCode::FORBIDDEN);
+        }
+        f.approve(id, "30m").await;
+        let first = f
+            .store
+            .start(&f.caller, Capability::Terminals, "one")
+            .unwrap();
+        let second = f
+            .store
+            .start(&f.caller, Capability::Terminals, "two")
+            .unwrap();
+        assert!(first.valid() && second.valid());
+        let (_, approved) = f
+            .call(
+                "GET",
+                &format!("/api/v1/mesh/access/requests/{id}"),
+                Value::Null,
+            )
+            .await;
+        assert_eq!(approved["state"], "approved");
+        f.running.shutdown().await.unwrap();
     }
 }

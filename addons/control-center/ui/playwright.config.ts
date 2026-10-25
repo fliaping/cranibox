@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
   // These suites have their own browser-only previews and configurations.
-  testIgnore: ['**/terminal.spec.ts', '**/network-paths.spec.ts'],
+  testIgnore: ['**/terminal.spec.ts', '**/network-paths.spec.ts', '**/access.spec.ts'],
   fullyParallel: false,
   workers: 1,
   timeout: 30000,

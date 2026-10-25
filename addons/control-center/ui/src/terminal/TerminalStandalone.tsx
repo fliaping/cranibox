@@ -1,3 +1,4 @@
+import { AccessSurfaces } from "../access/Access";
 import { useEffect } from 'react';
 import { TerminalWindow } from './TerminalWindow';
 import { useTerminalWindow } from './TerminalWindowContext';
@@ -17,5 +18,5 @@ export function TerminalStandalone() {
     return () => window.removeEventListener('hashchange', handle);
   }, [openTerminal]);
   useEffect(() => { document.title = 'Terminal · Cranibox'; }, []);
-  return <TerminalWindow standalone />;
+  return <TerminalWindow standalone banner={<AccessSurfaces />} />;
 }

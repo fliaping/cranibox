@@ -16,6 +16,55 @@ pub fn inbox(app: &tauri::AppHandle) {
     }
 }
 
+fn access_window(app: &tauri::AppHandle) {
+    show(app);
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval("location.hash = '/app/access-log'");
+    }
+}
+
+/// Access requests use the existing notification plugin; decisions stay in the local dialog.
+pub fn access_refresh(app: &tauri::AppHandle, pending: &[Value], seen: &mut BTreeSet<String>) {
+    let active: BTreeSet<_> = pending
+        .iter()
+        .filter_map(|r| r["id"].as_str().map(str::to_owned))
+        .collect();
+    seen.retain(|id| active.contains(id));
+    for request in pending {
+        let Some(id) = request["id"].as_str() else {
+            continue;
+        };
+        if !seen.insert(id.to_owned()) {
+            continue;
+        }
+        let capability = match request["capability"].as_str().unwrap_or("") {
+            "messages" => "消息与任务 / Messages & tasks",
+            "terminals" => "终端 / Terminal",
+            "exec" => "执行命令 / Run commands",
+            "projects" => "项目 / Projects",
+            "desktop" => "远程桌面 / Remote desktop",
+            "computer" => "Computer Use",
+            "browser" => "浏览器 / Browser",
+            "update" => "远程更新 / Remote update",
+            "spaces" => "虚拟空间 / Virtual spaces",
+            "activity" => "活动与同步 / Activity & sync",
+            "llm" => "模型调用 / Model access",
+            "vault" => "凭据同步 / Credential sync",
+            _ => "设备功能 / Device access",
+        };
+        let name = request["name"].as_str().unwrap_or("设备 / Device");
+        let _ = app
+            .notification()
+            .builder()
+            .title("Cranibox · 访问请求 / Access request")
+            .body(format!("{name} 请求使用 / requests {capability}"))
+            .extra("access_request", id)
+            .show();
+        // Notification permission can be denied; the local approval window must still open.
+        access_window(app);
+    }
+}
+
 pub fn decide(app: &tauri::AppHandle, id: String, decision: String) {
     let handle = app.clone();
     let state = app.state::<Arc<AppState>>().inner().clone();
@@ -52,6 +101,15 @@ pub fn setup(app: &tauri::AppHandle) -> tauri_plugin_notification::Result<()> {
     ])?;
     let handle = app.clone();
     app.notification().on_action(move |action| {
+        if action
+            .notification()
+            .is_some_and(|n| n.extra().contains_key("access_request"))
+        {
+            if action.action_id() != "dismiss" {
+                access_window(&handle);
+            }
+            return;
+        }
         if matches!(action.action_id(), "allow_once" | "deny")
             && let Some(id) = action
                 .notification()

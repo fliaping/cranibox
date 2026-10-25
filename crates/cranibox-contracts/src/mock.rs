@@ -25,6 +25,8 @@ pub mod fixtures {
         };
     }
     fixtures! {
+        APP_ACCESS => "app_access.json",
+        ACCESS_AUDIT => "access_audit.json",
         ROSTER => "roster.json",
         PAIR_TICKET => "pair_ticket.json",
         IROH_CONFIG => "iroh_config.json",
@@ -57,6 +59,104 @@ pub mod fixtures {
 
 fn load<T: serde::de::DeserializeOwned>(json: &str) -> T {
     serde_json::from_str(json).expect("contract fixture matches its type")
+}
+pub fn access_route(
+    method: &str,
+    path: &str,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, AppError> {
+    use crate::access::*;
+    use std::sync::LazyLock;
+    static VIEW: LazyLock<Mutex<AccessView>> =
+        LazyLock::new(|| Mutex::new(load(fixtures::APP_ACCESS)));
+    static REQUESTS: LazyLock<Mutex<BTreeMap<String, AccessRequest>>> =
+        LazyLock::new(|| Mutex::new(BTreeMap::new()));
+    let mut view = VIEW.lock().unwrap();
+    let mut requests = REQUESTS.lock().unwrap();
+    match (method, path) {
+        ("GET", "/access") => Ok(serde_json::json!(*view)),
+        ("GET", "/access/audit") => Ok(load(fixtures::ACCESS_AUDIT)),
+        ("GET", path) if path.starts_with("/access/requests/") => {
+            let id = path.trim_start_matches("/access/requests/");
+            view.pending
+                .iter()
+                .find(|r| r.id == id)
+                .or_else(|| requests.get(id))
+                .map(|r| serde_json::json!(r))
+                .ok_or_else(not_found)
+        }
+        ("PUT", path) if path.starts_with("/access/") => {
+            let changes: BTreeMap<Capability, Mode> =
+                serde_json::from_value(body).map_err(|_| invalid("Invalid policy"))?;
+            let peer = view
+                .peers
+                .iter_mut()
+                .find(|p| p.node == path.trim_start_matches("/access/"))
+                .ok_or_else(not_found)?;
+            peer.capabilities.extend(changes);
+            Ok(serde_json::json!({}))
+        }
+        ("POST", "/access/revoke") => {
+            let id = body.get("id").and_then(serde_json::Value::as_str);
+            view.approvals.retain(|a| id.is_some_and(|id| id != a.id));
+            view.sessions.retain(|s| id.is_some_and(|id| id != s.basis));
+            for r in requests
+                .values_mut()
+                .filter(|r| id.is_none_or(|id| id == r.id))
+            {
+                r.state = RequestState::Denied;
+            }
+            if id.is_none() {
+                for mut r in view.pending.drain(..) {
+                    r.state = RequestState::Denied;
+                    requests.insert(r.id.clone(), r);
+                }
+            }
+            Ok(serde_json::json!({}))
+        }
+        ("POST", path) if path.starts_with("/access/requests/") => {
+            let input: DecideRequest =
+                serde_json::from_value(body).map_err(|_| invalid("Invalid decision"))?;
+            let id = path.trim_start_matches("/access/requests/");
+            let index = view
+                .pending
+                .iter()
+                .position(|r| r.id == id)
+                .ok_or_else(not_found)?;
+            if input.decision == ApprovalDecision::Approve && input.scope.is_none() {
+                return Err(invalid("Approval scope required"));
+            }
+            let mut r = view.pending.remove(index);
+            r.state = if input.decision == ApprovalDecision::Approve {
+                let duration = match input.scope.unwrap() {
+                    DurationScope::Session => 120,
+                    DurationScope::Minutes30 => 1800,
+                    DurationScope::Hours8 => 28800,
+                };
+                let session = input.scope == Some(DurationScope::Session);
+                view.approvals.push(Approval {
+                    id: r.id.clone(),
+                    from: r.from.clone(),
+                    capability: r.capability,
+                    scope: if session {
+                        ApprovalScope::Session
+                    } else {
+                        ApprovalScope::Until
+                    },
+                    session_key: session.then(|| r.session_key.clone()),
+                    expires_at: Some(r.created_at + duration),
+                    approved_by: "local".into(),
+                    approved_at: r.created_at,
+                });
+                RequestState::Approved
+            } else {
+                RequestState::Denied
+            };
+            requests.insert(r.id.clone(), r.clone());
+            Ok(serde_json::json!(r))
+        }
+        _ => Err(not_found()),
+    }
 }
 
 /// Roster view over a fixed roster; `set` bumps subscribers.
@@ -463,6 +563,7 @@ fn mock_actions(item: &CapabilityItem) -> Vec<CapabilityAction> {
 }
 fn invalid(message: impl Into<String>) -> AppError {
     AppError {
+        body: None,
         status: 400,
         code: "invalid".into(),
         message: message.into(),
@@ -470,6 +571,7 @@ fn invalid(message: impl Into<String>) -> AppError {
 }
 fn not_found() -> AppError {
     AppError {
+        body: None,
         status: 404,
         code: "not_found".into(),
         message: "not found".into(),
@@ -509,6 +611,7 @@ impl AppApi for MockAppApi {
             .ok_or_else(not_found)?;
         if !approvals[card].actions.contains(&req.decision) {
             return Err(AppError {
+                body: None,
                 status: 400,
                 code: "invalid".into(),
                 message: "action not offered on this card".into(),
@@ -532,6 +635,7 @@ impl AppApi for MockAppApi {
     }
     async fn models(&self) -> Result<Vec<ModelEntry>, AppError> {
         self.mgmt.models().await.map_err(|e| AppError {
+            body: None,
             status: 503,
             code: "unavailable".into(),
             message: e.to_string(),

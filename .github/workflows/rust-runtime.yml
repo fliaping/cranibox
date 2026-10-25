@@ -285,6 +285,8 @@ jobs:
         if: runner.os == 'Linux'
         env:
           CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
+      - run: npm run test:access --prefix addons/control-center/ui
+        if: runner.os == 'Linux'
       - run: npm run test:paths --prefix addons/control-center/ui
         if: runner.os == 'Linux'
       - uses: actions/upload-artifact@v7

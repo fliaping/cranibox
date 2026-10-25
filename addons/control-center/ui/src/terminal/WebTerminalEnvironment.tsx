@@ -4,7 +4,8 @@ import type { DirectCatalog } from '../devices/DirectDevicesView';
 import { directTarget, terminalTarget, TerminalEnvironmentProvider, type TerminalEnvironment } from './TerminalEnvironment';
 
 const connect: TerminalEnvironment['connect'] = async (options, events) => {
-  const { ticket } = await request('/api/terminal/ticket', { ...options, ...terminalTarget(options.node) });
+  const { signal, ...body } = options;
+  const { ticket } = await request('/api/terminal/ticket', { ...body, ...terminalTarget(options.node) }, { signal, waiting: events.waiting });
   const endpoint = new URL('/api/terminal/ws', location.href);
   endpoint.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'; endpoint.searchParams.set('ticket', ticket);
   const socket = new WebSocket(endpoint); socket.binaryType = 'arraybuffer';

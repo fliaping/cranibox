@@ -129,7 +129,7 @@ impl Services {
             },
             "/api/desktop/ticket" => self.desktops.issue(self, session.to_owned(), body).await,
             "/api/desktop/cancel" => self.desktops.cancel(session, body).await,
-            "/api/terminal/ticket" => self.terminals.issue(session.to_owned(), body).await,
+            "/api/terminal/ticket" => self.terminals.issue(self, session.to_owned(), body).await,
             "/api/terminal/sessions" => terminal::manage(self, body).await,
             _ => return None,
         })
@@ -138,6 +138,16 @@ impl Services {
 
 pub fn error(status: StatusCode, message: impl ToString) -> Response {
     (status, Json(json!({"error":message.to_string()}))).into_response()
+}
+pub fn remote_error(status: StatusCode, cause: anyhow::Error) -> Response {
+    if let Some((status, body)) = agent_workspace_runtime::client::access_refusal(&cause) {
+        return (
+            StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY),
+            Json(body),
+        )
+            .into_response();
+    }
+    error(status, format!("{cause:#}"))
 }
 fn header(headers: &HeaderMap, key: &str) -> String {
     headers

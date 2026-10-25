@@ -12,10 +12,21 @@ pub(super) struct Lease {
     expires: Instant,
     connection: CancellationToken,
     _permit: OwnedSemaphorePermit,
+    access: crate::access::Session,
+    access_key: String,
 }
 impl Lease {
+    pub(super) fn access_owner(&self, caller: &Caller, id: &str) -> bool {
+        self.id.to_string() == id
+            && self.caller.node == caller.node
+            && self.caller.grant.same_credential(&caller.grant)
+    }
+    pub(super) fn access_key(&self) -> &str {
+        &self.access_key
+    }
     fn valid(&self, app: &App, configuration: &Config) -> bool {
-        !app.stop.is_cancelled()
+        self.access.valid()
+            && !app.stop.is_cancelled()
             && !self.connection.is_cancelled()
             && self.expires > Instant::now()
             && !configuration.computer_paused
@@ -83,7 +94,11 @@ async fn call(provider: &Provider, payload: Value, session: &str) -> Result<Valu
 }
 pub(super) async fn owner(app: &App, command: OwnerCommand) -> Result<Value> {
     if matches!(command, OwnerCommand::EmergencyStop {}) {
+        access::store(app).revoke(None, true)?;
         *app.computer.lock().await = None;
+        if Config::read(&app.path)?.computer.is_none() {
+            return Ok(json!({"paused":true,"configured":false}));
+        }
     }
     computer::owner(&app.path, command).await
 }
@@ -91,6 +106,7 @@ pub(super) async fn manage(
     State(app): State<App>,
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
+    Extension(access_key): Extension<access::AccessKey>,
     Json(request): Json<Request>,
 ) -> Result<Json<Value>, Failure> {
     check_target(&app, &node)?;
@@ -102,6 +118,9 @@ pub(super) async fn manage(
     let session = format!("peer-{}", caller.node);
     // Emergency stop bypasses the action gate, so a slow screenshot cannot delay it.
     if matches!(request, Request::EmergencyStop {}) {
+        access::store(&app)
+            .revoke(None, true)
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE, "access store unavailable"))?;
         *app.computer.lock().await = None;
         let result = computer::owner(&app.path, OwnerCommand::EmergencyStop {})
             .await
@@ -165,12 +184,19 @@ pub(super) async fn manage(
             let id = Uuid::new_v4();
             *app.computer.lock().await = Some(Lease {
                 id,
-                caller,
+                caller: caller.clone(),
                 provider,
                 epoch: configuration.computer_epoch,
                 expires: Instant::now() + Duration::from_secs(ttl_secs),
                 connection: app.connections.clone(),
                 _permit: permit,
+                access: access::begin(
+                    &app,
+                    &caller,
+                    crate::access::Capability::Computer,
+                    &access_key,
+                )?,
+                access_key: access_key.0,
             });
             json!({"lease":id,"expires_in_secs":ttl_secs})
         }

@@ -1,3 +1,4 @@
+pub mod access;
 pub mod agent;
 pub mod cli;
 pub mod desktop_service;

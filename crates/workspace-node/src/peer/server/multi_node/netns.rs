@@ -64,6 +64,16 @@ async fn worker() -> Result<()> {
         agent_workspace_runtime::projects::Store::new(dir.join("projects.json")),
     )
     .await?;
+    for requester in Config::read(&path)?.grants.keys() {
+        crate::access::allow_fixture(
+            &path,
+            requester,
+            &[
+                crate::access::Capability::Llm,
+                crate::access::Capability::Vault,
+            ],
+        );
+    }
     let service =
         crate::models::Models::start_on(path, stop.clone(), Some(vec!["127.0.0.1:0".parse()?]))
             .await?;

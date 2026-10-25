@@ -33,6 +33,8 @@ fn every_fixture_round_trips() {
         )*};
     }
     check! {
+        cranibox_contracts::access::AccessView => APP_ACCESS,
+        cranibox_contracts::access::AuditView => ACCESS_AUDIT,
         Roster => ROSTER,
         PairTicket => PAIR_TICKET,
         IrohConfig => IROH_CONFIG,

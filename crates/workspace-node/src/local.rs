@@ -140,6 +140,14 @@ impl LocalNode {
     ) -> Result<Value> {
         use agent_workspace_runtime::peers::{Command, Store};
         let store = Store::new(self.path.clone()).with_local_projects(self.catalog.clone());
+        if matches!(
+            &command,
+            Command::BrowserOwner {
+                command: agent_workspace_runtime::peers::browser::OwnerCommand::EmergencyStop {}
+            }
+        ) {
+            crate::access::Store::new(&self.path).revoke(None, true)?;
+        }
         let mut value = if let Command::ComputerOwner { command } = command {
             let action = {
                 let peer = self.peer.lock().await;

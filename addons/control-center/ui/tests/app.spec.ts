@@ -57,30 +57,31 @@ test('device detail has overview, desktop, browser and access tabs', async ({ pa
   await expect(page.getByRole('region', { name: 'System', exact: true })).toContainText('Device ID');
 });
 
-test('per-device grants use the grant contract in both directions', async ({ page }) => {
+test('per-device access saves target-owned capability modes', async ({ page }) => {
+  const node = 'node-0a1b2c3d4e5f60718293a4b5c6d7e8f9';
+  const capabilities = Object.fromEntries(['messages', 'terminals', 'exec', 'projects', 'desktop', 'computer', 'browser', 'update', 'spaces', 'activity', 'llm', 'vault'].map(cap => [cap, 'ask']));
   let saved: unknown = null;
-  await page.route('**/api/v1/app/devices/*/grant', route => {
-    if (route.request().method() === 'PUT') { saved = route.request().postDataJSON(); return route.fulfill({ json: saved }); }
-    return route.fulfill({ json: { permissions: { exec: true, terminals: true, projects: true, desktop: true, computer: false, browser: true, messages: true, activity: true, spaces: true, llm: true, vault: true } } });
-  });
-  await ready(page, '/app/device/node-0a1b2c3d4e5f60718293a4b5c6d7e8f9/access');
-  const mine = page.getByRole('region', { name: 'What it can do on this device', exact: true });
-  await expect(mine.getByRole('switch', { name: 'Computer Use', exact: true })).not.toBeChecked();
-  await mine.getByText('Computer Use', { exact: true }).click();
-  await expect.poll(() => saved).toMatchObject({ permissions: { computer: true, terminals: true } });
-  await expect(page.getByRole('region', { name: 'What I can do on it', exact: true })).toContainText('Allowed');
+  await page.route('**/api/v1/app/access', route => route.fulfill({ json: { peers: [{ node, name: 'Home server', capabilities }], pending: [], sessions: [], approvals: [] } }));
+  await page.route('**/api/v1/app/access/' + node, route => { saved = route.request().postDataJSON(); return route.fulfill({ json: {} }); });
+  await ready(page, '/app/device/' + node + '/access');
+  await expect(page.getByRole('heading', { name: 'Home server can use this device to…' })).toBeVisible();
+  const screen = page.getByRole('region', { name: 'Screen', exact: true });
+  await screen.getByRole('button', { name: 'Allow', exact: true }).first().click();
+  await expect(screen.getByRole('alert')).toContainText('without asking');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => saved).toMatchObject({ computer: 'allow', desktop: 'allow', terminals: 'ask' });
 });
 
-test('guest access falls back to device capabilities when grants are unavailable', async ({ page }) => {
-  await ready(page, '/app/device/node-3d4e5f60718293a4b5c6d7e8f90a1b2c/access');
-  const mine = page.getByRole('region', { name: 'What it can do on this device', exact: true });
-  await expect(mine.getByRole('switch', { name: 'Messages', exact: true })).toBeChecked();
-  await expect(mine.getByRole('switch', { name: 'Model access', exact: true })).toHaveCount(0);
+test('guest access uses target-owned modes and removal revokes its permissions', async ({ page }) => {
+  const node = 'node-3d4e5f60718293a4b5c6d7e8f90a1b2c';
+  await page.route('**/api/v1/app/access', route => route.fulfill({ json: { peers: [{ node, name: 'Alex', capabilities: { messages: 'allow', llm: 'off' } }], pending: [], sessions: [], approvals: [] } }));
+  await ready(page, '/app/device/' + node + '/access');
+  const messages = page.getByRole('region', { name: 'Messages & tasks', exact: true });
+  await expect(messages.getByRole('button', { name: 'Allow', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('navigation', { name: 'Device sections' }).getByRole('link', { name: 'Overview', exact: true }).click();
   const remove = page.getByRole('region', { name: 'Remove device', exact: true });
   await expect(remove).toContainText('Revoke every permission of this guest device');
   await remove.getByRole('button', { name: 'Remove…' }).click();
-  // A guest has no identity key, so no recovery-code warning.
   await expect(remove.getByRole('link', { name: 'Remove with recovery code' })).toHaveCount(0);
   const removed = page.waitForRequest(request => request.method() === 'PUT' && /\/devices\/node-3d4e/.test(request.url()));
   await remove.getByRole('button', { name: /^Remove Alex/ }).click();

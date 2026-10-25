@@ -173,14 +173,20 @@ impl Stream {
         )
         .await?
         .map_err(|error| {
-            if let tokio_tungstenite::tungstenite::Error::Http(response) = &error
+            // Keep the response in the chain: approval refusals are forwarded as JSON.
+            let message = if let tokio_tungstenite::tungstenite::Error::Http(response) = &error
                 && let Some(body) = response.body().as_deref().filter(|body| body.len() <= 4096)
                 && let Ok(value) = serde_json::from_slice::<serde_json::Value>(body)
                 && let Some(message) = value.get("error").and_then(|value| value.as_str())
             {
-                return anyhow::anyhow!("{}", message.chars().take(1000).collect::<String>());
+                Some(message.chars().take(1000).collect::<String>())
+            } else {
+                None
+            };
+            match message {
+                Some(message) => anyhow::Error::from(error).context(message),
+                None => error.into(),
             }
-            error.into()
         })?;
         let mut socket = crate::peers::e2e::socket::SecureSocket::new(socket, cipher);
         Ok(Self::spawn(move |mut incoming, outgoing| async move {

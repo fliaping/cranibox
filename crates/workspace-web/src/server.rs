@@ -972,7 +972,7 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
         let session_id = session.lock().await.id.clone();
         return match state.services.api(&session_id, &path, body).await {
             Some(Ok(value)) => Json(value).into_response(),
-            Some(Err(e)) => error(StatusCode::BAD_REQUEST, format!("{e:#}")),
+            Some(Err(e)) => cranibox_node::web::remote_error(StatusCode::BAD_REQUEST, e),
             None => error(StatusCode::NOT_FOUND, "Not found"),
         };
     }

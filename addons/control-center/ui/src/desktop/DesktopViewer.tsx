@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Maximize, Monitor, RefreshCw, Unplug } from 'lucide-react';
 import { request } from '../workspace';
 import type { DesktopTarget } from './transport';
+import { RequesterStatus } from '../access/Access';
 
 type Page = { url: string; protocol: 'selkies' | 'vnc' };
 /** The shared desktop's own web interface: Selkies as served by the target, or noVNC
@@ -9,17 +10,19 @@ type Page = { url: string; protocol: 'selkies' | 'vnc' };
 export function DesktopViewer({ target, language = 'en', openExternal }: { target: DesktopTarget; language?: string; openExternal?: (url: string) => Promise<unknown> }) {
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
   const shell = useRef<HTMLDivElement>(null);
+  const controller = useRef<AbortController | null>(null);
   const [page, setPage] = useState<Page | null>(null), [phase, setPhase] = useState<'connecting' | 'connected' | 'browser' | 'closed'>('connecting');
   const [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [busy, setBusy] = useState(false);
-  const issue = useCallback(() => request('/api/desktop/page', { node: target.node, local: target.local }) as Promise<Page>, [target.node, target.local]);
+  const issue = useCallback(() => request('/api/desktop/page', { node: target.node, local: target.local }, { signal: controller.current?.signal }) as Promise<Page>, [target.node, target.local]);
   useEffect(() => {
     let gone = false;
+    controller.current = new AbortController();
     setPhase('connecting'); setError(''); setPage(null);
     issue().then(value => { if (!gone) { setPage(value); setPhase('connected'); } })
-      .catch(e => { if (!gone) { setError(e instanceof Error ? e.message : String(e)); setPhase('closed'); } });
-    return () => { gone = true; };
+      .catch(e => { if (!gone) { setError(e instanceof DOMException && e.name === 'AbortError' ? '' : e instanceof Error ? e.message : String(e)); setPhase('closed'); } });
+    return () => { gone = true; controller.current?.abort(); };
   }, [issue, attempt]);
-  function disconnect() { setPage(null); setPhase('closed'); setError(''); }
+  function disconnect() { controller.current?.abort(); setPage(null); setPhase('closed'); setError(''); }
   async function fullscreen() {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -31,12 +34,13 @@ export function DesktopViewer({ target, language = 'en', openExternal }: { targe
     // A fresh one-time link: the browser keeps its own session. Close the embedded
     // page first, since a desktop accepts one controller at a time.
     setBusy(true); setError(''); setPage(null);
+    controller.current?.abort(); controller.current = new AbortController();
     const tab = openExternal ? null : window.open('about:blank', '_blank');
     try {
       let value: Page | undefined, failure: unknown;
       for (let tries = 0; tries < 6 && !value; tries++) {
         if (tries) await new Promise(resolve => setTimeout(resolve, 500));
-        try { value = await issue(); } catch (e) { failure = e; }
+        try { value = await issue(); } catch (e) { if (e instanceof DOMException && e.name === 'AbortError') throw e; failure = e; }
       }
       if (!value) throw failure;
       if (openExternal) await openExternal(value.url);
@@ -54,6 +58,7 @@ export function DesktopViewer({ target, language = 'en', openExternal }: { targe
       {phase === 'connected' || phase === 'connecting' ? <button disabled={busy} onClick={disconnect}><Unplug size={16} aria-hidden="true" />{t('断开', 'Disconnect')}</button> : <button disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />{phase === 'browser' ? t('在此显示', 'Show here') : t('重新连接', 'Reconnect')}</button>}
     </div></div>
     {error && <p className="direct-error" role="alert">{error}</p>}
+    <RequesterStatus target={target.node} />
     {page ? <iframe className="vnc-screen vnc-frame" src={page.url} title={t('远程桌面画面', 'Remote desktop display')} allow="fullscreen; clipboard-read; clipboard-write; autoplay; microphone; camera; gamepad; keyboard-map" />
       : <div className="vnc-placeholder"><Monitor size={36} aria-hidden="true" /><p>{phase === 'connecting' ? t('正在建立桌面连接', 'Opening desktop connection') : phase === 'browser' ? t('桌面已在浏览器中打开。需要时可在此重新显示。', 'The desktop is open in your browser. Show it here again any time.') : t('桌面仍在目标设备运行', 'The desktop keeps running on the target')}</p></div>}
     <p className="vnc-footnote">{t('显示的是目标桌面服务自己的界面（Selkies 或 noVNC），经授权通道原样转发。关闭查看器不会注销目标桌面。', 'This is the desktop server’s own interface (Selkies or noVNC), forwarded unchanged through the authorized connection. Closing the viewer keeps the target desktop running.')}</p>

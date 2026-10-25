@@ -1,4 +1,5 @@
 import { createContext,useCallback,useContext,useEffect,useRef,useState,type ReactNode } from 'react';
+import { accessFetch, type AccessFetchOptions } from './access/request';
 import type { PollState,Snapshot } from './types';
 import { useTerminalWindow } from './terminal/TerminalWindowContext';
 
@@ -8,8 +9,8 @@ export function languagePreference() { try { return localStorage.getItem('cranib
 export const zh = config.language.startsWith('zh');
 export const t = (cn: string, en: string) => config.language.startsWith('zh') ? cn : en;
 export class RequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
-export async function request(route: string, body: unknown) {
-  const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
+export async function request(route: string, body: unknown, options?: AccessFetchOptions) {
+  const response = await accessFetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: JSON.stringify(body) }, { timeoutMs: 12000, ...options });
   if (response.status === 401) throw new RequestError(t('会话已过期，请刷新页面。', 'Session expired. Reload this page.'), 401);
   const value = await response.json().catch(() => ({}));
   if (!response.ok) throw new RequestError(value.error || value.message || String(response.status), response.status);

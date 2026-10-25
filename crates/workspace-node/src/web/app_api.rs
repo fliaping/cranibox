@@ -15,6 +15,13 @@ use std::{convert::Infallible, time::Duration};
 use subtle::ConstantTimeEq;
 
 pub async fn handle(services: Services, request: Request) -> Response {
+    if request
+        .extensions()
+        .get::<cranibox_contracts::net::Authenticated>()
+        .is_some()
+    {
+        return StatusCode::FORBIDDEN.into_response();
+    }
     let Some(session) = services.sessions.session(request.headers()).await else {
         return (
             StatusCode::UNAUTHORIZED,
@@ -104,7 +111,12 @@ pub async fn handle(services: Services, request: Request) -> Response {
         Ok(value) => (success_status(&method, &path, &value), Json(value)).into_response(),
         Err(error) => (
             StatusCode::from_u16(error.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-            Json(error),
+            Json(
+                error
+                    .body
+                    .clone()
+                    .unwrap_or_else(|| serde_json::to_value(error).unwrap_or_default()),
+            ),
         )
             .into_response(),
     }
@@ -302,5 +314,106 @@ mod update_tests {
                 StatusCode::OK
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod access_tests {
+    use super::*;
+    use crate::web::SessionStore;
+    use axum::body::Body;
+    use std::sync::Arc;
+
+    struct Sessions;
+    #[async_trait::async_trait]
+    impl SessionStore for Sessions {
+        async fn session(&self, headers: &axum::http::HeaderMap) -> Option<String> {
+            (headers.get("cookie")?.to_str().ok()? == "fixture=session").then(|| "session".into())
+        }
+        async fn csrf(&self, _: &str) -> Option<String> {
+            Some("fixture-csrf".into())
+        }
+        async fn alive(&self, _: &str) -> bool {
+            true
+        }
+    }
+    #[tokio::test]
+    async fn access_http_cookie_csrf_and_authenticated_mesh_rejection() {
+        if std::env::var("CRANIBOX_ACCESS_HTTP_TEST").as_deref() != Ok("1") {
+            let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "web::app_api::access_tests::access_http_cookie_csrf_and_authenticated_mesh_rejection", "--nocapture"])
+                .env("CRANIBOX_ACCESS_HTTP_TEST", "1").env("CRANIBOX_APP_MOCK", "1")
+                .kill_on_drop(true).output().await.unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let (_, closing) = tokio::sync::watch::channel(false);
+        let services = Services::new(None, Default::default(), Arc::new(Sessions), closing);
+        for (cookie, csrf, mesh, expected) in [
+            (false, false, false, StatusCode::UNAUTHORIZED),
+            (true, false, false, StatusCode::FORBIDDEN),
+            (true, true, true, StatusCode::FORBIDDEN),
+            (true, true, false, StatusCode::OK),
+        ] {
+            let mut request = Request::builder()
+                .method("PUT")
+                .uri("/api/v1/app/access/node-0123456789abcdef0123456789abcdef")
+                .header("x-forwarded-for", "127.0.0.1");
+            if cookie {
+                request = request.header("cookie", "fixture=session");
+            }
+            if csrf {
+                request = request.header("x-workspace-csrf", "fixture-csrf");
+            }
+            let mut request = request.body(Body::from(r#"{"terminals":"ask"}"#)).unwrap();
+            if mesh {
+                request
+                    .extensions_mut()
+                    .insert(cranibox_contracts::net::Authenticated {
+                        node_id: "remote".into(),
+                        endpoint_id: None,
+                        transport: cranibox_contracts::net::TransportKind::Iroh,
+                        e2e: true,
+                    });
+            }
+            assert_eq!(handle(services.clone(), request).await.status(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn requester_http_adapter_preserves_websocket_approval_response() {
+        let body = json!({"error":"approval_required","request_id":"request","capability":"terminals","expires_at":123});
+        let response = tokio_tungstenite::tungstenite::http::Response::builder()
+            .status(403)
+            .body(Some(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let error = anyhow::Error::new(tokio_tungstenite::tungstenite::Error::Http(Box::new(
+            response,
+        )));
+        let app_error = crate::app::remote_error(error);
+        assert_eq!(app_error.status, 403);
+        assert_eq!(app_error.body, Some(body.clone()));
+        let response = tokio_tungstenite::tungstenite::http::Response::builder()
+            .status(403)
+            .body(Some(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let response = crate::web::remote_error(
+            StatusCode::BAD_GATEWAY,
+            anyhow::Error::new(tokio_tungstenite::tungstenite::Error::Http(Box::new(
+                response,
+            ))),
+        );
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let returned: Value = serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(returned, body);
     }
 }

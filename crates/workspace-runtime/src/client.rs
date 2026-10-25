@@ -17,6 +17,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 struct HttpError {
     status: u16,
     message: String,
+    body: Option<Value>,
 }
 impl std::fmt::Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -24,6 +25,33 @@ impl std::fmt::Display for HttpError {
     }
 }
 impl std::error::Error for HttpError {}
+pub fn http_body(error: &anyhow::Error) -> Option<(u16, Value)> {
+    if let Some(e) = error.downcast_ref::<HttpError>() {
+        return e.body.clone().map(|b| (e.status, b));
+    }
+    if let Some(tokio_tungstenite::tungstenite::Error::Http(response)) =
+        error.downcast_ref::<tokio_tungstenite::tungstenite::Error>()
+    {
+        return response
+            .body()
+            .as_deref()
+            .and_then(|b| serde_json::from_slice(b).ok())
+            .map(|b| (response.status().as_u16(), b));
+    }
+    None
+}
+
+/// An access refusal from the target (HTTP 403 with an access error code), which callers
+/// forward unchanged so the UI can wait for approval. Other failures keep their own mapping.
+pub fn access_refusal(error: &anyhow::Error) -> Option<(u16, Value)> {
+    http_body(error).filter(|(status, body)| {
+        *status == 403
+            && matches!(
+                body["error"].as_str(),
+                Some("approval_required" | "capability_off" | "approval_cooldown")
+            )
+    })
+}
 
 /// Status and message of a non-2xx answer from the target, if that is the error.
 pub(crate) fn http_status(error: &anyhow::Error) -> Option<(u16, String)> {
@@ -289,6 +317,7 @@ impl Api {
     fn http_error(status: u16, bytes: &[u8]) -> anyhow::Error {
         HttpError {
             status,
+            body: serde_json::from_slice(bytes).ok(),
             message: serde_json::from_slice::<Value>(bytes)
                 .ok()
                 .and_then(|v| v["error"].as_str().map(str::to_owned))
@@ -795,6 +824,7 @@ impl Api {
         if !status.is_success() {
             return Err(HttpError {
                 status: status.as_u16(),
+                body: value.as_ref().ok().cloned(),
                 message: value
                     .as_ref()
                     .ok()
@@ -1389,4 +1419,44 @@ async fn mcp_service(backend: McpBackend) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod access_response_tests {
+    use super::*;
+
+    #[test]
+    fn access_errors_keep_status_and_complete_json_through_context() {
+        for (status, body) in [
+            (
+                403,
+                json!({"error":"capability_off","capability":"exec","target_name":"Target","hint":"Open Settings > Access"}),
+            ),
+            (
+                403,
+                json!({"error":"approval_required","request_id":"request","capability":"terminals","expires_at":123}),
+            ),
+            (409, json!({"error":"conflict","details":{"reason":"busy"}})),
+        ] {
+            let error =
+                Api::http_error(status, &serde_json::to_vec(&body).unwrap()).context("remote node");
+            assert_eq!(http_body(&error), Some((status, body)));
+            // Only access refusals are forwarded with their own status.
+            assert_eq!(access_refusal(&error).is_some(), status == 403);
+        }
+    }
+
+    #[test]
+    fn websocket_rejections_keep_status_and_complete_json() {
+        let body = json!({"error":"approval_required","request_id":"request","capability":"desktop","expires_at":123});
+        let response = tokio_tungstenite::tungstenite::http::Response::builder()
+            .status(403)
+            .body(Some(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let error = anyhow::Error::new(tokio_tungstenite::tungstenite::Error::Http(Box::new(
+            response,
+        )))
+        .context("connect target");
+        assert_eq!(http_body(&error), Some((403, body)));
+    }
 }

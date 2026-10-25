@@ -4,6 +4,11 @@ use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Manage access to this device, including approvals on headless devices.
+    Access {
+        #[command(flatten)]
+        args: crate::access::cli::Args,
+    },
     #[command(hide = true)]
     TerminalHost {
         #[arg(long)]

@@ -78,6 +78,7 @@ pub(super) struct Start {
 
 pub(super) async fn start(
     State(app): State<App>,
+    Extension(access_key): Extension<access::AccessKey>,
     Extension(caller): Extension<Caller>,
     encrypted: Option<Extension<Encrypted>>,
     Path(node): Path<String>,
@@ -101,10 +102,22 @@ pub(super) async fn start(
             ),
         ));
     }
+    let access = access::begin(
+        &app,
+        &caller,
+        crate::access::Capability::Update,
+        &access_key,
+    )?;
     let (id, task) = updater
         .start(spec, body.force)
         .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))?;
-    app.tasks.lock().await.spawn(task);
+    access.bind_job(&id).map_err(unavailable)?;
+    app.tasks.lock().await.spawn(async move {
+        tokio::select! {
+            _ = task => {},
+            _ = access.revoked() => {},
+        }
+    });
     Ok((StatusCode::ACCEPTED, Json(json!({"id": id}))))
 }
 
@@ -123,11 +136,18 @@ pub(super) async fn progress(
 
 pub(super) async fn rollback(
     State(app): State<App>,
+    Extension(access_key): Extension<access::AccessKey>,
     Extension(caller): Extension<Caller>,
     encrypted: Option<Extension<Encrypted>>,
     Path(node): Path<String>,
 ) -> Result<Json<Value>, Failure> {
     let updater = authorize(&app, &caller, &node, encrypted.is_some())?;
+    let _access = access::begin(
+        &app,
+        &caller,
+        crate::access::Capability::Update,
+        &access_key,
+    )?;
     let status = updater
         .rollback("requested by an owner device")
         .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))?;

@@ -26,6 +26,7 @@ use std::{
 };
 use tokio::sync::{Mutex, Semaphore, mpsc};
 use tokio_util::sync::CancellationToken;
+mod access;
 mod activity;
 mod agent_sessions;
 mod browser;
@@ -347,6 +348,7 @@ async fn execute(
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
     headers: HeaderMap,
+    Extension(access_key): Extension<access::AccessKey>,
     Json(request): Json<ExecRequest>,
 ) -> Result<Json<Value>, Failure> {
     check_target(&app, &node)?;
@@ -384,6 +386,11 @@ async fn execute(
             "node execution capacity reached",
         )
     })?;
+    let access_session =
+        access::begin(&app, &caller, crate::access::Capability::Exec, &access_key)?;
+    access_session
+        .bind_job(&id)
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE, "save job access"))?;
     let cancel = app.stop.child_token();
     jobs.insert(
         id.clone(),
@@ -405,6 +412,7 @@ async fn execute(
     let task_app = app.clone();
     app.tasks.lock().await.spawn(async move {
         let _permit = permit;
+        let access_cancel = cancel.clone();
         let (tx, mut rx) = mpsc::channel(32);
         let process = crate::node::execute(id.clone(), request, cancel, tx);
         let collect = async {
@@ -441,7 +449,17 @@ async fn execute(
                 }
             }
         };
-        tokio::join!(process, collect);
+        let running = async {
+            tokio::join!(process, collect);
+        };
+        tokio::pin!(running);
+        tokio::select! {
+            _ = &mut running => {},
+            _ = access_session.revoked() => {
+                access_cancel.cancel();
+                running.await;
+            }
+        }
     });
     Ok(Json(response))
 }
@@ -510,6 +528,7 @@ async fn attach(
     Extension(caller): Extension<Caller>,
     Path(node): Path<String>,
     Query(open): Query<Open>,
+    Extension(access_key): Extension<access::AccessKey>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response<Body>, Failure> {
@@ -525,6 +544,12 @@ async fn attach(
             "terminal attachment limit reached",
         )
     })?;
+    let access_session = access::begin(
+        &app,
+        &caller,
+        crate::access::Capability::Terminals,
+        &access_key,
+    )?;
     let pty = app
         .engine
         .attach(&open.session, open.cols, open.rows, open.takeover)
@@ -536,7 +561,7 @@ async fn attach(
         .on_upgrade(move |socket| async move {
             let _permit = permit;
             let socket = SecureSocket::new(socket, secret.as_ref().map(|Extension(s)| s));
-            terminal_stream(socket, pty, app, caller).await;
+            terminal_stream(socket, pty, app, caller, access_session).await;
         }))
 }
 #[derive(Deserialize)]
@@ -554,7 +579,13 @@ async fn send(socket: &mut SecureSocket, value: Value) -> Result<()> {
     .await??;
     Ok(())
 }
-async fn terminal_stream(mut socket: SecureSocket, mut pty: Attachment, app: App, caller: Caller) {
+async fn terminal_stream(
+    mut socket: SecureSocket,
+    mut pty: Attachment,
+    app: App,
+    caller: Caller,
+    access_session: crate::access::Session,
+) {
     let result: Result<()> = async {
         // Retain only a bounded replay. The owning Engine retains the process on detach.
         for data in pty.take_replay() {
@@ -565,11 +596,11 @@ async fn terminal_stream(mut socket: SecureSocket, mut pty: Attachment, app: App
             tokio::select! {
                 biased;
                 _ = app.connections.cancelled() => break,
-                _ = check.tick() => if !app.permitted(&caller, true) { break; },
+                _ = check.tick() => if !app.permitted(&caller, true) || !access_session.valid() { break; },
                 incoming = socket.recv() => match incoming {
                     Some(Ok(Message::Text(text))) => match serde_json::from_str::<TerminalMessage>(&text)? {
-                        TerminalMessage::Input { data } => { anyhow::ensure!(app.permitted(&caller, true), "grant revoked"); pty.write(STANDARD.decode(data)?)?; },
-                        TerminalMessage::Resize { cols, rows } => { anyhow::ensure!(app.permitted(&caller, true), "grant revoked"); pty.resize(cols, rows)?; },
+                        TerminalMessage::Input { data } => { anyhow::ensure!(app.permitted(&caller, true) && access_session.valid(), "access revoked"); pty.write(STANDARD.decode(data)?)?; },
+                        TerminalMessage::Resize { cols, rows } => { anyhow::ensure!(app.permitted(&caller, true) && access_session.valid(), "access revoked"); pty.resize(cols, rows)?; },
                         TerminalMessage::Detach {} => break,
                     },
                     Some(Ok(Message::Ping(data))) => { tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Pong(data))).await??; },
@@ -795,6 +826,7 @@ pub(crate) async fn start_with_catalog(
         _ => Config::update(&path, |_| Ok(()))?,
     };
     let identity = Arc::new(Config::identity(&path)?);
+    crate::access::Store::new(&path).initialize()?;
     let (tcp, listener_error) = if let Some(listener) = &configuration.listener {
         match bind(listener).await {
             Ok(tcp) => (Some(tcp), None),
@@ -857,6 +889,7 @@ async fn network_identity(State(app): State<App>, headers: HeaderMap) -> Respons
 /// insert `cranibox_contracts::net::Authenticated` before calling it.
 pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
     let router = Router::new()
+        .route("/access/requests/{id}", get(access::request_state))
         .route("/nodes", get(nodes))
         .route("/nodes/{node}/exec", post(execute))
         .route("/jobs/{id}", get(job))
@@ -919,6 +952,7 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
             cranibox_contracts::net::routes::VAULT_MOUNT,
             vault::routes(app.clone()),
         )
+        .route_layer(middleware::from_fn_with_state(app.clone(), access::enforce))
         .route_layer(middleware::from_fn_with_state(app.clone(), auth));
     let api: Router = Router::new()
         .nest("/api/v1/mesh", router)
@@ -945,7 +979,16 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
     if network_discovery {
         public = public.route("/api/v1/mesh/identity", get(network_identity));
     }
-    api.merge(sealed).merge(public.with_state(app))
+    api.merge(sealed)
+        .merge(public.with_state(app))
+        .route(
+            "/api/v1/app/access",
+            axum::routing::any(|| async { StatusCode::FORBIDDEN }),
+        )
+        .route(
+            "/api/v1/app/access/{*rest}",
+            axum::routing::any(|| async { StatusCode::FORBIDDEN }),
+        )
 }
 fn transport(
     app: &App,
