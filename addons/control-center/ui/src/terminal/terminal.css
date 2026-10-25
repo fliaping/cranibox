@@ -1,9 +1,13 @@
 /* Shared persistent terminal workbench and floating window. */
 .terminal-workbench { display: flex; height: 100%; min-height: 0; overflow: hidden; }
 .terminal-sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--sidebar); border-right: 1px solid var(--border); min-height: 0; }
-.terminal-target { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--muted); }
+.terminal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 4px 8px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.terminal-create-split { display: flex; align-items: center; flex-shrink: 0; border: 1px solid var(--border); border-radius: 7px; }
+.terminal-create-split > .button { background: transparent; border-color: transparent; }
+.terminal-create-split > .terminal-menu { border-left: 1px solid var(--border); }
+.terminal-target { display: flex; align-items: center; gap: 8px; min-width: 0; width: min(100%, 260px); color: var(--muted); }
 .terminal-target label { min-width: 0; flex: 1; }
-.terminal-target select { width: 100%; min-height: 44px; border: 0; border-radius: 5px; background: var(--sidebar); color: var(--text); font: inherit; font-size: 13px; padding: 8px 4px; cursor: pointer; }
+.terminal-target select { width: 100%; min-width: 0; min-height: 44px; border: 0; border-radius: 5px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; padding: 8px 4px; text-overflow: ellipsis; cursor: pointer; }
 .terminal-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px 4px 18px; }
 .terminal-list-heading h2 { font-size: 13px; }
 .terminal-list-heading h2 span { font: 11px var(--mono); color: var(--muted); margin-left: 5px; }

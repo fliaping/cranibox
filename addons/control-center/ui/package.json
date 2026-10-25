@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:terminal": "playwright test --config playwright.terminal.config.ts",
+    "test:paths": "playwright test --config playwright.paths.config.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

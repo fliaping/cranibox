@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "id": "node-1f2e3d4c5b6a79880716253443526170",
+      "name": "MacBook Pro"
+    },
+    {
+      "id": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "name": "Home server"
+    },
+    {
+      "id": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+      "name": "Studio"
+    },
+    {
+      "id": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+      "name": "Alex's laptop"
+    }
+  ],
+  "paths": [
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "kind": "relay",
+      "scope": "relay",
+      "via": "relay.n0.iroh.network",
+      "rtt_ms": 48,
+      "at": 1799999880000
+    },
+    {
+      "from": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "to": "node-1f2e3d4c5b6a79880716253443526170",
+      "kind": "direct",
+      "scope": "internet",
+      "via": "public",
+      "rtt_ms": 105,
+      "at": 1799999970000
+    },
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+      "kind": "direct",
+      "scope": "lan",
+      "via": "private",
+      "rtt_ms": 8,
+      "at": 1799999300000
+    },
+    {
+      "from": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
+      "to": "node-1f2e3d4c5b6a79880716253443526170",
+      "kind": "direct",
+      "scope": "overlay",
+      "via": "tailscale",
+      "rtt_ms": 280,
+      "at": 1799999955000
+    },
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+      "kind": "direct",
+      "scope": "overlay",
+      "via": "easytier",
+      "rtt_ms": null,
+      "at": 1799999985000
+    }
+  ]
+}

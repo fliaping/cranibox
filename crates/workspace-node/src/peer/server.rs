@@ -290,8 +290,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
     } else {
         Value::Null
     };
-    Json(
-        json!({"nodes":[{"id":app.node,"name":info.name,"labels":labels,"online":true,"os":info.os,
+    let mut answer = json!({"nodes":[{"id":app.node,"name":info.name,"labels":labels,"online":true,"os":info.os,
         "os_version":info.os_version,"model":info.model,"kind":info.kind,
         "arch":info.arch,"terminal":caller.grant.permissions.terminals,
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,
@@ -306,8 +305,12 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "agent_sessions":caller.grant.permissions.messages,
         "project_copy":caller.grant.permissions.projects && caller.grant.permissions.exec,
         "project_copy_protocol":2,
-        "copy_root":if caller.grant.permissions.projects && caller.grant.permissions.exec {Config::read(&app.path).ok().and_then(|c|c.copy_root)} else {None},"path":"direct"}]}),
-    )
+        "copy_root":if caller.grant.permissions.projects && caller.grant.permissions.exec {Config::read(&app.path).ok().and_then(|c|c.copy_root)} else {None},"path":"direct"}]});
+    if owner {
+        answer["paths"] =
+            serde_json::to_value(crate::app::paths::load(&app.path)).unwrap_or_default();
+    }
+    Json(answer)
 }
 /// One chunk of `cranibox push`. Writing files is part of the `exec` grant.
 async fn file_write(
@@ -1090,6 +1093,75 @@ mod mesh_tests {
             transport: TransportKind::Iroh,
             e2e: true,
         })
+    }
+
+    #[tokio::test]
+    async fn path_gossip_is_only_returned_to_owner_devices() {
+        use agent_workspace_runtime::peers::roster::{OwnerKey, RosterStore};
+        use cranibox_contracts::{
+            net::PathInfo,
+            roster::{Role, RosterMember},
+        };
+        let f = fixture(
+            Permissions {
+                terminals: true,
+                ..Permissions::default()
+            },
+            true,
+        )
+        .await;
+        let app = f.running.app.clone();
+        let grant = Config::read(&app.path).unwrap().grants[&f.caller].clone();
+        let caller = Caller {
+            node: f.caller.clone(),
+            grant: grant.clone(),
+        };
+        crate::app::paths::record(
+            &app.path,
+            &app.node,
+            &f.caller,
+            PathInfo::direct("10.0.0.2".parse().unwrap()),
+            crate::app::paths::now(),
+        )
+        .unwrap();
+        let guest = nodes(State(app.clone()), Extension(caller.clone())).await.0;
+        assert!(guest.get("paths").is_none());
+
+        let path = app.path.with_file_name("models").join("roster.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let key = OwnerKey::load_or_create(&f._root.path().join("owner.key")).unwrap();
+        RosterStore::pin(&path, &key.public()).unwrap();
+        let roster = RosterStore::load(path).unwrap();
+        let members = [
+            app.identity.public(),
+            &grant.peer.as_ref().unwrap().identity,
+        ]
+        .into_iter()
+        .map(|id| RosterMember {
+            node_id: id.node_id.clone(),
+            signing_key: id.signing_key.clone(),
+            x25519_pub: id.noise_key.clone(),
+            role: Role::Node,
+            priority: 0,
+            is_claude_node: false,
+            name: String::new(),
+            added_at: 0,
+            identity: None,
+        })
+        .collect();
+        roster.issue(&key, members).unwrap();
+        let owner = nodes(State(app.clone()), Extension(caller)).await.0;
+        assert_eq!(owner["paths"][&app.node][&f.caller]["scope"], "lan");
+        let outsider = nodes(
+            State(app),
+            Extension(Caller {
+                node: "guest".into(),
+                grant,
+            }),
+        )
+        .await
+        .0;
+        assert!(outsider.get("paths").is_none());
     }
 
     #[tokio::test]

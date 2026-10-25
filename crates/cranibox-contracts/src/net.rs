@@ -38,9 +38,80 @@ pub enum PathKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathScope {
+    Lan,
+    Internet,
+    Relay,
+    Overlay,
+}
+impl PathScope {
+    /// Classify the remote IP, including IPv4-mapped IPv6 and overlay ranges.
+    pub fn for_ip(ip: std::net::IpAddr) -> Self {
+        use std::net::IpAddr;
+        match ip {
+            IpAddr::V4(ip) => {
+                let [a, b, _, _] = ip.octets();
+                if a == 100 && (64..128).contains(&b) {
+                    Self::Overlay
+                } else if ip.is_private()
+                    || ip.is_link_local()
+                    || ip.is_loopback()
+                    || ip.is_unspecified()
+                {
+                    Self::Lan
+                } else {
+                    Self::Internet
+                }
+            }
+            IpAddr::V6(ip) => {
+                if let Some(ip) = ip.to_ipv4_mapped() {
+                    return Self::for_ip(ip.into());
+                }
+                let parts = ip.segments();
+                if parts[..3] == [0xfd7a, 0x115c, 0xa1e0] {
+                    Self::Overlay
+                } else if ip.is_unique_local()
+                    || ip.is_unicast_link_local()
+                    || ip.is_loopback()
+                    || ip.is_unspecified()
+                {
+                    Self::Lan
+                } else {
+                    Self::Internet
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PathInfo {
     pub kind: PathKind,
     pub rtt_ms: Option<u32>,
+    /// Relay host, direct IP class, or overlay transport name; never a full URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<PathScope>,
+}
+impl PathInfo {
+    pub fn direct(ip: std::net::IpAddr) -> Self {
+        let scope = PathScope::for_ip(ip);
+        Self {
+            kind: PathKind::Direct,
+            rtt_ms: None,
+            scope: Some(scope),
+            via: Some(
+                match scope {
+                    PathScope::Lan => "private",
+                    PathScope::Internet => "public",
+                    _ => "overlay",
+                }
+                .into(),
+            ),
+        }
+    }
 }
 
 /// Request extension every transport must insert **before** handing a request

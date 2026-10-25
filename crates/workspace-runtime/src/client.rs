@@ -424,7 +424,7 @@ impl Api {
                     reqwest::Method::GET,
                     "/api/v1/nodes",
                     None,
-                    4096,
+                    2 * 1024 * 1024,
                     endpoint,
                     Some(Duration::from_secs(2)),
                 )
@@ -456,7 +456,7 @@ impl Api {
                 reqwest::Method::GET,
                 "/api/v1/nodes",
                 None,
-                4096,
+                2 * 1024 * 1024,
                 endpoint,
                 Some(Duration::from_secs(2)),
             )

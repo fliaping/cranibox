@@ -13,7 +13,10 @@ use cranibox_contracts::{
     NodeId,
     async_trait::async_trait,
     http,
-    net::{BoxBody, PathInfo, PathKind, PeerTransport, TransportError, TransportKind, routes},
+    net::{
+        BoxBody, PathInfo, PathKind, PathScope, PeerTransport, TransportError, TransportKind,
+        routes,
+    },
 };
 use futures_util::StreamExt;
 
@@ -122,17 +125,120 @@ impl PeerTransport for DirectTransport {
         }
     }
     async fn path(&self, peer: &NodeId) -> Option<PathInfo> {
-        self.store.route(peer).ok().map(|_| PathInfo {
-            kind: PathKind::Direct,
-            rtt_ms: None,
-        })
+        self.store
+            .route(peer)
+            .ok()
+            .map(|route| endpoint_path(&route.endpoints()[0]))
     }
+}
+
+/// Describe an explicitly selected route, without resolving DNS or measuring a request.
+/// Managed loopback forwards describe the underlying transport, not loopback LAN.
+pub fn endpoint_path(endpoint: &super::config::Endpoint) -> PathInfo {
+    let lease = endpoint
+        .local_forward_lock
+        .as_ref()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if lease.starts_with(".network-") {
+        return route_path(TransportKind::EasyTier, &endpoint.url);
+    }
+    if lease.starts_with(".iroh-") || endpoint.iroh.is_some() {
+        return PathInfo {
+            kind: PathKind::Unknown,
+            scope: None,
+            via: None,
+            rtt_ms: None,
+        };
+    }
+    route_path(TransportKind::Direct, &endpoint.url)
+}
+/// Overlay transports have no RTT here; the app's authenticated probe supplies it.
+pub fn route_path(kind: TransportKind, url: &str) -> PathInfo {
+    let mut info = PathInfo {
+        kind: PathKind::Direct,
+        scope: None,
+        via: None,
+        rtt_ms: None,
+    };
+    if matches!(kind, TransportKind::Tailscale | TransportKind::EasyTier) {
+        info.scope = Some(PathScope::Overlay);
+        info.via = Some(
+            if kind == TransportKind::Tailscale {
+                "tailscale"
+            } else {
+                "easytier"
+            }
+            .into(),
+        );
+    } else if let Ok(url) = url::Url::parse(url) {
+        match url.host() {
+            Some(url::Host::Ipv4(ip)) => info = PathInfo::direct(ip.into()),
+            Some(url::Host::Ipv6(ip)) => info = PathInfo::direct(ip.into()),
+            Some(url::Host::Domain(host)) if host.ends_with(".ts.net") => {
+                return route_path(TransportKind::Tailscale, url.as_str());
+            }
+            _ => {} // DNS names may resolve to private addresses; do not guess.
+        }
+    }
+    info
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::peers::config::{Config, Route};
+
+    #[test]
+    fn direct_and_overlay_routes_never_invent_latency() {
+        for (kind, url, scope) in [
+            (
+                TransportKind::Direct,
+                "http://192.168.1.2",
+                Some(PathScope::Lan),
+            ),
+            (
+                TransportKind::Direct,
+                "https://8.8.8.8",
+                Some(PathScope::Internet),
+            ),
+            (
+                TransportKind::Direct,
+                "http://100.64.0.1",
+                Some(PathScope::Overlay),
+            ),
+            (
+                TransportKind::Direct,
+                "http://device.ts.net",
+                Some(PathScope::Overlay),
+            ),
+            (TransportKind::Direct, "https://device.example", None),
+            (
+                TransportKind::Tailscale,
+                "http://10.0.0.1",
+                Some(PathScope::Overlay),
+            ),
+            (
+                TransportKind::EasyTier,
+                "http://127.0.0.1:1234",
+                Some(PathScope::Overlay),
+            ),
+        ] {
+            let path = route_path(kind, url);
+            assert_eq!(path.scope, scope, "{url}");
+            assert_eq!(path.rtt_ms, None);
+        }
+        let mut endpoint = crate::peers::config::Endpoint {
+            url: "http://127.0.0.1:1234".into(),
+            allow_insecure: false,
+            local_forward_lock: Some(".network-node-a.lock".into()),
+            iroh: None,
+        };
+        assert_eq!(endpoint_path(&endpoint).via.as_deref(), Some("easytier"));
+        endpoint.local_forward_lock = Some(".iroh-node-a.lock".into());
+        assert_eq!(endpoint_path(&endpoint).kind, PathKind::Unknown);
+    }
 
     fn request(path: &str) -> http::Request<BoxBody> {
         http::Request::get(path).body(BoxBody::empty()).unwrap()

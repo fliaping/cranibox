@@ -38,6 +38,7 @@ pub mod fixtures {
         AGENTS_APPLIED => "agents_applied.json",
         APP_STATUS => "app_status.json",
         APP_DEVICES => "app_devices.json",
+        APP_NETWORK_PATHS => "app_network_paths.json",
         APP_APPROVALS => "app_approvals.json",
         APP_AGENTS => "app_agents.json",
         APP_PAIR_INVITE => "app_pair_invite.json",
@@ -287,6 +288,19 @@ pub struct MockAppApi {
     pub mgmt: Arc<MockLlmMgmt>,
 }
 impl MockAppApi {
+    /// Directional network fixture, with ages relative to the current response.
+    pub fn network_paths(&self) -> serde_json::Value {
+        let mut value: serde_json::Value = load(fixtures::APP_NETWORK_PATHS);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        for path in value["paths"].as_array_mut().unwrap() {
+            let age = 1_800_000_000_000u64.saturating_sub(path["at"].as_u64().unwrap());
+            path["at"] = now.saturating_sub(age).into();
+        }
+        value
+    }
     pub fn fixture() -> Self {
         let devices: Vec<Device> = load(fixtures::APP_DEVICES);
         Self {

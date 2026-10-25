@@ -39,7 +39,7 @@ export function WebTerminalEnvironment({ children }: { children: ReactNode }) {
   const manage = useCallback<TerminalEnvironment['manage']>((node, command) => request('/api/terminal/sessions', { ...command, ...terminalTarget(node) }), []);
   const targets = [
     ...(snapshot?.local_node ? [{ id: snapshot.local_node.id, name: t('Workspace 主机', 'Workspace host') + (snapshot.access?.hostname ? ' · ' + snapshot.access.hostname : ''), available: snapshot.local_node.online }] : []),
-    ...routes.map(route => ({ id: directTarget(route.node), name: route.node + t(' · 直连', ' · Direct'), available: true })),
+    ...routes.map(route => ({ id: directTarget(route.node), aliases: [route.node], name: route.node, available: true })),
   ];
   return <TerminalEnvironmentProvider value={{ t, available: ready, includeLocal: !snapshot?.local_node, localNode: snapshot?.local_node?.id, targets, manage, connect }}>{children}</TerminalEnvironmentProvider>;
 }

@@ -1,8 +1,8 @@
-import { Ellipsis } from 'lucide-react';
+import { Ellipsis, type LucideIcon } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 // Native popovers stay above scrolling lists, modal drawers and fullscreen panes.
-export function TerminalMenu({ label, children }: { label: string; children: ReactNode }) {
+export function TerminalMenu({ label, children, icon: Icon = Ellipsis }: { label: string; children: ReactNode; icon?: LucideIcon }) {
   const id = useId(), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   function close(restore = true) {
@@ -30,7 +30,7 @@ export function TerminalMenu({ label, children }: { label: string; children: Rea
     <button ref={trigger} type="button" popoverTarget={id} aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} aria-controls={id} onClick={event => {
       event.preventDefault();
       if (menu.current?.matches(':popover-open')) close(); else show();
-    }} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); show(event.key === 'ArrowUp'); } }}><Ellipsis size={18} aria-hidden="true" /></button>
+    }} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); show(event.key === 'ArrowUp'); } }}><Icon size={18} aria-hidden="true" /></button>
     <div ref={menu} id={id} popover="auto" role="menu" aria-label={label} className="terminal-menu-items" onToggle={event => {
       const shown = event.newState === 'open'; setOpen(shown);
       if (shown) position();

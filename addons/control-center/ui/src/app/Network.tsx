@@ -6,6 +6,7 @@ import { request } from "../workspace";
 import { store, stored, useApp } from "./store";
 import { Alert, Card, isThis, PageHead, Pill, Switch } from "./ui";
 import { OtherNetworks, DirectRoutes } from "../pages/Nodes";
+import { NetworkPaths } from "./NetworkPaths";
 
 export function useIdentity() {
   const { api } = useApp();
@@ -81,6 +82,7 @@ export function NetworkPage() {
       </Row>
       {status && <Switch label={t("局域网发现", "Local network discovery")} detail={t("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet.")} checked={status.lan} disabled={busy} onChange={lan => void save({ lan })} />}
     </section>
+    <NetworkPaths />
     {status && <section className="cx-settings-group" aria-label={t("中继", "Relays")}>
       <h2>{t("中继", "Relays")}</h2>
       <Row title={t("使用的中继", "Relays in use")} detail={inUse.length ? <span className="cx-mono">{inUse.join(" · ")}</span> : t("没有自己的中继，使用公共中继。", "No relay of your own; public relays are used.")}>

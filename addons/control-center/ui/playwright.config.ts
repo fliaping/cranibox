@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
+  // These suites have their own browser-only previews and configurations.
+  testIgnore: ['**/terminal.spec.ts', '**/network-paths.spec.ts'],
   fullyParallel: false,
   workers: 1,
   timeout: 30000,

@@ -308,3 +308,32 @@
 .cx-setting-control { flex: none; }
 .cx-disclosure[open] > :not(summary) { padding: 0 var(--space-5) var(--space-5); }
 @media (max-width: 560px) { .cx-setting-row { flex-wrap: wrap; } }
+
+/* Directional device paths; the values and glyphs carry the meaning without color. */
+.cx-network-paths { min-width: 0; }
+.cx-network-paths > p, .cx-path-legend, .cx-path-list { margin-inline: var(--space-5); }
+.cx-path-matrix { overflow-x: auto; margin-top: var(--space-4); }
+.cx-path-matrix table { border-collapse: collapse; width: 100%; font-size: var(--text-sm); }
+.cx-path-matrix th, .cx-path-matrix td { padding: 10px; text-align: center; border: 1px solid var(--border); min-width: 96px; }
+.cx-path-matrix th { background: var(--surface-raised); overflow-wrap: anywhere; max-width: 180px; }
+.cx-path-matrix th[scope=row] { text-align: left; }
+.cx-path-value { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 8px; border-radius: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text); }
+.cx-path-value:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cx-latency-fast { background: var(--good-bg); color: var(--good); }
+.cx-latency-good { background: var(--info-bg); color: var(--info); }
+.cx-latency-slow { background: var(--warn-bg); color: var(--warn); }
+.cx-latency-high { background: var(--bad-bg); color: var(--bad); }
+.cx-latency-unknown { background: var(--surface-raised); color: var(--muted); }
+.cx-path-stale { opacity: .55; }
+.cx-path-legend { display: grid; gap: 10px; margin-block: var(--space-4); color: var(--muted); }
+.cx-path-legend > div { display: flex; gap: 12px; flex-wrap: wrap; }
+.cx-path-list { display: none; }
+@media (max-width: 700px) {
+  .cx-path-matrix { display: none; }
+  .cx-path-list { display: grid; gap: var(--space-5); margin-top: var(--space-4); }
+  .cx-path-list ul { list-style: none; padding: 0; }
+  .cx-path-list li { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .cx-path-list h3, .cx-path-list strong, .cx-path-list small { overflow-wrap: anywhere; }
+  .cx-path-list small { display: block; margin-top: 4px; }
+  .cx-path-list .cx-path-value { flex-shrink: 0; }
+}

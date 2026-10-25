@@ -270,6 +270,8 @@ jobs:
       - run: npx --prefix addons/control-center/ui playwright install --with-deps chromium
         if: runner.os == 'Linux'
       - run: npm test --prefix addons/control-center/ui
+      - run: npm run test:terminal --prefix addons/control-center/ui
+      - run: npm run test:paths --prefix addons/control-center/ui
         if: runner.os == 'Linux'
         env:
           CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr

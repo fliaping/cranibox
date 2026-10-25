@@ -28,6 +28,7 @@ pub struct LocalNode {
     supervisor: crate::supervisor::Service,
     task_worker: crate::task_worker::Service,
     project_sync: crate::project_sync::Service,
+    paths_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     identity_lock: Mutex<Option<std::fs::File>>,
     /// Pairing requests received on this device's public relay address.
     pub pair_requests: Arc<crate::pair_url::Requests>,
@@ -86,6 +87,7 @@ impl LocalNode {
             stop.clone(),
         )
         .await;
+        let paths_task = crate::app::paths::start(path.clone(), iroh.handle(), stop.clone());
         Ok(Self {
             app: tokio::sync::OnceCell::new(),
             id: config.node_id,
@@ -100,6 +102,7 @@ impl LocalNode {
             supervisor,
             task_worker,
             project_sync,
+            paths_task: Mutex::new(Some(paths_task)),
             stop,
             peer: Mutex::new(Some(peer)),
             identity_lock: Mutex::new(Some(lock)),
@@ -256,6 +259,9 @@ impl LocalNode {
     }
     pub async fn shutdown(&self) -> Result<()> {
         self.stop.cancel();
+        if let Some(task) = self.paths_task.lock().await.take() {
+            let _ = task.await;
+        }
         // The embedded Computer Use driver is this app's child; it ends with the node.
         agent_workspace_runtime::peers::computer::cua::embedded::stop_daemon();
         let iroh = self.iroh.lock().await.take();

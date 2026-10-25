@@ -1,6 +1,7 @@
 //! One App API implementation shared by the browser and native IPC.
 mod capabilities;
 pub(crate) mod known;
+pub(crate) mod paths;
 pub mod preferences;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
@@ -38,6 +39,8 @@ struct Reach {
     checked: std::time::Instant,
     online: bool,
     probing: bool,
+    rtt_ms: Option<u32>,
+    iroh: bool,
 }
 /// How long a probe result stands before the device is probed again.
 const REACH_TTL: std::time::Duration = std::time::Duration::from_secs(15);
@@ -83,11 +86,15 @@ impl Service {
                     checked: entry.map_or_else(std::time::Instant::now, |r| r.checked),
                     online: entry.is_some_and(|r| r.online),
                     probing: true,
+                    rtt_ms: entry.and_then(|r| r.rtt_ms),
+                    iroh: entry.is_some_and(|r| r.iroh),
                 },
             );
-            let owner = self.models.roster.is_owner_node(node);
             let (local, reach, node) = (self.local.clone(), self.reach.clone(), node.to_owned());
             tokio::spawn(async move {
+                let started = std::time::Instant::now();
+                let mut rtt_ms = None;
+                let mut iroh = false;
                 let online = match local.upgrade() {
                     Some(local) => match tokio::time::timeout(
                         std::time::Duration::from_secs(5),
@@ -96,16 +103,15 @@ impl Service {
                     .await
                     {
                         Ok(Ok(answer)) => {
-                            let now = cranibox_llm::auth::now();
-                            let _ = known::update(local.config_path(), &node, |k| {
-                                k.learn(&answer, now)
-                            });
-                            if owner {
-                                let _ = known::merge_labels(
-                                    local.config_path(),
-                                    &answer["nodes"][0]["labels"],
-                                );
-                            }
+                            rtt_ms = Some(started.elapsed().as_millis().min(60_000) as u32);
+                            iroh = paths::observe(
+                                local.config_path(),
+                                &node,
+                                &answer,
+                                rtt_ms.unwrap(),
+                                local.iroh().await.as_ref(),
+                            )
+                            .await;
                             true
                         }
                         _ => false,
@@ -118,11 +124,67 @@ impl Service {
                         checked: std::time::Instant::now(),
                         online,
                         probing: false,
+                        rtt_ms,
+                        iroh,
                     },
                 );
             });
         }
         entry.is_some_and(|r| r.online)
+    }
+    /// Directional owner measurements plus paths observed on this node.
+    pub async fn network_paths(&self) -> Result<Value, AppError> {
+        let local = self.local()?;
+        let devices = self.devices().await?; // Also schedules authenticated refresh probes.
+        let own_name = devices
+            .iter()
+            .find(|d| d.node_id == local.id)
+            .map(|d| d.name.clone())
+            .unwrap_or_else(|| crate::device_info::local().name.clone());
+        let mut nodes: BTreeMap<String, String> = devices
+            .into_iter()
+            .filter(|d| d.node_id != local.id)
+            .take(63)
+            .map(|d| (d.node_id, d.name))
+            .collect();
+        nodes.insert(local.id.clone(), own_name);
+        // Refresh live QUIC paths only when the successful probe used iroh; an
+        // unrelated open connection must not hide the selected HTTP fallback.
+        let reach = self.reach.lock().unwrap().clone();
+        if let Some(iroh) = local.iroh().await {
+            for (peer, recent) in reach {
+                if nodes.contains_key(&peer)
+                    && recent.online
+                    && recent.iroh
+                    && recent.checked.elapsed() < REACH_TTL
+                    && let Some(mut path) = iroh.peer_path(&peer).await
+                    && path.kind != PathKind::Unknown
+                {
+                    path.rtt_ms = path.rtt_ms.or(recent.rtt_ms);
+                    let _ =
+                        paths::record(local.config_path(), &local.id, &peer, path, paths::now());
+                }
+            }
+        }
+        let rows = paths::load(local.config_path());
+        let mut entries = Vec::new();
+        for (from, row) in rows {
+            if !nodes.contains_key(&from) {
+                continue;
+            }
+            for (to, measurement) in row {
+                if !nodes.contains_key(&to) {
+                    continue;
+                }
+                let mut value = serde_json::to_value(measurement).map_err(unavailable)?;
+                value["from"] = Value::String(from.clone());
+                value["to"] = Value::String(to);
+                entries.push(value);
+            }
+        }
+        Ok(
+            serde_json::json!({"nodes": nodes.into_iter().map(|(id,name)| serde_json::json!({"id":id,"name":name})).collect::<Vec<_>>(), "paths": entries}),
+        )
     }
     /// `POST /pair/server {url}`: pair through a server's public address or pairing link.
     pub async fn pair_server(&self, url: &str) -> Result<Value, AppError> {
@@ -529,7 +591,13 @@ impl AppApi for Service {
                     },
                     online,
                     path: path.as_ref().map_or(PathKind::Unknown, |p| p.kind),
-                    rtt_ms: path.and_then(|p| p.rtt_ms),
+                    rtt_ms: path.and_then(|p| p.rtt_ms).or_else(|| {
+                        self.reach
+                            .lock()
+                            .unwrap()
+                            .get(&member.node_id)
+                            .and_then(|r| r.rtt_ms)
+                    }),
                     badges,
                     guest: false,
                     same_identity: true,
@@ -567,15 +635,18 @@ impl AppApi for Service {
                 Some(iroh) => iroh.peer_path(&node).await,
                 None => None,
             };
-            let online = path.is_some() || self.reachable(&node);
+            let probed = self.reachable(&node);
+            let online = path.is_some() || probed;
             let remembered = known.get(&node).cloned().unwrap_or_default();
             devices.push(Device {
                 name: remembered.display(&node),
                 kind: remembered.kind(),
-                node_id: node,
+                node_id: node.clone(),
                 online,
-                path: path.map_or(PathKind::Unknown, |p| p.kind),
-                rtt_ms: path.and_then(|p| p.rtt_ms),
+                path: path.as_ref().map_or(PathKind::Unknown, |p| p.kind),
+                rtt_ms: path
+                    .and_then(|p| p.rtt_ms)
+                    .or_else(|| self.reach.lock().unwrap().get(&node).and_then(|r| r.rtt_ms)),
                 badges: vec![],
                 guest,
                 same_identity: false,
@@ -1105,6 +1176,10 @@ async fn route(
             Some(service) => output(service.capabilities().await?),
             None => output(MOCK.capabilities()),
         },
+        ("GET", "/network/paths") => match service {
+            Some(service) => output(service.network_paths().await?),
+            None => output(MOCK.network_paths()),
+        },
         _ => {
             if let Some((id, action)) = path
                 .strip_prefix("/capabilities/")
@@ -1547,6 +1622,12 @@ mod grant_tests {
 
     #[tokio::test]
     async fn mock_dispatch_serves_capabilities_and_grants() {
+        let paths = route(None, "GET", "/network/paths", Value::Null)
+            .await
+            .unwrap();
+        assert_eq!(paths["nodes"].as_array().unwrap().len(), 4);
+        assert_eq!(paths["paths"][0]["via"], "relay.n0.iroh.network");
+        assert!(paths["paths"][0]["at"].as_u64().unwrap() <= super::paths::now());
         let list = route(None, "GET", "/capabilities", Value::Null)
             .await
             .unwrap();

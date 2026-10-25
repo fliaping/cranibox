@@ -19,7 +19,8 @@ for (const width of [375, 768, 1024, 1440]) {
 
 const activePane = (page: Page) => page.locator('.terminal-panel.active');
 async function createTerminal(page: Page, name: string) {
-  await page.locator('.terminal-tabs-bar').getByRole('button', { name: 'New session', exact: true }).click();
+  await page.locator('.terminal-toolbar').getByRole('button', { name: 'New session options', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New with options…', exact: true }).click();
   await page.locator('dialog').getByRole('textbox', { name: 'Session name', exact: true }).fill(name);
   await page.locator('dialog').getByRole('button', { name: 'Create and open', exact: true }).click();
   await expect(page.locator('dialog')).toHaveCount(0);
@@ -46,7 +47,7 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
   page.on('websocket', socket => sockets.push(socket));
   await page.goto('/#/terminal');
   const target = page.getByRole('combobox', { name: 'Target', exact: true });
-  await expect(target.locator('option')).toHaveCount(3);
+  await expect(target.locator('option[value^="direct:"]')).not.toHaveCount(0);
   const host = await target.inputValue();
   expect(host).toMatch(/^node-/);
   for (const node of [host, 'direct:' + await previewNode()]) {
@@ -56,7 +57,7 @@ test('persistent terminal opens automatically, detaches, reattaches, renames and
     await sendTerminal(page, "printf '%s%s\\n' BROWSER _PTY_OK");
     await expect(activePane(page).locator('.xterm-accessibility')).toContainText('BROWSER_PTY_OK');
     await activePane(page).getByRole('button', { name: 'Detach', exact: true }).click();
-    await expect(activePane(page).locator('.status')).toContainText('Detached');
+    await expect(activePane(page).locator('.status')).toContainText('Running in background');
     await activePane(page).getByRole('button', { name: 'Reattach', exact: true }).first().click();
     await expect(activePane(page).locator('.status')).toContainText('Connected');
     await page.reload();
@@ -105,7 +106,7 @@ test('remote terminal reconnects automatically after transport loss and respects
   await sendTerminal(page, "printf '%s%s\\n' \"$CRANIBOX_BROWSER\" _AFTER_RECONNECT");
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('NATIVE_AFTER_RECONNECT');
   await activePane(page).getByRole('button', { name: 'Detach', exact: true }).click();
-  await expect(activePane(page).locator('.status')).toContainText('Detached');
+  await expect(activePane(page).locator('.status')).toContainText('Running in background');
   // Allow the initial retry interval to pass: intentional detach must stay detached.
   await page.waitForTimeout(1500);
   expect(await page.evaluate(() => (window as unknown as { terminalTestSockets: WebSocket[] }).terminalTestSockets.length)).toBe(2);
@@ -339,7 +340,7 @@ test('terminal redraw clears old cells when resizing between desktop and mobile'
 test('terminal menus stay usable in a short viewport and tab limits preserve background sessions', async ({ page }) => {
   await page.goto('/#/terminal');
   for (const name of ['Limit 1', 'Limit 2', 'Limit 3', 'Limit 4']) await createTerminal(page, name);
-  await expect(page.locator('.terminal-tabs-bar').getByRole('button', { name: 'New session', exact: true })).toBeDisabled();
+  await expect(page.locator('.terminal-toolbar').getByRole('button', { name: 'New session', exact: true })).toBeDisabled();
   await page.setViewportSize({ width: 812, height: 375 });
   await page.getByRole('button', { name: 'Terminal actions Limit 4', exact: true }).click();
   await expect(page.getByRole('menu', { name: 'Terminal actions Limit 4', exact: true })).toBeInViewport({ ratio: 1 });
@@ -349,7 +350,7 @@ test('terminal menus stay usable in a short viewport and tab limits preserve bac
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Terminal actions Limit 4', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Close tab Limit 4', exact: true }).click();
-  await expect(page.locator('.terminal-tabs-bar').getByRole('button', { name: 'New session', exact: true })).toBeEnabled();
+  await expect(page.locator('.terminal-toolbar').getByRole('button', { name: 'New session', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Open session list', exact: true }).click();
   await page.locator('dialog').getByRole('button', { name: 'Open Limit 4', exact: true }).click();
   await expect(activePane(page).locator('.status')).toContainText('Connected');

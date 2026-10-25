@@ -54,6 +54,7 @@ fn every_fixture_round_trips() {
         Capabilities => APP_CAPABILITIES,
         InstallPlan => APP_INSTALL_PLAN,
         DeviceGrant => APP_DEVICE_GRANT,
+        serde_json::Value => APP_NETWORK_PATHS,
         PullReq => VAULT_PULL_REQ,
         PullResp => VAULT_PULL_RESP,
         RefreshRequest => VAULT_REFRESH_REQUEST,

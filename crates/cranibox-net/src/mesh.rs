@@ -30,7 +30,7 @@ pub enum MeshTarget {
 }
 
 /// Path of the QUIC connection a request arrived on.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct PeerPath(pub cranibox_contracts::net::PathInfo);
 
 /// Serve one accepted peer-http connection until it closes.
@@ -121,7 +121,7 @@ where
         hyper::service::service_fn(move |mut request: http::Request<hyper::body::Incoming>| {
             // Never trust a client-supplied identity header; identity is the extension.
             request.extensions_mut().insert(authenticated.clone());
-            request.extensions_mut().insert(path);
+            request.extensions_mut().insert(path.clone());
             let mut router = router.clone();
             async move { router.call(request.map(axum::body::Body::new)).await }
         });
