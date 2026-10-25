@@ -278,12 +278,16 @@ pub struct Service {
     setup: Mutex<Setup>,
     /// One owner action at a time; status reads never wait for it.
     actions: Mutex<()>,
+    /// The last desktop server that answered. Selkies refuses a reconnect within about a
+    /// second (close 4029), so an action right after a status read must not probe again.
+    desktop_seen: std::sync::Mutex<Option<(Instant, Desktop)>>,
 }
 impl Service {
     pub fn new(peers: &Path) -> Self {
         Self {
             setup: Mutex::new(Setup::new(peers)),
             actions: Mutex::new(()),
+            desktop_seen: Default::default(),
         }
     }
     pub async fn list(&self, host: &dyn Host) -> Result<Capabilities, AppError> {
@@ -433,7 +437,7 @@ impl Service {
                     Some(desktop) => desktop,
                     // One more look: a server that was just busy answers the second time.
                     None => {
-                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
                         match self.detected_desktop(host).await {
                             Some(desktop) => desktop,
                             None => return Err(conflict(self.desktop_probe_report(host).await)),
@@ -541,6 +545,15 @@ impl Service {
                     protocol: DesktopProtocol::Vnc,
                 });
         }
+        if let Some((_, desktop)) = self
+            .desktop_seen
+            .lock()
+            .unwrap()
+            .clone()
+            .filter(|(seen, _)| seen.elapsed() < Duration::from_secs(10))
+        {
+            return Some(desktop);
+        }
         let found = host
             .desktop(desktop_service::Command::Discover {})
             .await
@@ -557,12 +570,14 @@ impl Service {
             .collect();
         // Selkies streams the whole desktop over WebSockets and is what Cranibox
         // workspaces ship; prefer it over VNC on Linux.
-        services
+        let desktop = services
             .iter()
             .find(|d| d.protocol == DesktopProtocol::Selkies)
             .or_else(|| services.iter().find(|d| d.protocol == DesktopProtocol::Vnc))
             .or(services.first())
-            .cloned()
+            .cloned()?;
+        *self.desktop_seen.lock().unwrap() = Some((Instant::now(), desktop.clone()));
+        Some(desktop)
     }
     async fn desktop(&self, host: &dyn Host, config: &Config) -> CapabilityItem {
         use CapabilityAction::*;
