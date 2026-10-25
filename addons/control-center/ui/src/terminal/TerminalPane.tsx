@@ -12,6 +12,8 @@ import { TerminalMenu } from './TerminalMenu';
 
 // The node accepts 2–500 columns and 2–300 rows; a very short pane still attaches.
 const size = (cols: number, rows: number) => ({ cols: Math.min(500, Math.max(2, cols)), rows: Math.min(300, Math.max(2, rows)) });
+// The node refuses a second attachment unless the client asks to take over.
+const heldElsewhere = (message: string) => /already attached|take over|\b409\b/i.test(message);
 const sessionGone = (message: string) => /^not found$|unknown (?:terminal )?session|no such (?:session|terminal)|(?:session|terminal|会话).*(?:not found|ended|does not exist|已结束|不存在)|(?:not found|ended).*session/i.test(message);
 
 export function TerminalPane({ entry, visible, online, machine, pending, onClose, onRename, onEnd, onEnded, onCheckSession, onRecreate }: { entry: OpenTerminal; visible: boolean; online: boolean; machine: string; pending: boolean; onClose: () => void; onRename: () => void; onEnd: () => void; onEnded: () => void; onCheckSession: () => void; onRecreate: () => void }) {
@@ -25,13 +27,16 @@ export function TerminalPane({ entry, visible, online, machine, pending, onClose
   endedCallback.current = onEnded; checkCallback.current = onCheckSession;
   const [status, setStatus] = useState('disconnected'), [error, setError] = useState('');
   const [draft, setDraft] = useState(entry.initialCommand || ''), [showInput, setShowInput] = useState(!!entry.initialCommand), [fontSize, setFontSize] = useState(14);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false), [held, setHeld] = useState(false);
+  // Set while this pane holds the attachment, so a reconnect after a transport loss
+  // replaces our own stale attachment instead of reporting a conflict.
+  const owned = useRef(false);
   const composing = useRef(false);
   const connected = online && !entry.ended && status === 'connected', busy = online && !entry.ended && (connected || status === 'connecting');
   const markEnded = useCallback(() => { wanted.current = false; endedCallback.current(); }, []);
 
   const detach = useCallback((manual = true) => {
-    if (manual) wanted.current = false;
+    if (manual) { wanted.current = false; owned.current = false; }
     generation.current++; attaching.current = false; window.clearTimeout(timeout.current); window.clearTimeout(retry.current);
     socket.current?.close(); socket.current = null;
     if (alive.current) setStatus('disconnected');
@@ -45,8 +50,9 @@ export function TerminalPane({ entry, visible, online, machine, pending, onClose
   const attach = useCallback(async (takeover = false) => {
     if (attaching.current || socket.current || !online || entry.ended || !terminal.current) return;
     wanted.current = true; window.clearTimeout(retry.current);
-    attaching.current = true; setStatus('connecting'); setError('');
+    attaching.current = true; setStatus('connecting'); setError(''); setHeld(false);
     const current = ++generation.current, term = terminal.current;
+    const conflict = () => { wanted.current = false; owned.current = false; setHeld(true); };
     try {
       if (host.current?.clientWidth) fit.current?.fit();
       const valid = () => alive.current && current === generation.current;
@@ -54,12 +60,12 @@ export function TerminalPane({ entry, visible, online, machine, pending, onClose
       timeout.current = window.setTimeout(() => { if (valid()) { setError(t('接入超时，请重试或检查节点。', 'Attachment timed out. Retry or check the node.')); detach(false); scheduleReconnect(); } }, 20000);
       let closed = false;
       const connection = await connect({ node: entry.node, session_id: entry.id, takeover, ...size(term.cols, term.rows) }, {
-        ready: () => { if (valid()) { window.clearTimeout(timeout.current); attaching.current = false; backoff.current = 0; setError(''); setStatus('connected'); } },
+        ready: () => { if (valid()) { window.clearTimeout(timeout.current); attaching.current = false; backoff.current = 0; owned.current = true; setError(''); setStatus('connected'); } },
         output: data => { if (valid()) term.write(data); },
-        error: (message, fatal) => { if (valid()) { if (fatal) wanted.current = false; if (sessionGone(message)) markEnded(); setError(message); } },
+        error: (message, fatal) => { if (valid()) { if (fatal) wanted.current = false; if (heldElsewhere(message)) conflict(); else { if (sessionGone(message)) markEnded(); setError(message); } } },
         // The attach client can also exit after another client takes over. Check
         // the session catalog before calling the underlying session ended.
-        ended: () => { if (valid()) { wanted.current = false; checkCallback.current(); } },
+        ended: () => { if (valid()) { wanted.current = false; owned.current = false; checkCallback.current(); } },
         closed: () => { closed = true; if (valid()) { socket.current = null; window.clearTimeout(timeout.current); attaching.current = false; setStatus('disconnected'); scheduleReconnect(); } },
       });
       if (!valid() || closed) { connection.close(); return; }
@@ -69,12 +75,13 @@ export function TerminalPane({ entry, visible, online, machine, pending, onClose
       if (alive.current && current === generation.current) {
         window.clearTimeout(timeout.current); attaching.current = false;
         const message = problem instanceof Error ? problem.message : String(problem);
-        setError(message); setStatus('disconnected');
-        if (sessionGone(message)) markEnded(); else scheduleReconnect();
+        setStatus('disconnected');
+        if (heldElsewhere(message)) conflict();
+        else { setError(message); if (sessionGone(message)) markEnded(); else scheduleReconnect(); }
       }
     }
   }, [entry.node, entry.id, entry.ended, online, connect, detach, scheduleReconnect, markEnded]);
-  useEffect(() => { reconnect.current = () => { if (wanted.current) void attach(); }; }, [attach]);
+  useEffect(() => { reconnect.current = () => { if (wanted.current) void attach(owned.current); }; }, [attach]);
   useEffect(() => {
     alive.current = true;
     const term = new Terminal({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', scrollback: 3000, screenReaderMode: true, minimumContrastRatio: 4.5, theme: { background: '#0f141c', foreground: '#f1f5f9', cursor: '#a3e635', selectionBackground: '#303d50' } });
@@ -161,7 +168,7 @@ export function TerminalPane({ entry, visible, online, machine, pending, onClose
     {error && <div className="terminal-alert" role="alert"><span>{error}</span><Button local icon={X} label={t('关闭错误提示', 'Dismiss error')} onClick={() => setError('')} /></div>}
     <div className="terminal-canvas" onClick={() => terminal.current?.focus()}>
       <div className="terminal-screen" ref={host} aria-label={t('交互式终端 ', 'Interactive terminal ') + entry.name} />
-      {!busy && <div className="terminal-detached" role="status"><span>{entry.ended ? t('会话已结束', 'Session ended') : !online ? t('设备离线，恢复后自动接回', 'Device offline. Reattaching automatically when it returns.') : t('后台运行中，可重新接回', 'Running in background. Reattach to continue.')}</span>{entry.ended ? <><Button local tone="primary" icon={Plus} disabled={!online || pending} onClick={onRecreate}>{t('在相同目录新建', 'New in same directory')}</Button><Button local onClick={onClose}>{t('关闭标签', 'Close tab')}</Button></> : online && <Button local tone="primary" icon={Play} onClick={() => void attach()}>{t('重新接回', 'Reattach')}</Button>}</div>}
+      {!busy && <div className="terminal-detached" role="status"><span>{entry.ended ? t('会话已结束', 'Session ended') : !online ? t('设备离线，恢复后自动接回', 'Device offline. Reattaching automatically when it returns.') : held ? t('此会话正在另一个窗口或设备上使用。接管后，那边会断开，会话继续运行。', 'This session is open in another window or device. Taking over disconnects it there; the session keeps running.') : t('后台运行中，可重新接回', 'Running in background. Reattach to continue.')}</span>{entry.ended ? <><Button local tone="primary" icon={Plus} disabled={!online || pending} onClick={onRecreate}>{t('在相同目录新建', 'New in same directory')}</Button><Button local onClick={onClose}>{t('关闭标签', 'Close tab')}</Button></> : online && (held ? <Button local tone="primary" icon={Play} onClick={() => void attach(true)}>{t('接管到这里', 'Take over here')}</Button> : <Button local tone="primary" icon={Play} onClick={() => void attach()}>{t('重新接回', 'Reattach')}</Button>)}</div>}
     </div>
     <div className="terminal-input-area">
       <div className="terminal-keybar" aria-label={t('终端快捷键', 'Terminal shortcuts')}>

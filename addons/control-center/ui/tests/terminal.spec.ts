@@ -14,7 +14,7 @@ async function mockTerminal(page: Page) {
       { node_id: sleeping, name: 'Travel laptop', badges: [], online: false },
     ],
     sessions: new Map<string, Shell[]>(), operations: [] as Record<string, any>[],
-    sockets: [] as WebSocketRoute[], inputs: [] as string[], ticketError: '', socketError: '',
+    sockets: [] as WebSocketRoute[], inputs: [] as string[], ticketError: '', socketError: '', heldElsewhere: false, tickets: [] as Record<string, any>[],
   };
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
@@ -34,6 +34,8 @@ async function mockTerminal(page: Page) {
       return route.fulfill({ json: { installed: true, sessions } });
     }
     if (url.pathname === '/api/terminal/ticket') {
+      state.tickets.push(command);
+      if (state.heldElsewhere && !command.takeover) return route.fulfill({ status: 409, json: { error: 'session already attached; take over to reconnect' } });
       if (state.ticketError) return route.fulfill({ status: 404, json: { error: state.ticketError } });
       return route.fulfill({ json: { ticket: 'mock' } });
     }
@@ -226,3 +228,38 @@ test('unnamed devices use a short node ID', async ({ page }) => {
   await page.goto('/?window=terminal');
   await expect(page.getByRole('combobox', { name: 'Target', exact: true }).locator('option[value="direct:' + remote + '"]')).toHaveText('node-1a43abcd… · Online');
 });
+
+test('a session attached elsewhere offers takeover instead of retrying', async ({ page }) => {
+  const state = await mockTerminal(page);
+  await page.goto('/?window=terminal');
+  state.heldElsewhere = true;
+  await create(page);
+  const takeOver = pane(page).getByRole('button', { name: 'Take over here', exact: true });
+  await expect(takeOver).toBeVisible();
+  await expect(pane(page).getByRole('status')).toContainText('open in another window or device');
+  await expect(pane(page).getByRole('alert')).toHaveCount(0);
+  // No automatic retry loop against the holder.
+  const attempts = state.tickets.length;
+  await page.waitForTimeout(2500);
+  expect(state.tickets.length).toBe(attempts);
+  await takeOver.click();
+  await expect(pane(page).locator('.status')).toHaveText('Connected');
+  expect(state.tickets.at(-1)!.takeover).toBe(true);
+  // A transport loss reconnects by replacing this pane's own stale attachment.
+  state.sockets.at(-1)!.close();
+  await expect.poll(() => state.tickets.length).toBe(attempts + 2);
+  expect(state.tickets.at(-1)!.takeover).toBe(true);
+  await expect(pane(page).locator('.status')).toHaveText('Connected');
+});
+
+for (const [width, height] of [[1280, 800], [1440, 900], [390, 844]] as const) {
+  test(`the last terminal row stays above the shortcut bar at ${width}x${height}`, async ({ page }) => {
+    await mockTerminal(page);
+    await page.setViewportSize({ width, height });
+    await page.goto('/?window=terminal');
+    await create(page);
+    await expect(pane(page).locator('.status')).toHaveText('Connected');
+    const [grid, canvas] = await Promise.all(['.xterm-screen', '.terminal-canvas'].map(selector => pane(page).locator(selector).boundingBox()));
+    expect(grid!.y + grid!.height).toBeLessThanOrEqual(canvas!.y + canvas!.height);
+  });
+}

@@ -43,7 +43,7 @@
   .terminal-composer { display: flex; margin-bottom: 8px; }
   .terminal-input-toggle { display: none; }
   .terminal-status-hint { display: none; }
-  .terminal-screen { padding: 10px 8px; }
+  .terminal-screen .xterm { padding: 10px 8px; }
 }
 @container terminal-window (max-width: 600px) {
   .terminal-pane-title > span { display: none; }
