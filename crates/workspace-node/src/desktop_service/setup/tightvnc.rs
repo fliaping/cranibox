@@ -89,7 +89,11 @@ mod transaction {
     }
     /// msiexec cannot open `\\?\` verbatim paths (exit 1619), which canonicalized
     /// Windows paths use.
+    /// It also rejects `/` separators (note 1324), which joined relative paths
+    /// such as `.config/cranibox` leave in a Windows path.
     pub(super) fn plain_path(path: &str) -> String {
+        let path = path.replace('/', r"\");
+        let path = path.as_str();
         if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
             format!(r"\\{rest}")
         } else {
@@ -291,6 +295,10 @@ mod tests {
             r"\\host\share\x.msi"
         );
         assert_eq!(plain_path(r"C:\x.msi"), r"C:\x.msi");
+        assert_eq!(
+            plain_path(r"C:\Temp\root\.config/cranibox\x.msi"),
+            r"C:\Temp\root\.config\cranibox\x.msi"
+        );
         let log = "Action start\r\nProperty(C): VALUE_OF_PASSWORD = abc123XY\r\nNote: 1: 1309 2: 5\r\nMSI (c) Error 1619 opening abc123XY\r\n";
         let mut utf16 = vec![0xff, 0xfe];
         utf16.extend(log.encode_utf16().flat_map(u16::to_le_bytes));
