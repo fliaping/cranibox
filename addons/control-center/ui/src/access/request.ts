@@ -10,6 +10,15 @@ const listeners = new Set<() => void>();
 export const accessWaits = () => waits;
 export const subscribeAccessWaits = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 function publish() { for (const listener of listeners) listener(); }
+/** This device's server lost the page's session (restart, expiry): reload through its
+ *  sign-in page, where the desktop app signs the window in again by itself. */
+let signingIn = false;
+export function signInAgain(response: Response) {
+  if (signingIn || response.status !== 401 || response.headers.get('x-cranibox-sign-in') !== 'required') return;
+  signingIn = true;
+  const terminal = new URLSearchParams(location.search).get('window') === 'terminal';
+  location.replace('/sign-in' + (terminal ? '?window=terminal' : ''));
+}
 export type AccessFetchOptions = { signal?: AbortSignal; waiting?: (waiting: boolean) => void; timeoutMs?: number };
 function targetOf(route: string, body?: BodyInit | null) {
   const url = new URL(route, location.href);
@@ -40,6 +49,7 @@ export async function accessFetch(route: string, init: RequestInit, options: Acc
     for (;;) {
       check();
       const response = await attempt(route, init);
+      signInAgain(response);
       if (response.status !== 403) return response;
       const value = await response.clone().json().catch(() => null);
       if (!['approval_required', 'capability_off', 'approval_cooldown'].includes(value?.error)) return response;

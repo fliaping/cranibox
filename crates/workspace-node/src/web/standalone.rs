@@ -528,6 +528,7 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
                 )
                     .into_response();
             }
+            "/sign-in" => return sign_in_required(StatusCode::UNAUTHORIZED),
             "/web.css" => {
                 return (
                     [("content-type", "text/css; charset=utf-8")],
@@ -553,18 +554,12 @@ async fn handle(ExtractState(state): ExtractState<State>, request: Request) -> R
         }
     }
     let Some(session) = state.sessions.session(&headers).await else {
-        return error(
-            StatusCode::UNAUTHORIZED,
-            "Session expired. Reload this page",
-        );
+        return session_expired();
     };
     let csrf = header(&headers, "x-workspace-csrf");
     let expected = state.sessions.csrf(&session).await.unwrap_or_default();
     if !bool::from(expected.as_bytes().ct_eq(csrf.as_bytes())) {
-        return error(
-            StatusCode::UNAUTHORIZED,
-            "Session expired. Reload this page",
-        );
+        return session_expired();
     }
     if request.method() != "POST" {
         return error(StatusCode::METHOD_NOT_ALLOWED, "POST required");
@@ -667,7 +662,7 @@ async fn page_response(
 ) -> Response {
     if let Some(token) = token {
         if !bool::from(token.as_bytes().ct_eq(state.token.as_bytes())) {
-            return sign_in_required(StatusCode::UNAUTHORIZED);
+            return sign_in_redirect(path);
         }
         // Exchange the link once for a cookie and drop the token from the address bar.
         let (id, _) = state.sessions.create().await;
@@ -679,7 +674,7 @@ async fn page_response(
         response.headers_mut().insert(
             "set-cookie",
             HeaderValue::from_str(&format!(
-                "{}={id}; HttpOnly; SameSite=Strict; Path=/",
+                "{}={id}; HttpOnly; SameSite=Lax; Path=/",
                 state.sessions.cookie
             ))
             .expect("session cookie"),
@@ -687,7 +682,7 @@ async fn page_response(
         return response;
     }
     let Some(session) = state.sessions.session(headers).await else {
-        return sign_in_required(StatusCode::UNAUTHORIZED);
+        return sign_in_redirect(path);
     };
     let csrf = state.sessions.csrf(&session).await.unwrap_or_default();
     let preferences = crate::app::preferences::read(&state.peers);
@@ -713,6 +708,26 @@ async fn page_response(
         super::page(language, &config, "http://127.0.0.1:*"),
     )
         .into_response()
+}
+
+/// The page's session is gone; the page reloads through `/sign-in`.
+fn session_expired() -> Response {
+    let mut response = error(StatusCode::UNAUTHORIZED, "Session expired. Reload this page");
+    response
+        .headers_mut()
+        .insert(super::SIGN_IN_HEADER.0, HeaderValue::from_static(super::SIGN_IN_HEADER.1));
+    response
+}
+
+/// Pages without a session land on one fixed address, so the desktop window can
+/// recognise a lost session (runtime restart, dropped cookie) and sign in again.
+fn sign_in_redirect(destination: &str) -> Response {
+    let location = if destination.ends_with("?window=terminal") {
+        "/sign-in?window=terminal"
+    } else {
+        "/sign-in"
+    };
+    (StatusCode::SEE_OTHER, [(axum::http::header::LOCATION, location)]).into_response()
 }
 
 fn sign_in_required(status: StatusCode) -> Response {
@@ -843,13 +858,17 @@ mod tests {
             .unwrap();
 
         let page = client.get(&base).send().await.unwrap();
-        assert_eq!(page.status(), 401, "no session, no page");
+        assert_eq!(page.status(), 303, "no session, no page");
+        assert_eq!(page.headers()["location"], "/sign-in");
         let wrong = client
-            .get(format!("{base}/?token={}", "0".repeat(64)))
+            .get(format!("{base}/?token={}&window=terminal", "0".repeat(64)))
             .send()
             .await
             .unwrap();
-        assert_eq!(wrong.status(), 401);
+        assert_eq!(wrong.headers()["location"], "/sign-in?window=terminal");
+        let sign_in = client.get(format!("{base}/sign-in")).send().await.unwrap();
+        assert_eq!(sign_in.status(), 401);
+        assert!(sign_in.text().await.unwrap().contains("cranibox ui-url"));
         let foreign = client
             .get(format!("{base}/healthz"))
             .header("host", "evil.example")
@@ -864,7 +883,7 @@ mod tests {
         assert_eq!(login.status(), 303);
         assert_eq!(login.headers()["location"], "/");
         let cookie = login.headers()["set-cookie"].to_str().unwrap().to_owned();
-        assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Strict"));
+        assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Lax"));
         let cookie = cookie.split(';').next().unwrap().to_owned();
 
         let page = client

@@ -25,6 +25,7 @@ pub async fn handle(services: Services, request: Request) -> Response {
     let Some(session) = services.sessions.session(request.headers()).await else {
         return (
             StatusCode::UNAUTHORIZED,
+            [super::SIGN_IN_HEADER],
             Json(json!({"code":"unauthorized","message":"Open Cranibox to sign in"})),
         )
             .into_response();

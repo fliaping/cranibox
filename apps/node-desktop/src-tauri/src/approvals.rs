@@ -1,5 +1,5 @@
 //! Native surfaces share the App API's expiry and decision checks.
-use crate::{AppState, show};
+use crate::{AppState, show_at};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -10,15 +10,18 @@ use tauri::{
 use tauri_plugin_notification::{Action, ActionType, NotificationExt};
 
 pub fn inbox(app: &tauri::AppHandle) {
-    show(app);
-    if let Some(window) = app.get_webview_window("main") {
+    // A new window opens on the page itself; an existing one moves there.
+    if show_at(app, Some("/app/inbox"))
+        && let Some(window) = app.get_webview_window("main")
+    {
         let _ = window.eval("location.assign('/app/inbox')");
     }
 }
 
 fn access_window(app: &tauri::AppHandle) {
-    show(app);
-    if let Some(window) = app.get_webview_window("main") {
+    if show_at(app, Some("/#/app/access-log"))
+        && let Some(window) = app.get_webview_window("main")
+    {
         let _ = window.eval("location.hash = '/app/access-log'");
     }
 }

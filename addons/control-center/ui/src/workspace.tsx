@@ -1,5 +1,5 @@
 import { createContext,useCallback,useContext,useEffect,useRef,useState,type ReactNode } from 'react';
-import { accessFetch, type AccessFetchOptions } from './access/request';
+import { accessFetch, signInAgain, type AccessFetchOptions } from './access/request';
 import type { PollState,Snapshot } from './types';
 import { useTerminalWindow } from './terminal/TerminalWindowContext';
 
@@ -87,6 +87,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       connecting = true; controller = new AbortController();
       try {
         const response = await fetch('/api/events', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: '{}', signal: controller.signal });
+        signInAgain(response);
         if (response.status === 404 || response.status === 405) { setAvailable(false); active = false; return; }
         if (!response.ok || !response.body) throw Error(t('实时连接不可用，使用自动刷新。', 'Live connection unavailable; using automatic refresh.'));
         live = true; clearTimeout(timer);

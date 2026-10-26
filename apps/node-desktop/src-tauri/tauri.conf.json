@@ -11,7 +11,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "Cranibox", "width": 1180, "height": 780, "minWidth": 400, "minHeight": 560, "visible": false }],
+    "windows": [{ "label": "main", "title": "Cranibox", "width": 1180, "height": 780, "minWidth": 400, "minHeight": 560, "visible": false, "create": false }],
     "security": { "csp": "default-src 'self'; frame-src 'self' http://127.0.0.1:3080; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; script-src 'self'" }
   },
   "bundle": {

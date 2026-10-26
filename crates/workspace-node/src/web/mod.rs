@@ -25,6 +25,9 @@ use serde_json::{Value, json};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
+/// Marks a 401 caused by this device's own lost page session, as opposed to one
+/// relayed from another device, so the page signs in again through `/sign-in`.
+pub const SIGN_IN_HEADER: (&str, &str) = ("x-cranibox-sign-in", "required");
 pub const WEB_JS: &str = include_str!("../../../../addons/control-center/web.js");
 pub const WEB_CSS: &str = include_str!("../../../../addons/control-center/web.css");
 pub const INDEX_EN: &str = include_str!("../../../../addons/control-center/index.en.html");

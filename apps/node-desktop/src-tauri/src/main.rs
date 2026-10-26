@@ -34,13 +34,104 @@ struct AppState {
     service: tokio::sync::Mutex<Service>,
     stop: tokio_util::sync::CancellationToken,
     quitting: AtomicBool,
+    /// A window close is under way; the exit request it triggers keeps the tray running.
+    window_closing: AtomicBool,
+    /// Last automatic sign-in per window, so a cookie that never sticks cannot loop.
+    signed_in_again: std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>,
     managed_task: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 fn show(app: &tauri::AppHandle) {
+    show_at(app, None);
+}
+/// Show the main window, creating it again if it was closed. A closed window is
+/// destroyed to release its webview; `page` (path and fragment) is where a new
+/// window opens, while an existing one is only brought forward.
+fn show_at(app: &tauri::AppHandle, page: Option<&'static str>) -> bool {
     if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        return true;
     }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<Arc<AppState>>().inner().clone();
+        let url = state.service.lock().await.url.clone();
+        if let Err(error) = create_main(&app, url.as_deref(), page) {
+            eprintln!("Open the window: {error:#}");
+        }
+    });
+    false
+}
+fn create_main(app: &tauri::AppHandle, sign_in: Option<&str>, page: Option<&str>) -> anyhow::Result<()> {
+    if app.get_webview_window("main").is_some() {
+        return Ok(());
+    }
+    let mut config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("no main window configuration"))?;
+    if let Some(sign_in) = sign_in {
+        // Without an interface yet the bundled splash page waits for it.
+        let mut url = url::Url::parse(sign_in)?;
+        if let Some((path, fragment)) = page.map(|page| page.split_once('#').unwrap_or((page, ""))) {
+            if !path.is_empty() {
+                url.set_path(path);
+            }
+            url.set_fragment(Some(fragment).filter(|f| !f.is_empty()));
+        }
+        config.url = tauri::WebviewUrl::External(url);
+    }
+    config.visible = true;
+    config.focus = true;
+    tauri::WebviewWindowBuilder::from_config(app, &config)?.build()?;
+    Ok(())
+}
+/// A page that lost its session (the runtime restarted, or the cookie was dropped)
+/// lands on `/sign-in`; sign the window in again with the current link.
+fn sign_in_again(window: &tauri::Webview, url: &url::Url) {
+    if url.path() != "/sign-in" || !matches!(url.host_str(), Some("127.0.0.1" | "[::1]")) {
+        return;
+    }
+    let app = window.app_handle().clone();
+    let label = window.label().to_owned();
+    let terminal = url.query_pairs().any(|(key, value)| key == "window" && value == "terminal");
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<Arc<AppState>>().inner().clone();
+        {
+            let mut recent = state.signed_in_again.lock().unwrap_or_else(|e| e.into_inner());
+            let now = std::time::Instant::now();
+            if recent.get(&label).is_some_and(|at| now.duration_since(*at) < std::time::Duration::from_secs(15)) {
+                // The fresh session did not hold either; leave the explanation on screen.
+                return;
+            }
+            recent.insert(label.clone(), now);
+        }
+        let (managed, url) = {
+            let service = state.service.lock().await;
+            (service.managed, service.url.clone())
+        };
+        // A managed runtime may have restarted under a new link not yet picked up.
+        let url = if managed {
+            let peers = cranibox_node::peer::config::path_for(&settings::default_path());
+            cranibox_node::web::endpoint::ui_url(&peers, None).await.ok().or(url)
+        } else {
+            url
+        };
+        let Some(Ok(mut url)) = url.map(|url| url::Url::parse(&url)) else {
+            return;
+        };
+        if terminal {
+            url.query_pairs_mut().append_pair("window", "terminal");
+        }
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.navigate(url);
+        }
+    });
 }
 fn update_autostart(app: &tauri::AppHandle, enabled: bool) -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
@@ -197,9 +288,14 @@ impl Shell for NativeShell {
                 Ok(json!({}))
             }
             "hide" => {
-                if let Some(window) = self.app.get_webview_window("main") {
-                    window.hide()?;
-                }
+                let app = self.app.clone();
+                // Answer the page before its window and webview are released.
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.close();
+                    }
+                });
                 Ok(json!({}))
             }
             "quit" => {
@@ -277,6 +373,8 @@ fn main() -> anyhow::Result<()> {
         service: Default::default(),
         stop: Default::default(),
         quitting: AtomicBool::new(false),
+        window_closing: AtomicBool::new(false),
+        signed_in_again: Default::default(),
         managed_task: Default::default(),
     });
     let setup_state = state.clone();
@@ -292,6 +390,11 @@ fn main() -> anyhow::Result<()> {
     let app = app
         .manage(state.clone())
         .invoke_handler(tauri::generate_handler![snapshot, quit])
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                sign_in_again(webview, payload.url());
+            }
+        })
         .setup(move |app| {
             approvals::setup(app.handle())?;
             let open = MenuItem::with_id(app, "open", "打开 Cranibox / Open", true, None::<&str>)?;
@@ -429,6 +532,7 @@ fn main() -> anyhow::Result<()> {
                 service.url = Some(url.clone());
                 Some(url)
             });
+            // Started in the background, no window (and no webview) exists until opened.
             if let Some(url) = &url
                 && let Some(window) = app.get_webview_window("main")
             {
@@ -494,17 +598,37 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Closing the window keeps the device running in the tray.
-                api.prevent_close();
-                let _ = window.hide();
+            let state = window.state::<Arc<AppState>>();
+            match event {
+                // Closing a window destroys it to release its webview; the device keeps
+                // running in the tray, which opens a new window on demand.
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    state.window_closing.store(true, Ordering::Relaxed);
+                }
+                tauri::WindowEvent::Destroyed => {
+                    let others = window
+                        .app_handle()
+                        .webview_windows()
+                        .keys()
+                        .any(|label| label != window.label());
+                    // Only the last window's close leads to an exit request.
+                    if others {
+                        state.window_closing.store(false, Ordering::Relaxed);
+                    }
+                }
+                _ => {}
             }
         })
         .build(tauri::generate_context!())?;
     app.run(move |app, event| {
-        if let tauri::RunEvent::ExitRequested { api, .. } = event
+        if let tauri::RunEvent::ExitRequested { api, code, .. } = event
             && !state.quitting.load(Ordering::Relaxed)
         {
+            if code.is_none() && state.window_closing.swap(false, Ordering::Relaxed) {
+                // The last window closed: stay in the tray.
+                api.prevent_exit();
+                return;
+            }
             // An OS quit request (Cmd+Q, logout) ends this device's shells cleanly.
             api.prevent_exit();
             tauri::async_runtime::spawn(quit_app(app.clone(), state.clone()));
