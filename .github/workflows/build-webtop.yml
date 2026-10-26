@@ -184,8 +184,12 @@ jobs:
         env:
           DESKTOP: ${{ matrix.desktop }}
         run: |
+          # The candidate tag is unique to this run; verify the exact index it names.
+          repository="$REGISTRY_DOCKERHUB/$IMAGE_NAME"
+          digest=$(docker buildx imagetools inspect "$repository:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Cannot resolve the candidate digest: $digest"; exit 1; }
           python3 scripts/verify-workspace-image.py \
-            --image "$REGISTRY_DOCKERHUB/$IMAGE_NAME:cranibox-check-$DESKTOP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --image "$repository@$digest" \
             --revision "$GITHUB_SHA" --platform linux/arm64 --pull --timeout 900 \
             --report "$RUNNER_TEMP/image-startup-$DESKTOP-arm64-native.json"
       - name: Upload sanitized startup acceptance
