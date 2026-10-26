@@ -1252,7 +1252,10 @@ mod tests {
     #[tokio::test]
     async fn actor_keeps_heartbeating_and_excludes_crossed_updates() {
         for actor in ROLES {
-            let fixture = Fixture::new();
+            let mut fixture = Fixture::new();
+            // This checks the actor's own heartbeat, not stale detection: a slow
+            // CI disk must not make the peer's guard respawn the actor meanwhile.
+            fixture.fake.config.stale_after = Duration::from_secs(3);
             fixture.start().await;
             let target = actor.other();
             let version = fixture.install(target, "2.0.0");

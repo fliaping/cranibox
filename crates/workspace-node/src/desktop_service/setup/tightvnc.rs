@@ -172,6 +172,7 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
         .into_temp_path();
     let log_path = transaction::plain_path(log.to_str().context("Invalid installer log path")?);
     let (password_log, control_log) = (password.clone(), control.clone());
+    let log_argument = log_path.clone();
     let result = transaction::verified_install(state, SIZE, SHA256,
         |path| async move {
             let client = reqwest::Client::builder().https_only(true)
@@ -192,7 +193,7 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
         |path| async move {
             let script = tempfile::Builder::new().prefix("desktop-tightvnc-").suffix(".ps1").tempfile_in(state)?.into_temp_path();
             let msi = transaction::plain_path(path.to_str().context("Invalid installer path")?);
-            let contents = transaction::script(&msi, &log_path, &password, &control);
+            let contents = transaction::script(&msi, &log_argument, &password, &control);
             secrets::write_private(&script, contents.as_bytes(), true)?;
             let mut child = Command::new("powershell.exe")
                 .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"]).arg(&script)
