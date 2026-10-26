@@ -109,20 +109,29 @@ mod transaction {
             ),
             _ => String::from_utf8_lossy(bytes).into_owned(),
         };
+        let redact = |line: &str| {
+            secrets.iter().fold(line.trim().to_owned(), |line, secret| {
+                line.replace(secret, "********")
+            })
+        };
         let mut lines: Vec<String> = text
             .lines()
             .filter(|line| {
                 let line = line.to_ascii_lowercase();
-                line.contains("error")
-                    || line.starts_with("note:")
-                    || line.contains("return value 3")
+                ["error", "note:", "return value 3", "returning 16"]
+                    .iter()
+                    .any(|needle| line.contains(needle))
             })
-            .map(|line| {
-                secrets.iter().fold(line.trim().to_owned(), |line, secret| {
-                    line.replace(secret, "********")
-                })
-            })
+            .map(redact)
             .collect();
+        if lines.is_empty() {
+            // Unknown failure shape: the end of the log usually names it.
+            lines = text
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(redact)
+                .collect();
+        }
         lines.dedup();
         let skip = lines.len().saturating_sub(6);
         lines.drain(..skip);
@@ -201,7 +210,15 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
         .unwrap_or_default();
     drop(log);
     let reboot = match result {
-        Err(error) if !details.is_empty() => anyhow::bail!("{error:#} Installer log: {details}"),
+        Err(error) => anyhow::bail!(
+            "{error:#} Installer log {}: {}",
+            log_path,
+            if details.is_empty() {
+                "empty or missing"
+            } else {
+                details.as_str()
+            }
+        ),
         result => result?,
     };
     let record = Record {
