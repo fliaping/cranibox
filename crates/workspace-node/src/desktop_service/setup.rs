@@ -1,4 +1,5 @@
 //! Explicit package installation, separate from the managed desktop process.
+pub(super) mod tightvnc;
 use super::{Provider, executable, install_plan};
 use agent_workspace_runtime::config as secrets;
 use anyhow::{Context, Result, ensure};
@@ -36,6 +37,10 @@ struct Record {
     phase: Phase,
     provider: Option<Provider>,
     error: Option<String>,
+    #[serde(default)]
+    tightvnc_installed: Option<bool>,
+    #[serde(default)]
+    note: Option<String>,
 }
 pub(super) struct Setup {
     path: PathBuf,
@@ -60,6 +65,7 @@ impl Setup {
                     phase: Phase::Interrupted,
                     provider: None,
                     error: Some("The previous VNC installation record is unreadable. Check your system package manager before reviewing a new plan.".into()),
+                    ..Record::default()
                 }),
         };
         if record.phase == Phase::Running {
@@ -79,13 +85,16 @@ impl Setup {
     pub fn error(&self) -> Option<&str> {
         self.record.error.as_deref()
     }
-    pub fn status(&self) -> Value {
-        json!({"phase":self.record.phase,"provider":self.record.provider,"error":self.record.error})
+    pub fn tightvnc_installed(&self) -> bool {
+        self.record.tightvnc_installed == Some(true)
     }
-    pub fn review(&mut self, provider: Provider) -> Result<Value> {
+    pub fn status(&self) -> Value {
+        json!({"phase":self.record.phase,"provider":self.record.provider,"error":self.record.error,"tightvnc_installed":self.record.tightvnc_installed,"note":self.record.note})
+    }
+    pub async fn review(&mut self, provider: Provider) -> Result<Value> {
         ensure!(!self.running(), "VNC installation is already running.");
         self.plan = None;
-        let review = install_plan(provider)?;
+        let review = self.check_plan(provider).await?;
         Ok(self.prepare(provider, review))
     }
     fn prepare(&mut self, provider: Provider, mut review: Value) -> Value {
@@ -99,10 +108,26 @@ impl Setup {
         });
         review
     }
-    pub fn start(&mut self, id: &str, provider: Provider) -> Result<()> {
+    async fn check_plan(&self, provider: Provider) -> Result<Value> {
+        if provider == Provider::Tightvnc
+            && executable(provider).is_some()
+            && self.tightvnc_installed()
+        {
+            anyhow::bail!("TightVNC was installed by Cranibox. Start sharing as the next step.");
+        }
+        let review = install_plan(provider)?;
+        if provider == Provider::Tightvnc {
+            ensure!(
+                super::rfb("127.0.0.1:5900".parse().unwrap()).await.is_err(),
+                "Another VNC server is using port 5900. Connect it as an existing server or uninstall it first."
+            );
+        }
+        Ok(review)
+    }
+    pub async fn start(&mut self, id: &str, provider: Provider) -> Result<()> {
         // Recheck the session, platform and package state before using the reviewed plan.
-        install_plan(provider)?;
-        self.begin(id, provider, install(provider))
+        self.check_plan(provider).await?;
+        self.begin(id, provider, install(provider, self.path.clone()))
     }
     fn begin(
         &mut self,
@@ -123,6 +148,8 @@ impl Setup {
             phase: Phase::Running,
             provider: Some(provider),
             error: None,
+            tightvnc_installed: self.record.tightvnc_installed,
+            note: None,
         };
         // If the journal cannot be saved, no system command may start.
         secrets::write_private(&self.path, &serde_json::to_vec(&record)?, true)?;
@@ -142,6 +169,15 @@ impl Setup {
             .await
             .context("VNC installation monitor stopped")
             .and_then(|result| result);
+        // Windows saves ownership as soon as msiexec succeeds, before the
+        // readiness check. Preserve it even if readiness fails or the node exits.
+        if self.record.provider == Some(Provider::Tightvnc)
+            && let Ok(bytes) = std::fs::read(&self.path)
+            && let Ok(saved) = serde_json::from_slice::<Record>(&bytes)
+        {
+            self.record.tightvnc_installed = saved.tightvnc_installed;
+            self.record.note = saved.note;
+        }
         self.record.phase = if result.is_ok() {
             Phase::Succeeded
         } else {
@@ -171,7 +207,14 @@ impl Drop for Setup {
     }
 }
 
-async fn install(provider: Provider) -> Result<()> {
+async fn install(provider: Provider, journal: PathBuf) -> Result<()> {
+    if provider == Provider::Tightvnc {
+        #[cfg(windows)]
+        return tightvnc::install(&journal).await;
+        #[cfg(not(windows))]
+        anyhow::bail!("Managed TightVNC requires Windows.");
+    }
+    let _ = journal;
     let script = format!(
         "apt-get update && apt-get install --yes --no-install-recommends {}",
         provider.package()
@@ -231,6 +274,49 @@ mod tests {
             assert!(setup.plan.is_none());
             assert!(setup.error().is_some());
         }
+    }
+
+    #[tokio::test]
+    async fn tightvnc_ownership_round_trips_even_when_readiness_fails() {
+        let root = tempfile::tempdir().unwrap();
+        let peers = root.path().join("peers.json");
+        let mut setup = Setup::new(&peers);
+        let review = setup.prepare(Provider::Tightvnc, tightvnc::review());
+        let journal = setup.path.clone();
+        setup
+            .begin(
+                review["id"].as_str().unwrap(),
+                Provider::Tightvnc,
+                async move {
+                    let record = Record {
+                        phase: Phase::Running,
+                        provider: Some(Provider::Tightvnc),
+                        tightvnc_installed: Some(true),
+                        note: Some("restart Windows to finish".into()),
+                        error: None,
+                    };
+                    secrets::write_private(&journal, &serde_json::to_vec(&record)?, true)?;
+                    anyhow::bail!("readiness failed")
+                },
+            )
+            .unwrap();
+        finish(&mut setup).await;
+        assert_eq!(setup.status()["phase"], "failed");
+        assert!(setup.tightvnc_installed());
+        let restored = Setup::new(&peers);
+        assert!(restored.tightvnc_installed());
+        assert_eq!(restored.status()["note"], "restart Windows to finish");
+        assert_eq!(restored.error(), Some("readiness failed"));
+        let legacy: Record =
+            serde_json::from_str(r#"{"phase":"succeeded","provider":"x11vnc","error":null}"#)
+                .unwrap();
+        assert!(legacy.tightvnc_installed.is_none());
+        assert!(
+            serde_json::from_str::<Record>(
+                r#"{"phase":"idle","provider":null,"error":null,"unexpected":true}"#
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]

@@ -70,6 +70,10 @@ impl Spec {
             self.version == 1 && self.port >= 1024,
             "Use a VNC port between 1024 and 65535 and a supported configuration version."
         );
+        ensure!(
+            self.provider != Provider::Tightvnc || self.port == 5900,
+            "Managed TightVNC uses port 5900."
+        );
         self.provider.validate(&self.display, &self.output)?;
         Ok(())
     }
@@ -102,7 +106,7 @@ impl Service {
     }
 }
 struct ManagedChild {
-    process: Child,
+    process: Option<Child>,
     // wayvnc's control socket lives in an owner-only temporary directory.
     _control: Option<tempfile::TempDir>,
 }
@@ -194,7 +198,13 @@ impl Manager {
     fn status(&self) -> Value {
         let provider = self.provider();
         let spec = self.spec.as_ref().filter(|s| s.provider == provider);
-        let error = self.error.as_deref().or(self.installation.error());
+        let error = self.error.as_deref().or_else(|| {
+            if provider == Provider::Tightvnc && self.child.is_some() {
+                None
+            } else {
+                self.installation.error()
+            }
+        });
         json!({"platform":std::env::consts::OS,"supported":provider.problem().is_none(),"provider":provider,"package":provider.package(),"unsupported_reason":provider.problem(),"installed":executable(provider).is_some(),
             "display":spec.map(|s| s.display.clone()).unwrap_or_else(||provider.display()),
             "output":spec.map(|s|s.output.clone()).unwrap_or_default(),
@@ -202,8 +212,10 @@ impl Manager {
             "wayland":provider::wayland_session(),
             "selkies_wayland":provider::selkies_wayland_session(),
             "can_install":can_install(),"managed":self.spec.is_some(),"enabled":self.enabled(),"running":self.child.is_some(),
-            "phase":if self.installation.running(){"installing"}else if self.child.is_some(){"running"}else if self.enabled() && self.retries < 5 {"restarting"}else if error.is_some(){"failed"}else{"stopped"},
+            "phase":if self.installation.running(){"installing"}else if self.child.is_some(){"running"}else if self.enabled() && provider != Provider::Tightvnc && self.retries < 5 {"restarting"}else if error.is_some(){"failed"}else{"stopped"},
             "installation":self.installation.status(),
+            "note":if provider == Provider::Tightvnc {Some("Stopping sharing leaves the TightVNC service running on loopback only. Remove it in Windows Apps settings.")}else{None},
+            "managed_installation":self.installation.tightvnc_installed(),
             "port":spec.map_or(5900,|s|s.port),"error":error,"restart_attempts":self.retries})
     }
     async fn manage(&mut self, command: Command) -> Result<Value> {
@@ -231,7 +243,7 @@ impl Manager {
             }
             Command::Plan {} => {
                 let provider = self.provider();
-                return self.installation.review(provider);
+                return self.installation.review(provider).await;
             }
             Command::Install { plan_id } => {
                 let provider = self.provider();
@@ -239,7 +251,7 @@ impl Manager {
                     self.child.is_none(),
                     "Stop managed VNC before installing its package."
                 );
-                self.installation.start(&plan_id, provider)?;
+                self.installation.start(&plan_id, provider).await?;
                 self.error = None;
             }
             Command::Start {
@@ -281,6 +293,16 @@ impl Manager {
                     self.child.is_none(),
                     "Managed VNC is already running. Stop it before changing its settings."
                 );
+                if provider == Provider::Tightvnc {
+                    ensure!(
+                        self.installation.tightvnc_installed(),
+                        "TightVNC is not a Cranibox-managed installation. Connect it as an existing server or uninstall it first."
+                    );
+                    ensure!(
+                        self.password_path.is_file(),
+                        "Managed TightVNC password is missing. Uninstall TightVNC in Windows Apps settings and install it again through Cranibox."
+                    );
+                }
                 let password = self.password()?;
                 secrets::write_private(
                     &self.password_path,
@@ -314,7 +336,9 @@ impl Manager {
                     Ok::<_, anyhow::Error>(())
                 })();
                 if let Err(error) = saved {
-                    let _ = child.process.kill().await;
+                    if let Some(process) = &mut child.process {
+                        let _ = process.kill().await;
+                    }
                     if let Some(previous) = &self.spec {
                         secrets::write_private(
                             &self.spec_path,
@@ -367,28 +391,13 @@ impl Manager {
         Ok(self.status())
     }
     fn password(&self) -> Result<String> {
-        if self.password_path.try_exists()? {
-            let metadata = std::fs::metadata(&self.password_path)?;
-            ensure!(metadata.len() <= 64, "Invalid managed VNC password file.");
-            let value = std::fs::read_to_string(&self.password_path)?
-                .trim()
-                .to_owned();
-            ensure!(
-                value.len() == 8 && value.bytes().all(|b| b.is_ascii_alphanumeric()),
-                "Invalid managed VNC password file."
-            );
-            Ok(value)
-        } else {
-            Ok(rand::rng()
-                .sample_iter(Alphanumeric)
-                .take(8)
-                .map(char::from)
-                .collect())
-        }
+        password(&self.password_path)
     }
     async fn kill(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.process.kill().await;
+        if let Some(mut child) = self.child.take()
+            && let Some(process) = &mut child.process
+        {
+            let _ = process.kill().await;
         }
     }
     async fn reconcile(&mut self) {
@@ -397,8 +406,28 @@ impl Manager {
             self.kill().await;
             return;
         }
-        if let Some(child) = &mut self.child {
-            match child.process.try_wait() {
+        if let Some(spec) = self
+            .spec
+            .as_ref()
+            .filter(|s| s.provider == Provider::Tightvnc)
+        {
+            if Instant::now() >= self.next_retry {
+                self.next_retry = Instant::now() + Duration::from_secs(5);
+                if rfb(spec.address()).await.is_ok() {
+                    self.child = Some(ManagedChild {
+                        process: None,
+                        _control: None,
+                    });
+                    self.error = None;
+                } else {
+                    self.error = Some(tightvnc_unavailable(spec.port));
+                    self.child = None;
+                }
+            }
+            return;
+        }
+        if let Some(process) = self.child.as_mut().and_then(|c| c.process.as_mut()) {
+            match process.try_wait() {
                 Ok(None) => {
                     if self.started.elapsed() >= Duration::from_secs(60) {
                         self.retries = 0;
@@ -433,7 +462,56 @@ impl Manager {
             Instant::now() + Duration::from_secs(2u64.pow(self.retries.min(5) as u32));
     }
 }
+fn new_password() -> String {
+    rand::rng()
+        .sample_iter(Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect()
+}
+fn password(path: &Path) -> Result<String> {
+    if path.try_exists()? {
+        ensure!(
+            std::fs::metadata(path)?.len() <= 64,
+            "Invalid managed VNC password file."
+        );
+        let value = std::fs::read_to_string(path)?.trim().to_owned();
+        ensure!(
+            value.len() == 8 && value.bytes().all(|b| b.is_ascii_alphanumeric()),
+            "Invalid managed VNC password file."
+        );
+        Ok(value)
+    } else {
+        Ok(new_password())
+    }
+}
+fn tightvnc_unavailable(port: u16) -> String {
+    format!(
+        "TightVNC service is not answering on 127.0.0.1:{port}. Start the 'TightVNC Server' service in Windows Services, then retry."
+    )
+}
+async fn wait_for_tightvnc(address: SocketAddr, timeout: Duration) -> Result<()> {
+    tokio::time::timeout(timeout, async {
+        loop {
+            if rfb(address).await.is_ok() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!(tightvnc_unavailable(address.port())))
+}
 fn executable(provider: Provider) -> Option<PathBuf> {
+    if provider == Provider::Tightvnc {
+        #[cfg(windows)]
+        return std::env::var_os("ProgramFiles")
+            .map(PathBuf::from)
+            .map(|root| root.join("TightVNC").join("tvnserver.exe"))
+            .filter(|path| path.is_file());
+        #[cfg(not(windows))]
+        return None;
+    }
     if !cfg!(target_os = "linux") {
         return None;
     }
@@ -463,6 +541,17 @@ async fn launch(spec: &Spec, password: &Path) -> Result<ManagedChild> {
         password.is_absolute() && password.is_file(),
         "Managed VNC password file is missing; start managed sharing again to restore it."
     );
+    if spec.provider == Provider::Tightvnc {
+        ensure!(
+            executable(spec.provider).is_some(),
+            "Install TightVNC before starting managed sharing."
+        );
+        wait_for_tightvnc(spec.address(), Duration::from_secs(8)).await?;
+        return Ok(ManagedChild {
+            process: None,
+            _control: None,
+        });
+    }
     // Probe occupancy before launch. Never attach an unrelated server to managed sharing.
     drop(tokio::net::TcpListener::bind(spec.address()).await.context("The managed VNC port is occupied. Choose another port or stop its existing server.")?);
     let executable = executable(spec.provider).with_context(|| {
@@ -474,6 +563,7 @@ async fn launch(spec: &Spec, password: &Path) -> Result<ManagedChild> {
     let mut process = Process::new(&executable);
     let mut control = None;
     match spec.provider {
+        Provider::Tightvnc => unreachable!(),
         Provider::X11vnc => {
             process
                 .args([
@@ -571,7 +661,7 @@ async fn launch(spec: &Spec, password: &Path) -> Result<ManagedChild> {
     }).await;
     match result {
         Ok(Ok(())) => Ok(ManagedChild {
-            process: child,
+            process: Some(child),
             _control: control,
         }),
         result => {
@@ -596,16 +686,17 @@ pub(crate) async fn rfb(address: SocketAddr) -> Result<()> {
     }).await.context("VNC greeting timed out. Check the server and port.")?
 }
 fn can_install() -> bool {
-    cfg!(target_os = "linux")
-        && !Path::new("/.dockerenv").exists()
-        && std::fs::read_to_string("/etc/os-release").is_ok_and(|s| {
-            s.lines().any(|line| {
-                matches!(
-                    line,
-                    "ID=ubuntu" | "ID=debian" | "ID=\"ubuntu\"" | "ID=\"debian\""
-                )
-            })
-        })
+    cfg!(all(windows, target_arch = "x86_64"))
+        || (cfg!(target_os = "linux")
+            && !Path::new("/.dockerenv").exists()
+            && std::fs::read_to_string("/etc/os-release").is_ok_and(|s| {
+                s.lines().any(|line| {
+                    matches!(
+                        line,
+                        "ID=ubuntu" | "ID=debian" | "ID=\"ubuntu\"" | "ID=\"debian\""
+                    )
+                })
+            }))
 }
 fn install_plan(provider: Provider) -> Result<Value> {
     ensure!(
@@ -613,6 +704,13 @@ fn install_plan(provider: Provider) -> Result<Value> {
         "{}",
         provider.problem().unwrap_or_default()
     );
+    if provider == Provider::Tightvnc {
+        ensure!(
+            executable(provider).is_none(),
+            "TightVNC is already installed. Its password and loopback settings are unknown to Cranibox; connect it as an existing server or uninstall it first."
+        );
+        return Ok(setup::tightvnc::review());
+    }
     ensure!(
         can_install(),
         "Automatic VNC installation supports Ubuntu and Debian desktop hosts. Install it using your distribution's package manager, or connect an existing VNC server."
@@ -639,6 +737,64 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(200)).await;
         });
         rfb(address).await
+    }
+    #[test]
+    fn tightvnc_requires_fixed_port() {
+        let mut spec = Spec {
+            version: 1,
+            provider: Provider::Tightvnc,
+            display: String::new(),
+            output: String::new(),
+            port: 5900,
+        };
+        assert!(spec.validate().is_ok());
+        spec.port = 5901;
+        assert!(spec.validate().is_err());
+    }
+    #[tokio::test]
+    async fn tightvnc_monitor_recovers_without_a_child_or_retry_limit() {
+        use tokio::io::AsyncWriteExt;
+        let root = tempfile::tempdir().unwrap();
+        let peers = root.path().join("peers.json");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut manager = Manager::new(peers.clone());
+        manager.spec = Some(Spec {
+            version: 1,
+            provider: Provider::Tightvnc,
+            display: String::new(),
+            output: String::new(),
+            port: address.port(),
+        });
+        Config::update(&peers, |config| {
+            config.desktop = Some(Desktop {
+                address,
+                protocol: DesktopProtocol::Vnc,
+            });
+            Ok(())
+        })
+        .unwrap();
+        manager.retries = 5;
+        drop(listener);
+        manager.reconcile().await;
+        assert!(manager.child.is_none());
+        assert_eq!(
+            manager.error.as_deref(),
+            Some(tightvnc_unavailable(address.port()).as_str())
+        );
+        let listener = tokio::net::TcpListener::bind(address).await.unwrap();
+        let greeting = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            stream.write_all(b"RFB 003.008\n").await.unwrap();
+        });
+        manager.next_retry = Instant::now();
+        manager.reconcile().await;
+        greeting.await.unwrap();
+        assert!(manager.child.as_ref().unwrap().process.is_none());
+        assert!(manager.error.is_none());
+        manager.manage(Command::Stop {}).await.unwrap();
+        assert!(Config::read(&peers).unwrap().desktop.is_none());
+        assert!(manager.child.is_none());
     }
     #[tokio::test]
     async fn macos_screen_sharing_greeting_is_a_vnc_server() {

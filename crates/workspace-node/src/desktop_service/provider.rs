@@ -7,10 +7,13 @@ pub enum Provider {
     #[default]
     X11vnc,
     Wayvnc,
+    Tightvnc,
 }
 impl Provider {
     pub fn current() -> Self {
-        if wayland_session() {
+        if cfg!(windows) {
+            Self::Tightvnc
+        } else if wayland_session() {
             Self::Wayvnc
         } else {
             Self::X11vnc
@@ -20,16 +23,34 @@ impl Provider {
         match self {
             Self::X11vnc => "x11vnc",
             Self::Wayvnc => "wayvnc",
+            Self::Tightvnc => "TightVNC Server",
         }
     }
     pub fn display(self) -> String {
+        if self == Self::Tightvnc {
+            return String::new();
+        }
         std::env::var(match self {
             Self::X11vnc => "DISPLAY",
             Self::Wayvnc => "WAYLAND_DISPLAY",
+            Self::Tightvnc => unreachable!(),
         })
         .unwrap_or_default()
     }
     pub fn problem(self) -> Option<&'static str> {
+        if self == Self::Tightvnc {
+            return if !cfg!(windows) {
+                Some(
+                    "Managed TightVNC requires Windows. Connect an existing local VNC server on this platform.",
+                )
+            } else if !cfg!(target_arch = "x86_64") {
+                Some(
+                    "Managed TightVNC supports only x86_64 Windows. Windows ARM64 is not supported; connect an existing VNC server.",
+                )
+            } else {
+                None
+            };
+        }
         if !cfg!(target_os = "linux") {
             return Some(
                 "Managed VNC currently supports Linux X11 and compatible wlroots Wayland sessions. Connect an existing local VNC server on this platform.",
@@ -68,6 +89,10 @@ impl Provider {
     }
     pub fn validate(self, display: &str, output: &str) -> Result<()> {
         match self {
+            Self::Tightvnc => ensure!(
+                display.is_empty() && output.is_empty(),
+                "TightVNC does not accept display or output selection."
+            ),
             Self::X11vnc => {
                 let display = display.strip_prefix(':').unwrap_or_default();
                 let parts: Vec<_> = display.split('.').collect();
@@ -142,6 +167,23 @@ pub(super) fn supported_version(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tightvnc_serde_and_validation() {
+        assert_eq!(
+            serde_json::to_string(&Provider::Tightvnc).unwrap(),
+            "\"tightvnc\""
+        );
+        assert!(serde_json::from_str::<Provider>("\"tightvnc\"").unwrap() == Provider::Tightvnc);
+        assert!(Provider::Tightvnc.validate("", "").is_ok());
+        assert!(Provider::Tightvnc.validate(":0", "").is_err());
+        assert!(Provider::Tightvnc.validate("", "DP-1").is_err());
+        assert_eq!(Provider::Tightvnc.display(), "");
+        assert_eq!(Provider::Tightvnc.package(), "TightVNC Server");
+        assert_eq!(
+            Provider::Tightvnc.problem().is_none(),
+            cfg!(all(windows, target_arch = "x86_64"))
+        );
+    }
     #[test]
     fn selkies_wayland_is_detected_without_login_environment() {
         for (session, display, selkies, expected) in [

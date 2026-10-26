@@ -14,8 +14,8 @@ for (const platform of ['windows', 'macos']) test(platform + ' desktop setup che
   await page.reload();
   const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
   const guide = sharing.getByRole('region', { name: 'Desktop sharing setup guide', exact: true });
-  await expect(guide).toContainText(platform === 'windows' ? 'UltraVNC Server' : 'macOS Screen Sharing');
-  await expect(guide).toContainText('does not yet install or manage VNC');
+  await expect(guide).toContainText(platform === 'windows' ? 'managed TightVNC is the default' : 'macOS Screen Sharing');
+  await expect(guide).toContainText('macOS and existing servers use manual preparation');
   await expect(guide.getByRole('link').first()).toHaveAttribute('rel', 'noopener noreferrer');
   if (platform === 'macos') await expect(guide).toContainText('does not change the system service');
   else await expect(guide).toContainText('native Windows client');
@@ -418,7 +418,7 @@ test('platform guidance keeps existing VNC setup available on Windows macOS and 
     await page.goto('/#/desktop');
     await page.reload();
     const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
-    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'Enable macOS Screen Sharing' : 'Prepare UltraVNC Server on Windows');
+    await expect(section).toContainText(target === 'linux' ? 'Wayland session' : target === 'macos' ? 'Enable macOS Screen Sharing' : 'Prepare VNC on Windows');
     await expect(section.getByRole('button', { name: 'Start and share desktop', exact: true })).toHaveCount(0);
     const sharing = page.getByRole('region', { name: 'Local desktop sharing', exact: true });
     await sharing.getByRole('button', { name: 'Configure sharing', exact: true }).click();
@@ -556,4 +556,59 @@ test('Wayland sharing reviews wayvnc and retains display output and private cred
   await expect(section.getByLabel('Desktop output (optional)', { exact: true })).toHaveValue('DP-1');
   expect(commands.filter(command => command.operation === 'start')).toEqual(Array(2).fill({ operation: 'start', provider: 'wayvnc', display: 'wayland-42', output: 'DP-1', port: 5912 }));
   expect(errors).toEqual([]);
+});
+
+for (const chinese of [false, true]) test('managed Windows TightVNC reviews installation and keeps the service after stopping ' + (chinese ? 'zh' : 'en'), async ({ page }) => {
+  const commands: any[] = [];
+  const hash = '9693cb4cdc2e7e482e8e3f5890415b57ef87de3369fa5c337db516218a1170ce';
+  const status = { platform: 'windows', provider: 'tightvnc', supported: true, installed: false, managed_installation: false, can_install: true, display: '', wayland: false, enabled: false, managed: false, running: false, phase: 'stopped', port: 5900, error: null as string | null };
+  await page.route('**/api/desktop/service', async route => {
+    const command = route.request().postDataJSON(); commands.push(command);
+    if (command.operation === 'plan') return route.fulfill({ json: { id: 'tightvnc-plan', expires_in_seconds: 600, commands: 'msiexec.exe /i "verified.msi" /quiet VALUE_OF_PASSWORD=******** VALUE_OF_CONTROLPASSWORD=********', summary: 'Download and verify the pinned official installer. Does not enable sharing.', license: 'GPL-2.0', sha256: hash, source: 'https://www.tightvnc.com/' } });
+    if (command.operation === 'install') { expect(command.plan_id).toBe('tightvnc-plan'); status.phase = 'installing'; }
+    if (command.operation === 'start') Object.assign(status, { managed: true, enabled: true, running: true, phase: 'running' });
+    if (command.operation === 'stop') Object.assign(status, { enabled: false, running: false, phase: 'stopped' });
+    await route.fulfill({ json: status });
+  });
+  await page.goto(chinese ? 'http://127.0.0.1:19082/#/desktop' : '/#/desktop');
+  const section = page.getByRole('region', { name: chinese ? '本机 VNC 服务' : 'Local VNC service', exact: true });
+  const prepare = section.getByRole('button', { name: chinese ? '准备安装 TightVNC Server' : 'Prepare TightVNC Server installation', exact: true });
+  await prepare.click();
+  const review = section.getByLabel(chinese ? '检查 VNC 安装操作' : 'Review VNC installation');
+  await expect(review).toContainText('GPL-2.0');
+  await expect(review).toContainText(hash);
+  await expect(review).toContainText('https://www.tightvnc.com/');
+  await expect(review).toContainText('UAC');
+  await section.getByRole('button', { name: chinese ? '取消' : 'Cancel', exact: true }).click();
+  expect(commands.some(c => c.operation === 'install')).toBe(false);
+  await prepare.click();
+  await section.getByRole('button', { name: chinese ? '确认并安装' : 'Confirm and install', exact: true }).click();
+  await expect(section.getByRole('status')).toContainText(chinese ? '正在安装 TightVNC Server' : 'Installing TightVNC Server');
+  Object.assign(status, { installed: true, managed_installation: true, phase: 'stopped' });
+  const start = section.getByRole('button', { name: chinese ? '启动并共享桌面' : 'Start and share desktop', exact: true });
+  await expect(start).toBeVisible();
+  expect(commands.some(c => c.operation === 'start')).toBe(false);
+  await expect(section.getByLabel(chinese ? '本机 VNC 端口' : 'Local VNC port', { exact: true })).toHaveAttribute('readonly', '');
+  await expect(section.getByLabel('X11 display', { exact: true })).toHaveCount(0);
+  await start.click();
+  expect(commands.filter(c => c.operation === 'start')).toEqual([{ operation: 'start', provider: 'tightvnc', display: '', port: 5900 }]);
+  await expect(section.getByRole('status')).toContainText('127.0.0.1:5900');
+  Object.assign(status, { running: false, phase: 'failed', error: "TightVNC service is not answering on 127.0.0.1:5900. Start the 'TightVNC Server' service in Windows Services, then retry." });
+  await expect(section.getByRole('alert')).toContainText('Windows Services');
+  Object.assign(status, { running: true, phase: 'running', error: null });
+  await section.getByRole('button', { name: chinese ? '停止共享' : 'Stop sharing', exact: true }).click();
+  await expect(start).toBeVisible();
+  await expect(section).toContainText(chinese ? '服务仍仅在回环地址运行' : 'service running on loopback only');
+  await expect(section).toContainText(chinese ? '检测已有服务' : 'Detect existing services');
+  await page.setViewportSize({ width: 375, height: 1000 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('Windows does not adopt an unknown TightVNC installation', async ({ page }) => {
+  await page.route('**/api/desktop/service', route => route.fulfill({ json: { platform: 'windows', provider: 'tightvnc', supported: true, installed: true, managed_installation: false, display: '', port: 5900 } }));
+  await page.goto('/#/desktop');
+  const section = page.getByRole('region', { name: 'Local VNC service', exact: true });
+  await expect(section.getByRole('alert')).toContainText('settings unknown to Cranibox');
+  await expect(section.getByRole('button', { name: 'Start and share desktop', exact: true })).toHaveCount(0);
+  await expect(section).toContainText('Detect existing services');
 });
