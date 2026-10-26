@@ -47,10 +47,10 @@ test('matrix keeps directional values, aliases, scopes, latency bands and stale 
 
 test('narrow screens show groups and route details in Chinese', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.evaluate(() => localStorage.setItem('cranibox.language', 'zh-cn'));
+  // Choose the language before the first load: opening '/' first lets its
+  // redirect to the home route land after the navigation to the nodes page.
+  await page.addInitScript(() => localStorage.setItem('cranibox.language', 'zh-cn'));
   await page.goto('/#/nodes');
-  await page.reload();
   const section = page.getByRole('region', { name: '设备间连接' });
   await expect(section.locator('.cx-path-matrix')).toBeHidden();
   const groups = section.locator('.cx-path-list > section');
