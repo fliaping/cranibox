@@ -87,8 +87,53 @@ mod transaction {
         // TempPath deletes the download on success, error, or cancellation.
         exit_code(run(path.to_path_buf()).await?)
     }
-    pub(super) fn script(msi: &str, password: &str, control: &str) -> String {
-        let args = super::arguments(msi, password, control).replace('\'', "''");
+    /// msiexec cannot open `\\?\` verbatim paths (exit 1619), which canonicalized
+    /// Windows paths use.
+    pub(super) fn plain_path(path: &str) -> String {
+        if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{rest}")
+        } else {
+            path.strip_prefix(r"\\?\").unwrap_or(path).to_owned()
+        }
+    }
+    /// The error lines of a verbose msiexec log, without the generated passwords.
+    pub(super) fn log_errors(bytes: &[u8], secrets: &[&str]) -> String {
+        let text = match bytes {
+            [0xff, 0xfe, rest @ ..] => String::from_utf16_lossy(
+                &rest
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| u16::from_le_bytes(*c))
+                    .collect::<Vec<_>>(),
+            ),
+            _ => String::from_utf8_lossy(bytes).into_owned(),
+        };
+        let mut lines: Vec<String> = text
+            .lines()
+            .filter(|line| {
+                let line = line.to_ascii_lowercase();
+                line.contains("error")
+                    || line.starts_with("note:")
+                    || line.contains("return value 3")
+            })
+            .map(|line| {
+                secrets.iter().fold(line.trim().to_owned(), |line, secret| {
+                    line.replace(secret, "********")
+                })
+            })
+            .collect();
+        lines.dedup();
+        let skip = lines.len().saturating_sub(6);
+        lines.drain(..skip);
+        lines.join(" | ").chars().take(1500).collect()
+    }
+    pub(super) fn script(msi: &str, log: &str, password: &str, control: &str) -> String {
+        let args = format!(
+            "{} /l*v \"{log}\"",
+            super::arguments(msi, password, control)
+        )
+        .replace('\'', "''");
         // Start-Process joins ArgumentList itself: pass one correctly quoted
         // Windows command line, inside a literal PowerShell string. A BOM makes
         // Windows PowerShell 5 read Unicode state-directory paths as UTF-8.
@@ -111,7 +156,14 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
     let password = super::super::password(&password_path)?;
     secrets::write_private(&password_path, format!("{password}\n").as_bytes(), true)?;
     let control = super::super::new_password();
-    let reboot = transaction::verified_install(state, SIZE, SHA256,
+    let log = tempfile::Builder::new()
+        .prefix("desktop-tightvnc-")
+        .suffix(".log")
+        .tempfile_in(state)?
+        .into_temp_path();
+    let log_path = transaction::plain_path(log.to_str().context("Invalid installer log path")?);
+    let (password_log, control_log) = (password.clone(), control.clone());
+    let result = transaction::verified_install(state, SIZE, SHA256,
         |path| async move {
             let client = reqwest::Client::builder().https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
@@ -130,7 +182,8 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
         },
         |path| async move {
             let script = tempfile::Builder::new().prefix("desktop-tightvnc-").suffix(".ps1").tempfile_in(state)?.into_temp_path();
-            let contents = transaction::script(path.to_str().context("Invalid installer path")?, &password, &control);
+            let msi = transaction::plain_path(path.to_str().context("Invalid installer path")?);
+            let contents = transaction::script(&msi, &log_path, &password, &control);
             secrets::write_private(&script, contents.as_bytes(), true)?;
             let mut child = Command::new("powershell.exe")
                 .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"]).arg(&script)
@@ -141,7 +194,16 @@ pub(super) async fn install(journal: &std::path::Path) -> anyhow::Result<()> {
             let status = tokio::time::timeout(Duration::from_secs(900), child.wait()).await
                 .context("TightVNC installation monitoring timed out. The Windows installer may still be running; check Windows Apps and Services before retrying.")??;
             Ok(status.code())
-        }).await?;
+        }).await;
+    // The verbose log may hold the passwords; keep only redacted error lines.
+    let details = std::fs::read(&log)
+        .map(|bytes| transaction::log_errors(&bytes, &[&password_log, &control_log]))
+        .unwrap_or_default();
+    drop(log);
+    let reboot = match result {
+        Err(error) if !details.is_empty() => anyhow::bail!("{error:#} Installer log: {details}"),
+        result => result?,
+    };
     let record = Record {
         phase: Phase::Running,
         provider: Some(Provider::Tightvnc),
@@ -192,10 +254,35 @@ mod tests {
         let commands = review["commands"].as_str().unwrap();
         assert_eq!(commands.matches("********").count(), 2);
         assert!(!commands.contains("abc123XY") && !commands.contains("other123"));
-        let script = script(r"C:\O'Brien $x\setup.msi", "abc123XY", "other123");
+        let script = script(
+            r"C:\O'Brien $x\setup.msi",
+            r"C:\O'Brien $x\setup.log",
+            "abc123XY",
+            "other123",
+        );
         assert!(script.contains("O''Brien $x"));
+        assert!(script.contains(r#"/l*v "C:\O''Brien $x\setup.log"'"#));
         assert!(script.contains("-Verb RunAs -Wait -PassThru"));
         assert!(script.contains("catch { exit 1223 }"));
+    }
+    #[test]
+    fn verbatim_paths_and_redacted_log_errors() {
+        assert_eq!(plain_path(r"\\?\C:\Users\a\x.msi"), r"C:\Users\a\x.msi");
+        assert_eq!(
+            plain_path(r"\\?\UNC\host\share\x.msi"),
+            r"\\host\share\x.msi"
+        );
+        assert_eq!(plain_path(r"C:\x.msi"), r"C:\x.msi");
+        let log = "Action start\r\nProperty(C): VALUE_OF_PASSWORD = abc123XY\r\nNote: 1: 1309 2: 5\r\nMSI (c) Error 1619 opening abc123XY\r\n";
+        let mut utf16 = vec![0xff, 0xfe];
+        utf16.extend(log.encode_utf16().flat_map(u16::to_le_bytes));
+        for bytes in [log.as_bytes().to_vec(), utf16] {
+            let errors = log_errors(&bytes, &["abc123XY"]);
+            assert_eq!(
+                errors,
+                "Note: 1: 1309 2: 5 | MSI (c) Error 1619 opening ********"
+            );
+        }
     }
     #[test]
     fn installer_exit_codes() {
