@@ -19,7 +19,7 @@ function DeviceUpdates({ node }: { node: string }) {
   const { api, t } = useApp();
   const [data, setData] = useState<NodeUpdate | null>(null), [status, setStatus] = useState<UpdateStatus | null>(null);
   const [channel, setChannel] = useState<UpdateChannel>("latest"), [watch, setWatch] = useState<Watch | null>(null);
-  const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [capabilityOff, setCapabilityOff] = useState(false);
   const [restarting, setRestarting] = useState(false), [updated, setUpdated] = useState(false), [timedOut, setTimedOut] = useState(false);
   const [rollback, setRollback] = useState(false), [restartNeeded, setRestartNeeded] = useState(false);
   const alive = useRef(false);
@@ -28,21 +28,31 @@ function DeviceUpdates({ node }: { node: string }) {
     setUpdated(false); setTimedOut(false); setRestarting(false);
     setWatch({ id, target, phase, started: Date.now() });
   }, []);
-  const load = useCallback(async (check = false) => {
+  const load = useCallback(async (check = false, interactive = false) => {
     setBusy(true); setError("");
     try {
-      const value = await api.call<NodeUpdate>("GET", path + (check ? "&check=1" : ""));
+      const value = await api.call<NodeUpdate>("GET", path + (check ? "&check=1" : ""), undefined, { background: !interactive });
       if (!alive.current) return;
+      setCapabilityOff(false);
       setData(value); setStatus(value.status); setTimedOut(false);
       const last = value.status;
       setUpdated(last?.phase === "done" && confirmed(value, last.to));
       if (last && !failed(last) && !(last.phase === "done" && confirmed(value, last.to))) begin(last.id, last.to, last.phase);
-    } catch (problem) { if (alive.current) setError(message(problem)); }
+    } catch (problem) {
+      if (!alive.current) return;
+      const code = problem && typeof problem === "object" && "code" in problem ? String((problem as { code?: unknown }).code) : "";
+      const msg = message(problem);
+      if (!interactive && (code === "capability_off" || msg === "capability_off")) {
+        setCapabilityOff(true);
+      } else {
+        setError(msg);
+      }
+    }
     finally { if (alive.current) setBusy(false); }
   }, [api, path, begin]);
   useEffect(() => {
     alive.current = true;
-    void load();
+    void load(false, false);
     return () => { alive.current = false; };
   }, [load]);
 
@@ -126,8 +136,9 @@ function DeviceUpdates({ node }: { node: string }) {
   return <Card label={t("更新", "Updates")} className="cx-update-panel cx-stack">
     <div className="cx-card-head"><span className="cx-card-icon"><Download size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("更新", "Updates")}</h3></div></div>
     {!data && busy && <p role="status" className="cx-muted">{t("正在读取更新状态…", "Loading update status…")}</p>}
-    {error && <Alert action={!locked && <button className="cx-btn small" onClick={() => void load()}>{t("重试", "Retry")}</button>}>{error}</Alert>}
-    {timedOut && <Alert>{t("5 分钟内未能确认更新。请检查设备是否在线，然后重试读取状态。", "The update could not be confirmed within 5 minutes. Check that the device is online, then retry loading its status.")} <button className="cx-btn small" onClick={() => void load()}>{t("重试", "Retry")}</button></Alert>}
+    {error && <Alert action={!locked && <button className="cx-btn small" onClick={() => void load(false, true)}>{t("重试", "Retry")}</button>}>{error}</Alert>}
+    {!error && !data && capabilityOff && <p className="cx-muted cx-small">{t("目标设备未开启远程更新权限。如需远程检查或安装更新，请先在对方设备的访问权限中开启「远程更新」。", "Remote updates are turned off on this device. Enable Remote updates in its access settings to check or install updates remotely.")}</p>}
+    {timedOut && <Alert>{t("5 分钟内未能确认更新。请检查设备是否在线，然后重试读取状态。", "The update could not be confirmed within 5 minutes. Check that the device is online, then retry loading its status.")} <button className="cx-btn small" onClick={() => void load(false, true)}>{t("重试", "Retry")}</button></Alert>}
     {data && <>
       <dl className="cx-facts">
         <div><dt>{t("运行版本", "Running version")}</dt><dd>{data.version}</dd></div>
@@ -143,7 +154,7 @@ function DeviceUpdates({ node }: { node: string }) {
         {channels.map(item => <option key={item} value={item}>{item} · {data.available?.[item] || t("暂无可用版本", "No version available")}</option>)}
       </select></label>}
       <div className="cx-actions">
-        <button className="cx-btn" disabled={locked} onClick={() => void load(true)}>{t("检查更新", "Check for updates")}</button>
+        <button className="cx-btn" disabled={locked} onClick={() => void load(true, true)}>{t("检查更新", "Check for updates")}</button>
         {data.available && <button className="cx-btn primary" disabled={locked || !data.runtime.can_update || !version} onClick={() => void act("apply")}>{version ? t("更新到 " + version, "Update to " + version) : t("暂无可用版本", "No version available")}</button>}
         {data.runtime.managed && <button className="cx-btn" disabled={locked} onClick={() => setRollback(true)}>{t("回滚到上一版本", "Roll back")}</button>}
         {node === "self" && !data.runtime.managed && <button className="cx-btn primary" disabled={locked} onClick={() => void act("adopt")}>{t("启用远程更新", "Enable remote updates")}</button>}

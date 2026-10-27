@@ -1,6 +1,6 @@
-import { accessFetch } from "../access/request";
+import { accessFetch, type AccessFetchOptions } from "../access/request";
 export type Api = {
-  call<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
+  call<T = unknown>(method: string, path: string, body?: unknown, options?: AccessFetchOptions): Promise<T>;
   subscribe?(refresh: () => void): () => void;
 };
 export type TaskSummary = {
@@ -159,7 +159,7 @@ export const agentNames: Record<string, string> = {
 };
 export function httpApi(csrf: string): Api {
   return {
-    async call<T>(method: string, path: string, body?: unknown) {
+    async call<T>(method: string, path: string, body?: unknown, options?: AccessFetchOptions) {
       const response = await accessFetch("/api/v1/app" + path, {
         method,
         credentials: "same-origin",
@@ -168,7 +168,7 @@ export function httpApi(csrf: string): Api {
           "x-workspace-csrf": csrf,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-      });
+      }, options);
       const text = await response.text();
       let value: any = null;
       try {
@@ -180,7 +180,7 @@ export function httpApi(csrf: string): Api {
         throw new ApiError(
           value?.message || value?.error || value?.code || "Request failed (" + response.status + ")",
           response.status,
-          typeof value?.code === "string" ? value.code : "",
+          typeof value?.code === "string" ? value.code : typeof value?.error === "string" ? value.error : "",
         );
       return value as T;
     },

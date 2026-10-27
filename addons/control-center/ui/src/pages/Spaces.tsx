@@ -9,7 +9,7 @@ import { useTerminalWindow } from '../terminal/TerminalWindowContext';
 export function Spaces() {
   const navigate = useNavigate(), { openTerminal } = useTerminalWindow();
   const client = useCallback((command: Record<string, unknown>) => request('/api/spaces', command), []);
-  const direct = useCallback<DirectClient>(command => request('/api/peers', command), []);
+  const direct = useCallback<DirectClient>(command => request('/api/peers', command, { background: true }), []);
   const openApplication = useCallback(async (id: string, application: 'desktop' | 'code') => {
     const tab = window.open('about:blank', '_blank');
     if (!tab) throw new Error(document.documentElement.lang.startsWith('zh') ? '请允许此页面打开新窗口，然后重试。' : 'Allow pop-ups for this page and retry.');

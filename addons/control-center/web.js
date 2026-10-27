@@ -1,33 +1,3 @@
-/*!
-herdr-web-ui: https://github.com/devswha/herdr-web-ui
-Reference revision: b76aebefded791d3416d1df64337e2b76543b217
-
-Cranibox adapts workspace navigation, pane tools, and IME-aware terminal input.
-Transport and session management use the Cranibox Rust API.
-
-MIT License
-
-Copyright (c) 2026 devswha
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-*/
 //#region \0rolldown/runtime.js
 var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), s = (e, i, o, s) => {
 	if (i && typeof i == "object" || typeof i == "function") for (var c = r(i), l = 0, u = c.length, d; l < u; l++) d = c[l], !a.call(e, d) && d !== o && t(e, d, {
@@ -10773,7 +10743,7 @@ async function Qn(e, t, n = {}) {
 				"approval_required",
 				"capability_off",
 				"approval_cooldown"
-			].includes(i?.error)) return r;
+			].includes(i?.error) || n.background && i?.error === "capability_off") return r;
 			let a = (r, a) => {
 				o ||= {
 					id: ++Un,
@@ -19919,11 +19889,16 @@ function kl({ client: e, language: t, phaseName: n, onDevices: r }) {
 								};
 							}
 						} catch (e) {
-							i = {
+							let n = Dl(e);
+							i = n === "capability_off" ? {
+								node: t,
+								phase: "denied",
+								checked: Date.now()
+							} : {
 								node: t,
 								phase: "error",
 								checked: Date.now(),
-								error: Dl(e)
+								error: n
 							};
 						}
 						l() && o((e) => e.map((e) => e.node === t ? i : e));
@@ -21094,7 +21069,7 @@ function Pl({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 //#endregion
 //#region src/pages/Spaces.tsx
 function Fl() {
-	let e = tt(), { openTerminal: t } = ar(), n = (0, y.useCallback)((e) => dr("/api/spaces", e), []), r = (0, y.useCallback)((e) => dr("/api/peers", e), []), i = (0, y.useCallback)(async (e, t) => {
+	let e = tt(), { openTerminal: t } = ar(), n = (0, y.useCallback)((e) => dr("/api/spaces", e), []), r = (0, y.useCallback)((e) => dr("/api/peers", e, { background: !0 }), []), i = (0, y.useCallback)(async (e, t) => {
 		let n = window.open("about:blank", "_blank");
 		if (!n) throw Error(document.documentElement.lang.startsWith("zh") ? "请允许此页面打开新窗口，然后重试。" : "Allow pop-ups for this page and retry.");
 		n.opener = null;
@@ -35387,8 +35362,8 @@ var Nv = class extends Error {
 };
 function Iv(e) {
 	return {
-		async call(t, n, r) {
-			let i = await Qn("/api/v1/app" + n, {
+		async call(t, n, r, i) {
+			let a = await Qn("/api/v1/app" + n, {
 				method: t,
 				credentials: "same-origin",
 				headers: {
@@ -35396,14 +35371,14 @@ function Iv(e) {
 					"x-workspace-csrf": e
 				},
 				body: r === void 0 ? void 0 : JSON.stringify(r)
-			}), a = await i.text(), o = null;
+			}, i), o = await a.text(), s = null;
 			try {
-				o = a ? JSON.parse(a) : null;
+				s = o ? JSON.parse(o) : null;
 			} catch {
-				if (i.ok) throw new Nv("Invalid response", i.status);
+				if (a.ok) throw new Nv("Invalid response", a.status);
 			}
-			if (!i.ok) throw new Nv(o?.message || o?.error || o?.code || "Request failed (" + i.status + ")", i.status, typeof o?.code == "string" ? o.code : "");
-			return o;
+			if (!a.ok) throw new Nv(s?.message || s?.error || s?.code || "Request failed (" + a.status + ")", a.status, typeof s?.code == "string" ? s.code : typeof s?.error == "string" ? s.error : "");
+			return s;
 		},
 		subscribe(e) {
 			let t = new EventSource("/api/v1/app/events");
@@ -36044,39 +36019,41 @@ function Zv({ node: e }) {
 	return /* @__PURE__ */ (0, J.jsx)(Qv, { node: e }, e);
 }
 function Qv({ node: e }) {
-	let { api: t, t: n } = Fn(), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)("latest"), [l, u] = (0, y.useState)(null), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(!1), [b, x] = (0, y.useState)(!1), [S, C] = (0, y.useState)(!1), [w, T] = (0, y.useState)(!1), E = (0, y.useRef)(!1), D = "/update?node=" + encodeURIComponent(e), O = (0, y.useCallback)((e, t, n) => {
-		v(!1), x(!1), g(!1), u({
+	let { api: t, t: n } = Fn(), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)("latest"), [l, u] = (0, y.useState)(null), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(!1), [b, x] = (0, y.useState)(!1), [S, C] = (0, y.useState)(!1), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), O = (0, y.useRef)(!1), k = "/update?node=" + encodeURIComponent(e), A = (0, y.useCallback)((e, t, n) => {
+		x(!1), C(!1), v(!1), u({
 			id: e,
 			target: t,
 			phase: n,
 			started: Date.now()
 		});
-	}, []), k = (0, y.useCallback)(async (e = !1) => {
+	}, []), j = (0, y.useCallback)(async (e = !1, n = !1) => {
 		f(!0), m("");
 		try {
-			let n = await t.call("GET", D + (e ? "&check=1" : ""));
-			if (!E.current) return;
-			i(n), o(n.status), x(!1);
-			let r = n.status;
-			v(r?.phase === "done" && Yv(n, r.to)), r && !Jv(r) && !(r.phase === "done" && Yv(n, r.to)) && O(r.id, r.to, r.phase);
+			let r = await t.call("GET", k + (e ? "&check=1" : ""), void 0, { background: !n });
+			if (!O.current) return;
+			g(!1), i(r), o(r.status), C(!1);
+			let a = r.status;
+			x(a?.phase === "done" && Yv(r, a.to)), a && !Jv(a) && !(a.phase === "done" && Yv(r, a.to)) && A(a.id, a.to, a.phase);
 		} catch (e) {
-			E.current && m(Xv(e));
+			if (!O.current) return;
+			let t = e && typeof e == "object" && "code" in e ? String(e.code) : "", r = Xv(e);
+			!n && (t === "capability_off" || r === "capability_off") ? g(!0) : m(r);
 		} finally {
-			E.current && f(!1);
+			O.current && f(!1);
 		}
 	}, [
 		t,
-		D,
-		O
+		k,
+		A
 	]);
-	(0, y.useEffect)(() => (E.current = !0, k(), () => {
-		E.current = !1;
-	}), [k]), (0, y.useEffect)(() => {
+	(0, y.useEffect)(() => (O.current = !0, j(!1, !1), () => {
+		O.current = !1;
+	}), [j]), (0, y.useEffect)(() => {
 		if (!l) return;
 		let n = !1, r, a = l.target, s = l.phase, c = () => {
-			n = !0, clearTimeout(r), clearTimeout(d), u(null), g(!1);
+			n = !0, clearTimeout(r), clearTimeout(d), u(null), v(!1);
 		}, d = setTimeout(() => {
-			c(), x(!0);
+			c(), C(!0);
 		}, Math.max(0, 3e5 - (Date.now() - l.started)));
 		async function f() {
 			let u = null, d = "";
@@ -36089,9 +36066,9 @@ function Qv({ node: e }) {
 				if (u && (s = u.phase, a = u.to || a, o(u), m(""), Jv(u))) c();
 				else {
 					if (s === "activated" || s === "done" || !u) {
-						g(!0);
+						v(!0);
 						try {
-							let e = await t.call("GET", D);
+							let e = await t.call("GET", k);
 							if (n) return;
 							i((t) => ({
 								...e,
@@ -36104,7 +36081,7 @@ function Qv({ node: e }) {
 								return;
 							}
 							if (Yv(e, a)) {
-								m(""), v(!0), c();
+								m(""), x(!0), c();
 								return;
 							}
 						} catch (e) {
@@ -36112,7 +36089,7 @@ function Qv({ node: e }) {
 						}
 						if (n) return;
 						let e = s === "activated" || s === "done";
-						g(e), m(e ? "" : d);
+						v(e), m(e ? "" : d);
 					}
 					n || (r = setTimeout(() => void f(), 2e3));
 				}
@@ -36124,11 +36101,11 @@ function Qv({ node: e }) {
 	}, [
 		t,
 		e,
-		D,
+		k,
 		l
 	]);
-	async function A(n) {
-		f(!0), m(""), x(!1), v(!1);
+	async function M(n) {
+		f(!0), m(""), C(!1), x(!1);
 		try {
 			if (n === "apply") {
 				let i = {
@@ -36136,30 +36113,30 @@ function Qv({ node: e }) {
 					action: n,
 					spec: s
 				}, a = await t.call("POST", "/update", i);
-				if (!E.current) return;
-				o(null), O(a.id, r?.available?.[s] || null, "resolving");
+				if (!O.current) return;
+				o(null), A(a.id, r?.available?.[s] || null, "resolving");
 			} else if (n === "rollback") {
 				let r = await t.call("POST", "/update", {
 					node: e,
 					action: n
 				});
-				if (!E.current) return;
-				C(!1), o(r), Jv(r) || O(r.id, r.to, r.phase);
+				if (!O.current) return;
+				T(!1), o(r), Jv(r) || A(r.id, r.to, r.phase);
 			} else {
 				let r = await t.call("POST", "/update", {
 					node: e,
 					action: n
 				});
-				if (!E.current) return;
-				r.needs_restart ? (T(!0), $n() && (await er("restart"), E.current && g(!0))) : await k();
+				if (!O.current) return;
+				r.needs_restart ? (D(!0), $n() && (await er("restart"), O.current && v(!0))) : await j();
 			}
 		} catch (e) {
-			E.current && m(Xv(e));
+			O.current && m(Xv(e));
 		} finally {
-			E.current && f(!1);
+			O.current && f(!1);
 		}
 	}
-	let j = {
+	let N = {
 		resolving: n("正在解析版本…", "Resolving version…"),
 		downloading: n("正在下载…", "Downloading…"),
 		verifying: n("正在验证…", "Verifying…"),
@@ -36168,7 +36145,7 @@ function Qv({ node: e }) {
 		done: n("已完成", "Done"),
 		failed: n("更新失败", "Update failed"),
 		rolled_back: n("已回滚", "Rolled back")
-	}, M = d || !!l || w, N = r?.available?.[s], P = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
+	}, P = d || !!l || E, F = r?.available?.[s], I = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
 	return /* @__PURE__ */ (0, J.jsxs)(ks, {
 		label: n("更新", "Updates"),
 		className: "cx-update-panel cx-stack",
@@ -36192,19 +36169,23 @@ function Qv({ node: e }) {
 				children: n("正在读取更新状态…", "Loading update status…")
 			}),
 			p && /* @__PURE__ */ (0, J.jsx)(Ls, {
-				action: !M && /* @__PURE__ */ (0, J.jsx)("button", {
+				action: !P && /* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn small",
-					onClick: () => void k(),
+					onClick: () => void j(!1, !0),
 					children: n("重试", "Retry")
 				}),
 				children: p
 			}),
-			b && /* @__PURE__ */ (0, J.jsxs)(Ls, { children: [
+			!p && !r && h && /* @__PURE__ */ (0, J.jsx)("p", {
+				className: "cx-muted cx-small",
+				children: n("目标设备未开启远程更新权限。如需远程检查或安装更新，请先在对方设备的访问权限中开启「远程更新」。", "Remote updates are turned off on this device. Enable Remote updates in its access settings to check or install updates remotely.")
+			}),
+			S && /* @__PURE__ */ (0, J.jsxs)(Ls, { children: [
 				n("5 分钟内未能确认更新。请检查设备是否在线，然后重试读取状态。", "The update could not be confirmed within 5 minutes. Check that the device is online, then retry loading its status."),
 				" ",
 				/* @__PURE__ */ (0, J.jsx)("button", {
 					className: "cx-btn small",
-					onClick: () => void k(),
+					onClick: () => void j(!1, !0),
 					children: n("重试", "Retry")
 				})
 			] }),
@@ -36237,7 +36218,7 @@ function Qv({ node: e }) {
 					className: "cx-field",
 					children: [n("更新频道", "Update channel"), /* @__PURE__ */ (0, J.jsx)("select", {
 						value: s,
-						disabled: M,
+						disabled: P,
 						onChange: (e) => c(e.target.value),
 						children: qv.map((e) => /* @__PURE__ */ (0, J.jsxs)("option", {
 							value: e,
@@ -36254,38 +36235,38 @@ function Qv({ node: e }) {
 					children: [
 						/* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn",
-							disabled: M,
-							onClick: () => void k(!0),
+							disabled: P,
+							onClick: () => void j(!0, !0),
 							children: n("检查更新", "Check for updates")
 						}),
 						r.available && /* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn primary",
-							disabled: M || !r.runtime.can_update || !N,
-							onClick: () => void A("apply"),
-							children: N ? n("更新到 " + N, "Update to " + N) : n("暂无可用版本", "No version available")
+							disabled: P || !r.runtime.can_update || !F,
+							onClick: () => void M("apply"),
+							children: F ? n("更新到 " + F, "Update to " + F) : n("暂无可用版本", "No version available")
 						}),
 						r.runtime.managed && /* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn",
-							disabled: M,
-							onClick: () => C(!0),
+							disabled: P,
+							onClick: () => T(!0),
 							children: n("回滚到上一版本", "Roll back")
 						}),
 						e === "self" && !r.runtime.managed && /* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn primary",
-							disabled: M,
-							onClick: () => void A("adopt"),
+							disabled: P,
+							onClick: () => void M("adopt"),
 							children: n("启用远程更新", "Enable remote updates")
 						})
 					]
 				})
 			] }),
-			(a || l || _) && /* @__PURE__ */ (0, J.jsxs)("div", {
+			(a || l || b) && /* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-stack",
 				"aria-live": "polite",
 				children: [
 					/* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)(As, {
-						tone: Jv(a) ? "bad" : _ ? "good" : "info",
-						children: _ ? n("已更新", "Updated") : j[a?.phase || "resolving"]
+						tone: Jv(a) ? "bad" : b ? "good" : "info",
+						children: b ? n("已更新", "Updated") : N[a?.phase || "resolving"]
 					}), a && /* @__PURE__ */ (0, J.jsxs)("span", {
 						className: "cx-muted cx-small",
 						children: [
@@ -36299,24 +36280,24 @@ function Qv({ node: e }) {
 						className: "cx-update-progress",
 						"aria-label": n("下载进度", "Download progress"),
 						max: 100,
-						value: P
+						value: I
 					}),
 					Jv(a) && /* @__PURE__ */ (0, J.jsxs)(Ls, { children: [a?.phase === "rolled_back" && /* @__PURE__ */ (0, J.jsx)("p", { children: n("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.") }), a?.error || (a?.phase === "failed" ? n("更新失败，请重试。", "The update failed. Please try again.") : "")] })
 				]
 			}),
-			h && !w && /* @__PURE__ */ (0, J.jsx)("p", {
+			_ && !E && /* @__PURE__ */ (0, J.jsx)("p", {
 				role: "status",
 				children: n("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")
 			}),
-			w && /* @__PURE__ */ (0, J.jsxs)(Ls, {
+			E && /* @__PURE__ */ (0, J.jsxs)(Ls, {
 				tone: "info",
 				children: [n("已启用远程更新。", "Remote updates are enabled. "), $n() && !p ? n("正在重启 Cranibox…", "Restarting Cranibox…") : /* @__PURE__ */ (0, J.jsxs)(J.Fragment, { children: [n("请重启设备进程：", "Restart the device process with: "), /* @__PURE__ */ (0, J.jsx)("code", { children: "cranibox update launch" })] })]
 			}),
-			S && /* @__PURE__ */ (0, J.jsxs)(zs, {
+			w && /* @__PURE__ */ (0, J.jsxs)(zs, {
 				title: n("回滚到上一版本？", "Roll back to the previous version?"),
 				t: n,
 				onClose: () => {
-					d || C(!1);
+					d || T(!1);
 				},
 				children: [
 					/* @__PURE__ */ (0, J.jsx)("p", { children: n("设备将切换到上一版本并重启，连接会暂时中断。", "The device will switch to the previous version and restart. Its connection will be interrupted briefly.") }),
@@ -36326,12 +36307,12 @@ function Qv({ node: e }) {
 						children: [/* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn",
 							disabled: d,
-							onClick: () => C(!1),
+							onClick: () => T(!1),
 							children: n("取消", "Cancel")
 						}), /* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn danger",
 							disabled: d,
-							onClick: () => void A("rollback"),
+							onClick: () => void M("rollback"),
 							children: n("确认回滚", "Confirm rollback")
 						})]
 					})

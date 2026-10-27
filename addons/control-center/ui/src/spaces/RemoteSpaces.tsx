@@ -43,7 +43,7 @@ export function RemoteSpaces({ client, language, phaseName, onDevices }: {
                 if (catalog?.owner !== node || !Array.isArray(catalog.spaces) || catalog.spaces.length > 32) throw Error('Unexpected space catalog owner or size');
                 result = { node, phase: 'ready', checked: Date.now(), catalog };
               }
-            } catch (error) { result = { node, phase: 'error', checked: Date.now(), error: problem(error) }; }
+            } catch (error) { const msg = problem(error); result = msg === 'capability_off' ? { node, phase: 'denied', checked: Date.now() } : { node, phase: 'error', checked: Date.now(), error: msg }; }
             if (valid()) setSources(previous => previous.map(source => source.node === node ? result : source));
           }
         };

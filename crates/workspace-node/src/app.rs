@@ -541,13 +541,30 @@ impl AppApi for Service {
         let local = self.local()?;
         let config = Config::read(local.config_path()).map_err(unavailable)?;
         let known = known::load(local.config_path());
+        let iroh = local.iroh().await;
+        let observed_paths = paths::load(local.config_path());
         let now = cranibox_llm::auth::now();
         let this = crate::device_info::local();
         let mut devices = Vec::new();
         if let Some(roster) = self.models.roster.current() {
             for member in roster.members {
                 let own = member.node_id == local.id;
-                let path = self.models.router.transport.path(&member.node_id).await;
+                let mut path = self.models.router.transport.path(&member.node_id).await;
+                if !own
+                    && path.as_ref().is_none_or(|p| p.kind == PathKind::Unknown)
+                    && let Some(iroh) = &iroh
+                    && let Some(live) = iroh.peer_path(&member.node_id).await
+                {
+                    path = Some(live);
+                }
+                if !own
+                    && path.as_ref().is_none_or(|p| p.kind == PathKind::Unknown)
+                    && let Some(measured) = observed_paths
+                        .get(&local.id)
+                        .and_then(|row| row.get(&member.node_id))
+                {
+                    path = Some(measured.path.clone());
+                }
                 let mut badges = Vec::new();
                 if own {
                     badges.push(Badge::This);
@@ -634,7 +651,6 @@ impl AppApi for Service {
                 });
             }
         }
-        let iroh = local.iroh().await;
         for (node, grant) in config.grants {
             if devices.iter().any(|d| d.node_id == node) {
                 continue;
@@ -645,10 +661,15 @@ impl AppApi for Service {
                 serde_json::to_value(grant.permissions).map_err(unavailable)?,
             )
             .map_err(unavailable)?;
-            let path = match &iroh {
+            let mut path = match &iroh {
                 Some(iroh) => iroh.peer_path(&node).await,
                 None => None,
             };
+            if path.as_ref().is_none_or(|p| p.kind == PathKind::Unknown)
+                && let Some(measured) = observed_paths.get(&local.id).and_then(|row| row.get(&node))
+            {
+                path = Some(measured.path.clone());
+            }
             let probed = self.reachable(&node);
             let online = path.is_some() || probed;
             let remembered = known.get(&node).cloned().unwrap_or_default();

@@ -19,7 +19,7 @@ export function signInAgain(response: Response) {
   const terminal = new URLSearchParams(location.search).get('window') === 'terminal';
   location.replace('/sign-in' + (terminal ? '?window=terminal' : ''));
 }
-export type AccessFetchOptions = { signal?: AbortSignal; waiting?: (waiting: boolean) => void; timeoutMs?: number };
+export type AccessFetchOptions = { signal?: AbortSignal; waiting?: (waiting: boolean) => void; timeoutMs?: number; background?: boolean };
 function targetOf(route: string, body?: BodyInit | null) {
   const url = new URL(route, location.href);
   let data: Record<string, unknown> = {};
@@ -53,6 +53,7 @@ export async function accessFetch(route: string, init: RequestInit, options: Acc
       if (response.status !== 403) return response;
       const value = await response.clone().json().catch(() => null);
       if (!['approval_required', 'capability_off', 'approval_cooldown'].includes(value?.error)) return response;
+      if (options.background && value?.error === 'capability_off') return response;
       const update = (state: AccessWait['state'], hint?: string) => {
         if (!item) item = { id: ++serial, ...targetOf(route, init.body), route, capability: value.capability, state, retry: () => wake?.(), cancel };
         item = { ...item, state, hint };

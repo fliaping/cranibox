@@ -300,7 +300,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
         "browser":caller.grant.permissions.browser && Config::read(&app.path).is_ok_and(|c| c.browser.is_some()),
         "messages":caller.grant.permissions.messages,
         "activity":caller.grant.permissions.activity,
-        "spaces":caller.grant.permissions.spaces,
+        "spaces":caller.grant.permissions.spaces && access::store(&app).is_enabled(&caller.node, crate::access::Capability::Spaces),
         "tasks":caller.grant.permissions.messages,
         "executions":caller.grant.permissions.exec,
         "agent_sessions":caller.grant.permissions.messages,

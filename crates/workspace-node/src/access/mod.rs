@@ -510,6 +510,12 @@ impl Store {
         })
         .unwrap_or(false)
     }
+    pub fn is_enabled(&self, node: &str, capability: Capability) -> bool {
+        self.transaction(now(), |state| {
+            Ok(state.policy.mode(node, capability) != Mode::Off)
+        })
+        .unwrap_or(false)
+    }
     pub fn change(&self, node: &str, changes: BTreeMap<Capability, Mode>) -> Result<()> {
         ensure!(
             agent_workspace_runtime::protocol::valid_node_id(node),
