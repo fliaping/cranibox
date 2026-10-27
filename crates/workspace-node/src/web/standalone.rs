@@ -712,10 +712,14 @@ async fn page_response(
 
 /// The page's session is gone; the page reloads through `/sign-in`.
 fn session_expired() -> Response {
-    let mut response = error(StatusCode::UNAUTHORIZED, "Session expired. Reload this page");
-    response
-        .headers_mut()
-        .insert(super::SIGN_IN_HEADER.0, HeaderValue::from_static(super::SIGN_IN_HEADER.1));
+    let mut response = error(
+        StatusCode::UNAUTHORIZED,
+        "Session expired. Reload this page",
+    );
+    response.headers_mut().insert(
+        super::SIGN_IN_HEADER.0,
+        HeaderValue::from_static(super::SIGN_IN_HEADER.1),
+    );
     response
 }
 
@@ -727,7 +731,11 @@ fn sign_in_redirect(destination: &str) -> Response {
     } else {
         "/sign-in"
     };
-    (StatusCode::SEE_OTHER, [(axum::http::header::LOCATION, location)]).into_response()
+    (
+        StatusCode::SEE_OTHER,
+        [(axum::http::header::LOCATION, location)],
+    )
+        .into_response()
 }
 
 fn sign_in_required(status: StatusCode) -> Response {

@@ -63,7 +63,11 @@ fn show_at(app: &tauri::AppHandle, page: Option<&'static str>) -> bool {
     });
     false
 }
-fn create_main(app: &tauri::AppHandle, sign_in: Option<&str>, page: Option<&str>) -> anyhow::Result<()> {
+fn create_main(
+    app: &tauri::AppHandle,
+    sign_in: Option<&str>,
+    page: Option<&str>,
+) -> anyhow::Result<()> {
     if app.get_webview_window("main").is_some() {
         return Ok(());
     }
@@ -78,7 +82,8 @@ fn create_main(app: &tauri::AppHandle, sign_in: Option<&str>, page: Option<&str>
     if let Some(sign_in) = sign_in {
         // Without an interface yet the bundled splash page waits for it.
         let mut url = url::Url::parse(sign_in)?;
-        if let Some((path, fragment)) = page.map(|page| page.split_once('#').unwrap_or((page, ""))) {
+        if let Some((path, fragment)) = page.map(|page| page.split_once('#').unwrap_or((page, "")))
+        {
             if !path.is_empty() {
                 url.set_path(path);
             }
@@ -99,13 +104,21 @@ fn sign_in_again(window: &tauri::Webview, url: &url::Url) {
     }
     let app = window.app_handle().clone();
     let label = window.label().to_owned();
-    let terminal = url.query_pairs().any(|(key, value)| key == "window" && value == "terminal");
+    let terminal = url
+        .query_pairs()
+        .any(|(key, value)| key == "window" && value == "terminal");
     tauri::async_runtime::spawn(async move {
         let state = app.state::<Arc<AppState>>().inner().clone();
         {
-            let mut recent = state.signed_in_again.lock().unwrap_or_else(|e| e.into_inner());
+            let mut recent = state
+                .signed_in_again
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let now = std::time::Instant::now();
-            if recent.get(&label).is_some_and(|at| now.duration_since(*at) < std::time::Duration::from_secs(15)) {
+            if recent
+                .get(&label)
+                .is_some_and(|at| now.duration_since(*at) < std::time::Duration::from_secs(15))
+            {
                 // The fresh session did not hold either; leave the explanation on screen.
                 return;
             }
@@ -118,7 +131,10 @@ fn sign_in_again(window: &tauri::Webview, url: &url::Url) {
         // A managed runtime may have restarted under a new link not yet picked up.
         let url = if managed {
             let peers = cranibox_node::peer::config::path_for(&settings::default_path());
-            cranibox_node::web::endpoint::ui_url(&peers, None).await.ok().or(url)
+            cranibox_node::web::endpoint::ui_url(&peers, None)
+                .await
+                .ok()
+                .or(url)
         } else {
             url
         };
