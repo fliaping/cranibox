@@ -473,10 +473,16 @@ pub async fn ensure_roster_peer(peers: &Path, identity: &Value, secret: String) 
     };
     let peer: PublicIdentity = serde_json::from_value(identity.clone())?;
     peer.verify()?;
+    let learned = Learned::read(peers);
+    let existing = learned.peers.get(&peer.node_id);
     let addr = IrohAddr {
         endpoint_id: peer.signing_key.clone(),
-        relay_url: shared.node.own_relays().first().map(|u| u.to_string()),
-        direct: Vec::new(),
+        relay_url: existing
+            .and_then(|entry| entry.addr.relay_url.clone())
+            .or_else(|| shared.node.own_relays().first().map(|u| u.to_string())),
+        direct: existing
+            .map(|entry| entry.addr.direct.clone())
+            .unwrap_or_default(),
     };
     ensure_peer(
         &shared,
@@ -512,13 +518,25 @@ async fn ensure_peer(
         addr: peer_addr,
         port: 0,
     };
-    // Route side: bind the forward first; the lease must be live before it is saved.
+    // Route side: bind (or reuse) the forward first; the lease must be live before it is saved.
     let forward = if received.is_some() {
         let target = addr::endpoint_addr(&learned_peer.addr)?;
-        let forward = Forward::bind(shared.node.clone(), 0, target).await?;
-        let lease = Lease::acquire(&lock_path(&path, &node)?)?;
-        learned_peer.port = forward.address.port();
-        Some((forward, lease))
+        let existing_port = {
+            let forwards = shared.forwards.lock().await;
+            forwards.get(&node).map(|(forward, _)| {
+                forward.update(target.clone());
+                forward.address.port()
+            })
+        };
+        if let Some(port) = existing_port {
+            learned_peer.port = port;
+            None
+        } else {
+            let forward = Forward::bind(shared.node.clone(), 0, target).await?;
+            let lease = Lease::acquire(&lock_path(&path, &node)?)?;
+            learned_peer.port = forward.address.port();
+            Some((forward, lease))
+        }
     } else {
         None
     };
