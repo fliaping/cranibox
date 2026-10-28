@@ -173,7 +173,7 @@ test('remote managed: selected channel and target confirmation', async ({ page }
   model.data.status!.phase = 'done'; model.data.version = model.data.runtime.version = '1.3.0-rc.1';
   await page.clock.runFor(2000);
   await expect(panel.getByText('Updated', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Home server', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Home server node-/ })).toBeVisible();
 });
 
 test('remote unmanaged: enablement belongs on the target device', async ({ page }) => {

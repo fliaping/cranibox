@@ -47,7 +47,8 @@ test('device detail has overview, desktop, browser and access tabs', async ({ pa
   await ready(page, '/app/devices');
   await page.getByRole('region', { name: 'Home server', exact: true }).getByRole('button', { name: 'Desktop', exact: true }).click();
   await expect(page).toHaveURL(/#\/app\/device\/node-0a1b[0-9a-f]+\/desktop$/);
-  await expect(page.locator('main h1')).toHaveText('Home server');
+  // The full node ID follows the name for assistive technology.
+  await expect(page.locator('main h1')).toHaveText(/^Home server node-0a1b/);
   await expect(page.getByRole('button', { name: 'Connect to desktop', exact: true })).toBeEnabled();
   const tabs = page.getByRole('navigation', { name: 'Device sections' });
   await tabs.getByRole('link', { name: 'Browser', exact: true }).click();
@@ -276,9 +277,11 @@ test('subscription setup sends regional key and enables one chosen device', asyn
   expect((await saved).postDataJSON()).toMatchObject({ kind: 'api_key', preset: 'deepseek', region: 'cn', key: 'fake-personal-test-key' });
   await expect(page.getByRole('heading', { name: 'Personal test account', exact: true })).toBeVisible();
   const account = page.locator('.cx-card').filter({ has: page.getByRole('heading', { name: 'DeepSeek', exact: true }) });
-  await account.getByText('Choose devices individually', { exact: true }).click();
+  // The list starts open when an earlier test already chose several devices.
+  const individually = account.locator('details').filter({ hasText: 'Choose devices individually' });
+  if (await individually.getAttribute('open') === null) await individually.locator('summary').click();
   const enable = page.waitForRequest(request => request.url().includes('/enable') && request.method() === 'POST');
-  await account.getByRole('checkbox', { name: 'Studio', exact: true }).click();
+  await account.getByRole('checkbox', { name: /^Studio\b/ }).click();
   expect((await enable).postDataJSON()).toMatchObject({ on: true, all_nodes: null });
   await expect(page.locator('body')).not.toContainText('fake-personal-test-key');
 });

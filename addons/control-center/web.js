@@ -19206,6 +19206,7 @@ function wl({ client: e, devices: t, language: n = "en", sources: r }) {
 								" ",
 								/* @__PURE__ */ (0, J.jsxs)("span", {
 									className: "cx-id-pill",
+									"aria-hidden": "true",
 									children: ["#", ne.id.slice(0, 6)]
 								})
 							] }), /* @__PURE__ */ (0, J.jsx)("code", {
@@ -43094,7 +43095,7 @@ function kb({ chatUrl: e = "/proxy/3080/" }) {
 										children: r.length
 									})]
 								}),
-								I && O && /* @__PURE__ */ (0, J.jsx)("button", {
+								I && O && /* @__PURE__ */ (0, J.jsxs)(J.Fragment, { children: [/* @__PURE__ */ (0, J.jsx)("button", {
 									className: "cx-icon-btn",
 									"aria-label": n("操作日志", "Activity log"),
 									onClick: () => h.setOutputOpen(!0),
@@ -43102,7 +43103,16 @@ function kb({ chatUrl: e = "/proxy/3080/" }) {
 										size: 18,
 										"aria-hidden": "true"
 									})
-								}),
+								}), /* @__PURE__ */ (0, J.jsx)("button", {
+									className: "cx-icon-btn",
+									"aria-label": n("刷新状态", "Refresh status"),
+									disabled: h.state.refreshing,
+									onClick: h.refresh,
+									children: /* @__PURE__ */ (0, J.jsx)(Do, {
+										size: 18,
+										"aria-hidden": "true"
+									})
+								})] }),
 								/* @__PURE__ */ (0, J.jsx)("span", {
 									className: "cx-top-divider",
 									"aria-hidden": "true"

@@ -85,7 +85,7 @@ test('shared space directories retain ownership, require permission and recover 
   await panel.getByRole('button', { name: 'Refresh remote spaces' }).click();
   await expect(source).toContainText('Connection unavailable');
   await expect(details).toHaveAttribute('open', '');
-  await expect(details).toContainText('does not mean its spaces were deleted');
+  await expect(details).toContainText('Could not reach these devices right now');
   await expect(panel.getByText('<Remote Agent lab>', { exact: true })).toHaveCount(0);
   unavailable = false;
   await page.reload();

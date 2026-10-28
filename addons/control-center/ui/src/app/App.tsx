@@ -1,5 +1,5 @@
 import { AccessLog, AccessSurfaces } from "../access/Access";
-import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, RefreshCw, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Overlays } from "../overlays";
@@ -177,7 +177,8 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
         <div className="cx-top-actions">
           <span className="cx-hide-narrow"><StatusButton status={status} t={t} onClick={() => setStatusOpen(true)} /></span>
           <button className="cx-icon-btn" aria-label={t("待审批", "Pending approvals") + " " + approvals.length} onClick={() => navigate("/app/inbox")}><Bell size={19} aria-hidden="true" />{approvals.length > 0 && <span className="cx-count">{approvals.length}</span>}</button>
-          {inWorkspace && hasWorkspace && <button className="cx-icon-btn" aria-label={t("操作日志", "Activity log")} onClick={() => workspace.setOutputOpen(true)}><Activity size={18} aria-hidden="true" /></button>}
+          {inWorkspace && hasWorkspace && <><button className="cx-icon-btn" aria-label={t("操作日志", "Activity log")} onClick={() => workspace.setOutputOpen(true)}><Activity size={18} aria-hidden="true" /></button>
+            <button className="cx-icon-btn" aria-label={t("刷新状态", "Refresh status")} disabled={workspace.state.refreshing} onClick={workspace.refresh}><RefreshCw size={18} aria-hidden="true" /></button></>}
           <span className="cx-top-divider" aria-hidden="true" />
           <button className="cx-icon-btn cx-lang" aria-label={t("切换到 English", "Switch to 中文")} title={t("语言", "Language")} onClick={() => setLocale(locale.startsWith("zh") ? "en" : "zh-cn")}><Languages size={16} aria-hidden="true" /><span>{locale.startsWith("zh") ? "中" : "EN"}</span></button>
           <TerminalWindowToggle />
