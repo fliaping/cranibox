@@ -23,3 +23,10 @@
   .cx-access-group > .cx-between, .cx-access-group details .cx-between, .cx-access-banner { align-items: flex-start; flex-direction: column; }
   .cx-access-dialog .cx-actions .cx-btn { flex: 1 1 40%; }
 }
+
+.cx-access-head-title { display: grid; gap: 6px; min-width: 0; }
+.cx-access-peer-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cx-timer-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: var(--surface-raised); border: 1px solid var(--border); color: var(--muted); font: 600 12px/1.2 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.cx-approval-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cx-approval-deny { margin-right: auto; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, var(--border)); }
+.cx-approval-deny:hover:not(:disabled) { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); color: var(--bad); }

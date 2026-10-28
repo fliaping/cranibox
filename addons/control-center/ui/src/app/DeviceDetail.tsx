@@ -14,7 +14,7 @@ import { deviceCaps, devicePath } from "./Home";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
 import { UpdatePanel } from "./UpdatePanel";
-import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, isThis, pathLabel, Pill, Tabs, type Translate } from "./ui";
+import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, formatDeviceLabel, isThis, pathLabel, Pill, shortNodeId, Tabs, type Translate } from "./ui";
 
 const tabs = ["overview", "terminal", "desktop", "browser", "projects", "access"] as const;
 type Tab = (typeof tabs)[number];
@@ -33,7 +33,7 @@ export function DeviceDetail() {
     <div className="cx-device-head">
       <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={26} /></span>
       <div className="cx-grow">
-        <h1>{device.name}</h1>
+        {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
         <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t)}</> : t("离线", "Offline")}</div>
       </div>
       <div className="cx-actions">{local && <Pill tone="accent">{t("本机", "This device")}</Pill>}{device.guest && <Pill tone="info">{t("访客", "Guest")}</Pill>}</div>
@@ -81,19 +81,24 @@ function Overview({ device }: { device: Device }) {
         <div><dt>{t("系统版本", "OS")}</dt><dd>{device.os_version || "—"}</dd></div>
         <div><dt>{t("机型", "Model")}</dt><dd>{device.model || "—"}</dd></div>
         <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : device.guest ? t("访客设备", "Guest device") : t("你的设备", "Your device")}</dd></div>
-        <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{device.node_id}</dd></div>
+        <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{(() => { const s = shortNodeId(device.node_id); return <><span className="cx-id-pill">{s.display}</span>{s.full && <span className="cx-sr"> {s.full}</span>}</>; })()}</dd></div>
       </dl>
     </Card>
-    {deviceCaps.map(cap => {
-      const Icon = capabilityIcons[cap], on = device.caps[cap] !== false;
-      return <Card key={cap} className="cx-cap-tile" label={capabilityName(cap, t)}>
-        <div className="cx-card-head"><span className={"cx-card-icon " + (on ? "" : "muted")}><Icon size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{capabilityName(cap, t)}</h3><small className="cx-muted">{on ? t("可用", "Available") : t("未授权", "Not allowed")}</small></div></div>
-        <div className="cx-actions">
-          {local && cap !== "terminals" ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link>
-            : <button className="cx-btn small primary" disabled={!on || !reachable} onClick={open[cap]}>{cap === "computer" ? t("授权", "Access") : cap === "terminals" ? t("打开终端", "Open terminal") : t("打开", "Open")}</button>}
-        </div>
-      </Card>;
-    })}
+    <div className="cx-grouped-list" style={{ gridColumn: "1 / -1" }}>
+      {deviceCaps.map(cap => {
+        const Icon = capabilityIcons[cap], on = device.caps[cap] !== false;
+        return <section key={cap} className="cx-grouped-row cx-cap-tile" aria-label={capabilityName(cap, t)}>
+          <div className="cx-row" style={{ gap: 12 }}>
+            <span className={"cx-card-icon " + (on ? "" : "muted")}><Icon size={18} aria-hidden="true" /></span>
+            <div><strong>{capabilityName(cap, t)}</strong><small className="cx-muted" style={{ display: "block" }}>{on ? t("可用", "Available") : t("未授权", "Not allowed")}</small></div>
+          </div>
+          <div className="cx-actions">
+            {local && cap !== "terminals" ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link>
+              : <button className="cx-btn small primary" disabled={!on || !reachable} onClick={open[cap]}>{cap === "computer" ? t("授权", "Access") : cap === "terminals" ? t("打开终端", "Open terminal") : t("打开", "Open")}</button>}
+          </div>
+        </section>;
+      })}
+    </div>
     {!local && !device.guest && device.same_identity === false && <OtherIdentity />}
     {!local && <UpdatePanel node={device.node_id} />}
     {!local && <RemoveDevice device={device} />}

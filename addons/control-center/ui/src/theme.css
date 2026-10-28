@@ -1,41 +1,118 @@
-/* Cranibox design tokens: the only color, type, spacing, radius and shadow scale.
-   Every stylesheet (shell, pages and feature views) reads these variables. */
 :root {
   color-scheme: light;
-  --font: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", Inter, "Segoe UI", "Noto Sans", "Noto Sans CJK SC", sans-serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  /* Warm paper & stone neutral surfaces — consumer desktop native feel */
+  --bg: #faf9f6;
+  --bg-subtle: #f1f0ec;
+  --sidebar: #f3f2ee;
+  --surface: #ffffff;
+  --surface-raised: #f4f3ef;
+  --surface-glass: rgba(255, 255, 255, 0.86);
+  --card: var(--surface);
+  --panel: var(--surface);
+  --panel-soft: var(--surface-raised);
+  --text: #111827;
+  --text-secondary: #374151;
+  --muted: #6b7280;
+  --border: rgba(17, 24, 39, 0.08);
+  --border-strong: rgba(17, 24, 39, 0.15);
+  /* Primary ink CTA for actions; forest emerald reserved for status/semantic accents */
+  --primary: #18181b;
+  --primary-hover: #27272a;
+  --on-primary: #ffffff;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --accent-soft: rgba(16, 185, 129, 0.1);
+  --on-accent: #ffffff;
+  --good: #059669;
+  --good-soft: rgba(5, 150, 105, 0.1);
+  --good-bg: var(--good-soft);
+  --success: var(--good);
+  --warn: #d97706;
+  --warn-soft: rgba(217, 119, 6, 0.1);
+  --warn-bg: var(--warn-soft);
+  --bad: #dc2626;
+  --bad-soft: rgba(220, 38, 38, 0.1);
+  --bad-bg: var(--bad-soft);
+  --danger: var(--bad);
+  --info: #2563eb;
+  --info-soft: rgba(37, 99, 235, 0.1);
+  --info-bg: var(--info-soft);
+  --code-bg: #f3f2ee;
+  --focus: #18181b;
+  --scrim: rgba(17, 24, 39, 0.42);
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 1px rgba(17, 24, 39, 0.02);
+  --shadow: 0 12px 32px -4px rgba(17, 24, 39, 0.08), 0 4px 12px -2px rgba(17, 24, 39, 0.04);
+  --shadow-lg: 0 20px 44px -8px rgba(17, 24, 39, 0.14), 0 8px 20px -4px rgba(17, 24, 39, 0.06);
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: clamp(22px, 2.2vw, 28px);
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --sans: var(--font);
+  --mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-mono: var(--mono);
-
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
-  --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
-  --radius-sm: 6px; --radius: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-pill: 999px;
-  --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 16px; --text-xl: 20px; --text-2xl: 28px;
-
-  --bg: #f5f6f4; --surface: #ffffff; --surface-raised: #eff2ef; --sidebar: #fbfcfa;
-  --text: #17201b; --muted: #526058; --subtle: #66726b; --border: #dde3de; --border-strong: #c3ccc6;
-  --accent: #166548; --accent-hover: #11553c; --on-accent: #ffffff; --accent-soft: #e4f1ea; --accent-text: #11553c;
-  --good: #166534; --good-bg: #e5f4e9; --warn: #8a4b08; --warn-bg: #fdf2d8; --bad: #b0233a; --bad-bg: #fdebee;
-  --info: #1d4f91; --info-bg: #e8f0fb;
-  --focus: #1b7a56; --code-bg: #f2f5f2; --scrim: #0d14108c;
-  --shadow-sm: 0 1px 2px #17201b0f, 0 1px 3px #17201b0d;
-  --shadow: 0 8px 28px #17201b14, 0 2px 6px #17201b0a;
-  --shadow-lg: 0 24px 64px #17201b29;
-
-  /* Compatibility names used by feature views. */
-  --card: var(--surface); --panel: var(--surface); --panel-soft: var(--surface-raised);
-  --danger: var(--bad); --success: var(--good);
 }
-:root[data-theme=dark] {
+
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e1311; --surface: #151c19; --surface-raised: #1d2622; --sidebar: #111714;
-  --text: #ecf2ee; --muted: #a3b0a8; --subtle: #8d9a93; --border: #2a3530; --border-strong: #3b4842;
-  --accent: #4fc28c; --accent-hover: #67d29f; --on-accent: #04170e; --accent-soft: #163126; --accent-text: #7fdcae;
-  --good: #72e3a2; --good-bg: #153224; --warn: #f2c76b; --warn-bg: #33290f; --bad: #ff9eab; --bad-bg: #3a1c23;
-  --info: #9cc3ff; --info-bg: #172840;
-  --focus: #7fe0b0; --code-bg: #101714; --scrim: #000000a6;
-  --shadow-sm: 0 1px 2px #0006;
-  --shadow: 0 10px 30px #0007;
-  --shadow-lg: 0 24px 72px #000a;
+  /* Obsidian dark palette */
+  --bg: #0b0c0e;
+  --bg-subtle: #14171c;
+  --sidebar: #0f1115;
+  --surface: #13161b;
+  --surface-raised: #1a1e25;
+  --surface-glass: rgba(19, 22, 27, 0.86);
+  --card: var(--surface);
+  --panel: var(--surface);
+  --panel-soft: var(--surface-raised);
+  --text: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --muted: #9ca3af;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --primary: #f4f4f5;
+  --primary-hover: #ffffff;
+  --on-primary: #09090b;
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-soft: rgba(52, 211, 153, 0.13);
+  --on-accent: #06281e;
+  --good: #34d399;
+  --good-soft: rgba(52, 211, 153, 0.14);
+  --good-bg: var(--good-soft);
+  --success: var(--good);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --warn-bg: var(--warn-soft);
+  --bad: #f87171;
+  --bad-soft: rgba(248, 113, 113, 0.14);
+  --bad-bg: var(--bad-soft);
+  --danger: var(--bad);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.14);
+  --info-bg: var(--info-soft);
+  --code-bg: #0f1115;
+  --focus: #f4f4f5;
+  --scrim: rgba(0, 0, 0, 0.68);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.52);
+  --shadow-lg: 0 24px 52px -8px rgba(0, 0, 0, 0.65);
 }
 
 /* Questions from ask(): keep their line breaks (install steps are one per line). */

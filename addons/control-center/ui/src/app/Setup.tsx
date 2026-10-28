@@ -7,7 +7,7 @@ import { useIdentity } from "./Network";
 import { RecoveryCreator } from "./Identity";
 import { inShell, shellCall, type ShellStatus } from "./shell";
 import { savePreferences, store, useApp } from "./store";
-import { Alert, Card, localizeMessage, Pill, type Translate } from "./ui";
+import { Alert, Card, formatDeviceLabel, localizeMessage, Pill, type Translate } from "./ui";
 
 type Step = "permissions" | "identity" | "devices";
 const steps: Step[] = ["permissions", "identity", "devices"];
@@ -27,7 +27,7 @@ export function SetupGuide() {
   const labels: Record<Step, string> = { permissions: t("权限与能力", "Permissions"), identity: t("身份与恢复口令", "Identity"), devices: t("添加设备", "Add devices") };
   return <div className="cx-setup">
     <div className="cx-page-head"><div><h1>{t("设置 Cranibox", "Set up Cranibox")}</h1>
-      <p>{t("一次把这台设备需要的权限和设置都准备好。之后随时可以在「本机设置」里调整。", "Get everything this device needs ready in one go. You can change any of it later in Settings.")}{thisDevice ? " · " + thisDevice.name : ""}</p></div>
+      <p>{t("一次把这台设备需要的权限和设置都准备好。之后随时可以在「本机设置」里调整。", "Get everything this device needs ready in one go. You can change any of it later in Settings.")}{thisDevice ? " · " + formatDeviceLabel(thisDevice.name, thisDevice.node_id, t).label : ""}</p></div>
       <div className="cx-actions"><button className="cx-btn ghost" onClick={() => void finish()}>{t("跳过向导", "Skip setup")}</button></div></div>
     <ol className="cx-steps" aria-label={t("设置步骤", "Setup steps")}>
       {steps.map((item, index) => <li key={item} aria-current={item === step ? "step" : undefined} className={steps.indexOf(step) > index ? "done" : ""}>
@@ -140,13 +140,13 @@ function PermissionsStep({ next }: { next: () => void }) {
     setBusy(""); await load();
   }
   const pending = list.filter(row => row.state === "todo");
-  return <Card label={t("权限与能力", "Permissions")}>
-    <div className="cx-card-head"><span className="cx-card-icon"><ShieldCheck size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("这台设备需要的权限", "What this device needs")}</h3>
+  return <section className="cx-setup-section" aria-label={t("权限与能力", "Permissions")}>
+    <div className="cx-card-head cx-setup-head"><span className="cx-card-icon"><ShieldCheck size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("这台设备需要的权限", "What this device needs")}</h3>
       <p className="cx-muted">{t("点「全部开启」会依次请求下面所有权限；系统弹窗出现时选择允许。已经开启的会自动跳过。", "Turn on all asks for everything below, one after another — allow each system prompt as it appears. Anything already on is skipped.")}</p></div>
-      <button className="cx-btn primary" disabled={!!busy || !pending.length} onClick={() => void run(pending.map(row => row.id))}><Sparkles size={15} aria-hidden="true" />{pending.length ? t("全部开启", "Turn on all") : t("已全部开启", "All on")}</button></div>
+      <button className="cx-btn pill" disabled={!!busy || !pending.length} onClick={() => void run(pending.map(row => row.id))}><Sparkles size={15} aria-hidden="true" />{pending.length ? t("全部开启", "Turn on all") : t("已全部开启", "All on")}</button></div>
     {error && <Alert>{error}</Alert>}
     {!data && !error && <p className="cx-muted" role="status">{t("正在检测…", "Checking…")}</p>}
-    <ul className="cx-setup-list">{list.map(row => <li key={row.id}>
+    <ul className="cx-setup-list cx-grouped-list">{list.map(row => <li key={row.id}>
       <span className={"cx-card-icon " + (row.state === "ready" ? "" : "muted")}><row.icon size={18} aria-hidden="true" /></span>
       <div className="cx-grow"><strong>{row.title}</strong><small className="cx-muted">{row.detail}</small>{row.note && row.state !== "ready" && <small className="cx-setup-note"><CircleAlert size={13} aria-hidden="true" /> {row.note}</small>}</div>
       <SetupState state={row.state} t={t}>
@@ -154,9 +154,9 @@ function PermissionsStep({ next }: { next: () => void }) {
           : row.state !== "ready" && row.state !== "unavailable" && <button className="cx-btn small" disabled={!!busy} onClick={() => void run([row.id])}>{busy === row.id ? t("处理中…", "Working…") : t("开启", "Turn on")}</button>}
       </SetupState>
     </li>)}</ul>
-    <div className="cx-actions" style={{ marginTop: 16 }}><button className="cx-btn primary" onClick={next}>{t("下一步", "Next")}</button></div>
+    <div className="cx-actions cx-setup-foot"><button className="cx-btn primary" onClick={next}>{t("下一步", "Next")}</button></div>
     {plan && <InstallPlanSheet plan={plan} busy={!!busy} t={t} onClose={() => setPlan(null)} onRun={() => void runInstall(plan)} />}
-  </Card>;
+  </section>;
 }
 function SetupState({ state, t, children }: { state: Row["state"]; t: Translate; children: ReactNode }) {
   if (state === "ready") return <Pill tone="good" icon={Check}>{t("已开启", "On")}</Pill>;

@@ -35,6 +35,9 @@ export type AppState = {
   pairing: boolean; setPairing: (open: boolean) => void;
 };
 const Context = createContext<AppState | null>(null);
+export function useOptionalApp() {
+  return useContext(Context);
+}
 export function useApp() {
   const value = useContext(Context);
   if (!value) throw Error("App state provider missing");

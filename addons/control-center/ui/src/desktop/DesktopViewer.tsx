@@ -61,6 +61,6 @@ export function DesktopViewer({ target, language = 'en', openExternal }: { targe
     <RequesterStatus target={target.node} />
     {page ? <iframe className="vnc-screen vnc-frame" src={page.url} title={t('远程桌面画面', 'Remote desktop display')} allow="fullscreen; clipboard-read; clipboard-write; autoplay; microphone; camera; gamepad; keyboard-map" />
       : <div className="vnc-placeholder"><Monitor size={36} aria-hidden="true" /><p>{phase === 'connecting' ? t('正在建立桌面连接', 'Opening desktop connection') : phase === 'browser' ? t('桌面已在浏览器中打开。需要时可在此重新显示。', 'The desktop is open in your browser. Show it here again any time.') : t('桌面仍在目标设备运行', 'The desktop keeps running on the target')}</p></div>}
-    <p className="vnc-footnote">{t('显示的是目标桌面服务自己的界面（Selkies 或 noVNC），经授权通道原样转发。关闭查看器不会注销目标桌面。', 'This is the desktop server’s own interface (Selkies or noVNC), forwarded unchanged through the authorized connection. Closing the viewer keeps the target desktop running.')}</p>
+    <p className="vnc-footnote cx-sr">{t('显示的是目标桌面服务自己的界面（Selkies 或 noVNC），经授权通道原样转发。关闭查看器不会注销目标桌面。', 'This is the desktop server’s own interface (Selkies or noVNC), forwarded unchanged through the authorized connection. Closing the viewer keeps the target desktop running.')}</p>
   </div>;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "./store";
-import { Alert } from "./ui";
+import { Alert, formatDeviceLabel } from "./ui";
 
 type Scope = "lan" | "internet" | "relay" | "overlay";
 type Measurement = { from: string; to: string; kind: string; scope?: Scope | null; via?: string | null; rtt_ms: number | null; at: number };
@@ -30,7 +30,7 @@ export function NetworkPaths() {
   }, [api]);
   const nodes = [...new Set([...(data?.nodes.map(node => node.id) || []), ...devices.map(device => device.node_id)])].slice(0, 64).map(id => {
     const name = devices.find(device => device.node_id === id)?.name || data?.nodes.find(node => node.id === id)?.name;
-    return { id, name: name && name !== id ? name : id.slice(0, 13) };
+    return { id, name: name && name !== id ? formatDeviceLabel(name, id, t).label : id.slice(0, 13) };
   });
   const paths = new Map(data?.paths.map(path => [path.from + ":" + path.to, path]));
   const labels = { lan: t("局域网直连", "LAN direct"), internet: t("互联网直连（打洞）", "Internet direct (hole-punched)"), relay: t("中转", "Relay"), overlay: t("叠加网络（Tailscale / EasyTier）", "Overlay (Tailscale / EasyTier)"), unknown: t("路径未知", "Unknown path") };

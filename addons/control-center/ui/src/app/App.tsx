@@ -1,5 +1,5 @@
 import { AccessLog, AccessSurfaces } from "../access/Access";
-import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, RefreshCw, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Boxes, Container, FolderGit2, House, Inbox, Languages, Lock, Menu, Moon, Network, Settings as SettingsIcon, Sparkles, Sun, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Overlays } from "../overlays";
@@ -26,7 +26,7 @@ import { Models } from "./Models";
 import { PairingSheet } from "./Pairing";
 import { SetupGuide } from "./Setup";
 import { resolvedTheme, stored, useApp } from "./store";
-import { Alert, Empty, Loading, PageHead, Sheet, StatusButton, SubTabs, Tabs, type TabItem, type Translate } from "./ui";
+import { Alert, DeviceIcon, Empty, Loading, PageHead, Sheet, StatusButton, SubTabs, Tabs, formatDeviceLabel, type TabItem, type Translate } from "./ui";
 import "./app.css";
 
 type SectionId = "home" | "devices" | "spaces" | "projects" | "inbox" | "models" | "settings";
@@ -152,9 +152,18 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
         </Link>)}
       </nav>
       <div className="cx-sidebar-foot">
-        <div className="cx-row"><span className={"cx-dot " + (thisDevice ? "online" : "")} aria-hidden="true" /><strong>{thisDevice?.name || workspace.snapshot?.access?.hostname || "Cranibox"}</strong></div>
+        {(() => {
+          const raw = thisDevice?.name || workspace.snapshot?.access?.hostname || "Cranibox";
+          const info = formatDeviceLabel(raw, thisDevice?.node_id, t);
+          return <div className="cx-row" style={{ gap: 8 }}>
+            <span className={"cx-dot " + (thisDevice ? "online" : "")} aria-hidden="true" />
+            <DeviceIcon kind={thisDevice?.kind || "desktop"} size={14} />
+            <strong>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</strong>
+            {info.shortId && <span className="cx-id-pill">{info.shortId}</span>}
+          </div>;
+        })()}
         <span className="cx-row"><Lock size={13} aria-hidden="true" />{t("端到端加密", "End-to-end encrypted")} · {pathSummary(app.devices, t)}</span>
-        {workspace.snapshot?.revision && <span className="cx-revision sidebar-revision">{t("版本 ", "Revision ")}{workspace.snapshot.revision}</span>}
+        {workspace.snapshot?.revision && <span className="cx-revision sidebar-revision cx-sr">{t("版本 ", "Revision ")}{workspace.snapshot.revision}</span>}
       </div>
     </aside>
     {menu && <button className="cx-scrim" aria-label={t("关闭导航", "Close navigation")} onClick={() => { setMenu(false); requestAnimationFrame(() => trigger.current?.focus()); }} />}
@@ -168,8 +177,8 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
         <div className="cx-top-actions">
           <span className="cx-hide-narrow"><StatusButton status={status} t={t} onClick={() => setStatusOpen(true)} /></span>
           <button className="cx-icon-btn" aria-label={t("待审批", "Pending approvals") + " " + approvals.length} onClick={() => navigate("/app/inbox")}><Bell size={19} aria-hidden="true" />{approvals.length > 0 && <span className="cx-count">{approvals.length}</span>}</button>
-          {inWorkspace && hasWorkspace && <><button className="cx-icon-btn" aria-label={t("操作日志", "Activity log")} onClick={() => workspace.setOutputOpen(true)}><Activity size={18} aria-hidden="true" /></button>
-            <button className="cx-icon-btn" aria-label={t("刷新状态", "Refresh status")} disabled={workspace.state.refreshing} onClick={workspace.refresh}><RefreshCw size={18} aria-hidden="true" /></button></>}
+          {inWorkspace && hasWorkspace && <button className="cx-icon-btn" aria-label={t("操作日志", "Activity log")} onClick={() => workspace.setOutputOpen(true)}><Activity size={18} aria-hidden="true" /></button>}
+          <span className="cx-top-divider" aria-hidden="true" />
           <button className="cx-icon-btn cx-lang" aria-label={t("切换到 English", "Switch to 中文")} title={t("语言", "Language")} onClick={() => setLocale(locale.startsWith("zh") ? "en" : "zh-cn")}><Languages size={16} aria-hidden="true" /><span>{locale.startsWith("zh") ? "中" : "EN"}</span></button>
           <TerminalWindowToggle />
           <button className="cx-icon-btn" aria-label={dark ? t("切换浅色主题", "Switch to light theme") : t("切换深色主题", "Switch to dark theme")} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}</button>

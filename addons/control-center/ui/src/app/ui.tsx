@@ -180,10 +180,61 @@ export function ApprovalCard({ card, t, busy, deviceName, onDecide }: { card: Ap
     {card.detail && <p className="cx-untrusted">{card.detail}</p>}
     <div className="cx-between">
       <small className="cx-muted">{expired ? t("已过期，默认拒绝", "Expired. Denied by default.") : t("仅在你同意后继续。", "Continues only with your permission.")}</small>
-      <div className="cx-actions">{card.actions.map(action => <button key={action} disabled={busy || expired} className={"cx-btn " + (action === "deny" ? "" : "primary")} onClick={() => onDecide(action)}>
-        {action === "deny" ? <X size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
-        {action === "deny" ? t("拒绝", "Deny") : action === "allow_always" ? t("始终允许", "Always allow") : card.kind === "pairing" ? t("两边一致", "Codes match") : t("允许一次", "Allow once")}
-      </button>)}</div>
+      <div className="cx-actions">{(() => {
+        const primaryAction = card.actions.find(a => a !== "deny");
+        return card.actions.map(action => <button key={action} disabled={busy || expired} className={"cx-btn " + (action === "deny" ? "danger" : action === primaryAction ? "primary" : "")} onClick={() => onDecide(action)}>
+          {action === "deny" ? <X size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
+          {action === "deny" ? t("拒绝", "Deny") : action === "allow_always" ? t("始终允许", "Always allow") : card.kind === "pairing" ? t("两边一致", "Codes match") : t("允许一次", "Allow once")}
+        </button>);
+      })()}</div>
     </div>
   </Card>;
+}
+
+
+/** Format a device name or raw node ID into a human-friendly label plus an optional short hex badge. */
+export function formatDeviceLabel(rawName: string, nodeId?: string, t?: Translate): { label: string; shortId?: string; rawHidden?: string } {
+  const name = (rawName || nodeId || "").trim();
+  const id = (nodeId || name).trim();
+  const nodeHex = id.match(/^node-([0-9a-f]{6})[0-9a-f]{10,}$/i);
+  const nameHex = name.match(/^node-([0-9a-f]{6})[0-9a-f]{10,}$/i);
+  const vmMatch = name.match(/^grok-bot-vm-([0-9a-f]{6})[0-9a-f0-9-]*$/i);
+  if (nameHex) {
+    const short = "#" + nameHex[1].toLowerCase();
+    return {
+      label: t ? t(`设备 ${short}`, `Device ${short}`) : `Device ${short}`,
+      shortId: short,
+      rawHidden: name,
+    };
+  }
+  if (vmMatch) {
+    const short = "#" + vmMatch[1].toLowerCase();
+    return {
+      label: t ? t("Linux 桌面工作站", "Linux Desktop") : "Linux Desktop",
+      shortId: short,
+      rawHidden: name,
+    };
+  }
+  return {
+    label: name,
+    shortId: nodeHex && name !== id ? "#" + nodeHex[1].toLowerCase() : undefined,
+    rawHidden: nodeHex && name !== id ? id : undefined,
+  };
+}
+
+/** Shorten a raw hex node-* identifier into #xxxxxx while keeping full text for assistive tech / tests. */
+export function shortNodeId(nodeId: string): { display: string; full?: string } {
+  const match = nodeId.trim().match(/^node-([0-9a-f]{6})[0-9a-f]{10,}$/i);
+  if (match) return { display: "#" + match[1].toLowerCase(), full: nodeId };
+  return { display: nodeId };
+}
+
+export const formatShortId = shortNodeId;
+
+export function Field({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
+  return <label className="cx-field"><span>{label}</span>{children}{hint && <small className="cx-muted">{hint}</small>}</label>;
+}
+
+export function CodeBox({ value, label }: { value: string; label?: ReactNode }) {
+  return <div className="cx-code-box">{label && <small className="cx-muted">{label}</small>}<pre className="cx-code">{value}</pre></div>;
 }

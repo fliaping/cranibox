@@ -1,4 +1,4 @@
-.projects-view { --projects-surface: var(--surface, var(--card, #1b2336)); --projects-text: var(--text, #f8fafc); --projects-on-accent: var(--on-accent, #0f172a); color: var(--projects-text); min-width: 0; }
+.projects-view { --projects-surface: var(--surface); --projects-text: var(--text); --projects-on-accent: var(--on-primary); color: var(--projects-text); min-width: 0; }
 .projects-view h1 { margin: 0 0 6px; font-size: clamp(24px, 2.5vw, 30px); }
 .projects-view h2, .projects-view h3 { margin: 0; overflow-wrap: anywhere; }
 .projects-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
@@ -6,21 +6,21 @@
 .projects-heading p, .projects-note { color: var(--muted); font-size: 13px; margin: 0; overflow-wrap: anywhere; }
 .projects-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .projects-view button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--projects-surface); color: var(--projects-text); cursor: pointer; font: inherit; }
-.projects-view button:hover:not(:disabled) { background: var(--surface-raised, #334155); }
+.projects-view button:hover:not(:disabled) { background: var(--surface-raised); }
 .projects-view button:disabled { cursor: not-allowed; opacity: .5; }
-.projects-view button.projects-primary { color: var(--projects-on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
-.projects-view button.projects-primary:hover:not(:disabled) { background: var(--accent-hover, #4ade80); }
+.projects-view button.projects-primary { color: var(--on-primary); background: var(--primary); border-color: var(--primary); font-weight: 600; }
+.projects-view button.projects-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 .projects-view label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 13px; }
-.projects-view input, .projects-view select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; color: var(--projects-text); background: var(--code-bg, #131d2d); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.projects-view input, .projects-view select { width: 100%; min-width: 0; min-height: 44px; padding: 10px; color: var(--projects-text); background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; font: inherit; }
 .projects-view input::placeholder { color: var(--muted); opacity: 1; }
-.projects-view :focus-visible { outline: 2px solid var(--focus, #e2e8f0); outline-offset: 3px; }
+.projects-view :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .projects-layout { display: grid; grid-template-columns: minmax(210px, 270px) minmax(0, 1fr); gap: 20px; align-items: start; }
 .projects-sidebar, .projects-detail, .projects-register { min-width: 0; padding: 20px; background: var(--projects-surface); border: 1px solid var(--border); border-radius: 12px; }
 .projects-view .projects-search { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 16px; }
 .projects-search input { min-width: 0; }
 .projects-list { display: grid; gap: 8px; margin-bottom: 12px; }
 .projects-list > button { justify-content: flex-start; width: 100%; padding: 12px; text-align: start; }
-.projects-list > button[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft, #153a2c); }
+.projects-list > button[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
 .projects-list span { min-width: 0; }
 .projects-list strong, .projects-list small { display: block; overflow-wrap: anywhere; }
 .projects-list small { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -29,10 +29,10 @@
 .projects-location > div { flex: 1; min-width: 0; }
 .projects-location strong, .projects-location code { display: block; overflow-wrap: anywhere; }
 .projects-location code { color: var(--muted); font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
-.projects-status { font-size: 12px; color: var(--warn, #fcd34d); }
-.projects-status.is-online { color: var(--good, #86efac); }
+.projects-status { font-size: 12px; color: var(--warn); }
+.projects-status.is-online { color: var(--good); }
 .projects-snapshot { display: flex; gap: 10px; padding: 14px; margin: 0 0 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised, var(--projects-surface)); }
-.projects-snapshot > svg { flex-shrink: 0; margin-top: 2px; color: var(--warn, #fcd34d); }
+.projects-snapshot > svg { flex-shrink: 0; margin-top: 2px; color: var(--warn); }
 .projects-snapshot > div { min-width: 0; }
 .projects-snapshot p { margin: 6px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .projects-sessions { list-style: none; padding: 0; margin: 0 0 16px; }
@@ -47,7 +47,7 @@
 .projects-register .projects-heading { margin: 0; }
 .projects-register p { font-size: 13px; color: var(--muted); margin: 0; }
 .projects-register > button { justify-self: start; }
-.projects-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; border: 1px solid var(--bad, #fda4af); background: var(--bad-bg, #3c202c); padding: 12px; border-radius: 8px; color: var(--bad, #fda4af); overflow-wrap: anywhere; }
+.projects-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; border: 1px solid var(--bad); background: var(--bad-bg); padding: 12px; border-radius: 8px; color: var(--bad); overflow-wrap: anywhere; }
 .projects-empty { display: grid; justify-items: center; text-align: center; gap: 16px; padding: 32px 12px; }
 .projects-empty p { color: var(--muted); max-width: 440px; margin: 0; }
 .projects-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -93,7 +93,7 @@
 .projects-handoff-fields legend { padding: 0 6px; font-weight: 600; }
 .projects-handoff-fields p, .projects-continuation p { margin: 0; overflow-wrap: anywhere; line-height: 1.6; }
 .projects-handoff-fields small { color: var(--muted); }
-.projects-view textarea { width: 100%; min-width: 0; padding: 12px; color: var(--projects-text); background: var(--code-bg, #131d2d); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 16px; line-height: 1.5; resize: vertical; }
+.projects-view textarea { width: 100%; min-width: 0; padding: 12px; color: var(--projects-text); background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 16px; line-height: 1.5; resize: vertical; }
 .projects-view textarea[aria-invalid=true] { border-color: var(--bad); }
 .projects-handoff-review h4 { margin: 16px 0 6px; }
 .projects-handoff-review p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 16px; line-height: 1.6; }
@@ -108,6 +108,6 @@
 .projects-continuation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .projects-continuation-review, .projects-continuation-output { display: grid; gap: 16px; min-width: 0; }
 .projects-continuation-review h4 { margin: 0; }
-.projects-handoff-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; max-height: 320px; overflow: auto; padding: 12px; margin: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg, #131d2d); color: var(--projects-text); font-size: 13px; line-height: 1.6; }
+.projects-handoff-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; max-height: 320px; overflow: auto; padding: 12px; margin: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); color: var(--projects-text); font-size: 13px; line-height: 1.6; }
 .projects-continuation-output details { padding-bottom: 12px; }
 @media (max-width: 600px) { .projects-continuation { padding: 14px; } .projects-continuation-fields { grid-template-columns: minmax(0, 1fr); } .projects-continuation select { font-size: 16px; } .projects-handoff-fields { padding: 12px; } }

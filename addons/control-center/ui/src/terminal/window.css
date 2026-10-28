@@ -10,7 +10,7 @@
 .terminal-window:focus { outline: none; }
 .terminal-window:focus-within { border-color: var(--muted); }
 .terminal-window.is-moving { user-select: none; }
-.terminal-window-head { display: flex; align-items: center; justify-content: space-between; height: 48px; min-height: 48px; padding: 2px 6px 2px 12px; gap: 8px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+.terminal-window-head { display: flex; align-items: center; justify-content: space-between; height: 40px; min-height: 40px; padding: 2px 6px 2px 12px; gap: 8px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
 .terminal-window-drag { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--muted); text-align: left; cursor: grab; touch-action: none; border-radius: 5px; }
 .terminal-window-drag:active { cursor: grabbing; }
 .terminal-window-drag strong { font-size: 13px; color: var(--text); font-weight: 550; white-space: nowrap; }

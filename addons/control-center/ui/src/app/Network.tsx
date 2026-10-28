@@ -96,7 +96,7 @@ export function NetworkPage() {
       </div>}
       <Switch label={t("公共中继后备", "Public relay fallback")} detail={t("自己的中继不可用时，使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable.")} checked={status.n0_fallback} disabled={busy} onChange={n0_fallback => void save({ n0_fallback })} />
       <Row title={t("这台设备作为中继", "This device as a relay")} detail={status.this_relay.enabled ? (status.this_relay.public_url || t("运行中（未设置公网地址）", "Running (no public address)"))
-        : <>{t("未开启。在有公网 HTTPS 入口的机器上运行 ", "Off. On a machine with a public HTTPS address, run ")}<code>cranibox serve --public-url https://…</code></>}>
+        : <details className="cx-inline-details"><summary>{t("未开启（查看自建命令）", "Off (view self-host command)")}</summary><small className="cx-muted">{t("在有公网 HTTPS 入口的机器上运行 ", "On a machine with a public HTTPS address, run ")}<code>cranibox serve --public-url https://…</code></small></details>}>
         <Pill tone={status.this_relay.enabled ? "good" : ""}>{status.this_relay.enabled ? t("开启", "On") : t("关闭", "Off")}</Pill>
       </Row>
     </section>}

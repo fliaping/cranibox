@@ -1,4 +1,4 @@
-.direct-devices { --direct-surface: var(--surface, var(--card, #1b2336)); --direct-text: var(--text, #f8fafc); min-width: 0; margin: 0 0 28px; color: var(--direct-text); }
+.direct-devices { --direct-surface: var(--surface); --direct-text: var(--text); min-width: 0; margin: 0 0 28px; color: var(--direct-text); }
 .direct-devices h2, .direct-devices h3, .direct-devices p { margin: 0; overflow-wrap: anywhere; }
 .direct-devices h2 { font-size: 20px; } .direct-devices h3 { font-size: 16px; }
 .direct-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
@@ -6,14 +6,14 @@
 .direct-heading p, .direct-note, .direct-probe small, .direct-list small { color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .direct-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .direct-devices button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--direct-surface); color: var(--direct-text); cursor: pointer; font: inherit; transition: background 180ms, border-color 180ms; }
-.direct-devices button:hover:not(:disabled) { background: var(--surface-raised, #334155); }
+.direct-devices button:hover:not(:disabled) { background: var(--surface-raised); }
 .direct-devices button:disabled { opacity: .5; cursor: not-allowed; }
-.direct-devices button.direct-primary { justify-self: start; background: var(--accent); color: var(--on-accent, #0f172a); font-weight: 600; }
-.direct-devices button.direct-primary:hover:not(:disabled) { background: var(--accent-hover, #4ade80); }
-.direct-devices :focus-visible { outline: 2px solid var(--focus, #e2e8f0); outline-offset: 3px; }
+.direct-devices button.direct-primary { justify-self: start; background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
+.direct-devices button.direct-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.direct-devices :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .direct-devices form { display: grid; gap: 16px; margin: 0; }
 .direct-devices label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; }
-.direct-devices input:not([type=checkbox]), .direct-devices textarea, .direct-devices select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--code-bg, #131d2d); color: var(--direct-text); font: inherit; }
+.direct-devices input:not([type=checkbox]), .direct-devices textarea, .direct-devices select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--code-bg); color: var(--direct-text); font: inherit; }
 .direct-devices textarea { resize: vertical; } .direct-devices input::placeholder { color: var(--muted); }
 .direct-devices .direct-check { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .direct-check input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--accent); }
@@ -29,8 +29,8 @@
 .direct-detail > .direct-actions { margin: 16px 0; }
 .direct-command, .direct-jobs { padding-top: 20px; border-top: 1px solid var(--border); }
 .direct-jobs { display: grid; gap: 12px; margin-top: 20px; } .direct-jobs .direct-heading { margin: 0; align-items: center; }
-.direct-devices pre { min-height: 64px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; margin: 0; border-radius: 8px; background: var(--code-bg, #131d2d); color: var(--direct-text); font: 13px/1.6 ui-monospace, monospace; }
-.direct-devices .direct-error { padding: 12px; margin-bottom: 12px; border: 1px solid var(--danger, #e87888); border-radius: 8px; color: var(--direct-text); overflow-wrap: anywhere; }
+.direct-devices pre { min-height: 64px; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; margin: 0; border-radius: 8px; background: var(--code-bg); color: var(--direct-text); font: 13px/1.6 ui-monospace, monospace; }
+.direct-devices .direct-error { padding: 12px; margin-bottom: 12px; border: 1px solid var(--bad); border-radius: 8px; color: var(--direct-text); overflow-wrap: anywhere; }
 .direct-devices > .direct-note { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .direct-empty { text-align: center; } .direct-empty svg { margin-bottom: 8px; color: var(--muted); } .direct-empty p { margin-top: 8px; font-size: 14px; color: var(--muted); }
 @media(max-width:900px) { .direct-layout { grid-template-columns: 1fr; } .direct-list { grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); } }
@@ -54,7 +54,7 @@
 .browser-sharing > summary { cursor: pointer; min-height: 44px; font-weight: 600; line-height: 1.5; }
 .browser-sharing > summary svg { vertical-align: middle; margin-inline-end: 4px; }
 .browser-sharing > div { display: grid; gap: 14px; padding-top: 8px; min-width: 0; }
-.browser-command { display: block; padding: 12px; margin-block: 12px; background: var(--code-bg, #131d2d); border-radius: 8px; overflow-wrap: anywhere; user-select: all; font-size: 13px; line-height: 1.6; }
+.browser-command { display: block; padding: 12px; margin-block: 12px; background: var(--code-bg); border-radius: 8px; overflow-wrap: anywhere; user-select: all; font-size: 13px; line-height: 1.6; }
 .direct-grant-form > form { display: grid; gap: 12px; min-width: 0; }
 .direct-grant-form fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
 .direct-grant-form legend { font-size: 14px; padding: 0 6px; }
@@ -90,5 +90,5 @@
 .direct-pairing code { user-select: all; color: var(--direct-text); font-variant-numeric: tabular-nums; }
 .direct-pairing label { display: inline-flex; align-items: center; gap: 6px; }
 .direct-pairing input { width: 15ch; }
-.direct-pairing-pending { color: var(--danger, #e87888); }
+.direct-pairing-pending { color: var(--bad); }
 .direct-pairing-verified { color: var(--accent); }

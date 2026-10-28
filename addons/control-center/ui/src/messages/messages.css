@@ -40,3 +40,8 @@
 .messages-held h3 span { font-size: 12px; font-variant-numeric: tabular-nums; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; }
 .messages-held > .direct-note { margin-bottom: 12px; }
 .message-held-reason { margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+
+/* Compact guidance block on desktop while keeping heading & action buttons */
+.messages-guidance { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); align-items: center; }
+.messages-guidance p { display: none; }
+.messages-guidance button { margin-top: 8px; }

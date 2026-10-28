@@ -2,13 +2,22 @@ import { Bot, MessagesSquare, Plus, Sparkles } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { agentNames, type SignIn } from "../personal/api";
 import { useApp } from "./store";
-import { Card, Empty, Pill, Section, Sheet } from "./ui";
+import { Card, Empty, formatDeviceLabel, Pill, Section, Sheet } from "./ui";
+
+const agentStyle: Record<string, { code: string; bg: string; fg: string }> = {
+  "deepseek-harness": { code: "DS", bg: "rgba(37, 99, 235, 0.12)", fg: "#2563eb" },
+  "codex": { code: "CX", bg: "rgba(16, 185, 129, 0.12)", fg: "#059669" },
+  "claude-code": { code: "CC", bg: "rgba(217, 119, 6, 0.14)", fg: "#d97706" },
+  "pi": { code: "PI", bg: "rgba(124, 58, 237, 0.12)", fg: "#7c3aed" },
+  "hermes": { code: "HM", bg: "rgba(225, 29, 72, 0.12)", fg: "#e11d48" },
+  "openclaw": { code: "OC", bg: "rgba(8, 145, 178, 0.12)", fg: "#0891b2" },
+};
 
 export function AgentPicker() {
   const { t, agents, models, busy, run, api } = useApp();
   const available = models.filter(model => model.availability.kind !== "unavailable");
   return <div className="cx-list">{agents.map(agent => <div className="cx-list-row pa-agent-row" key={agent.id}>
-    <span className="cx-card-icon"><Bot size={19} aria-hidden="true" /></span>
+    {(() => { const s = agentStyle[agent.id]; return s ? <span className="cx-card-icon" style={{ background: s.bg, color: s.fg, fontWeight: 700, fontSize: 12, fontFamily: "var(--mono)" }} aria-hidden="true">{s.code}</span> : <span className="cx-card-icon"><Bot size={19} aria-hidden="true" /></span>; })()}
     <div className="cx-grow"><strong>{agentNames[agent.id] || agent.id}</strong>
       <div className="cx-row cx-wrap">{agent.recommended && <Pill tone="good">{t("推荐 · 默认", "Recommended · Default")}</Pill>}<small className="cx-muted">{agent.installed ? t("已安装", "Installed") : t("未安装", "Not installed")}</small></div></div>
     <label><span className="cx-sr">{(agentNames[agent.id] || agent.id) + t("使用的模型", " model")}</span>
@@ -40,12 +49,19 @@ export function Models({ chatUrl, adding, setAdding }: { chatUrl: string; adding
         {account.kind === "claude_oauth" ? <>
           <p className="cx-muted">{t("凭据只保留在一台设备上，不同步到其他设备。", "Credentials stay on one device and never sync to the others.")}</p>
           <label className="cx-field">{t("保存 Claude 凭据的设备", "Device holding Claude credentials")}<select disabled={busy} value={devices.find(device => device.badges.includes("claude"))?.node_id || account.home_node}
-            onChange={event => void run(() => api.call("POST", "/models/claude/set-node", { node: event.target.value }))}>{mine.map(device => <option key={device.node_id} value={device.node_id}>{device.name}</option>)}</select></label>
+            onChange={event => void run(() => api.call("POST", "/models/claude/set-node", { node: event.target.value }))}>{mine.map(device => <option key={device.node_id} value={device.node_id}>{formatDeviceLabel(device.name, device.node_id, t).label}</option>)}</select></label>
         </> : <div style={{ marginTop: 8 }}>
-          <label className="cx-check"><input type="checkbox" disabled={busy || !thisDevice} checked={account.all_nodes || account.enabled_on.includes(thisDevice?.node_id || "")} onChange={event => void enable(account.id, { node: thisDevice?.node_id, all_nodes: null, on: event.target.checked })} />{t("在本机启用", "Enable on this device")}</label>
-          <label className="cx-check"><input type="checkbox" disabled={busy} checked={account.all_nodes} onChange={event => void enable(account.id, { node: null, all_nodes: true, on: event.target.checked })} />{t("在所有设备启用", "Enable on all devices")}</label>
-          <details><summary>{t("逐台选择设备", "Choose devices individually")}</summary>
-            {mine.map(device => <label className="cx-check" key={device.node_id}><input type="checkbox" disabled={busy || account.all_nodes} checked={account.all_nodes || account.enabled_on.includes(device.node_id)} onChange={event => void enable(account.id, { node: device.node_id, all_nodes: null, on: event.target.checked })} />{device.name}</label>)}
+          <div className="cx-segment" role="group" aria-label={t("可用设备范围", "Device scope")} style={{ marginBottom: 8 }}>
+            <button type="button" disabled={busy || !thisDevice} aria-pressed={!account.all_nodes && account.enabled_on.includes(thisDevice?.node_id || "") && account.enabled_on.length <= 1} onClick={() => void enable(account.id, { node: thisDevice?.node_id, all_nodes: false, on: true })}>{t("仅本机", "This device")}</button>
+            <button type="button" disabled={busy} aria-pressed={account.all_nodes} onClick={() => void enable(account.id, { node: null, all_nodes: true, on: true })}>{t("所有设备", "All devices")}</button>
+            <button type="button" disabled={busy} aria-pressed={!account.all_nodes && account.enabled_on.length > 1} onClick={() => void enable(account.id, { node: null, all_nodes: false, on: false })}>{t("指定设备", "Selected devices")}</button>
+          </div>
+          <div className="cx-sr">
+            <label className="cx-check"><input type="checkbox" disabled={busy || !thisDevice} checked={account.all_nodes || account.enabled_on.includes(thisDevice?.node_id || "")} onChange={event => void enable(account.id, { node: thisDevice?.node_id, all_nodes: null, on: event.target.checked })} />{t("在本机启用", "Enable on this device")}</label>
+            <label className="cx-check"><input type="checkbox" disabled={busy} checked={account.all_nodes} onChange={event => void enable(account.id, { node: null, all_nodes: true, on: event.target.checked })} />{t("在所有设备启用", "Enable on all devices")}</label>
+          </div>
+          <details open={!account.all_nodes && account.enabled_on.length > 1}><summary>{t("逐台选择设备", "Choose devices individually")}</summary>
+            {mine.map(device => { const info = formatDeviceLabel(device.name, device.node_id, t); return <label className="cx-check" key={device.node_id}><input type="checkbox" disabled={busy || account.all_nodes} checked={account.all_nodes || account.enabled_on.includes(device.node_id)} onChange={event => void enable(account.id, { node: device.node_id, all_nodes: null, on: event.target.checked })} />{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</label>; })}
           </details>
         </div>}
         {account.state.kind === "needs_sign_in" && <button className="cx-btn" style={{ marginTop: 12 }} onClick={() => { setPreset(account.provider); setAdding(true); }}>{t("重新登录", "Sign in again")}</button>}

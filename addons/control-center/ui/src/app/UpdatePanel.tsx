@@ -14,6 +14,21 @@ const inProgress = (reason: string) => reason.includes("already in progress");
 const confirmed = (data: NodeUpdate, target: string | null) => !!target && data.runtime.version === target && data.runtime.state === "confirmed";
 const message = (problem: unknown) => problem instanceof Error ? problem.message : String(problem);
 type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number };
+const isLauncherReason = (reason: string) => /not started by the cranibox launcher|cranibox update launch/i.test(reason);
+function renderUpdateReason(reason: string, t: (zh: string, en: string) => string) {
+  if (isLauncherReason(reason)) {
+    return <>
+      <span>{t("当前进程未通过启动器运行，暂不支持自动就地重启更新。", "Started outside the Cranibox launcher — automatic in-place restart is unavailable.")}</span>
+      <details className="cx-inline-details" style={{ marginTop: 4 }}>
+        <summary>{t("如何通过启动器运行", "How to start with the launcher")}</summary>
+        <small className="cx-muted">{t("使用启动器命令运行进程即可启用自动更新：", "Start the process with the launcher command:")} <code>cranibox update launch</code></small>
+      </details>
+      <span className="cx-sr"> {reason}</span>
+    </>;
+  }
+  return reason;
+}
+
 
 /** Remount between peers so an old request cannot update the new panel. */
 export function UpdatePanel({ node }: { node: string }) {
@@ -157,7 +172,12 @@ function DeviceUpdates({ node }: { node: string }) {
       {data.runtime.reasons.some(inProgress) && !watch && <p role="status" className="cx-muted cx-small">{data.runtime.state === "pending"
         ? t("新版本已启动，稳定运行约 20 秒后自动确认；确认前不能开始新的更新。", "The new version is running and is confirmed after about 20 seconds of stable operation. A new update can start after that.")
         : t("正在更新，完成前不能开始新的更新。", "An update is in progress. A new update can start after it finishes.")}</p>}
-      {!data.runtime.can_update && data.runtime.reasons.some(reason => !inProgress(reason)) && <Alert tone="warn">{t("这台设备目前无法自行更新。", "This device cannot update itself right now.")}<ul>{data.runtime.reasons.filter(reason => !inProgress(reason)).map((reason, index) => <li key={index}>{reason}</li>)}</ul></Alert>}
+      {!data.runtime.can_update && data.runtime.reasons.some(reason => !inProgress(reason)) && (() => {
+        const blockers = data.runtime.reasons.filter(reason => !inProgress(reason));
+        return blockers.length === 1 && isLauncherReason(blockers[0])
+          ? <Alert tone="info">{renderUpdateReason(blockers[0], t)}</Alert>
+          : <Alert tone="warn">{t("这台设备目前无法自行更新。", "This device cannot update itself right now.")}<ul>{blockers.map((reason, index) => <li key={index}>{renderUpdateReason(reason, t)}</li>)}</ul></Alert>;
+      })()}
       {data.available_error && <Alert tone="info">{data.available_error}</Alert>}
       {data.available && <label className="cx-field">{t("更新频道", "Update channel")}<select value={channel} disabled={locked} onChange={event => setChannel(event.target.value as UpdateChannel)}>
         {channels.map(item => <option key={item} value={item}>{item} · {data.available?.[item] || t("暂无可用版本", "No version available")}</option>)}

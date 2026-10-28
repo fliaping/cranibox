@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom';
 import { useApp } from '../app/store';
 import { useTerminalDevices } from '../app/targets';
-import { Alert, capabilityName, Card, isThis, Pill } from '../app/ui';
+import { Alert, capabilityName, Card, formatDeviceLabel, isThis, Pill } from '../app/ui';
 import type { Device } from '../personal/api';
 import { accessWaits, subscribeAccessWaits, type AccessWait } from './request';
 import { capabilities, groups, type AccessRequest, type AuditView, type Capability, type Mode, type Modes } from './types';
@@ -66,7 +66,7 @@ export function AccessLog({ initialNode = '' }: { initialNode?: string }) {
       <label className="cx-field">{t('能力', 'Capability')}<select value={capability} onChange={event => setCapability(event.target.value)}><option value="">{t('全部能力', 'All capabilities')}</option>{capabilities.map(cap => <option key={cap} value={cap}>{capabilityName(cap, t)}</option>)}</select></label></div>
     {error && <Alert>{error}</Alert>}
     {data && <><p role="status"><Pill tone={data.verified ? 'good' : 'bad'}>{data.verified ? t('记录完整', 'Log verified') : t('记录可能被篡改（第 ' + data.broken_index + ' 条）', 'Log may have been tampered with (entry ' + data.broken_index + ')')}</Pill></p>
-      <ul className="cx-access-log">{data.entries.map(entry => <li key={entry.index}><div><strong>{entry.name && entry.name !== entry.from ? entry.name : entry.from ? displayName(entry.from) : t('本机', 'This device')}</strong> · {entry.capability ? capabilityName(entry.capability, t) : '—'}</div><div>{eventName(entry.event, t)} · <time dateTime={new Date(entry.at * 1000).toISOString()}>{new Date(entry.at * 1000).toLocaleString()}</time></div><small className="cx-muted">#{entry.index} · {entry.result}{entry.basis && ' · ' + entry.basis}</small></li>)}</ul>
+      <ul className="cx-access-log">{data.entries.map(entry => <li key={entry.index}><div><strong>{entry.name && entry.name !== entry.from ? entry.name : entry.from ? displayName(entry.from) : t('本机', 'This device')}</strong> · {entry.capability ? capabilityName(entry.capability, t) : '—'}</div><div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={entry.result === 'allow' || entry.event === 'approved' ? 'good' : entry.result === 'deny' || entry.event === 'denied' || entry.event === 'refused' ? 'bad' : ''}>{eventName(entry.event, t)}</Pill> · <time dateTime={new Date(entry.at * 1000).toISOString()}>{new Date(entry.at * 1000).toLocaleString()}</time></div><small className="cx-muted cx-sr">#{entry.index} · {entry.result}{entry.basis && ' · ' + entry.basis}</small></li>)}</ul>
       {!data.entries.length && <p className="cx-muted">{t('暂无记录', 'No entries')}</p>}
       {more && <button className="cx-btn" disabled={busy} onClick={() => void load(data.entries.at(-1)?.index)}>{t('更早记录', 'Older entries')}</button>}
     </>}
@@ -114,6 +114,7 @@ export function AccessSurfaces() {
 function ApprovalDialog({ request, name, left, busy, error, decide }: { request: AccessRequest; name: string; left: number; busy: boolean; error: string; decide: (scope?: string) => void }) {
   const { t } = useApp(), title = useId(), dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { const element = dialog.current, restore = document.activeElement as HTMLElement | null; element?.showModal(); return () => { element?.close(); if (restore?.isConnected) restore.focus(); }; }, []);
+  const peerLabel = formatDeviceLabel(name, request.from, t);
   return <dialog ref={dialog} className="cx-sheet cx-access-dialog" aria-labelledby={title} onCancel={event => event.preventDefault()} onKeyDown={event => {
     if (event.key !== 'Tab') return;
     const buttons = dialog.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
@@ -122,7 +123,25 @@ function ApprovalDialog({ request, name, left, busy, error, decide }: { request:
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }}>
-    <div className="cx-sheet-head"><h2 id={title}>{t(name + ' 请求使用 ' + capabilityName(request.capability, t), name + ' requests ' + capabilityName(request.capability, t))}</h2></div>
-    <div className="cx-sheet-body"><p className="cx-mono">{request.from}</p><p>{t('仅在你同意后，对方才能在本设备上使用此功能。', 'This device can use this function here only after you approve.')}</p><p role="timer">{t('剩余 ' + left + ' 秒', left + ' seconds left')}</p>{error && <Alert>{error}</Alert>}<div className="cx-actions"><button autoFocus className="cx-btn" disabled={busy} onClick={() => decide()}>{t('拒绝', 'Deny')}</button>{[['session', t('允许本次', 'Allow once')], ['30m', t('允许 30 分钟', 'Allow 30 minutes')], ['8h', t('允许 8 小时', 'Allow 8 hours')]].map(([scope, label]) => <button className="cx-btn primary" key={scope} disabled={busy} onClick={() => decide(scope)}>{label}</button>)}</div></div>
+    <div className="cx-sheet-head">
+      <div className="cx-access-head-title">
+        <h2 id={title}>{t(peerLabel.label + ' 请求使用 ' + capabilityName(request.capability, t), peerLabel.label + ' requests ' + capabilityName(request.capability, t))}</h2>
+        <div className="cx-access-peer-meta">
+          {peerLabel.shortId && <span className="cx-id-pill">{peerLabel.shortId}</span>}
+          <span className="cx-sr">{request.from}</span>
+        </div>
+      </div>
+      <span className="cx-timer-pill" role="timer">{t('剩余 ' + left + ' 秒', left + ' seconds left')}</span>
+    </div>
+    <div className="cx-sheet-body">
+      <p className="cx-muted">{t('仅在你同意后，对方才能在本设备上使用此功能。', 'This device can use this function here only after you approve.')}</p>
+      {error && <Alert>{error}</Alert>}
+      <div className="cx-actions cx-approval-actions">
+        <button autoFocus className="cx-btn cx-approval-deny" disabled={busy} onClick={() => decide()}>{t('拒绝', 'Deny')}</button>
+        {([['session', t('允许本次', 'Allow once')], ['30m', t('允许 30 分钟', 'Allow 30 minutes')], ['8h', t('允许 8 小时', 'Allow 8 hours')]] as const).map(([scope, label]) => (
+          <button className={scope === 'session' ? 'cx-btn primary' : 'cx-btn'} key={scope} disabled={busy} onClick={() => decide(scope)}>{label}</button>
+        ))}
+      </div>
+    </div>
   </dialog>;
 }

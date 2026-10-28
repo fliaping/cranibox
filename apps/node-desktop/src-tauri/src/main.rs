@@ -93,7 +93,11 @@ fn create_main(
     }
     config.visible = true;
     config.focus = true;
-    tauri::WebviewWindowBuilder::from_config(app, &config)?.build()?;
+    tauri::WebviewWindowBuilder::from_config(app, &config)?
+        .icon(tauri::image::Image::from_bytes(include_bytes!(
+            "../icons/128x128.png"
+        ))?)?
+        .build()?;
     Ok(())
 }
 /// A page that lost its session (the runtime restarted, or the cookie was dropped)
@@ -259,6 +263,9 @@ fn open_terminal(app: &tauri::AppHandle, sign_in: &str, body: &Value) -> anyhow:
         .title("Terminal · Cranibox")
         .inner_size(1100.0, 700.0)
         .min_inner_size(520.0, 320.0)
+        .icon(tauri::image::Image::from_bytes(include_bytes!(
+            "../icons/128x128.png"
+        ))?)?
         .build()?;
     Ok(())
 }
