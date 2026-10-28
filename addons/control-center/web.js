@@ -35800,27 +35800,41 @@ function Jv({ item: e, pending: t, act: n }) {
 					}, e.id)),
 					g.length > 0 && /* @__PURE__ */ (0, J.jsxs)("div", {
 						className: "cx-actions",
-						children: [h("request_permissions") && /* @__PURE__ */ (0, J.jsxs)("button", {
-							className: "cx-btn small primary",
-							disabled: m,
-							onClick: () => void n(e, "request_permissions"),
-							children: [/* @__PURE__ */ (0, J.jsx)(Jo, {
-								size: 14,
-								"aria-hidden": "true"
-							}), r("去授权", "Grant access")]
-						}), h("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
-							className: "cx-btn small",
-							disabled: m,
-							onClick: () => void n(e, "open_settings"),
-							children: [/* @__PURE__ */ (0, J.jsx)(zi, {
-								size: 14,
-								"aria-hidden": "true"
-							}), r("打开系统设置", "Open System Settings")]
-						})]
+						children: [
+							h("request_permissions") && /* @__PURE__ */ (0, J.jsxs)("button", {
+								className: "cx-btn small primary",
+								disabled: m,
+								onClick: () => void n(e, "request_permissions"),
+								children: [/* @__PURE__ */ (0, J.jsx)(Jo, {
+									size: 14,
+									"aria-hidden": "true"
+								}), r("去授权", "Grant access")]
+							}),
+							h("open_settings") && /* @__PURE__ */ (0, J.jsxs)("button", {
+								className: "cx-btn small",
+								disabled: m,
+								onClick: () => void n(e, "open_settings"),
+								children: [/* @__PURE__ */ (0, J.jsx)(zi, {
+									size: 14,
+									"aria-hidden": "true"
+								}), r("打开系统设置", "Open System Settings")]
+							}),
+							h("reset_permissions") && /* @__PURE__ */ (0, J.jsxs)("button", {
+								className: "cx-btn small",
+								disabled: m,
+								onClick: async () => {
+									await tl(r("删除系统里 Cranibox 的「屏幕录制」和「辅助功能」记录，然后重新请求授权？其他应用的授权不受影响。", "Remove Cranibox's Screen Recording and Accessibility records from macOS, then ask again? Other apps' permissions are not affected.")) && n(e, "reset_permissions");
+								},
+								children: [/* @__PURE__ */ (0, J.jsx)(Oo, {
+									size: 14,
+									"aria-hidden": "true"
+								}), r("重置授权记录", "Reset permission records")]
+							})
+						]
 					}),
 					g.length > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
 						className: "cx-muted cx-small",
-						children: e.provider.kind === "cua-embedded" ? r("请为 Cranibox 开启「屏幕录制」和「辅助功能」。若开关已打开仍未生效，请重启 Cranibox，让应用和内嵌驱动重新读取权限。关闭窗口只会隐藏到托盘。", "Enable Screen Recording and Accessibility for Cranibox. If the switches are already on, restart Cranibox so the app and embedded driver reload their permissions. Closing the window only hides it in the tray.") : r("请为提供者应用 CuaDriver 开启「屏幕录制」和「辅助功能」，然后停止并重新启动驱动，再点击「重新检测」。", "Enable Screen Recording and Accessibility for the provider app CuaDriver, then stop and start the driver and check again.")
+						children: e.provider.kind === "cua-embedded" ? r("请为 Cranibox 开启「屏幕录制」和「辅助功能」，然后重启 Cranibox（屏幕录制在重启后生效；关闭窗口不会退出，它仍在菜单栏运行）。若列表里没有 Cranibox，点「+」选择「应用程序」中的 Cranibox。若开关已打开、重启后仍显示未授权，通常是旧安装留下的记录与当前签名不符：点「重置授权记录」后重新授权，再重启。", "Turn on Screen Recording and Accessibility for Cranibox, then restart Cranibox (Screen Recording applies after a restart; closing the window keeps it running in the menu bar). If Cranibox is not listed, click + and choose Cranibox in Applications. If the switches are on and it still shows not granted after a restart, a record from an earlier install usually no longer matches its signature: click Reset permission records, grant again, then restart.") : r("请为提供者应用 CuaDriver 开启「屏幕录制」和「辅助功能」，然后停止并重新启动驱动，再点击「重新检测」。", "Enable Screen Recording and Accessibility for the provider app CuaDriver, then stop and start the driver and check again.")
 					}),
 					e.provider.kind === "cua-embedded" && $n() && /* @__PURE__ */ (0, J.jsxs)("button", {
 						className: "cx-btn small",

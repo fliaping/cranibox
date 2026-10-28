@@ -207,6 +207,26 @@ test('capabilities page shows providers, permissions, sharing and reviews instal
   await expect(page.getByRole('region', { name: 'Browser', exact: true })).toContainText('Profile locked');
 });
 
+test('a granted switch that macOS does not honour can reset Computer Use permission records', async ({ page }) => {
+  const calls: string[] = [];
+  const embedded = { ...capabilities, items: capabilities.items.map(item => item.id === 'computer' ? { ...item, provider: { ...item.provider, kind: 'cua-embedded', installed: true }, actions: ['start', 'enable', 'request_permissions', 'open_settings', 'reset_permissions', 'refresh'] } : item) };
+  await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: embedded }));
+  await page.route('**/api/v1/app/capabilities/*/*', route => {
+    const [, , , , , id, action] = new URL(route.request().url()).pathname.split('/');
+    calls.push(id + ':' + action);
+    return route.fulfill({ json: embedded.items.find(entry => entry.id === id) });
+  });
+  await ready(page, '/app/this');
+  const computer = page.getByRole('region', { name: 'Computer Use', exact: true });
+  await expect(computer).toContainText('If Cranibox is not listed, click +');
+  page.once('dialog', dialog => dialog.dismiss());
+  await computer.getByRole('button', { name: 'Reset permission records', exact: true }).click();
+  expect(calls).toEqual([]);
+  page.once('dialog', dialog => { expect(dialog.message()).toContain("Other apps' permissions are not affected"); void dialog.accept(); });
+  await computer.getByRole('button', { name: 'Reset permission records', exact: true }).click();
+  await expect.poll(() => calls).toEqual(['computer:reset_permissions']);
+});
+
 test('device messages show in Chinese and a stopped Screen Sharing offers its settings', async ({ page }) => {
   const opened: string[] = [];
   const stopped = { ...capabilities, items: capabilities.items.map(item => item.id === 'desktop' ? { ...item, provider: { ...item.provider, kind: 'screen_sharing', running: false, detail: 'Turn on Screen Sharing in System Settings → General → Sharing.' }, actions: ['open_settings', 'refresh'] } : item) };
@@ -385,7 +405,7 @@ for (const embedded of [true, false]) {
       return;
     }
     await expect(computer).toContainText('for Cranibox');
-    await expect(computer).toContainText('Closing the window only hides it in the tray.');
+    await expect(computer).toContainText('closing the window keeps it running in the menu bar');
     await computer.getByRole('button', { name: 'Restart Cranibox', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: 'Restart Cranibox?' });
     await expect(confirmation).toContainText('temporarily disconnects');

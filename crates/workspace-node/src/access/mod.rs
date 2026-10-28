@@ -440,7 +440,7 @@ impl Store {
                 self.refused(state, node, capability, "off", at)?;
                 let target_name = crate::device_info::local().name.clone();
                 let hint = format!(
-                    "On {target_name}, open Settings > Access and allow {} to use {capability}.",
+                    "On {target_name}, open Devices, select {}, and allow {capability} on its Access tab.",
                     self.name(node)
                 );
                 return Ok(Err(Denied::Off {

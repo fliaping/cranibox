@@ -212,7 +212,7 @@ can read approval errors before attempting its WebSocket upgrade. Unused tickets
 after 30 seconds. Both standalone and gateway web adapters preserve remote errors.
 
 ```json
-{"error":"capability_off","capability":"exec","target_name":"Desktop","hint":"On Desktop, open Settings > Access and allow Laptop to use exec."}
+{"error":"capability_off","capability":"exec","target_name":"Desktop","hint":"On Desktop, open Devices, select Laptop, and allow exec on its Access tab."}
 {"error":"approval_required","request_id":"uuid","capability":"terminals","expires_at":1792886520}
 {"error":"approval_cooldown","capability":"terminals","expires_at":1792886460}
 ```

@@ -335,6 +335,12 @@ impl Shell for NativeShell {
                 });
                 Ok(json!({}))
             }
+            // The bundle process raises the macOS prompts so they name this app.
+            "request_permissions" => {
+                anyhow::ensure!(cfg!(target_os = "macos"), "unsupported on this platform");
+                agent_workspace_runtime::peers::computer::cua::embedded::request_permissions();
+                Ok(json!({}))
+            }
             "command_line" => cranibox_node_desktop::command_line::status(),
             "install_command_line" => cranibox_node_desktop::command_line::install().await,
             "mcp_config" => Ok(

@@ -92,6 +92,7 @@ export type PermissionState = "granted" | "denied" | "unknown" | "not_required";
 export type CapabilityAction =
   | "install_plan"
   | "install"
+  | "reset_permissions"
   | "start"
   | "stop"
   | "enable"

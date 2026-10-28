@@ -17,7 +17,7 @@ const ARCHIVE: &str = "cua-driver-rs-0.37.0-darwin-universal-binary.tar.gz";
 const ARCHIVE_SHA256: &str = "7d491f67f54be5f3b380ffd85c64b242eaefd05dad6df78012cde227c95aee2a";
 const ARCHIVE_MAX: u64 = 128 * 1024 * 1024;
 /// The bundle identifier the driver reports as its host (tauri.conf.json).
-const HOST_BUNDLE_ID: &str = "com.cranibox.node";
+pub const HOST_BUNDLE_ID: &str = "com.cranibox.node";
 
 static HOME: OnceLock<PathBuf> = OnceLock::new();
 static DAEMON: Mutex<Option<std::process::Child>> = Mutex::new(None);

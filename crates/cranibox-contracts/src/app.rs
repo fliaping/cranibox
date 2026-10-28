@@ -315,6 +315,10 @@ pub enum CapabilityAction {
     Enable,
     Disable,
     RequestPermissions,
+    /// macOS Computer Use in the app: forget Cranibox's Screen Recording and
+    /// Accessibility records, then ask again. A record kept from an install signed
+    /// differently never matches, even with its switch on.
+    ResetPermissions,
     OpenSettings,
     /// Browser only: share the owner's everyday Chrome (signed-in sessions) instead
     /// of the separate managed browser.

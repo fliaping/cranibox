@@ -376,7 +376,11 @@ impl Service {
                 cua::driver().stop().await;
             }
             (CapabilityId::Computer, RequestPermissions) => {
-                cua::request_permissions(&driver()?).await.map_err(failed)?;
+                request_permissions(&driver()?).await.map_err(failed)?;
+            }
+            (CapabilityId::Computer, ResetPermissions) => {
+                reset_permissions().await.map_err(failed)?;
+                request_permissions(&driver()?).await.map_err(failed)?;
             }
             (CapabilityId::Computer, OpenSettings) => {
                 open(PRIVACY_SETTINGS).await.map_err(failed)?
@@ -750,6 +754,9 @@ impl Service {
             actions.push(if enabled { Disable } else { Enable });
             if cfg!(target_os = "macos") {
                 actions.extend([RequestPermissions, OpenSettings]);
+                if cua::embedded::active() {
+                    actions.push(ResetPermissions);
+                }
             }
         }
         actions.push(Refresh);
@@ -959,6 +966,36 @@ fn not_required() -> Vec<CapabilityPermission> {
             state: PermissionState::NotRequired,
         })
         .into()
+}
+/// Inside the app, its own bundle process asks: macOS adds the app to the Screen
+/// Recording list reliably for the bundle itself, less so for its runtime child.
+async fn request_permissions(driver: &Path) -> Result<()> {
+    if cua::embedded::active()
+        && let Some(shell) = crate::web::http_shell::HttpShell::from_env()?
+        && shell.call("request_permissions", json!({})).await.is_ok()
+    {
+        return Ok(());
+    }
+    cua::request_permissions(driver).await
+}
+/// Forget this app's two TCC records; only its own bundle identifier is touched.
+async fn reset_permissions() -> Result<()> {
+    ensure!(
+        cua::embedded::active(),
+        "Only the Cranibox app on macOS can reset its permissions."
+    );
+    for service in ["ScreenCapture", "Accessibility"] {
+        let status = Command::new("/usr/bin/tccutil")
+            .args(["reset", service, cua::embedded::HOST_BUNDLE_ID])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await
+            .context("run tccutil")?;
+        ensure!(status.success(), "tccutil could not reset {service}");
+    }
+    Ok(())
 }
 fn driver() -> Result<PathBuf, AppError> {
     cua::locate().ok_or_else(|| conflict("Install cua-driver first."))

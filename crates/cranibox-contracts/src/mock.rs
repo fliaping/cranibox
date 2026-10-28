@@ -470,7 +470,7 @@ impl MockAppApi {
             }
             CapabilityAction::Enable => item.sharing.enabled = true,
             CapabilityAction::Disable => item.sharing.enabled = false,
-            CapabilityAction::RequestPermissions => {
+            CapabilityAction::RequestPermissions | CapabilityAction::ResetPermissions => {
                 for permission in &mut item.permissions {
                     permission.state = PermissionState::Granted;
                 }

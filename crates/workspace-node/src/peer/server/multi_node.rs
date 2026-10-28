@@ -711,7 +711,7 @@ mod access_policy {
         let (status, body) = f.call("GET", &f.terminal("one"), Value::Null).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
         assert_eq!(body["error"], "capability_off");
-        assert!(body["hint"].as_str().unwrap().contains("Settings > Access"));
+        assert!(body["hint"].as_str().unwrap().contains("Access tab"));
         for capability in ["llm/health", "vault/roster", "update"] {
             let (status, body) = f
                 .call(
