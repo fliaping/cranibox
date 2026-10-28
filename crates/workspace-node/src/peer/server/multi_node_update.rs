@@ -387,7 +387,12 @@ async fn exercise_nodes(root: &FsPath) {
     let pointer = layout.pointer().unwrap().unwrap();
     assert_eq!(pointer.current, "1.0.0");
     assert_eq!(pointer.state, PointerState::Confirmed);
-    assert_eq!(pointer.failed, ["1.0.1"]);
+    assert!(
+        pointer.failed.is_empty(),
+        "an owner's rollback keeps 1.0.1 installable"
+    );
+    assert_eq!(rolled_back["spec"], "rollback");
+    assert!(rolled_back["error"].is_null());
     assert_eq!(a.get(b, &progress_path).await.unwrap(), rolled_back);
     for node in running {
         node.shutdown().await.unwrap();

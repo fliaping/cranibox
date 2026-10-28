@@ -189,9 +189,7 @@ pub(crate) async fn route(
                 Ok(json!({"id":id}))
             }
             Action::Rollback => {
-                let status = updater
-                    .rollback("requested on this device")
-                    .map_err(conflict)?;
+                let status = updater.rollback().map_err(conflict)?;
                 context
                     .tasks
                     .lock()

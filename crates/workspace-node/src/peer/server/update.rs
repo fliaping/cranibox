@@ -149,7 +149,7 @@ pub(super) async fn rollback(
         &access_key,
     )?;
     let status = updater
-        .rollback("requested by an owner device")
+        .rollback()
         .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))?;
     app.tasks
         .lock()

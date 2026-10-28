@@ -6,7 +6,11 @@ import { useApp } from "./store";
 import { Alert, Card, Pill, Sheet } from "./ui";
 
 const channels: UpdateChannel[] = ["latest", "next", "dev"];
-const failed = (status: UpdateStatus | null) => status?.phase === "failed" || status?.phase === "rolled_back";
+/** An owner's rollback; an automatic recovery from an unhealthy version has another spec. */
+const reverted = (status: UpdateStatus | null) => status?.phase === "rolled_back" && status.spec === "rollback";
+const failed = (status: UpdateStatus | null) => status?.phase === "failed" || (status?.phase === "rolled_back" && !reverted(status));
+/** Set while a new version runs but is not yet confirmed healthy; not a blocker to report. */
+const inProgress = (reason: string) => reason.includes("already in progress");
 const confirmed = (data: NodeUpdate, target: string | null) => !!target && data.runtime.version === target && data.runtime.state === "confirmed";
 const message = (problem: unknown) => problem instanceof Error ? problem.message : String(problem);
 type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number };
@@ -36,8 +40,9 @@ function DeviceUpdates({ node }: { node: string }) {
       setCapabilityOff(false);
       setData(value); setStatus(value.status); setTimedOut(false);
       const last = value.status;
-      setUpdated(last?.phase === "done" && confirmed(value, last.to));
-      if (last && !failed(last) && !(last.phase === "done" && confirmed(value, last.to))) begin(last.id, last.to, last.phase);
+      const finished = !!last && (last.phase === "done" || reverted(last)) && confirmed(value, last.to);
+      setUpdated(finished);
+      if (last && !failed(last) && !finished) begin(last.id, last.to, last.phase);
     } catch (problem) {
       if (!alive.current) return;
       const code = problem && typeof problem === "object" && "code" in problem ? String((problem as { code?: unknown }).code) : "";
@@ -75,7 +80,8 @@ function DeviceUpdates({ node }: { node: string }) {
       }
       // Activation may restart the process before its status response reaches us.
       // Consult the overall endpoint even if the per-update record disappeared.
-      if (phase === "activated" || phase === "done" || !current) {
+      // A rollback restarts into the previous version the same way.
+      if (phase === "activated" || phase === "done" || phase === "rolled_back" || !current) {
         setRestarting(true);
         try {
           const value = await api.call<NodeUpdate>("GET", path);
@@ -89,7 +95,7 @@ function DeviceUpdates({ node }: { node: string }) {
           if (confirmed(value, target)) { setError(""); setUpdated(true); finish(); return; }
         } catch (problem) { pollError = message(problem); }
         if (stopped) return;
-        const activating = phase === "activated" || phase === "done";
+        const activating = phase === "activated" || phase === "done" || phase === "rolled_back";
         setRestarting(activating);
         setError(activating ? "" : pollError);
       }
@@ -148,7 +154,10 @@ function DeviceUpdates({ node }: { node: string }) {
       {!data.runtime.managed && <p className="cx-muted">{node === "self"
         ? t("远程更新需要由 Cranibox 管理版本并在更新后重启设备进程。请先在这台设备上启用远程更新，再重启 Cranibox 使其生效。", "Remote updates require Cranibox to manage versions and restart the device process after updating. Enable remote updates on this device, then restart Cranibox to activate them.")
         : t("远程更新需要由 Cranibox 管理版本。请在那台设备上启用远程更新并重启 Cranibox。", "Remote updates require Cranibox to manage versions. Enable remote updates on that device itself and restart Cranibox.")}</p>}
-      {!data.runtime.can_update && <Alert tone="warn">{t("这台设备目前无法自行更新。", "This device cannot update itself right now.")}{data.runtime.reasons.length > 0 && <ul>{data.runtime.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}</Alert>}
+      {data.runtime.reasons.some(inProgress) && !watch && <p role="status" className="cx-muted cx-small">{data.runtime.state === "pending"
+        ? t("新版本已启动，稳定运行约 20 秒后自动确认；确认前不能开始新的更新。", "The new version is running and is confirmed after about 20 seconds of stable operation. A new update can start after that.")
+        : t("正在更新，完成前不能开始新的更新。", "An update is in progress. A new update can start after it finishes.")}</p>}
+      {!data.runtime.can_update && data.runtime.reasons.some(reason => !inProgress(reason)) && <Alert tone="warn">{t("这台设备目前无法自行更新。", "This device cannot update itself right now.")}<ul>{data.runtime.reasons.filter(reason => !inProgress(reason)).map((reason, index) => <li key={index}>{reason}</li>)}</ul></Alert>}
       {data.available_error && <Alert tone="info">{data.available_error}</Alert>}
       {data.available && <label className="cx-field">{t("更新频道", "Update channel")}<select value={channel} disabled={locked} onChange={event => setChannel(event.target.value as UpdateChannel)}>
         {channels.map(item => <option key={item} value={item}>{item} · {data.available?.[item] || t("暂无可用版本", "No version available")}</option>)}
@@ -161,11 +170,13 @@ function DeviceUpdates({ node }: { node: string }) {
       </div>
     </>}
     {(status || watch || updated) && <div className="cx-stack" aria-live="polite">
-      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? t("已更新", "Updated") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {status.from || "—"} → {status.to || status.spec}</span>}</div>
+      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {status.from || "—"} → {status.to || status.spec}</span>}</div>
       {status?.phase === "downloading" && <progress className="cx-update-progress" aria-label={t("下载进度", "Download progress")} max={100} value={progress} />}
       {failed(status) && <Alert>{status?.phase === "rolled_back" && <p>{t("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.")}</p>}{status?.error || (status?.phase === "failed" ? t("更新失败，请重试。", "The update failed. Please try again.") : "")}</Alert>}
     </div>}
-    {restarting && !restartNeeded && <p role="status">{t("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")}</p>}
+    {restarting && !restartNeeded && <p role="status">{reverted(status)
+      ? t("正在重启到上一版本…", "Restarting into the previous version…")
+      : t("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")}</p>}
     {restartNeeded && <Alert tone="info">{t("已启用远程更新。", "Remote updates are enabled. ")}{inShell() && !error
       ? t("正在重启 Cranibox…", "Restarting Cranibox…")
       : <>{t("请重启设备进程：", "Restart the device process with: ")}<code>cranibox update launch</code></>}</Alert>}

@@ -104,7 +104,7 @@ pub async fn run(peers: PathBuf, config: PathBuf, command: Command) -> Result<()
         }
         Command::Rollback { node } => {
             if node.is_empty() {
-                let status = updater(&root)?.rollback("requested on this device")?;
+                let status = updater(&root)?.rollback()?;
                 request_local_restart(&root, status.to.as_deref())?;
                 client::print(json!(status));
             }

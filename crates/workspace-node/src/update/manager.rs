@@ -35,6 +35,9 @@ pub enum Phase {
     RolledBack,
 }
 
+/// The `spec` of a status written by an owner's rollback.
+pub const ROLLBACK_SPEC: &str = "rollback";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Status {
     pub id: String,
@@ -351,8 +354,10 @@ impl Updater {
         Ok(())
     }
 
-    /// Select the previous installed runtime and persist the rollback reason.
-    pub fn rollback(&self, reason: &str) -> Result<Status> {
+    /// An owner's rollback to the previous installed runtime. It is recorded as
+    /// [`ROLLBACK_SPEC`] without an error, unlike an automatic recovery from an
+    /// unhealthy version, and leaves the newer version installable without force.
+    pub fn rollback(&self) -> Result<Status> {
         let _lock = self.lock()?;
         let layout = Layout::new(&self.root);
         let before = layout
@@ -361,15 +366,16 @@ impl Updater {
         let mut status = self.status()?.unwrap_or_else(|| {
             new_status(
                 uuid::Uuid::new_v4().to_string(),
-                "rollback",
+                ROLLBACK_SPEC,
                 Some(before.current.clone()),
             )
         });
-        let pointer = layout.rollback(reason)?;
+        let pointer = layout.revert()?;
+        status.spec = ROLLBACK_SPEC.into();
         status.phase = Phase::RolledBack;
         status.from = Some(before.current);
         status.to = Some(pointer.current);
-        status.error = Some(reason.into());
+        status.error = None;
         self.save(&mut status)?;
         Ok(status)
     }
@@ -796,16 +802,28 @@ pub(crate) mod tests {
         let fixture = Fixture::new("1.0.0", false, false, false).await;
         let updater = fixture.updater();
         let applied = updater.apply("2.0.0", false).await.unwrap();
-        let rolled_back = updater.rollback("health check failed").unwrap();
+        let rolled_back = updater.rollback().unwrap();
         assert!(matches!(rolled_back.phase, Phase::RolledBack));
         assert_eq!(rolled_back.id, applied.id);
+        assert_eq!(rolled_back.spec, ROLLBACK_SPEC);
         assert_eq!(rolled_back.from.as_deref(), Some("2.0.0"));
         assert_eq!(rolled_back.to.as_deref(), Some("1.0.0"));
-        assert_eq!(rolled_back.error.as_deref(), Some("health check failed"));
+        assert_eq!(
+            rolled_back.error, None,
+            "an owner's rollback is not a failure"
+        );
         assert!(matches!(
             fixture.updater().status().unwrap().unwrap().phase,
             Phase::RolledBack
         ));
+        let pointer = fixture.layout().pointer().unwrap().unwrap();
+        assert_eq!(pointer.current, "1.0.0");
+        assert_eq!(pointer.state, PointerState::Confirmed);
+        assert!(pointer.failed.is_empty(), "the version stays installable");
+
+        // An unhealthy version, rolled back by recovery, needs force.
+        updater.apply("2.0.0", false).await.unwrap();
+        fixture.layout().rollback("health check failed").unwrap();
         let before = fixture.layout().pointer().unwrap();
         assert_eq!(before.as_ref().unwrap().failed, ["2.0.0"]);
         assert!(
@@ -868,7 +886,7 @@ pub(crate) mod tests {
                     .to_string()
                     .contains("already in progress")
             );
-            assert!(second.rollback("concurrent").is_err());
+            assert!(second.rollback().is_err());
             assert_eq!(second.status().unwrap().unwrap().id, status.id);
             fixture.release.add_permits(1);
         });

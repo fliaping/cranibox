@@ -22,8 +22,8 @@ async function mock(page: Page, node = 'self', managed = true) {
       expect(request.headers()['x-workspace-csrf']).toBeTruthy();
       if (model.postError) return route.fulfill({ status: 409, json: { code: 'conflict', message: model.postError, status: 409 } });
       if (body.action === 'adopt') return route.fulfill({ json: { adopted: '1.1.0', needs_restart: true } });
-      model.data.status = update(body.action === 'rollback' ? 'activated' : 'resolving');
-      if (body.action === 'rollback') model.data.status.to = '1.0.0';
+      model.data.status = update(body.action === 'rollback' ? 'rolled_back' : 'resolving');
+      if (body.action === 'rollback') Object.assign(model.data.status, { spec: 'rollback', to: '1.0.0' });
       else { model.data.status.spec = body.spec; model.data.status.to = available[body.spec as keyof typeof available]; }
       return route.fulfill({ status: body.action === 'apply' ? 202 : 200, json: body.action === 'apply' ? { id: 'update-1' } : model.data.status });
     }
@@ -77,8 +77,13 @@ test('self managed: channels, progress, restart failures and confirmed target ve
   await expect(panel.getByRole('alert')).toHaveCount(0);
   model.offline = false; model.missing = true;
   model.data.version = '1.2.0'; model.data.runtime.version = '1.2.0'; model.data.runtime.state = 'pending';
+  Object.assign(model.data.runtime, { can_update: false, reasons: ['an update is already in progress'] });
   await page.clock.runFor(2000);
   await expect(panel).toContainText('Awaiting confirmation');
+  // Waiting for the new version to be confirmed is progress, not a reason the device cannot update.
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel).not.toContainText('cannot update itself');
+  Object.assign(model.data.runtime, { can_update: true, reasons: [] });
   await expect(panel.getByText('Updated', { exact: true })).toHaveCount(0);
   model.data.runtime.state = 'confirmed'; model.data.runtime.version = '1.1.0';
   await page.clock.runFor(2000);
@@ -197,9 +202,33 @@ test('rollback requires confirmation and follows the returned update status', as
   await dialog.getByRole('button', { name: 'Confirm rollback' }).click();
   await expect(dialog).not.toBeVisible();
   expect(model.commands).toEqual([{ node: 'self', action: 'rollback' }]);
+  // An owner's rollback is not reported as an unhealthy version.
+  await expect(panel.getByText('Rolling back', { exact: true })).toBeVisible();
+  await page.clock.runFor(2000);
+  await expect(panel).toContainText('Restarting into the previous version');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
   model.data.version = model.data.runtime.version = '1.0.0';
   await page.clock.runFor(2000);
-  await expect(panel.getByText('Updated', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Rolled back', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel).not.toContainText('was not healthy');
+});
+
+test('a reopened panel shows a finished rollback as done', async ({ page }) => {
+  const model = await mock(page);
+  model.data.status = { ...update('rolled_back'), spec: 'rollback', from: '1.2.0', to: '1.1.0' };
+  const panel = await open(page);
+  await expect(panel.getByText('Rolled back', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+});
+
+test('an in-progress update outside this panel is explained without a warning', async ({ page }) => {
+  const model = await mock(page);
+  Object.assign(model.data.runtime, { state: 'pending', can_update: false, reasons: ['an update is already in progress'] });
+  const panel = await open(page);
+  await expect(panel).toContainText('confirmed after about 20 seconds');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
 });
 
 test('restart times out after five minutes even if a poll never answers', async ({ page }) => {

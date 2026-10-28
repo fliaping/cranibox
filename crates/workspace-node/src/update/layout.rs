@@ -226,7 +226,7 @@ impl Layout {
         };
         if let Some(reason) = reason {
             // Check recovery before changing the pointer; an unavailable fallback is never selected.
-            match self.rollback_pointer(&pointer) {
+            match self.rollback_pointer(&pointer, true) {
                 Ok(rolled_back) => {
                     let to = directory_version(&rolled_back.current)?;
                     self.save(&rolled_back)?;
@@ -269,13 +269,23 @@ impl Layout {
         let _lock = self.lock()?;
         let pointer = self.pointer()?.context("no runtime has been activated")?;
         let pointer = self
-            .rollback_pointer(&pointer)
+            .rollback_pointer(&pointer, true)
             .with_context(|| format!("rollback: {reason}"))?;
         self.save(&pointer)?;
         Ok(pointer)
     }
 
-    fn rollback_pointer(&self, pointer: &Pointer) -> Result<Pointer> {
+    /// An owner's deliberate rollback: the version left behind stays installable
+    /// without force, since nothing showed it to be unhealthy.
+    pub fn revert(&self) -> Result<Pointer> {
+        let _lock = self.lock()?;
+        let pointer = self.pointer()?.context("no runtime has been activated")?;
+        let pointer = self.rollback_pointer(&pointer, false).context("rollback")?;
+        self.save(&pointer)?;
+        Ok(pointer)
+    }
+
+    fn rollback_pointer(&self, pointer: &Pointer, failed: bool) -> Result<Pointer> {
         let previous = pointer.previous.as_ref().context("no previous runtime")?;
         ensure!(
             *previous != pointer.current,
@@ -284,7 +294,7 @@ impl Layout {
         let version = directory_version(previous)?;
         ensure_directory(&self.version_dir(&version)).context("previous runtime is unavailable")?;
         let mut recovered = pointer.clone();
-        if !recovered.failed.contains(&pointer.current) {
+        if failed && !recovered.failed.contains(&pointer.current) {
             recovered.failed.push(pointer.current.clone());
         }
         recovered.current = previous.clone();
