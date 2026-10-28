@@ -85,8 +85,9 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
 
 4. 在 npm Settings 为上述七个包**逐个**添加 Trusted Publisher（包须已发布过一次）：
    GitHub repository 为 `fliaping/cranibox`，workflow filename 为 `rust-runtime.yml`，
-   environment 为 `npm`；tag 发布及手动补发还需配置 `distribute.yml` 的发布授权
-   （复用工作流按调用方验证）。流水线已有 `id-token: write` 和 provenance。
+   environment 为 `npm`。tag 发布由 `rust-runtime.yml` 调用 `distribute.yml`，OIDC 按调用方
+   验证，同一配置即可覆盖；每个包只能配一个 Trusted Publisher，因此手动运行
+   `distribute.yml` 补发时不匹配，需用 stage 模式。流水线已有 `id-token: write` 和 provenance。
 
 5. 七个包的 OIDC 配置完成后，dev 频道切换为直接发布：
 
