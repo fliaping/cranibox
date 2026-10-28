@@ -231,9 +231,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/app"
           case "$RUNNER_OS" in
             macOS)
-              bundle=target/release/bundle/macos/Cranibox.app
-              if [ -n "$(find "$bundle" -type l)" ]; then echo "The app bundle contains links" >&2; exit 1; fi
-              tar -czf "$RUNNER_TEMP/app/cranibox-app-darwin-arm64.tar.gz" -C "$(dirname "$bundle")" Cranibox.app ;;
+              # The bundle that ships: the one inside the disk image.
+              dmg=$(ls target/release/bundle/dmg/*.dmg | head -1)
+              mount=$(mktemp -d)
+              hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg" >/dev/null
+              trap 'hdiutil detach "$mount" >/dev/null' EXIT
+              if [ -n "$(find "$mount/Cranibox.app" -type l)" ]; then echo "The app bundle contains links" >&2; exit 1; fi
+              tar -czf "$RUNNER_TEMP/app/cranibox-app-darwin-arm64.tar.gz" -C "$mount" Cranibox.app ;;
             Windows)
               cp "$(ls target/release/bundle/nsis/*.exe | head -1)" "$RUNNER_TEMP/app/cranibox-app-win32-x64-setup.exe" ;;
             Linux)
