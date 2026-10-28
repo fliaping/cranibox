@@ -74,19 +74,29 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    python scripts/release/approve-staged.py --approve
    ```
 
-   脚本仅处理这四个包的所有待审批版本，先列清单，再用 getpass 隐藏输入一次 OTP，
-   按平台包、入口包顺序连续审批。OTP 有效期很短，请一次完成四个包；失败后重跑，
-   使用新的 OTP 处理剩余项。也可运行 `npm stage list @fliaping/cranibox --json`
+   脚本处理这七个包（三个平台包、入口包、三个桌面应用包）的所有待审批版本，先列清单，
+   再逐个审批。默认走浏览器验证（WebAuthn / 通行密钥）：npm 为每个包打印一个
+   `https://www.npmjs.com/auth/cli/...` 链接，在浏览器打开并确认；确认页勾选 5 分钟内
+   不再验证，后续包即可连续完成。使用验证器 App 时传 `--otp <OTP>`，输出会被隐藏。
+   失败后重跑处理剩余项。也可运行 `npm stage list @fliaping/cranibox --json`
    （平台包分别查询）、`npm stage approve <stage-id> --otp <OTP>`，或在 npmjs.com
    对应包页面审批。操作有误时用 `python scripts/release/approve-staged.py --reject`
    批量拒绝（同样需要 2FA），或逐项 `npm stage reject <stage-id> --otp <OTP>`。
 
-4. 在 npm Settings 为入口包及上表三个平台包**逐个**添加 Trusted Publisher：
+4. 在 npm Settings 为上述七个包**逐个**添加 Trusted Publisher（包须已发布过一次）：
    GitHub repository 为 `fliaping/cranibox`，workflow filename 为 `rust-runtime.yml`，
    environment 为 `npm`；tag 发布及手动补发还需配置 `distribute.yml` 的发布授权
    （复用工作流按调用方验证）。流水线已有 `id-token: write` 和 provenance。
 
-5. 四个包的 OIDC 配置完成后，切回直接发布并删除临时 token：
+5. 七个包的 OIDC 配置完成后，dev 频道切换为直接发布：
+
+   ```bash
+   gh variable set CRANIBOX_NPM_DEV_PUBLISH_MODE --body direct --repo fliaping/cranibox
+   ```
+
+   dev 发布（`rust-runtime.yml`）读 `CRANIBOX_NPM_DEV_PUBLISH_MODE`，未设置时为 `direct`；
+   tag 发布（`distribute.yml`）读 `CRANIBOX_NPM_PUBLISH_MODE`，保持 `stage` 则正式版仍需
+   人工审批。两者都改为 direct 后才能删除临时 token：
 
    ```bash
    gh variable set CRANIBOX_NPM_PUBLISH_MODE --body direct --repo fliaping/cranibox
@@ -96,7 +106,7 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    ```
 
    此后 main 的 dev 发布由 GitHub OIDC 自动完成，不需要 token、2FA 或人工审批。
-   `CRANIBOX_NPM_PUBLISH_MODE` 未设置时默认为 `direct`，只接受 `stage` / `direct`。
+   两个变量未设置时默认均为 `direct`，只接受 `stage` / `direct`。
 
 **暂存会占用该 SemVer 版本号，且暂存的 dist-tag 不可修改。** 标签选错需要拒绝后重新
 暂存，并使用新版本号（dev 可通过下一次 main push 生成）；不能覆盖不同内容的同版本。

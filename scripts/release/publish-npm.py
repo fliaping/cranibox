@@ -40,9 +40,9 @@ def stage_summary(outcomes, dry_run, package_name, completed):
             for stage in stages:
                 lines.append(f"  `npm stage approve {shlex.quote(stage['id'])} --otp <OTP>`")
     if pending:
-        lines.append("Approve all four packages in one go with a fresh, short-lived 2FA OTP:")
+        lines.append("Approve all staged packages (confirm in the browser with WebAuthn):")
         lines.append(f"`python scripts/release/approve-staged.py --package-name {shlex.quote(package_name)} --approve`")
-        lines.append("Then configure Trusted Publishing for each package and switch CRANIBOX_NPM_PUBLISH_MODE to direct.")
+        lines.append("Then configure Trusted Publishing for each package and switch CRANIBOX_NPM_DEV_PUBLISH_MODE to direct.")
     elif not dry_run and completed:
         lines.append("No new stages need approval from this invocation.")
     summary = "\n".join(lines) + "\n"

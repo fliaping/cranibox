@@ -519,7 +519,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     env:
-      NPM_PUBLISH_MODE: ${{ vars.CRANIBOX_NPM_PUBLISH_MODE || 'direct' }}
+      # Dev builds publish through Trusted Publishing (OIDC); releases keep their own mode.
+      NPM_PUBLISH_MODE: ${{ vars.CRANIBOX_NPM_DEV_PUBLISH_MODE || 'direct' }}
     permissions:
       id-token: write
       contents: read
@@ -538,9 +539,8 @@ jobs:
         run: |
           set -euo pipefail
           case "$NPM_PUBLISH_MODE" in
-            stage) npm install -g npm@latest ;;
-            direct) ;;
-            *) echo "CRANIBOX_NPM_PUBLISH_MODE must be stage or direct" >&2; exit 1 ;;
+            stage|direct) npm install -g npm@latest ;;
+            *) echo "CRANIBOX_NPM_DEV_PUBLISH_MODE must be stage or direct" >&2; exit 1 ;;
           esac
           npm --version
       - uses: actions/download-artifact@v8
