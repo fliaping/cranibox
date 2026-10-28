@@ -29,7 +29,12 @@ def stage_json(action, value):
             error = {}
         if action == "list" and isinstance(error, dict) and error.get("code") == "E404":
             return []
-        raise RuntimeError(f"npm stage {action} failed for {value} (exit {result.returncode}).")
+        reason = ""
+        if isinstance(error, dict) and error.get("code"):
+            reason = f": {error['code']} {error.get('summary', '')}".rstrip()
+            if error["code"] == "E401":
+                reason += " Run `npm login` and try again"
+        raise RuntimeError(f"npm stage {action} failed for {value} (exit {result.returncode}){reason}.")
     try:
         return json.loads(result.stdout)
     except ValueError:
