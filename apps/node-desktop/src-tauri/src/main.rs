@@ -21,6 +21,12 @@ use tauri::{
 #[cfg(not(target_os = "linux"))]
 use tauri_plugin_autostart::ManagerExt;
 
+/// The published version: CI stamps dev builds, whose source version is the last release.
+const VERSION: &str = match option_env!("CRANIBOX_BUILD_VERSION") {
+    Some(version) => version,
+    None => env!("CARGO_PKG_VERSION"),
+};
+
 #[derive(Default)]
 struct Service {
     local: Option<Arc<cranibox_node::local::LocalNode>>,
@@ -281,7 +287,7 @@ impl Shell for NativeShell {
         let status = |app: &tauri::AppHandle| -> anyhow::Result<Value> {
             Ok(json!({
                 "autostart": autostart_enabled(app)?,
-                "version": env!("CARGO_PKG_VERSION"),
+                "version": VERSION,
                 "platform": std::env::consts::OS,
             }))
         };
@@ -342,6 +348,38 @@ impl Shell for NativeShell {
                 });
                 Ok(json!({}))
             }
+            "install_app" => {
+                let version = cranibox_node::update::version::Version::parse(
+                    body["version"].as_str().unwrap_or_default(),
+                )?;
+                let settings = settings::default_path();
+                let root =
+                    cranibox_node::update::runtime_root(settings.parent().unwrap_or(&settings));
+                let relaunch = tauri::async_runtime::spawn_blocking(move || {
+                    cranibox_node::update::desktop::install(&root, &version)
+                })
+                .await??;
+                let (app, state) = (self.app.clone(), self.state.clone());
+                tauri::async_runtime::spawn(async move {
+                    // Answer the runtime first; stopping the app stops it too.
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if !stop_app(&state).await {
+                        return;
+                    }
+                    match relaunch {
+                        cranibox_node::update::desktop::Relaunch::Restart => app.request_restart(),
+                        cranibox_node::update::desktop::Relaunch::AfterExit(command) => {
+                            if let Err(error) =
+                                cranibox_node::update::desktop::spawn_detached(command)
+                            {
+                                eprintln!("Install the desktop app: {error:#}");
+                            }
+                            app.exit(0);
+                        }
+                    }
+                });
+                Ok(json!({}))
+            }
             // The bundle process raises the macOS prompts so they name this app.
             "request_permissions" => {
                 anyhow::ensure!(cfg!(target_os = "macos"), "unsupported on this platform");
@@ -390,7 +428,7 @@ fn main() -> anyhow::Result<()> {
             ));
     }
     // Adoption in the window names the first managed version after this program.
-    cranibox_node::update::set_product_version(env!("CARGO_PKG_VERSION"));
+    cranibox_node::update::set_product_version(VERSION);
     let background = args == ["--background"];
     // Started from Finder or a login item, the app has a minimal PATH: take the login
     // shell's, so installed agents and their tools are found.

@@ -43,6 +43,11 @@ pub async fn start(
             format!("http://{}", listener.local_addr()?).into(),
         ),
         ("CRANIBOX_SHELL_TOKEN".into(), token.clone().into()),
+        ("CRANIBOX_SHELL_VERSION".into(), crate::VERSION.into()),
+        (
+            "CRANIBOX_SHELL_API".into(),
+            cranibox_node::update::desktop::SHELL_API.to_string().into(),
+        ),
     ];
     #[cfg(unix)]
     {

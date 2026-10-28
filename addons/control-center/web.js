@@ -52,7 +52,7 @@ if (!u.preferences?.language) try {
 } catch {}
 document.documentElement.lang = u.language;
 //#endregion
-//#region node_modules/scheduler/cjs/scheduler.production.js
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/scheduler/cjs/scheduler.production.js
 var d = /* @__PURE__ */ o(((e) => {
 	function t(e, t) {
 		var n = e.length;
@@ -11131,10 +11131,10 @@ function _r({ children: e }) {
 	});
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
 var vr = (e) => e?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
 function yr(e, t, n = []) {
 	if (t == null) throw Error("[lucide]: iconNode is required when icon name is used");
 	return {
@@ -11145,7 +11145,7 @@ function yr(e, t, n = []) {
 	};
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
 var br = (e) => {
 	let t = "", n = !1;
 	for (let r of e) r === "-" || r === "_" || r <= " " ? n = t.length > 0 : (t.length === 0 ? t += r.toLowerCase() : t += n ? r.toUpperCase() : r, n = !1);
@@ -11165,7 +11165,7 @@ var br = (e) => {
 	"stroke-linejoin": "round"
 };
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
 function wr(e) {
 	return e != null;
 }
@@ -11202,7 +11202,7 @@ function Tr(e, t = {}) {
 	];
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
 function Er(e, t = {}) {
 	return Tr(e, {
 		...t,
@@ -11217,7 +11217,7 @@ function Er(e, t = {}) {
 	});
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
 var Dr = (e) => {
 	for (let t in e) if (t.startsWith("aria-") || t === "role" || t === "title") return !0;
 	return !1;
@@ -11243,7 +11243,7 @@ var Dr = (e) => {
 	}, [...C.map(([e, t]) => (0, y.createElement)(e, t)), ...Array.isArray(c) ? c : [c]]);
 });
 //#endregion
-//#region node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/createLucideIcon.mjs
 function X(e, t = [], n = []) {
 	let r = typeof e == "string" ? yr(e, t, n) : e, i = (0, y.forwardRef)(({ className: e, ...t }, n) => (0, y.createElement)(Ar, {
 		ref: n,
@@ -11254,7 +11254,7 @@ function X(e, t = [], n = []) {
 	return r.name && (i.displayName = xr(r.name)), i;
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/icons/activity.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/icons/activity.mjs
 var jr = {
 	name: "activity",
 	size: 24,
@@ -24755,7 +24755,7 @@ function vu({ title: e, children: t, onCancel: n, className: r = "" }) {
 	});
 }
 //#endregion
-//#region node_modules/@xterm/xterm/lib/xterm.mjs
+//#region ../../../../cranibox/addons/control-center/ui/node_modules/@xterm/xterm/lib/xterm.mjs
 var yu = Object.defineProperty, bu = Object.getOwnPropertyDescriptor, xu = (e, t) => {
 	for (var n in t) yu(e, n, {
 		get: t[n],
@@ -36271,12 +36271,13 @@ function oy({ node: e }) {
 	return /* @__PURE__ */ (0, J.jsx)(sy, { node: e }, e);
 }
 function sy({ node: e }) {
-	let { api: t, t: n } = In(), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)("latest"), [l, u] = (0, y.useState)(null), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(!1), [b, x] = (0, y.useState)(!1), [S, C] = (0, y.useState)(!1), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), O = (0, y.useRef)(!1), k = "/update?node=" + encodeURIComponent(e), A = (0, y.useCallback)((e, t, n) => {
+	let { api: t, t: n } = In(), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)("latest"), [l, u] = (0, y.useState)(null), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(!1), [_, v] = (0, y.useState)(!1), [b, x] = (0, y.useState)(!1), [S, C] = (0, y.useState)(!1), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), O = (0, y.useRef)(!1), k = "/update?node=" + encodeURIComponent(e), A = (0, y.useCallback)((e, t, n, r = !1) => {
 		x(!1), C(!1), v(!1), u({
 			id: e,
 			target: t,
 			phase: n,
-			started: Date.now()
+			started: Date.now(),
+			full: r
 		});
 	}, []), j = (0, y.useCallback)(async (e = !1, n = !1) => {
 		f(!0), m("");
@@ -36285,7 +36286,7 @@ function sy({ node: e }) {
 			if (!O.current) return;
 			g(!1), i(r), o(r.status), C(!1);
 			let a = r.status, s = !!a && (a.phase === "done" || $v(a)) && ny(r, a.to);
-			x(s), a && !ey(a) && !s && A(a.id, a.to, a.phase);
+			x(s), a && !ey(a) && !s && A(a.id, a.to, a.phase, !!a.full);
 		} catch (e) {
 			if (!O.current) return;
 			let t = e && typeof e == "object" && "code" in e ? String(e.code) : "", r = ry(e);
@@ -36341,7 +36342,7 @@ function sy({ node: e }) {
 						}
 						if (n) return;
 						let e = s === "activated" || s === "done" || s === "rolled_back";
-						v(e), m(e ? "" : d);
+						v(e || l.full), m(e || l.full ? "" : d);
 					}
 					n || (r = setTimeout(() => void f(), 2e3));
 				}
@@ -36356,17 +36357,18 @@ function sy({ node: e }) {
 		k,
 		l
 	]);
-	async function M(n) {
+	async function M(n, i) {
 		f(!0), m(""), C(!1), x(!1);
 		try {
 			if (n === "apply") {
-				let i = {
+				let a = {
 					node: e,
 					action: n,
-					spec: s
-				}, a = await t.call("POST", "/update", i);
+					spec: i || s,
+					...L ? { full: !0 } : {}
+				}, c = await t.call("POST", "/update", a);
 				if (!O.current) return;
-				o(null), A(a.id, r?.available?.[s] || null, "resolving");
+				o(null), A(c.id, i || r?.available?.[s] || null, "resolving", L);
 			} else if (n === "rollback") {
 				let r = await t.call("POST", "/update", {
 					node: e,
@@ -36397,7 +36399,7 @@ function sy({ node: e }) {
 		done: n("已完成", "Done"),
 		failed: n("更新失败", "Update failed"),
 		rolled_back: n("已回滚", "Rolled back")
-	}, P = d || !!l || E, F = r?.available?.[s], I = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
+	}, P = d || !!l || E, F = r?.available?.[s], I = r?.shell, L = !!r?.self && er() && !!I?.can_install, R = !!F && F !== r?.runtime.version, z = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
 	return /* @__PURE__ */ (0, J.jsxs)(Os, {
 		label: n("更新", "Updates"),
 		className: "cx-update-panel cx-stack",
@@ -36451,7 +36453,24 @@ function sy({ node: e }) {
 							" / ",
 							r.runtime.arch
 						] })] }),
-						/* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)("dt", { children: n("状态", "State") }), /* @__PURE__ */ (0, J.jsx)("dd", { children: r.runtime.state === "pending" ? n("等待确认", "Awaiting confirmation") : r.runtime.state === "confirmed" ? n("已确认", "Confirmed") : "—" })] })
+						/* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)("dt", { children: n("状态", "State") }), /* @__PURE__ */ (0, J.jsx)("dd", { children: r.runtime.state === "pending" ? n("等待确认", "Awaiting confirmation") : r.runtime.state === "confirmed" ? n("已确认", "Confirmed") : "—" })] }),
+						I && /* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)("dt", { children: n("桌面应用", "Desktop app") }), /* @__PURE__ */ (0, J.jsx)("dd", { children: I.version || "—" })] })
+					]
+				}),
+				I?.outdated && !(L && R) && /* @__PURE__ */ (0, J.jsxs)(Is, {
+					tone: "info",
+					children: [
+						n("桌面应用版本较旧，部分功能需要完整更新。", "The desktop app is older than this version; some features need a full update."),
+						" ",
+						L && r.runtime.version ? /* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn small",
+							disabled: P || !r.runtime.can_update,
+							onClick: () => void M("apply", r.runtime.version),
+							children: n("更新桌面应用", "Update the desktop app")
+						}) : /* @__PURE__ */ (0, J.jsx)("span", {
+							className: "cx-muted",
+							children: r.self ? I.reason : n("请在那台设备上打开 Cranibox 完成更新。", "Open Cranibox on that device to finish the update.")
+						})
 					]
 				}),
 				!r.runtime.managed && /* @__PURE__ */ (0, J.jsx)("p", {
@@ -36492,6 +36511,10 @@ function sy({ node: e }) {
 							]
 						}, e))
 					})]
+				}),
+				L && R && /* @__PURE__ */ (0, J.jsx)("p", {
+					className: "cx-muted cx-small",
+					children: n("将同时更新桌面应用，完成后 Cranibox 会整体重启。", "The desktop app is updated too; Cranibox then restarts.")
 				}),
 				/* @__PURE__ */ (0, J.jsxs)("div", {
 					className: "cx-actions",
@@ -36543,14 +36566,18 @@ function sy({ node: e }) {
 						className: "cx-update-progress",
 						"aria-label": n("下载进度", "Download progress"),
 						max: 100,
-						value: I
+						value: z
+					}),
+					a?.warning && /* @__PURE__ */ (0, J.jsx)(Is, {
+						tone: "warn",
+						children: a.warning
 					}),
 					ey(a) && /* @__PURE__ */ (0, J.jsxs)(Is, { children: [a?.phase === "rolled_back" && /* @__PURE__ */ (0, J.jsx)("p", { children: n("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.") }), a?.error || (a?.phase === "failed" ? n("更新失败，请重试。", "The update failed. Please try again.") : "")] })
 				]
 			}),
 			_ && !E && /* @__PURE__ */ (0, J.jsx)("p", {
 				role: "status",
-				children: $v(a) ? n("正在重启到上一版本…", "Restarting into the previous version…") : n("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")
+				children: $v(a) ? n("正在重启到上一版本…", "Restarting into the previous version…") : l?.full ? n("正在更新并重启 Cranibox…", "Updating and restarting Cranibox…") : n("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")
 			}),
 			E && /* @__PURE__ */ (0, J.jsxs)(Is, {
 				tone: "info",

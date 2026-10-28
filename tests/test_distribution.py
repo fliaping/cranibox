@@ -209,6 +209,49 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not empty"):
             builder.build(self.assets, output, self.tag)
 
+    def fake_apps(self, bundle_member=None):
+        apps = self.root / "apps"
+        apps.mkdir()
+        (apps / "cranibox-app-linux-x64-gnu.AppImage").write_bytes(b"\x7fELF app")
+        (apps / "cranibox-app-win32-x64-setup.exe").write_bytes(b"MZ setup")
+        bundle = self.root / "bundle"
+        (bundle / "Cranibox.app/Contents/MacOS").mkdir(parents=True)
+        (bundle / "Cranibox.app/Contents/Info.plist").write_text("<plist/>")
+        program = bundle / "Cranibox.app/Contents/MacOS/cranibox"
+        program.write_bytes(b"\xcf\xfa\xed\xfe")
+        program.chmod(0o755)
+        with tarfile.open(apps / "cranibox-app-darwin-arm64.tar.gz", "w:gz") as archive:
+            archive.add(bundle / "Cranibox.app", "Cranibox.app")
+            if bundle_member:
+                archive.addfile(bundle_member)
+        return apps
+
+    def test_desktop_app_packages_follow_the_command_line(self):
+        output = self.root / "npm"
+        plan = builder.build(self.assets, output, version="99.0.0-dev.42", apps=self.fake_apps())
+        self.assertEqual(plan[:4][-1], "cli")
+        self.assertEqual(plan[4:], [f"desktop-{target}" for target in builder.PLATFORMS])
+        for target in builder.PLATFORMS:
+            manifest = json.loads((output / f"desktop-{target}/package.json").read_text())
+            self.assertEqual(manifest["name"], f"@fliaping/cranibox-desktop-{target}")
+            self.assertEqual(manifest["version"], "99.0.0-dev.42")
+            self.assertNotIn("bin", manifest)
+        app = output / "desktop-darwin-arm64/app/Cranibox.app/Contents"
+        self.assertTrue((app / "Info.plist").is_file())
+        self.assertTrue(os.access(app / "MacOS/cranibox", os.X_OK))
+        self.assertTrue(os.access(output / "desktop-linux-x64-gnu/app/Cranibox.AppImage", os.X_OK))
+        self.assertEqual((output / "desktop-win32-x64/app/cranibox-setup.exe").read_bytes(), b"MZ setup")
+        self.assertIn("@fliaping/cranibox-desktop-win32-x64", stage_approver.package_names("@fliaping/cranibox"))
+
+    def test_desktop_app_bundles_reject_links_and_missing_apps(self):
+        link = tarfile.TarInfo("Cranibox.app/Contents/link")
+        link.type, link.linkname = tarfile.SYMTYPE, "/etc/passwd"
+        with self.assertRaisesRegex(ValueError, "only files and directories"):
+            builder.build(self.assets, self.root / "linked", version="99.0.0-dev.42", apps=self.fake_apps(link))
+        (self.root / "apps/cranibox-app-win32-x64-setup.exe").unlink()
+        with self.assertRaisesRegex(ValueError, "Missing desktop app"):
+            builder.build(self.assets, self.root / "missing", version="99.0.0-dev.42", apps=self.root / "apps")
+
     def test_dev_versions_sort_above_the_release_they_follow(self):
         self.assertEqual(dev_version("1.1.0", 7), "1.1.1-dev.7")
         self.assertEqual(dev_version("1.2.0-beta.1", 9), "1.2.0-beta.1.dev.9")
@@ -473,12 +516,12 @@ class DistributionTests(unittest.TestCase):
         result = self.approve_with_fake(environment)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("@other/package", result.stdout)
-        self.assertEqual(len(self.fake_calls()), 4)
+        self.assertEqual(len(self.fake_calls()), 7)
         self.assertTrue(all(call[:2] == ["stage", "list"] for call in self.fake_calls()))
         for stage in stages:
             self.assertIn(stage["id"], result.stdout)
 
-    def test_approve_and_reject_all_four_with_custom_scope_and_redacted_otp(self):
+    def test_approve_and_reject_all_with_custom_scope_and_redacted_otp(self):
         for action in ("approve", "reject"):
             with self.subTest(action=action):
                 stages = self.stage_fixtures("@example/tools")
@@ -487,9 +530,9 @@ class DistributionTests(unittest.TestCase):
                 result = self.approve_with_fake(environment, f"--{action}", "--otp", "123456")
                 self.assertEqual(result.returncode, 0, result.stderr)
                 calls = self.fake_calls()
-                self.assertEqual([call[2] for call in calls[:4]], [stage["name"] for stage in stages])
-                self.assertEqual([call[2] for call in calls[4:]], [stage["id"] for stage in stages])
-                self.assertTrue(all(call[:2] == ["stage", action] for call in calls[4:]))
+                self.assertEqual([call[2] for call in calls[:len(stages)]], [stage["name"] for stage in stages])
+                self.assertEqual([call[2] for call in calls[len(stages):]], [stage["id"] for stage in stages])
+                self.assertTrue(all(call[:2] == ["stage", action] for call in calls[len(stages):]))
                 self.assertNotIn("123456", result.stdout + result.stderr + json.dumps(calls))
 
     def test_approve_prompts_once_after_listing_all_packages(self):
@@ -498,14 +541,14 @@ class DistributionTests(unittest.TestCase):
         run = subprocess.run
 
         def prompt(message):
-            self.assertEqual(len(self.fake_calls()), 4)
+            self.assertEqual(len(self.fake_calls()), 7)
             return "123456"
 
         with patch.object(stage_approver.subprocess, "run", side_effect=lambda command, **options: run(command, env=environment, **options)), \
                 patch.object(stage_approver.getpass, "getpass", side_effect=prompt) as getpass, redirect_stdout(io.StringIO()):
             stage_approver.manage("@fliaping/cranibox", "approve")
         getpass.assert_called_once()
-        self.assertEqual(len(self.fake_calls()), 8)
+        self.assertEqual(len(self.fake_calls()), 14)
 
     def test_approve_failure_does_not_leak_otp_from_child_output(self):
         environment = self.fake_npm({"stages": self.stage_fixtures(), "fail_action": True})
@@ -513,7 +556,7 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("fresh OTP", result.stderr)
         self.assertNotIn("123456", result.stdout + result.stderr)
-        self.assertEqual(len(self.fake_calls()), 5)
+        self.assertEqual(len(self.fake_calls()), 8)
 
     def test_approve_rejects_unverifiable_identity_before_any_action(self):
         stage = self.stage_fixtures()[0]

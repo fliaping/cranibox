@@ -13,7 +13,7 @@ const failed = (status: UpdateStatus | null) => status?.phase === "failed" || (s
 const inProgress = (reason: string) => reason.includes("already in progress");
 const confirmed = (data: NodeUpdate, target: string | null) => !!target && data.runtime.version === target && data.runtime.state === "confirmed";
 const message = (problem: unknown) => problem instanceof Error ? problem.message : String(problem);
-type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number };
+type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number; full: boolean };
 const isLauncherReason = (reason: string) => /not started by the cranibox launcher|cranibox update launch/i.test(reason);
 function renderUpdateReason(reason: string, t: (zh: string, en: string) => string) {
   if (isLauncherReason(reason)) {
@@ -43,9 +43,9 @@ function DeviceUpdates({ node }: { node: string }) {
   const [rollback, setRollback] = useState(false), [restartNeeded, setRestartNeeded] = useState(false);
   const alive = useRef(false);
   const path = "/update?node=" + encodeURIComponent(node);
-  const begin = useCallback((id: string, target: string | null, phase: UpdatePhase) => {
+  const begin = useCallback((id: string, target: string | null, phase: UpdatePhase, full = false) => {
     setUpdated(false); setTimedOut(false); setRestarting(false);
-    setWatch({ id, target, phase, started: Date.now() });
+    setWatch({ id, target, phase, started: Date.now(), full });
   }, []);
   const load = useCallback(async (check = false, interactive = false) => {
     setBusy(true); setError("");
@@ -57,7 +57,7 @@ function DeviceUpdates({ node }: { node: string }) {
       const last = value.status;
       const finished = !!last && (last.phase === "done" || reverted(last)) && confirmed(value, last.to);
       setUpdated(finished);
-      if (last && !failed(last) && !finished) begin(last.id, last.to, last.phase);
+      if (last && !failed(last) && !finished) begin(last.id, last.to, last.phase, !!last.full);
     } catch (problem) {
       if (!alive.current) return;
       const code = problem && typeof problem === "object" && "code" in problem ? String((problem as { code?: unknown }).code) : "";
@@ -111,8 +111,9 @@ function DeviceUpdates({ node }: { node: string }) {
         } catch (problem) { pollError = message(problem); }
         if (stopped) return;
         const activating = phase === "activated" || phase === "done" || phase === "rolled_back";
-        setRestarting(activating);
-        setError(activating ? "" : pollError);
+        // A full update closes this window with the app; a lost connection is expected.
+        setRestarting(activating || watch!.full);
+        setError(activating || watch!.full ? "" : pollError);
       }
       if (!stopped) timer = setTimeout(() => void poll(), 2000);
     }
@@ -120,15 +121,15 @@ function DeviceUpdates({ node }: { node: string }) {
     return () => { stopped = true; clearTimeout(timer); clearTimeout(deadline); };
   }, [api, node, path, watch]);
 
-  async function act(action: UpdateRequest["action"]) {
+  async function act(action: UpdateRequest["action"], spec?: string) {
     setBusy(true); setError(""); setTimedOut(false); setUpdated(false);
     try {
       if (action === "apply") {
-        const body: UpdateRequest = { node, action, spec: channel };
+        const body: UpdateRequest = { node, action, spec: spec || channel, ...(fullHere ? { full: true } : {}) };
         const result = await api.call<UpdateAccepted>("POST", "/update", body);
         if (!alive.current) return;
         setStatus(null);
-        begin(result.id, data?.available?.[channel] || null, "resolving");
+        begin(result.id, spec || data?.available?.[channel] || null, "resolving", fullHere);
       } else if (action === "rollback") {
         const result = await api.call<UpdateStatus>("POST", "/update", { node, action } satisfies UpdateRequest);
         if (!alive.current) return;
@@ -153,6 +154,10 @@ function DeviceUpdates({ node }: { node: string }) {
   };
   const locked = busy || !!watch || restartNeeded;
   const version = data?.available?.[channel];
+  const shell = data?.shell;
+  /** On this device, from inside its desktop app: the app is replaced too. */
+  const fullHere = !!data?.self && inShell() && !!shell?.can_install;
+  const newer = !!version && version !== data?.runtime.version;
   const progress = status?.total && status.total > 0 ? Math.max(0, Math.min(100, status.downloaded / status.total * 100)) : undefined;
   return <Card label={t("更新", "Updates")} className="cx-update-panel cx-stack">
     <div className="cx-card-head"><span className="cx-card-icon"><Download size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("更新", "Updates")}</h3></div></div>
@@ -165,7 +170,13 @@ function DeviceUpdates({ node }: { node: string }) {
         <div><dt>{t("运行版本", "Running version")}</dt><dd>{data.version}</dd></div>
         <div><dt>{t("平台", "Platform")}</dt><dd>{data.runtime.os} / {data.runtime.arch}</dd></div>
         <div><dt>{t("状态", "State")}</dt><dd>{data.runtime.state === "pending" ? t("等待确认", "Awaiting confirmation") : data.runtime.state === "confirmed" ? t("已确认", "Confirmed") : "—"}</dd></div>
+        {shell && <div><dt>{t("桌面应用", "Desktop app")}</dt><dd>{shell.version || "—"}</dd></div>}
       </dl>
+      {shell?.outdated && !(fullHere && newer) && <Alert tone="info">{t("桌面应用版本较旧，部分功能需要完整更新。", "The desktop app is older than this version; some features need a full update.")}{" "}
+        {fullHere && data.runtime.version
+          ? <button className="cx-btn small" disabled={locked || !data.runtime.can_update} onClick={() => void act("apply", data.runtime.version!)}>{t("更新桌面应用", "Update the desktop app")}</button>
+          : <span className="cx-muted">{!data.self ? t("请在那台设备上打开 Cranibox 完成更新。", "Open Cranibox on that device to finish the update.") : shell.reason}</span>}
+      </Alert>}
       {!data.runtime.managed && <p className="cx-muted">{node === "self"
         ? t("远程更新需要由 Cranibox 管理版本并在更新后重启设备进程。请先在这台设备上启用远程更新，再重启 Cranibox 使其生效。", "Remote updates require Cranibox to manage versions and restart the device process after updating. Enable remote updates on this device, then restart Cranibox to activate them.")
         : t("远程更新需要由 Cranibox 管理版本。请在那台设备上启用远程更新并重启 Cranibox。", "Remote updates require Cranibox to manage versions. Enable remote updates on that device itself and restart Cranibox.")}</p>}
@@ -182,6 +193,7 @@ function DeviceUpdates({ node }: { node: string }) {
       {data.available && <label className="cx-field">{t("更新频道", "Update channel")}<select value={channel} disabled={locked} onChange={event => setChannel(event.target.value as UpdateChannel)}>
         {channels.map(item => <option key={item} value={item}>{item} · {data.available?.[item] || t("暂无可用版本", "No version available")}</option>)}
       </select></label>}
+      {fullHere && newer && <p className="cx-muted cx-small">{t("将同时更新桌面应用，完成后 Cranibox 会整体重启。", "The desktop app is updated too; Cranibox then restarts.")}</p>}
       <div className="cx-actions">
         <button className="cx-btn" disabled={locked} onClick={() => void load(true, true)}>{t("检查更新", "Check for updates")}</button>
         {data.available && <button className="cx-btn primary" disabled={locked || !data.runtime.can_update || !version} onClick={() => void act("apply")}>{version ? t("更新到 " + version, "Update to " + version) : t("暂无可用版本", "No version available")}</button>}
@@ -192,10 +204,12 @@ function DeviceUpdates({ node }: { node: string }) {
     {(status || watch || updated) && <div className="cx-stack" aria-live="polite">
       <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {status.from || "—"} → {status.to || status.spec}</span>}</div>
       {status?.phase === "downloading" && <progress className="cx-update-progress" aria-label={t("下载进度", "Download progress")} max={100} value={progress} />}
+      {status?.warning && <Alert tone="warn">{status.warning}</Alert>}
       {failed(status) && <Alert>{status?.phase === "rolled_back" && <p>{t("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.")}</p>}{status?.error || (status?.phase === "failed" ? t("更新失败，请重试。", "The update failed. Please try again.") : "")}</Alert>}
     </div>}
     {restarting && !restartNeeded && <p role="status">{reverted(status)
       ? t("正在重启到上一版本…", "Restarting into the previous version…")
+      : watch?.full ? t("正在更新并重启 Cranibox…", "Updating and restarting Cranibox…")
       : t("正在重启，等待设备确认新版本…", "Restarting… waiting for the device to confirm the new version.")}</p>}
     {restartNeeded && <Alert tone="info">{t("已启用远程更新。", "Remote updates are enabled. ")}{inShell() && !error
       ? t("正在重启 Cranibox…", "Restarting Cranibox…")

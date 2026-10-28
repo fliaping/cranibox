@@ -33,6 +33,9 @@ struct Request {
     spec: Option<String>,
     #[serde(default)]
     force: bool,
+    /// Also replace the desktop app (this device, from inside the app).
+    #[serde(default)]
+    full: bool,
 }
 
 fn unavailable(e: impl std::fmt::Display) -> AppError {
@@ -89,6 +92,13 @@ pub(crate) async fn route(
         return Err(missing());
     }
     if let Some(request) = &request {
+        if request.full && (!is_self || !matches!(request.action, Action::Apply)) {
+            return Err(error(
+                400,
+                "invalid",
+                "Full updates run on the device itself",
+            ));
+        }
         if matches!(request.action, Action::Adopt) && !is_self {
             return Err(error(
                 400,
@@ -177,15 +187,30 @@ pub(crate) async fn route(
                         info.reasons.join("; ")
                     )));
                 }
-                let (id, task) = updater
-                    .start(
-                        request.spec.unwrap_or_else(|| "latest".into()),
-                        request.force,
-                    )
-                    .map_err(conflict)?;
+                let spec = request.spec.unwrap_or_else(|| "latest".into());
                 let mut tasks = context.tasks.lock().await;
                 while tasks.try_join_next().is_some() {}
-                tasks.spawn(task);
+                let id = if request.full {
+                    let shell = super::desktop::shell_info()
+                        .ok_or_else(|| conflict("This device is not running the desktop app"))?;
+                    if let Some(reason) = shell.reason {
+                        return Err(conflict(format!(
+                            "The desktop app cannot update itself: {reason}"
+                        )));
+                    }
+                    let shell = crate::web::http_shell::HttpShell::from_env()
+                        .map_err(unavailable)?
+                        .ok_or_else(|| conflict("This device is not running the desktop app"))?;
+                    let (id, task) = updater
+                        .start_full(spec, request.force, shell)
+                        .map_err(conflict)?;
+                    tasks.spawn(task);
+                    id
+                } else {
+                    let (id, task) = updater.start(spec, request.force).map_err(conflict)?;
+                    tasks.spawn(task);
+                    id
+                };
                 Ok(json!({"id":id}))
             }
             Action::Rollback => {
@@ -278,7 +303,8 @@ fn mock(
                 };
                 let status = json!({"id":id, "spec":spec, "phase":if rollback {"rolled_back"} else {"resolving"},
                     "from":"1.1.0", "to":to, "error":null,
-                    "downloaded":0, "total":1024, "started_at":1_792_800_000_u64, "updated_at":1_792_800_000_u64});
+                    "downloaded":0, "total":1024, "started_at":1_792_800_000_u64, "updated_at":1_792_800_000_u64,
+                    "full":request.full});
                 updates.insert(node.into(), (status.clone(), 0));
                 Ok(if rollback { status } else { json!({"id":id}) })
             }
@@ -289,6 +315,14 @@ fn mock(
             "os":if is_self {"macos"} else {"linux"}, "arch":if is_self {"aarch64"} else {"x86_64"}, "can_update":managed,
             "reasons":if managed {vec![]} else {vec!["not started by the cranibox launcher"]}},
         "status":updates.get(node).map(|(s, _)| s),
+        "shell":if is_self {
+            json!({"version":"1.1.0", "api":1, "outdated":false, "can_install":true, "reason":null})
+        } else if managed {
+            json!({"version":"1.0.0", "api":0, "outdated":true, "can_install":false,
+                "reason":"the installed desktop app is too old to update itself; install the new version once by hand"})
+        } else {
+            Value::Null
+        },
         "available":if check {Some(json!({"latest":"1.1.0", "next":null, "dev":"1.1.1-dev.7"}))} else {None}, "available_error":null}))
 }
 
@@ -422,6 +456,19 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(rolled["phase"], "rolled_back");
+        let full = route(
+            context(),
+            "POST",
+            "/update",
+            "",
+            json!({"node":MOCK_MANAGED,"action":"apply","full":true}),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            (full.status, full.message.as_str()),
+            (400, "Full updates run on the device itself")
+        );
         assert_eq!(
             route(
                 context(),

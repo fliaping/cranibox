@@ -62,7 +62,9 @@ def publish(directory, dry_run=False, dist_tag=None, mode="direct"):
     for entry in plan:
         if not isinstance(entry, str) or Path(entry).name != entry or entry in (".", ".."):
             raise ValueError("Invalid package directory in publish plan.")
-    package_name = json.loads((directory / plan[-1] / "package.json").read_text())["name"]
+    # Desktop app packages follow the command line, so name the summary after the CLI.
+    entry = "cli" if "cli" in plan else plan[-1]
+    package_name = json.loads((directory / entry / "package.json").read_text())["name"]
     outcomes = []
     completed = False
     try:
@@ -79,7 +81,8 @@ def publish_packages(directory, plan, dry_run, dist_tag, mode, outcomes):
         package = directory / entry
         manifest = json.loads((package / "package.json").read_text())
         # Actions artifacts do not preserve executable bits on unpacked files.
-        for executable in (package / "bin").iterdir():
+        for executable in [*(package / "bin").glob("*"), *(package / "app").glob("*.AppImage"),
+                           *(package / "app").glob("*.app/Contents/MacOS/*")]:
             executable.chmod(0o755)
         result = subprocess.run([npm, "pack", "--json", "--ignore-scripts", "--pack-destination", str(directory)],
                                 cwd=package, check=True, capture_output=True, text=True)

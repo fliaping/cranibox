@@ -13,7 +13,8 @@ REGISTRY = "https://registry.npmjs.org"
 def package_names(name):
     if not re.fullmatch(r"@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*", name):
         raise ValueError("The npm package must be a scoped lowercase name, e.g. @fliaping/cranibox.")
-    return [f"{name}-{target}" for target in PLATFORMS] + [name]
+    return ([f"{name}-{target}" for target in PLATFORMS] + [name]
+            + [f"{name}-desktop-{target}" for target in PLATFORMS])
 
 
 def stage_json(action, value):

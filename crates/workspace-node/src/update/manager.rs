@@ -4,6 +4,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -16,10 +17,11 @@ use super::{
     platform,
     version::Version,
 };
+use crate::web::standalone::Shell;
 
-const MAX_DOWNLOAD: u64 = 512 * 1024 * 1024;
-const MAX_EXTRACTED: u64 = 2 * 1024 * 1024 * 1024;
-const MAX_FILES: usize = 10_000;
+pub(super) const MAX_DOWNLOAD: u64 = 512 * 1024 * 1024;
+pub(super) const MAX_EXTRACTED: u64 = 2 * 1024 * 1024 * 1024;
+pub(super) const MAX_FILES: usize = 10_000;
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -50,6 +52,12 @@ pub struct Status {
     pub total: Option<u64>,
     pub started_at: u64,
     pub updated_at: u64,
+    /// Also replaces the desktop app, which then restarts as a whole.
+    #[serde(default)]
+    pub full: bool,
+    /// A full update whose runtime part succeeded but whose app part did not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -113,6 +121,7 @@ impl Updater {
     ) -> Result<serde_json::Value> {
         let mut value = serde_json::json!({
             "node": node, "version": version, "runtime": self.info()?, "status": self.status()?,
+            "shell": super::desktop::shell_info(),
             "available": null, "available_error": null,
         });
         if check {
@@ -135,6 +144,28 @@ impl Updater {
         Ok((id, async move {
             if let Ok(status) = self.apply_prepared(lock, pointer, status, force).await
                 && matches!(status.phase, Phase::Activated)
+            {
+                super::restart_after_response().await;
+            }
+        }))
+    }
+
+    /// Like [`start`](Self::start), also replacing the desktop app through `shell`, which
+    /// restarts the whole app; the runtime restarts by itself only if that fails.
+    pub fn start_full(
+        self,
+        spec: String,
+        force: bool,
+        shell: Arc<dyn Shell>,
+    ) -> Result<(String, impl Future<Output = ()> + Send)> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (lock, pointer, mut status) = self.prepare(id.clone(), &spec)?;
+        status.full = true;
+        self.save(&mut status)?;
+        Ok((id, async move {
+            if let Ok(true) = self
+                .apply_full_prepared(lock, pointer, status, force, shell.as_ref())
+                .await
             {
                 super::restart_after_response().await;
             }
@@ -250,6 +281,95 @@ impl Updater {
         Ok(status)
     }
 
+    /// The full update; true when the runtime must restart by itself.
+    async fn apply_full_prepared(
+        &self,
+        _lock: UpdateLock,
+        pointer: super::layout::Pointer,
+        mut status: Status,
+        force: bool,
+        shell: &dyn Shell,
+    ) -> Result<bool> {
+        let layout = Layout::new(&self.root);
+        let result = self
+            .apply_full_inner(&layout, &pointer, &mut status, force)
+            .await;
+        let runtime = match result {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                status.phase = Phase::Failed;
+                status.error = Some(format!("{error:#}"));
+                self.save(&mut status)
+                    .with_context(|| format!("update failed: {error:#}; persist failure"))?;
+                return Err(error);
+            }
+        };
+        let version = status.to.clone().unwrap_or_default();
+        if let Err(error) = shell
+            .call("install_app", serde_json::json!({ "version": version }))
+            .await
+        {
+            status.warning = Some(format!("The desktop app was not updated: {error:#}"));
+            self.save(&mut status)?;
+            return Ok(runtime);
+        }
+        Ok(false)
+    }
+
+    /// Stage the app first, so a missing package changes nothing; then the runtime, unless
+    /// it already runs that version (a remote update replaced only the runtime).
+    async fn apply_full_inner(
+        &self,
+        layout: &Layout,
+        pointer: &super::layout::Pointer,
+        status: &mut Status,
+        force: bool,
+    ) -> Result<bool> {
+        let blockers = platform::blockers();
+        ensure!(blockers.is_empty(), "{}", blockers.join("; "));
+        let release = self.resolve(status).await?;
+        let version = Version::parse(&release.version)?;
+        self.phase(status, Phase::Downloading)?;
+        let mut last_write = Instant::now();
+        let mut progress_error = None;
+        super::desktop::stage(
+            &self.registries,
+            &self.entry_package,
+            &version,
+            &self.root,
+            |done, total| {
+                status.downloaded = done;
+                status.total = total;
+                if progress_error.is_none()
+                    && (done == 0 || last_write.elapsed() >= PROGRESS_INTERVAL)
+                {
+                    progress_error = self.save(status).err();
+                    last_write = Instant::now();
+                }
+            },
+        )
+        .await
+        .context("desktop app")?;
+        if let Some(error) = progress_error {
+            return Err(error).context("persist download progress");
+        }
+        if !force && release.version == pointer.current {
+            self.phase(status, Phase::Done)?;
+            return Ok(false);
+        }
+        self.apply_release(layout, pointer, status, force, release)
+            .await?;
+        Ok(true)
+    }
+
+    async fn resolve(&self, status: &mut Status) -> Result<npm::Release> {
+        let package = npm::platform_package(&self.entry_package)?;
+        let release = self.registries.resolve(&package, &status.spec).await?;
+        status.to = Some(release.version.clone());
+        self.save(status)?;
+        Ok(release)
+    }
+
     async fn apply_inner(
         &self,
         layout: &Layout,
@@ -259,10 +379,19 @@ impl Updater {
     ) -> Result<()> {
         let blockers = platform::blockers();
         ensure!(blockers.is_empty(), "{}", blockers.join("; "));
-        let package = npm::platform_package(&self.entry_package)?;
-        let release = self.registries.resolve(&package, &status.spec).await?;
-        status.to = Some(release.version.clone());
-        self.save(status)?;
+        let release = self.resolve(status).await?;
+        self.apply_release(layout, pointer, status, force, release)
+            .await
+    }
+
+    async fn apply_release(
+        &self,
+        layout: &Layout,
+        pointer: &super::layout::Pointer,
+        status: &mut Status,
+        force: bool,
+        release: npm::Release,
+    ) -> Result<()> {
         let version = Version::parse(&release.version)?;
         let current = Version::parse(&pointer.current)?;
         ensure!(
@@ -504,6 +633,8 @@ fn new_status(id: String, spec: &str, from: Option<String>) -> Status {
         total: None,
         started_at: now,
         updated_at: now,
+        full: false,
+        warning: None,
     }
 }
 
@@ -596,6 +727,24 @@ pub(crate) mod tests {
                 "versions": versions,
             }))
             .unwrap();
+            // The desktop app is published for every version except the dev build.
+            let app = app_tarball();
+            let app_integrity = format!("sha512-{}", STANDARD.encode(Sha512::digest(&app)));
+            let desktop = npm::desktop_package(ENTRY).unwrap();
+            let app_versions: serde_json::Map<_, _> = ["1.0.0", "1.1.0", "2.0.0"]
+                .into_iter()
+                .map(|version| {
+                    (version.to_owned(), json!({
+                        "name": desktop, "version": version,
+                        "dist": { "tarball": format!("{base}/app.tgz"), "integrity": app_integrity }
+                    }))
+                })
+                .collect();
+            let app_metadata = serde_json::to_vec(&json!({
+                "dist-tags": {"latest": "1.1.0"}, "versions": app_versions,
+            }))
+            .unwrap();
+            let desktop_path = format!("/{}", desktop.replace('/', "%2F"));
             let requested = Arc::new(Notify::new());
             let release = Arc::new(Semaphore::new(usize::from(!held)));
             let router = Router::new().fallback({
@@ -605,6 +754,9 @@ pub(crate) mod tests {
                 move |uri: Uri| {
                     let bytes = bytes.clone();
                     let metadata = metadata.clone();
+                    let app = app.clone();
+                    let app_metadata = app_metadata.clone();
+                    let desktop_path = desktop_path.clone();
                     let requested = requested.clone();
                     let release = release.clone();
                     let package_path = package_path.clone();
@@ -615,6 +767,10 @@ pub(crate) mod tests {
                             (StatusCode::OK, bytes)
                         } else if uri.path() == package_path {
                             (StatusCode::OK, metadata)
+                        } else if uri.path() == "/app.tgz" {
+                            (StatusCode::OK, app)
+                        } else if uri.path() == desktop_path {
+                            (StatusCode::OK, app_metadata)
                         } else {
                             (StatusCode::NOT_FOUND, Vec::new())
                         };
@@ -700,6 +856,138 @@ pub(crate) mod tests {
         header.set_cksum();
         archive.append_data(&mut header, path, bytes).unwrap();
         archive.into_inner().unwrap().finish().unwrap()
+    }
+
+    fn app_tarball() -> Vec<u8> {
+        let gzip = GzEncoder::new(Vec::new(), Compression::default());
+        let mut archive = tar::Builder::new(gzip);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(4);
+        header.set_mode(0o755);
+        header.set_cksum();
+        archive
+            .append_data(
+                &mut header,
+                "package/app/Cranibox.AppImage",
+                b"ELF!".as_slice(),
+            )
+            .unwrap();
+        archive.into_inner().unwrap().finish().unwrap()
+    }
+
+    /// Records `install_app` calls; fails them when asked.
+    #[derive(Default)]
+    struct FakeShell {
+        calls: std::sync::Mutex<Vec<(String, serde_json::Value)>>,
+        fail: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl Shell for FakeShell {
+        async fn call(
+            &self,
+            operation: &str,
+            body: serde_json::Value,
+        ) -> Result<serde_json::Value> {
+            self.calls.lock().unwrap().push((operation.into(), body));
+            anyhow::ensure!(!self.fail, "unknown operation");
+            Ok(json!({}))
+        }
+    }
+
+    async fn full(updater: &Updater, spec: &str, shell: &FakeShell) -> Result<bool> {
+        let (lock, pointer, mut status) = updater.prepare("full".into(), spec)?;
+        status.full = true;
+        updater
+            .apply_full_prepared(lock, pointer, status, false, shell)
+            .await
+    }
+
+    #[tokio::test]
+    async fn full_update_stages_the_app_activates_and_hands_the_restart_to_the_shell() {
+        let fixture = Fixture::new("1.0.0", false, false, false).await;
+        let updater = fixture.updater();
+        let shell = FakeShell::default();
+        assert!(!full(&updater, "latest", &shell).await.unwrap());
+        assert_eq!(
+            *shell.calls.lock().unwrap(),
+            [("install_app".to_owned(), json!({"version": "1.1.0"}))]
+        );
+        let staged = super::super::desktop::staging_dir(
+            fixture.root.path(),
+            &Version::parse("1.1.0").unwrap(),
+        );
+        assert_eq!(
+            fs::read(staged.join("app/Cranibox.AppImage")).unwrap(),
+            b"ELF!"
+        );
+        let status = updater.status().unwrap().unwrap();
+        assert!(matches!(status.phase, Phase::Activated) && status.full);
+        assert_eq!(status.warning, None);
+        assert_eq!(
+            fixture.layout().pointer().unwrap().unwrap().current,
+            "1.1.0"
+        );
+        fixture.assert_clean();
+    }
+
+    #[tokio::test]
+    async fn full_update_without_an_app_package_changes_nothing() {
+        let fixture = Fixture::new("1.0.0", false, false, false).await;
+        let updater = fixture.updater();
+        let shell = FakeShell::default();
+        let error = full(&updater, "dev", &shell).await.unwrap_err();
+        assert!(
+            format!("{error:#}").starts_with("desktop app: "),
+            "{error:#}"
+        );
+        assert!(shell.calls.lock().unwrap().is_empty());
+        let status = updater.status().unwrap().unwrap();
+        assert!(matches!(status.phase, Phase::Failed));
+        let pointer = fixture.layout().pointer().unwrap().unwrap();
+        assert_eq!(
+            (pointer.current.as_str(), pointer.state),
+            ("1.0.0", PointerState::Confirmed)
+        );
+        fixture.assert_clean();
+    }
+
+    #[tokio::test]
+    async fn a_failed_app_install_keeps_the_runtime_update_and_restarts_it() {
+        let fixture = Fixture::new("1.0.0", false, false, false).await;
+        let updater = fixture.updater();
+        let shell = FakeShell {
+            fail: true,
+            ..Default::default()
+        };
+        assert!(full(&updater, "latest", &shell).await.unwrap());
+        let status = updater.status().unwrap().unwrap();
+        assert!(matches!(status.phase, Phase::Activated));
+        assert!(status.warning.unwrap().contains("unknown operation"));
+        assert_eq!(
+            fixture.layout().pointer().unwrap().unwrap().current,
+            "1.1.0"
+        );
+    }
+
+    #[tokio::test]
+    async fn full_update_to_the_running_runtime_replaces_only_the_app() {
+        let fixture = Fixture::new("1.1.0", false, false, false).await;
+        let updater = fixture.updater();
+        let shell = FakeShell::default();
+        assert!(!full(&updater, "1.1.0", &shell).await.unwrap());
+        assert_eq!(shell.calls.lock().unwrap().len(), 1);
+        assert!(matches!(
+            updater.status().unwrap().unwrap().phase,
+            Phase::Done
+        ));
+        let pointer = fixture.layout().pointer().unwrap().unwrap();
+        assert_eq!(
+            (pointer.current.as_str(), pointer.state),
+            ("1.1.0", PointerState::Confirmed)
+        );
+        // An older version still needs force.
+        assert!(full(&updater, "1.0.0", &shell).await.is_err());
     }
 
     fn install(layout: &Layout, version: &str) {

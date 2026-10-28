@@ -37,15 +37,20 @@ export interface UpdateStatus {
   id: string; spec: string; phase: UpdatePhase;
   from: string | null; to: string | null; error: string | null;
   downloaded: number; total: number | null; started_at: number; updated_at: number;
+  /** Also replaces the desktop app, which then restarts as a whole. */
+  full?: boolean; warning?: string;
 }
+/** The desktop app a device's runtime runs under (absent for a headless node). */
+export interface ShellInfo { version: string | null; api: number; outdated: boolean; can_install: boolean; reason: string | null }
 export interface NodeUpdate {
   node: string; self: boolean; version: string;
   runtime: { managed: boolean; state: 'pending' | 'confirmed' | null; version: string | null; os: 'linux' | 'macos' | 'windows'; arch: 'x86_64' | 'aarch64'; can_update: boolean; reasons: string[] };
   status: UpdateStatus | null;
+  shell?: ShellInfo | null;
   available?: Record<UpdateChannel, string | null> | null;
   available_error?: string | null;
 }
-export type UpdateRequest = { node: string; action: 'apply'; spec: string; force?: boolean } | { node: string; action: 'rollback' | 'adopt' };
+export type UpdateRequest = { node: string; action: 'apply'; spec: string; force?: boolean; full?: boolean } | { node: string; action: 'rollback' | 'adopt' };
 export interface UpdateAccepted { id: string }
 export interface UpdateAdopted { adopted: string; needs_restart: boolean }
 declare global { interface Window { workspaceWeb: BootConfig } }

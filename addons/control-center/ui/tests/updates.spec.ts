@@ -117,6 +117,52 @@ for (const shell of [false, true]) test('self unmanaged: adoption ' + (shell ? '
   await expect(panel.getByRole('button', { name: 'Enable remote updates' })).toBeDisabled();
 });
 
+async function inDesktopApp(page: Page) {
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+  });
+  await page.route('**/api/shell', route => route.fulfill({ json: { autostart: false, version: '1.1.0', platform: 'linux' } }));
+}
+
+test('inside the desktop app a local update also replaces the app, then everything restarts', async ({ page }) => {
+  const model = await mock(page);
+  model.data.shell = { version: '1.1.0', api: 1, outdated: false, can_install: true, reason: null };
+  await inDesktopApp(page);
+  const panel = await open(page);
+  await expect(panel).toContainText('Desktop app');
+  await panel.getByRole('button', { name: 'Check for updates' }).click();
+  await expect(panel).toContainText('The desktop app is updated too; Cranibox then restarts.');
+  await panel.getByRole('button', { name: 'Update to 1.2.0', exact: true }).click();
+  expect(model.commands).toEqual([{ node: 'self', action: 'apply', spec: 'latest', full: true }]);
+  // The app quits with its window: a lost connection is the expected outcome.
+  model.offline = true;
+  await page.clock.runFor(2000);
+  await page.clock.runFor(2000);
+  await expect(panel).toContainText('Updating and restarting Cranibox…');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+});
+
+test('an outdated desktop app is updated in place here and explained for another device', async ({ page }) => {
+  const model = await mock(page);
+  model.data.shell = { version: '1.0.0', api: 1, outdated: true, can_install: true, reason: null };
+  await inDesktopApp(page);
+  const panel = await open(page);
+  await expect(panel).toContainText('The desktop app is older than this version');
+  await panel.getByRole('button', { name: 'Update the desktop app' }).click();
+  expect(model.commands).toEqual([{ node: 'self', action: 'apply', spec: '1.1.0', full: true }]);
+});
+
+test('a desktop app that cannot update itself and a partial full update are reported', async ({ page }) => {
+  const model = await mock(page, remote);
+  model.data.shell = { version: '1.0.0', api: 0, outdated: true, can_install: false, reason: 'too old' };
+  model.data.status = { ...update('done'), full: true, warning: 'The desktop app was not updated: unknown operation' };
+  const panel = await open(page, remote);
+  await expect(panel).toContainText('Open Cranibox on that device to finish the update.');
+  await expect(panel.getByRole('button', { name: 'Update the desktop app' })).toHaveCount(0);
+  await expect(panel).toContainText('The desktop app was not updated: unknown operation');
+});
+
 test('remote managed: selected channel and target confirmation', async ({ page }) => {
   const model = await mock(page, remote), panel = await open(page, remote);
   await panel.getByRole('button', { name: 'Check for updates' }).click();

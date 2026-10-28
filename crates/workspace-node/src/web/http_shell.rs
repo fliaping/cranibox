@@ -72,9 +72,12 @@ impl HttpShell {
 #[async_trait::async_trait]
 impl Shell for HttpShell {
     async fn call(&self, operation: &str, body: Value) -> Result<Value> {
-        let response = self
-            .client
-            .post(self.url.clone())
+        let mut request = self.client.post(self.url.clone());
+        // Copying and checking the signature of a new app bundle takes a while.
+        if operation == "install_app" {
+            request = request.timeout(Duration::from_secs(120));
+        }
+        let response = request
             .bearer_auth(&self.token)
             .json(&json!({"operation": operation, "body": body}))
             .send()

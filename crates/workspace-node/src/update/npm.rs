@@ -424,6 +424,12 @@ pub fn platform_package(entry: &str) -> Result<String> {
     platform_package_for(entry, std::env::consts::OS, std::env::consts::ARCH, libc)
 }
 
+/// The desktop app package for this platform: `{entry}-desktop-{suffix}`.
+pub fn desktop_package(entry: &str) -> Result<String> {
+    let platform = platform_package(entry)?;
+    Ok(format!("{entry}-desktop-{}", &platform[entry.len() + 1..]))
+}
+
 fn platform_package_for(entry: &str, os: &str, arch: &str, libc: &str) -> Result<String> {
     validate_package(entry)?;
     if os == "linux" {
@@ -1280,6 +1286,15 @@ pub(crate) mod tests {
                 format!("@fliaping/cranibox-{suffix}")
             );
         }
+        let desktop = desktop_package("@fliaping/cranibox").unwrap();
+        assert!(
+            desktop.starts_with("@fliaping/cranibox-desktop-"),
+            "{desktop}"
+        );
+        assert_eq!(
+            &desktop["@fliaping/cranibox-desktop-".len()..],
+            &platform_package("@fliaping/cranibox").unwrap()["@fliaping/cranibox-".len()..]
+        );
         for (os, arch, libc) in [
             ("linux", "x86_64", "musl"),
             ("linux", "aarch64", "gnu"),

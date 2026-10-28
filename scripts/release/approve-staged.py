@@ -17,7 +17,7 @@ def manage(package_name, action=None, otp=None):
         print("No staged Cranibox versions found.")
         return
     if action is None:
-        print("Use --approve or --reject to act on ALL listed versions of these four packages.")
+        print("Use --approve or --reject to act on ALL listed versions of these packages.")
         return
     print(f"Will {action} all {len(stages)} listed stages in one go: the 2FA OTP is short-lived.", flush=True)
     if not otp:
