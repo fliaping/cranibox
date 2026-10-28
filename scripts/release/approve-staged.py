@@ -30,9 +30,9 @@ def manage(package_name, action=None, otp=None):
             # those could contain the OTP. Report only the stage ID and exit status.
             result = subprocess.run(command + ["--otp", otp], capture_output=True, text=True)
         else:
-            # npm prints a login URL; confirm it in the browser with the security key.
+            # npm prints a login URL (it cannot open a browser here); confirm it with the security key.
             print(f"{stage['name']}@{stage['version']}: confirm in the browser when npm asks.", flush=True)
-            result = subprocess.run(command + ["--auth-type", "web"])
+            result = subprocess.run(command + ["--auth-type", "web", "--no-browser"])
         if result.returncode:
             raise RuntimeError(f"npm stage {action} failed for {stage['id']} (exit {result.returncode}); "
                                "rerun to list the remaining stages.")
