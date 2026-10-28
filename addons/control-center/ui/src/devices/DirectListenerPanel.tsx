@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Radio, Settings2, X } from 'lucide-react';
 import type { DirectCatalog, DirectClient, DirectListener } from './DirectDevicesView';
+import { ask } from '../confirm';
 
 export function DirectListenerPanel({ client, catalog, language, busy, run, onCatalog }: {
   client: DirectClient; catalog: DirectCatalog; language: string; busy: boolean;
@@ -42,8 +43,8 @@ export function DirectListenerPanel({ client, catalog, language, busy, run, onCa
       <p id={hintId} className="direct-note">{t('填写 IP:端口，例如 127.0.0.1:9020 或 [::1]:9020。其他设备连接时使用此设备的局域网、EasyTier 或 Tailscale 地址；0.0.0.0 和 [::] 仅表示绑定全部接口。', 'Enter IP:port, such as 127.0.0.1:9020 or [::1]:9020. Other devices connect using this device’s LAN, EasyTier or Tailscale address. 0.0.0.0 and [::] bind all interfaces.')}</p>
       <label className="direct-check"><input type="checkbox" disabled={busy} checked={privateHttp} onChange={event => setPrivateHttp(event.target.checked)} />{t('允许可信私网或 TLS 反向代理后的 HTTP 接入', 'Allow HTTP on a trusted private network or behind a TLS proxy')}</label>
       {error && <p id={errorId} className="direct-error" role="alert">{error}</p>}
-      <div className="direct-actions"><button className="direct-primary" type="submit" disabled={busy}>{pending ? t('正在应用…', 'Applying…') : t('保存并启用', 'Save and enable')}</button><button type="button" disabled={busy} onClick={close}>{t('取消', 'Cancel')}</button>{(runtime.active || catalog.listener) && <button type="button" disabled={busy} onClick={() => {
-        if (confirm(t('关闭入站接入？其他设备的入站连接将断开，授权、后台 Shell 和运行中的任务会保留。', 'Stop incoming access? Other devices will disconnect. Grants, background shells and running jobs remain available.'))) void apply(null);
+      <div className="direct-actions"><button className="direct-primary" type="submit" disabled={busy}>{pending ? t('正在应用…', 'Applying…') : t('保存并启用', 'Save and enable')}</button><button type="button" disabled={busy} onClick={close}>{t('取消', 'Cancel')}</button>{(runtime.active || catalog.listener) && <button type="button" disabled={busy} onClick={async () => {
+        if (await ask(t('关闭入站接入？其他设备的入站连接将断开，授权、后台 Shell 和运行中的任务会保留。', 'Stop incoming access? Other devices will disconnect. Grants, background shells and running jobs remain available.'))) void apply(null);
       }}>{t('关闭入站接入', 'Stop incoming access')}</button>}</div>
     </form>}
   </div>;

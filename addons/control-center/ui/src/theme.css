@@ -37,3 +37,6 @@
   --shadow: 0 10px 30px #0007;
   --shadow-lg: 0 24px 72px #000a;
 }
+
+/* Questions from ask(): keep their line breaks (install steps are one per line). */
+.cx-confirm-message { white-space: pre-line; overflow-wrap: anywhere; margin: 0 0 16px; }

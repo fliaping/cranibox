@@ -5,6 +5,7 @@ import { DirectListenerPanel } from './DirectListenerPanel';
 import { BrowserSharingPanel } from './BrowserSharingPanel';
 import { ComputerSharingPanel } from './ComputerSharingPanel';
 import { ProjectCopyRootPanel } from './ProjectCopyRootPanel';
+import { ask } from '../confirm';
 
 type Issued = { node: string; token: string };
 export function DirectAccessPanel({ client, catalog, language, busy, run, onCatalog }: {
@@ -101,8 +102,8 @@ export function DirectAccessPanel({ client, catalog, language, busy, run, onCata
       <button className="direct-primary" type="submit" disabled={busy || !exec && !terminals && !projects && !desktop && !computer && !browser && !messages && !activity && !spaces}><KeyRound size={16} aria-hidden="true" />{busy ? t('正在创建…', 'Creating…') : t('创建授权 Token', 'Create access token')}</button>
     </form>}
     <div className="direct-grant-list" aria-label={t('已授权设备', 'Granted devices')}>
-      {(catalog.grants || []).map(grant => <div key={grant.node} className="direct-grant-row"><div><strong>{grant.node}</strong><p className="direct-note">{[grant.permissions.exec && t('执行命令', 'Execute commands'), grant.permissions.terminals && t('终端会话', 'Terminal sessions'), grant.permissions.activity && t('只读协作记录', 'Read collaboration records'), grant.permissions.spaces && t('空间目录', 'Space catalog'), grant.permissions.projects && t('项目目录', 'Project catalog'), grant.permissions.messages && t('设备消息与协作任务', 'Device messages and collaboration tasks'), grant.permissions.browser && t('浏览器操作', 'Browser Use'), grant.permissions.desktop && t('桌面控制', 'Desktop control'), grant.permissions.computer && t('Agent 桌面操作', 'Agent Computer Use')].filter(Boolean).join(' · ')}</p>{pairing(grant)}</div><button disabled={busy} aria-label={t('撤销授权 ', 'Revoke access ') + grant.node} onClick={() => {
-        if (confirm(t('撤销该设备的入站授权？其运行中的直连命令、终端和桌面连接会关闭，后台 Shell 会话仍保留。', 'Revoke this device’s incoming access? Its running direct commands, terminal and desktop attachments will close. Background shells remain running.'))) void run(async () => {
+      {(catalog.grants || []).map(grant => <div key={grant.node} className="direct-grant-row"><div><strong>{grant.node}</strong><p className="direct-note">{[grant.permissions.exec && t('执行命令', 'Execute commands'), grant.permissions.terminals && t('终端会话', 'Terminal sessions'), grant.permissions.activity && t('只读协作记录', 'Read collaboration records'), grant.permissions.spaces && t('空间目录', 'Space catalog'), grant.permissions.projects && t('项目目录', 'Project catalog'), grant.permissions.messages && t('设备消息与协作任务', 'Device messages and collaboration tasks'), grant.permissions.browser && t('浏览器操作', 'Browser Use'), grant.permissions.desktop && t('桌面控制', 'Desktop control'), grant.permissions.computer && t('Agent 桌面操作', 'Agent Computer Use')].filter(Boolean).join(' · ')}</p>{pairing(grant)}</div><button disabled={busy} aria-label={t('撤销授权 ', 'Revoke access ') + grant.node} onClick={async () => {
+        if (await ask(t('撤销该设备的入站授权？其运行中的直连命令、终端和桌面连接会关闭，后台 Shell 会话仍保留。', 'Revoke this device’s incoming access? Its running direct commands, terminal and desktop attachments will close. Background shells remain running.'))) void run(async () => {
           const value = await client({ operation: 'revoke', node: grant.node }) as DirectCatalog;
           if (mounted.current) onCatalog(value);
         });

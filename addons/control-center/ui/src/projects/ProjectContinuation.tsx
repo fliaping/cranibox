@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pause, Play, RefreshCw, Square, Terminal } from 'lucide-react';
 import type { AgentAccess, AgentAdapter, CopyClient, CopyJob } from './ProjectCopyPanel';
+import { ask } from '../confirm';
 
 type Launch = { name: string; program: string; args: string[]; cwd: string; stdin?: string };
 type Review = { launch: Launch; available: boolean; digest: string; execution_id: string };
@@ -79,7 +80,7 @@ export function ProjectContinuation({ client, job, language, disabled }: { clien
     </>}
     <div className="projects-copy-actions"><button type="button" disabled={locked} onClick={() => { setWatching(true); void read(); }}><RefreshCw size={16} aria-hidden="true" />{detail ? t('刷新接续任务', 'Refresh continuation') : t('查找已有接续任务', 'Find existing continuation')}</button>
       {detail && <button type="button" disabled={locked} aria-pressed={watching} onClick={() => setWatching(value => !value)}>{watching ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{watching ? t('暂停更新', 'Pause updates') : t('恢复更新', 'Resume updates')}</button>}
-      {detail && active(detail.execution.state) && <button type="button" disabled={locked || detail.execution.state === 'stopping'} onClick={() => { if (confirm(t('停止这个接续任务及其子进程？未保存的工作可能丢失。', 'Stop this continuation and its child processes? Unsaved work may be lost.'))) void perform(async request => {
+      {detail && active(detail.execution.state) && <button type="button" disabled={locked || detail.execution.state === 'stopping'} onClick={async () => { if (await ask(t('停止这个接续任务及其子进程？未保存的工作可能丢失。', 'Stop this continuation and its child processes? Unsaved work may be lost.'))) void perform(async request => {
         const value = validDetail(await client({ operation: 'copy_agent_stop', id: job.id }) as Detail);
         if (alive.current && request === generation.current) { current.current = value; setDetail(value); setWatching(true); }
       }); }}><Square size={16} aria-hidden="true" />{t('停止接续任务', 'Stop continuation')}</button>}

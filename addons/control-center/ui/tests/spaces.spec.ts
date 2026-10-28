@@ -424,3 +424,30 @@ test('the real Rust catalog is accessible from both language routes without acce
     await expect(page.locator('.virtual-spaces [role="alert"]')).toHaveCount(0);
   }
 });
+
+test('inside the desktop app confirmations are asked in the page', async ({ page }) => {
+  // The macOS app webview answers window.confirm with "cancel" and shows nothing.
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+    window.confirm = () => { throw new Error('native confirm used'); };
+  });
+  const commands: any[] = [];
+  let phase = 'ready';
+  await page.route('**/api/spaces', route => {
+    const body = route.request().postDataJSON();
+    if (body?.operation === 'stop') { commands.push(body); phase = 'stopped'; }
+    return route.fulfill({ json: { platform: 'linux', default_image: 'local:test', setup: null, spaces: [{ id: 'space-confirm', name: 'My space', provider: 'docker', image: 'local:test', node: 'space-node', phase, error: null, volume: 'persistent', ports: { desktop: 43001, code: 48443 } }] } });
+  });
+  await page.goto('/#/spaces');
+  const space = page.getByRole('article', { name: 'My space', exact: true });
+  await space.getByRole('button', { name: 'Stop', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Please confirm' });
+  await expect(dialog).toContainText('Stopping this space interrupts its Agents and shells');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(commands).toEqual([]);
+  await space.getByRole('button', { name: 'Stop', exact: true }).click();
+  await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect.poll(() => commands).toEqual([{ operation: 'stop', id: 'space-confirm' }]);
+});

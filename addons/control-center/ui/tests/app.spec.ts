@@ -148,6 +148,31 @@ test('setup guide asks for every permission in one pass', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Your identity/ })).toBeVisible();
 });
 
+test('setup guide reviews the Computer Use install plan in the page', async ({ page }) => {
+  const calls: string[] = [];
+  let installed = false;
+  await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: { ...capabilities, items: capabilities.items.map(item => item.id === 'computer' ? { ...item, provider: { ...item.provider, installed } } : item) } }));
+  await page.route('**/api/v1/app/capabilities/*/*', route => {
+    const [, , , , , id, action] = new URL(route.request().url()).pathname.split('/');
+    calls.push(id + ':' + action + ':' + JSON.stringify(route.request().postDataJSON()));
+    if (action === 'install_plan') return route.fulfill({ json: { plan_id: 'plan-1', commands: ['curl -fsSL https://example.test/install.sh | sh'], url: 'https://example.test/install.sh', expires_at: Math.floor(Date.now() / 1000) + 600 } });
+    if (action === 'install') installed = true;
+    return route.fulfill({ json: {} });
+  });
+  // Native dialogs never appear in the macOS app, so the guide must not rely on one.
+  page.on('dialog', dialog => { throw new Error('native dialog: ' + dialog.message()); });
+  await page.goto('/#/app/setup');
+  const row = page.getByRole('listitem').filter({ hasText: 'Computer Use' });
+  await row.getByRole('button', { name: 'Install…', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Review the install plan' });
+  await expect(sheet).toContainText('curl -fsSL https://example.test/install.sh | sh');
+  await expect(sheet).toContainText('https://example.test/install.sh');
+  await sheet.getByRole('button', { name: 'Run install', exact: true }).click();
+  await expect.poll(() => calls.at(-1)).toBe('computer:install:{"plan_id":"plan-1"}');
+  await expect(sheet).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Install…', exact: true })).toHaveCount(0);
+});
+
 test('capabilities page shows providers, permissions, sharing and reviews install plans', async ({ page }) => {
   const calls: string[] = [];
   await page.route('**/api/v1/app/capabilities', route => route.fulfill({ json: capabilities }));

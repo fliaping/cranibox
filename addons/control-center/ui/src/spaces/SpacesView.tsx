@@ -4,6 +4,7 @@ import '../devices/devices.css';
 import './spaces.css';
 import type { DirectClient } from '../devices/DirectDevicesView';
 import { RemoteSpaces } from './RemoteSpaces';
+import { ask } from '../confirm';
 
 type PullPolicy = 'always' | 'missing' | 'never';
 type Provider = 'docker' | 'colima' | 'orbstack' | 'wsl';
@@ -120,8 +121,8 @@ export function SpacesView({ client, language, onOpenTerminal, onOpenApplication
     if (value) { setWizard(false); setStep(0); setName(''); setNotice(t('空间正在后台创建，可以关闭此页面。', 'Your space is being created in the background. You can close this page.')); createButton.current?.focus(); }
   }
   async function act(space: Space, operation: 'resume' | 'stop' | 'remove') {
-    if (operation === 'stop' && !window.confirm(t('停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？', 'Stopping this space interrupts its Agents and shells. Data is retained. Continue?'))) return;
-    if (operation === 'remove' && !window.confirm(t('归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？', 'Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?'))) return;
+    if (operation === 'stop' && !await ask(t('停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？', 'Stopping this space interrupts its Agents and shells. Data is retained. Continue?'))) return;
+    if (operation === 'remove' && !await ask(t('归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？', 'Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?'))) return;
     const value = await request({ operation, id: space.id });
     if (value) { setCredentials(null); setNotice(t('操作已在后台开始。', 'Operation started in the background.')); }
   }

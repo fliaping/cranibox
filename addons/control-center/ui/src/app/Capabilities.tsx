@@ -59,15 +59,20 @@ export function Capabilities() {
     </div>
     {error && <Alert>{error}</Alert>}
     <div className="cx-grid two">{items.map(item => <CapabilityCard key={item.id} item={item} pending={pending} act={act} />)}</div>
-    {plan && <Sheet title={t("审阅安装方案", "Review the install plan")} t={t} onClose={() => setPlan(null)}>
-      <p className="cx-muted">{t("以下命令会在本机执行一次。请确认来源可信后再继续。", "These commands run once on this device. Continue only if you trust their source.")}</p>
-      <div className="cx-plan"><pre aria-label={t("安装命令", "Install commands")}>{plan.plan.commands.join("\n")}</pre>
-        {plan.plan.url && <p className="cx-small">{t("来源：", "Source: ")}<span className="cx-mono">{plan.plan.url}</span></p>}
-        {plan.plan.expires_at && <p className="cx-small cx-muted">{t("方案有效期至 ", "Plan valid until ")}{new Date(plan.plan.expires_at * 1000).toLocaleTimeString()}</p>}</div>
-      <div className="cx-actions"><button className="cx-btn" onClick={() => setPlan(null)}>{t("取消", "Cancel")}</button>
-        <button className="cx-btn primary" disabled={!!pending} onClick={() => { const item = data?.items.find(entry => entry.id === plan.id); if (item) void act(item, "install", { plan_id: plan.plan.plan_id }); }}><Download size={15} aria-hidden="true" />{t("执行安装", "Run install")}</button></div>
-    </Sheet>}
+    {plan && <InstallPlanSheet plan={plan.plan} busy={!!pending} t={t} onClose={() => setPlan(null)}
+      onRun={() => { const item = data?.items.find(entry => entry.id === plan.id); if (item) void act(item, "install", { plan_id: plan.plan.plan_id }); }} />}
   </>;
+}
+/** The commands, source and expiry of an install plan, reviewed before it runs. */
+export function InstallPlanSheet({ plan, busy, t, onClose, onRun }: { plan: InstallPlan; busy: boolean; t: Translate; onClose: () => void; onRun: () => void }) {
+  return <Sheet title={t("审阅安装方案", "Review the install plan")} t={t} onClose={onClose}>
+    <p className="cx-muted">{t("以下命令会在本机执行一次。请确认来源可信后再继续。", "These commands run once on this device. Continue only if you trust their source.")}</p>
+    <div className="cx-plan"><pre aria-label={t("安装命令", "Install commands")}>{plan.commands.join("\n")}</pre>
+      {plan.url && <p className="cx-small">{t("来源：", "Source: ")}<span className="cx-mono">{plan.url}</span></p>}
+      {plan.expires_at && <p className="cx-small cx-muted">{t("方案有效期至 ", "Plan valid until ")}{new Date(plan.expires_at * 1000).toLocaleTimeString()}</p>}</div>
+    <div className="cx-actions"><button className="cx-btn" onClick={onClose}>{t("取消", "Cancel")}</button>
+      <button className="cx-btn primary" disabled={busy} onClick={onRun}><Download size={15} aria-hidden="true" />{t("执行安装", "Run install")}</button></div>
+  </Sheet>;
 }
 function CapabilityCard({ item, pending, act }: { item: Capability; pending: string; act: (item: Capability, action: CapabilityAction, body?: unknown) => Promise<void> }) {
   const { t } = useApp();

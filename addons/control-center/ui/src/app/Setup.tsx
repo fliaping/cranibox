@@ -1,7 +1,8 @@
 import { Check, CircleAlert, Globe, KeyRound, Monitor, MousePointerClick, Plus, Power, ShieldCheck, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Capabilities, Capability, CapabilityAction } from "../personal/api";
+import type { Capabilities, Capability, CapabilityAction, InstallPlan } from "../personal/api";
+import { InstallPlanSheet } from "./Capabilities";
 import { useIdentity } from "./Network";
 import { RecoveryCreator } from "./Identity";
 import { inShell, shellCall, type ShellStatus } from "./shell";
@@ -101,7 +102,7 @@ function rows(data: Capabilities | null, shell: ShellStatus | null, act: (item: 
 function PermissionsStep({ next }: { next: () => void }) {
   const { t, api } = useApp();
   const [data, setData] = useState<Capabilities | null>(null), [shell, setShell] = useState<ShellStatus | null>(null);
-  const [busy, setBusy] = useState(""), [error, setError] = useState("");
+  const [busy, setBusy] = useState(""), [error, setError] = useState(""), [plan, setPlan] = useState<InstallPlan | null>(null);
   const load = useCallback(async () => {
     try { setData(await api.call<Capabilities>("GET", "/capabilities")); } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
     if (inShell()) try { setShell(await shellCall<ShellStatus>("status")); } catch { /* Older desktop apps. */ }
@@ -125,14 +126,17 @@ function PermissionsStep({ next }: { next: () => void }) {
     setBusy("");
     await load();
   }
+  // The plan is reviewed in the page: the app's macOS webview shows no window.confirm.
   async function install() {
-    const computer = data?.items.find(entry => entry.id === "computer");
-    if (!computer) return;
     setBusy("computer"); setError("");
-    try {
-      const plan = await api.call<{ plan_id: string; commands: string[] }>("POST", "/capabilities/computer/install_plan", {});
-      if (window.confirm(t("将执行以下步骤：\n\n", "Cranibox will:\n\n") + plan.commands.join("\n"))) await api.call("POST", "/capabilities/computer/install", { plan_id: plan.plan_id });
-    } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+    try { setPlan(await api.call<InstallPlan>("POST", "/capabilities/computer/install_plan", {})); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+    setBusy("");
+  }
+  async function runInstall(plan: InstallPlan) {
+    setBusy("computer"); setError("");
+    try { await api.call("POST", "/capabilities/computer/install", { plan_id: plan.plan_id }); setPlan(null); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
     setBusy(""); await load();
   }
   const pending = list.filter(row => row.state === "todo");
@@ -151,6 +155,7 @@ function PermissionsStep({ next }: { next: () => void }) {
       </SetupState>
     </li>)}</ul>
     <div className="cx-actions" style={{ marginTop: 16 }}><button className="cx-btn primary" onClick={next}>{t("下一步", "Next")}</button></div>
+    {plan && <InstallPlanSheet plan={plan} busy={!!busy} t={t} onClose={() => setPlan(null)} onRun={() => void runInstall(plan)} />}
   </Card>;
 }
 function SetupState({ state, t, children }: { state: Row["state"]; t: Translate; children: ReactNode }) {

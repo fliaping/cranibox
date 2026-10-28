@@ -5,6 +5,7 @@ import { AgentSessions } from '../tasks/AgentSessions';
 import { HeldMessages } from './HeldMessages';
 import '../devices/devices.css';
 import './messages.css';
+import { ask } from '../confirm';
 
 export type MessageCommand = { operation: 'list'; session?: string } | { operation: 'send'; id: string; node: string; text: string; thread?: string; in_reply_to?: string; sender_session?: string; target_session?: string } | { operation: 'acknowledge' | 'retry' | 'archive' | 'release' | 'reject'; id: string } | { operation: 'held' };
 type Envelope = { id: string; thread: string; in_reply_to: string | null; sender: string; recipient: string; sender_session?: string | null; target_session?: string | null; text: string; created_at: number; expires_at: number };
@@ -71,9 +72,9 @@ export function DeviceMessagesView({ client, language = 'en', onDevices }: { cli
       setNotice(t('消息已保存在本机发件箱。节点服务会投递，并在断线后重试。', 'Saved in this device’s outbox. The node service delivers it and retries after an outage.'));
     });
   }
-  function beginReply(message: Envelope) {
+  async function beginReply(message: Envelope) {
     const target = message.sender === mailbox?.owner ? message.recipient : message.sender;
-    if (text && !confirm(t('替换当前草稿并回复这条消息？', 'Replace the current draft and reply to this message?'))) return;
+    if (text && !await ask(t('替换当前草稿并回复这条消息？', 'Replace the current draft and reply to this message?'))) return;
     setNode(target); const session = (message.sender === mailbox?.owner ? message.target_session : message.sender_session) || ''; setTargetSession(session); setTargetValid(current => session === targetSession && target === node ? current : !session); setReply(message); setText(''); setFormError(''); setNotice(''); field.current?.focus();
   }
   const status = (value: string) => ({ queued: t('本机排队', 'Queued locally'), received: t('目标已收到', 'Received by device'), acknowledged: t('已确认收件', 'Acknowledged'), blocked: t('需要处理', 'Needs attention'), expired: t('已过期', 'Expired') }[value] || value);
@@ -105,8 +106,8 @@ export function DeviceMessagesView({ client, language = 'en', onDevices }: { cli
             <p className="message-text">{message.text}</p>
             <details><summary>{t('消息详情与会话', 'Message and thread details')}</summary><dl>{[[t('消息 ID', 'Message ID'), message.id], [t('会话 ID', 'Thread ID'), message.thread], [t('回复于', 'In reply to'), message.in_reply_to || '—'], [t('发件 Agent', 'Sender Agent'), message.sender_session || '—'], [t('收件 Agent', 'Recipient Agent'), message.target_session || t('设备收件箱', 'Device inbox')], [t('发送时间', 'Sent'), new Date(message.created_at * 1000).toLocaleString(language)], [t('投递截止', 'Delivery deadline'), new Date(message.expires_at * 1000).toLocaleString(language)]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>
             {item.error && <p className="direct-error">{item.error}</p>}
-            <div className="direct-actions">{box === 'incoming' && item.status !== 'acknowledged' && <button disabled={busy} onClick={() => void run({ operation: 'acknowledge', id: message.id })}><CheckCheck size={16} aria-hidden="true" />{t('确认收件', 'Acknowledge receipt')}</button>}<button disabled={busy || !canReply} title={!canReply ? t('需要先配置反向连接和消息授权', 'Configure a reverse connection and message grant first') : undefined} onClick={() => beginReply(message)}><Reply size={16} aria-hidden="true" />{t('回复', 'Reply')}</button>{box === 'outgoing' && item.status !== 'acknowledged' && message.expires_at * 1000 > Date.now() && <button disabled={busy} onClick={() => void run({ operation: 'retry', id: message.id })}><RefreshCw size={16} aria-hidden="true" />{t('重试原消息', 'Retry same message')}</button>}<button disabled={busy} onClick={() => {
-              if (confirm(box === 'outgoing' ? t('删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。', 'Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.') : t('隐藏这条来信？去重和收件回执会保留到投递截止。', 'Hide this incoming message? Deduplication and receipts remain until its delivery deadline.'))) void run({ operation: 'archive', id: message.id });
+            <div className="direct-actions">{box === 'incoming' && item.status !== 'acknowledged' && <button disabled={busy} onClick={() => void run({ operation: 'acknowledge', id: message.id })}><CheckCheck size={16} aria-hidden="true" />{t('确认收件', 'Acknowledge receipt')}</button>}<button disabled={busy || !canReply} title={!canReply ? t('需要先配置反向连接和消息授权', 'Configure a reverse connection and message grant first') : undefined} onClick={() => void beginReply(message)}><Reply size={16} aria-hidden="true" />{t('回复', 'Reply')}</button>{box === 'outgoing' && item.status !== 'acknowledged' && message.expires_at * 1000 > Date.now() && <button disabled={busy} onClick={() => void run({ operation: 'retry', id: message.id })}><RefreshCw size={16} aria-hidden="true" />{t('重试原消息', 'Retry same message')}</button>}<button disabled={busy} onClick={async () => {
+              if (await ask(box === 'outgoing' ? t('删除本机发件记录并停止后续重试？目标已收到或正在传输的消息无法撤回。', 'Delete this local outgoing record and stop future retries? Messages already received or in transit cannot be recalled.') : t('隐藏这条来信？去重和收件回执会保留到投递截止。', 'Hide this incoming message? Deduplication and receipts remain until its delivery deadline.'))) void run({ operation: 'archive', id: message.id });
             }}><Archive size={16} aria-hidden="true" />{box === 'incoming' ? t('归档', 'Archive') : t('删除记录', 'Delete record')}</button></div>
             {box === 'incoming' && !canReply && <p className="direct-note">{t('尚未配置到发送方的连接。配置后可回复。', 'No connection to the sender is configured. Add it before replying.')}</p>}
           </article>;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ShieldAlert, X } from 'lucide-react';
 import type { DirectClient } from '../devices/DirectDevicesView';
+import { ask } from '../confirm';
 
 type Envelope = { id: string; thread: string; sender: string; recipient: string; sender_session?: string | null; target_session?: string | null; text: string; created_at: number; expires_at: number };
 type HeldItem = { message: Envelope; received_at: number; reason: string | null };
@@ -28,7 +29,7 @@ export function HeldMessages({ client, language = 'en', count, refreshed, onChan
   useEffect(() => { if (count > 0 || queue.length) void load(); }, [count, refreshed, load]); // eslint-disable-line react-hooks/exhaustive-deps
   async function decide(operation: 'release' | 'reject', id: string) {
     if (busy) return;
-    if (operation === 'reject' && !confirm(t('拒绝并丢弃这条消息？发送方不会收到正文回执，Agent 也不会看到它。', 'Reject and discard this message? Agents will never see it.'))) return;
+    if (operation === 'reject' && !await ask(t('拒绝并丢弃这条消息？发送方不会收到正文回执，Agent 也不会看到它。', 'Reject and discard this message? Agents will never see it.'))) return;
     setBusy(true); setError(''); ++serial.current;
     try {
       const value = await client({ operation: 'messages', command: { operation, id } }) as HeldQueue;
