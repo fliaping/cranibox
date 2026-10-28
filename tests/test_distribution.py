@@ -74,7 +74,7 @@ elif args[:2] == ['stage', 'publish']:
             tag=args[args.index('--tag') + 1], integrity=integrity))
         state_path.write_text(json.dumps(state))
 elif args[0] == 'stage' and args[1] in ('approve', 'reject'):
-    assert args[args.index('--otp') + 1] == '123456'
+    assert args[args.index('--otp') + 1] == '123456' if '--otp' in args else args[args.index('--auth-type') + 1] == 'web'
     if state.get('fail_action'):
         # Deliberately hostile child output must never reach the operator.
         print(args[args.index('--otp') + 1])
@@ -535,26 +535,24 @@ class DistributionTests(unittest.TestCase):
                 self.assertTrue(all(call[:2] == ["stage", action] for call in calls[len(stages):]))
                 self.assertNotIn("123456", result.stdout + result.stderr + json.dumps(calls))
 
-    def test_approve_prompts_once_after_listing_all_packages(self):
+    def test_approve_without_otp_uses_browser_auth_after_listing_all_packages(self):
         stages = self.stage_fixtures()
         environment = self.fake_npm({"stages": stages})
-        run = subprocess.run
-
-        def prompt(message):
-            self.assertEqual(len(self.fake_calls()), 7)
-            return "123456"
-
-        with patch.object(stage_approver.subprocess, "run", side_effect=lambda command, **options: run(command, env=environment, **options)), \
-                patch.object(stage_approver.getpass, "getpass", side_effect=prompt) as getpass, redirect_stdout(io.StringIO()):
-            stage_approver.manage("@fliaping/cranibox", "approve")
-        getpass.assert_called_once()
-        self.assertEqual(len(self.fake_calls()), 14)
+        result = self.approve_with_fake(environment, "--approve")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.fake_calls()
+        self.assertEqual(len(calls), 14)
+        self.assertTrue(all(call[:2] == ["stage", "list"] for call in calls[:7]))
+        for call in calls[7:]:
+            self.assertEqual(call[:2], ["stage", "approve"])
+            self.assertEqual(call[call.index("--auth-type") + 1], "web")
+            self.assertNotIn("--otp", call)
 
     def test_approve_failure_does_not_leak_otp_from_child_output(self):
         environment = self.fake_npm({"stages": self.stage_fixtures(), "fail_action": True})
         result = self.approve_with_fake(environment, "--approve", "--otp", "123456")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("fresh OTP", result.stderr)
+        self.assertIn("remaining stages", result.stderr)
         self.assertNotIn("123456", result.stdout + result.stderr)
         self.assertEqual(len(self.fake_calls()), 8)
 
@@ -568,14 +566,6 @@ class DistributionTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertFalse(any(call[:2] == ["stage", "approve"] for call in self.fake_calls()))
                 self.assertNotIn("123456", result.stdout + result.stderr)
-
-    def test_approve_refuses_echoing_getpass_fallback(self):
-        with patch.object(stage_approver, "list_stages", return_value=self.stage_fixtures()[:1]), \
-                patch.object(stage_approver.getpass, "getpass", side_effect=stage_approver.getpass.GetPassWarning), \
-                patch.object(stage_approver.subprocess, "run") as run, redirect_stdout(io.StringIO()):
-            with self.assertRaisesRegex(ValueError, "terminal is required"):
-                stage_approver.manage("@fliaping/cranibox", "approve")
-        run.assert_not_called()
 
     def test_approve_empty_list_needs_no_otp_and_actions_are_exclusive(self):
         environment = self.fake_npm()
