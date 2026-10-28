@@ -20,8 +20,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 use zeroize::Zeroizing;
-fn other(_: impl std::fmt::Display) -> StoreError {
-    StoreError::Other("vault operation failed".into())
+/// Keep the cause: database, signature and roster errors name no secret, and a
+/// bare "failed" hides which of them a rare failure was.
+fn other(cause: impl std::fmt::Display) -> StoreError {
+    StoreError::Other(format!("vault operation failed: {cause}"))
 }
 pub(crate) fn now() -> u64 {
     crate::auth::now()
