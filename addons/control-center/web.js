@@ -21279,6 +21279,13 @@ function Rl({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 //#region src/pages/Spaces.tsx
 function zl() {
 	let e = tt(), { openTerminal: t } = or(), n = (0, y.useCallback)((e) => fr("/api/spaces", e), []), r = (0, y.useCallback)((e) => fr("/api/peers", e, { background: !0 }), []), i = (0, y.useCallback)(async (e, t) => {
+		if (er()) {
+			await tr("open_external", { url: (await fr("/api/spaces/application", {
+				id: e,
+				application: t
+			})).url });
+			return;
+		}
 		let n = window.open("about:blank", "_blank");
 		if (!n) throw Error(document.documentElement.lang.startsWith("zh") ? "请允许此页面打开新窗口，然后重试。" : "Allow pop-ups for this page and retry.");
 		n.opener = null;

@@ -451,3 +451,28 @@ test('inside the desktop app confirmations are asked in the page', async ({ page
   await dialog.getByRole('button', { name: 'OK', exact: true }).click();
   await expect.poll(() => commands).toEqual([{ operation: 'stop', id: 'space-confirm' }]);
 });
+
+test('inside the desktop app space applications open in the system browser', async ({ page, context }) => {
+  // The macOS app webview opens no windows: window.open answers null.
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+    window.open = () => null;
+  });
+  const shell: any[] = [];
+  await page.route('**/api/spaces', route => route.fulfill({ json: { platform: 'linux', default_image: 'local:test', setup: null, spaces: [{ id: 'space-shell', name: 'My space', provider: 'docker', image: 'local:test', node: 'space-node', phase: 'ready', error: null, volume: 'persistent', ports: { desktop: 43001, code: 48443 } }] } }));
+  await page.route('**/api/spaces/application', route => route.fulfill({ json: { url: 'http://127.0.0.1:43123/cranibox-app-' + route.request().postDataJSON().application + '/?open=ticket' } }));
+  await page.route('**/api/shell', route => { shell.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  let opened = 0;
+  context.on('page', () => opened++);
+  await page.goto('/#/spaces');
+  const space = page.getByRole('article', { name: 'My space', exact: true });
+  await space.getByRole('button', { name: 'Desktop', exact: true }).click();
+  await space.getByRole('button', { name: 'Editor', exact: true }).click();
+  await expect.poll(() => shell).toEqual([
+    { operation: 'open_external', url: 'http://127.0.0.1:43123/cranibox-app-desktop/?open=ticket' },
+    { operation: 'open_external', url: 'http://127.0.0.1:43123/cranibox-app-code/?open=ticket' },
+  ]);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(opened).toBe(0);
+});

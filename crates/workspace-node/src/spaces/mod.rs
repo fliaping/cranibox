@@ -253,6 +253,19 @@ impl Store {
         result.validate(owner)?;
         Ok(result)
     }
+    /// Spaces enrolled as this device's own nodes: their saved route is in `config`.
+    /// Archiving removes the route, so an archived space is not a device until restored.
+    pub fn enrolled(
+        &self,
+        config: &Config,
+    ) -> Vec<agent_workspace_runtime::peers::space_catalog::Summary> {
+        self.shared_catalog(&config.node_id)
+            .map(|catalog| catalog.spaces)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|space| space.phase != "archived" && config.routes.contains_key(&space.node))
+            .collect()
+    }
     pub fn new(peers: PathBuf) -> Self {
         Self {
             directory: peers.with_file_name("spaces"),
@@ -674,6 +687,60 @@ mod tests {
                 0o600
             );
         }
+    }
+
+    #[test]
+    fn enrolled_spaces_are_the_ones_with_a_saved_route() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(root.path().join("peers.json"));
+        let space = |name: &str, node: &str, phase: &str| Space {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            provider: Provider::Docker,
+            image: DEFAULT_IMAGE.into(),
+            registry: None,
+            desktop: None,
+            display: Default::default(),
+            pull_policy: PullPolicy::default(),
+            node: node.into(),
+            owner: "node-owner".into(),
+            password: "private-password".into(),
+            token: "private-token".into(),
+            phase: phase.into(),
+            error: None,
+            ports: Default::default(),
+        };
+        store
+            .save(&Catalog {
+                version: 1,
+                installation: Uuid::new_v4(),
+                spaces: vec![
+                    space("Ready", "node-ready", "ready"),
+                    space("Stopped", "node-stopped", "stopped"),
+                    space("Enrolling", "node-enrolling", "enrolling"),
+                    space("Archived", "node-archived", "archived"),
+                ],
+                setup: None,
+                setup_plan: None,
+            })
+            .unwrap();
+        let route: agent_workspace_runtime::peers::config::Route = serde_json::from_value(
+            json!({"url":"http://127.0.0.1:9020","token_file":"/tmp/space.token"}),
+        )
+        .unwrap();
+        let mut config: Config =
+            serde_json::from_value(json!({"version":1,"node_id":"node-owner"})).unwrap();
+        for node in ["node-ready", "node-stopped", "node-archived"] {
+            config.routes.insert(node.into(), route.clone());
+        }
+        let names: Vec<_> = store
+            .enrolled(&config)
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert_eq!(names, ["Ready", "Stopped"]);
+        config.node_id = "node-another-owner".into();
+        assert!(store.enrolled(&config).is_empty());
     }
 
     #[test]

@@ -651,6 +651,7 @@ impl AppApi for Service {
                 });
             }
         }
+        let spaces = crate::spaces::Store::new(local.config_path().to_path_buf()).enrolled(&config);
         for (node, grant) in config.grants {
             if devices.iter().any(|d| d.node_id == node) {
                 continue;
@@ -686,6 +687,50 @@ impl AppApi for Service {
                 guest,
                 same_identity: false,
                 caps,
+                os_version: remembered.os_version,
+                model: remembered.model,
+                last_seen: if online {
+                    Some(now)
+                } else {
+                    remembered.last_seen
+                },
+            });
+        }
+        // Virtual spaces are this device's own nodes, reached over the route it saved
+        // when the space was enrolled.
+        for space in spaces {
+            if devices.iter().any(|d| d.node_id == space.node) {
+                continue;
+            }
+            let remembered = known.get(&space.node).cloned().unwrap_or_default();
+            let online = space.phase == "ready" && self.reachable(&space.node);
+            devices.push(Device {
+                name: remembered.alias.clone().unwrap_or(space.name),
+                kind: remembered.kind(),
+                node_id: space.node.clone(),
+                online,
+                path: if online {
+                    PathKind::Direct
+                } else {
+                    PathKind::Unknown
+                },
+                rtt_ms: self
+                    .reach
+                    .lock()
+                    .unwrap()
+                    .get(&space.node)
+                    .and_then(|r| r.rtt_ms),
+                badges: vec![],
+                guest: false,
+                same_identity: false,
+                // What the space's enrollment grants its creator.
+                caps: DeviceCaps {
+                    exec: true,
+                    terminals: true,
+                    projects: true,
+                    computer: remembered.offers("computer"),
+                    ..Default::default()
+                },
                 os_version: remembered.os_version,
                 model: remembered.model,
                 last_seen: if online {
