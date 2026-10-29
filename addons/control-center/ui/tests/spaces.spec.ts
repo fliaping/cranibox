@@ -476,3 +476,90 @@ test('inside the desktop app space applications open in the system browser', asy
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(opened).toBe(0);
 });
+
+test('a stopped or archived space can be deleted permanently after an in-page confirmation naming it', async ({ page }) => {
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+    window.confirm = () => { throw new Error('native confirm used'); };
+  });
+  const commands: any[] = [];
+  let spaces = [
+    { id: 'space-archived', name: 'Old lab', provider: 'docker', image: 'local:test', node: 'space-old', phase: 'archived', error: null, volume: 'persistent', ports: {} },
+    { id: 'space-ready', name: 'Busy lab', provider: 'docker', image: 'local:test', node: 'space-busy', phase: 'ready', error: null, volume: 'persistent', ports: { desktop: 43001, code: 48443 } },
+  ];
+  await page.route('**/api/spaces', route => {
+    const body = route.request().postDataJSON();
+    if (body?.operation === 'delete') { commands.push(body); spaces = spaces.filter(space => space.id !== body.id); }
+    return route.fulfill({ json: { platform: 'linux', default_image: 'local:test', setup: null, spaces } });
+  });
+  await page.goto('/#/spaces');
+  const archived = page.getByRole('article', { name: 'Old lab', exact: true });
+  const ready = page.getByRole('article', { name: 'Busy lab', exact: true });
+  await expect(ready.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+  await expect(ready.getByRole('button', { name: 'Delete permanently' })).toHaveCount(0);
+  await archived.getByRole('button', { name: 'Delete permanently' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Please confirm' });
+  await expect(dialog).toContainText('Permanently delete the space “Old lab”?');
+  await expect(dialog).toContainText("can't be undone");
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(commands).toEqual([]);
+  await archived.getByRole('button', { name: 'Delete permanently' }).click();
+  await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect.poll(() => commands).toEqual([{ operation: 'delete', id: 'space-archived' }]);
+  await expect(archived).toHaveCount(0);
+  await expect(ready).toBeVisible();
+});
+
+test('spaces on another device can be stopped and started there, with plain errors when it refuses or is offline', async ({ page }) => {
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'workspaceWeb', { configurable: true, get: () => value, set: next => { value = { ...next, edition: 'node', shell: true }; } });
+    window.confirm = () => { throw new Error('native confirm used'); };
+  });
+  const controls: any[] = [];
+  let phase = 'ready', refuse: string | null = null;
+  const catalog = (node: string) => ({ owner: node, spaces: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Remote lab', node: 'remote-space-node', provider: 'docker', phase }] });
+  await page.route('**/api/spaces', route => route.fulfill({ json: { platform: 'linux', default_image: 'local:test', setup: null, spaces: [] } }));
+  await page.route('**/api/peers', async route => {
+    const command = route.request().postDataJSON();
+    if (command.operation === 'list') return route.fulfill({ json: { node_id: 'local-manager', routes: [{ node: 'linux-manager', url: 'http://linux-manager.test:9091', allow_private_http: true }], grants: [] } });
+    if (command.operation === 'probe') return route.fulfill({ json: { nodes: [{ id: command.node, spaces: true }] } });
+    if (command.operation === 'space_catalog') return route.fulfill({ json: catalog(command.node) });
+    if (command.operation === 'space_control') {
+      controls.push(command);
+      if (refuse) return route.fulfill({ status: 400, json: { error: refuse } });
+      phase = command.action === 'stop' ? 'stopping' : 'starting';
+      return route.fulfill({ json: catalog(command.node) });
+    }
+    throw Error('Unexpected operation: ' + command.operation);
+  });
+  await page.goto('/#/spaces');
+  const panel = page.getByRole('region', { name: 'Spaces on other devices', exact: true });
+  const stop = panel.getByRole('button', { name: 'Stop Remote lab', exact: true });
+  await stop.click();
+  const dialog = page.getByRole('dialog', { name: 'Please confirm' });
+  await expect(dialog).toContainText('Stop “Remote lab”?');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(controls).toEqual([]);
+  refuse = 'API 403: capability not granted by target node';
+  await stop.click();
+  await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('doesn’t allow you to stop or start its spaces');
+  refuse = 'error sending request for url (http://127.0.0.1:9022/api/v1/mesh/nodes/node-403404/e2e/call): client error (Connect): tcp connect error: Connection refused (os error 111)';
+  await stop.click();
+  await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('It may be offline');
+  refuse = null;
+  await stop.click();
+  await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+  await expect(panel.getByText('Stopping', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  phase = 'stopped';
+  await panel.getByRole('button', { name: 'Refresh remote spaces' }).click();
+  await panel.getByRole('button', { name: 'Start Remote lab', exact: true }).click();
+  await expect(dialog).toHaveCount(0); // Starting needs no confirmation.
+  await expect.poll(() => controls.map(c => c.action)).toEqual(['stop', 'stop', 'stop', 'resume']);
+  expect(controls[3]).toEqual({ operation: 'space_control', node: 'linux-manager', id: '22222222-2222-4222-8222-222222222222', action: 'resume' });
+});

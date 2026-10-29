@@ -915,6 +915,10 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
         )
         .route("/nodes/{node}/spaces", get(spaces::list))
         .route(
+            "/nodes/{node}/spaces/control",
+            post(spaces::control).layer(DefaultBodyLimit::max(4 * 1024)),
+        )
+        .route(
             "/nodes/{node}/update",
             get(update::read)
                 .post(update::start)

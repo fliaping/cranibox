@@ -19956,7 +19956,7 @@ var jl = (e) => e instanceof Error ? e.message : String(e), Ml = {
 	wsl: "WSL2 · Ubuntu"
 };
 function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
-	let i = (e, n) => t.startsWith("zh") ? e : n, a = Fn(), { nodes: o } = ec(), [s, c] = (0, y.useState)([]), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(!0), [p, m] = (0, y.useState)(!1), h = (0, y.useRef)(() => {});
+	let i = (e, n) => t.startsWith("zh") ? e : n, a = Fn(), { nodes: o } = ec(), [s, c] = (0, y.useState)([]), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(!0), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(null), b = (0, y.useRef)(() => {});
 	(0, y.useEffect)(() => {
 		let t = !1, n = 0, r = !1, i = !1;
 		async function a() {
@@ -20036,7 +20036,7 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 		function o() {
 			++n, c([]), f(!0), a();
 		}
-		h.current = () => {
+		b.current = () => {
 			a();
 		};
 		let s = () => {
@@ -20050,14 +20050,51 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 			t = !0, ++n, clearInterval(l), window.removeEventListener("cranibox:peers-changed", o), document.removeEventListener("visibilitychange", s);
 		};
 	}, [e]);
-	function g(e) {
+	function x(e) {
 		let t = a?.devices.find((t) => t.node_id === e.node), n = o.find((t) => t.id === e.node), r = t?.name || e.name || (n?.name && n.name !== e.node ? n.name : e.node), s = t?.kind || e.kind || "server";
 		return {
 			...Zs(r, e.node, i),
 			kind: s
 		};
 	}
-	let _ = s.filter((e) => e.phase === "ready"), v = s.filter((e) => e.phase === "denied" || e.phase === "error"), b = s.filter((e) => e.phase === "loading").length, x = v.filter((e) => e.phase === "denied").length, S = v.length - x, C = _.reduce((e, t) => e + (t.catalog?.spaces.length || 0), 0), w = (e) => e.checked && /* @__PURE__ */ (0, J.jsxs)("time", {
+	function S(e) {
+		return /does not allow|\b403\b.*(forbidden|capability|not granted)|API 403|capability not granted|capability_off/i.test(e) ? i("这台设备不允许你停止或启动它的空间。请在那台设备的“入站权限”里为本设备同时开启“空间”和“命令执行”。", "This device doesn’t allow you to stop or start its spaces. On that device, turn on both Spaces and Commands in Incoming access for this device.") : /space not found|API 404/i.test(e) ? i("那台设备上找不到这个空间，可能已被删除。请刷新后再试。", "This space was not found on that device. It may have been deleted. Refresh and try again.") : /timed out|timeout|connect|unreachable|refused|offline|dns|network|reset/i.test(e) ? i("无法连接这台设备，它可能已离线或已休眠。请稍后重试。", "Couldn’t reach this device. It may be offline or asleep. Try again later.") : i("那台设备未能完成操作：", "That device couldn’t do this: ") + e;
+	}
+	async function C(t, n, r) {
+		if (r !== "stop" || await nl(i(`停止“${n.name}”？\n\n它在另一台设备上运行，其中的 Agent 和终端会被中断。数据会保留，之后可以再次启动。`, `Stop “${n.name}”?\n\nIt runs on another device; its Agents and terminals will be interrupted. Data is kept, and you can start it again later.`))) {
+			g(n.id), v(null);
+			try {
+				let i = await e({
+					operation: "space_control",
+					node: t.node,
+					id: n.id,
+					action: r
+				});
+				i?.owner === t.node && Array.isArray(i.spaces) ? c((e) => e.map((e) => e.node === t.node ? {
+					...e,
+					catalog: i,
+					checked: Date.now()
+				} : e)) : b.current();
+			} catch (e) {
+				v({
+					id: n.id,
+					message: S(jl(e))
+				});
+			} finally {
+				g("");
+			}
+		}
+	}
+	let w = [
+		"preparing",
+		"pulling",
+		"creating",
+		"starting",
+		"enrolling",
+		"stopping",
+		"removing",
+		"deleting"
+	], T = s.filter((e) => e.phase === "ready"), E = s.filter((e) => e.phase === "denied" || e.phase === "error"), D = s.filter((e) => e.phase === "loading").length, O = E.filter((e) => e.phase === "denied").length, k = E.length - O, A = T.reduce((e, t) => e + (t.catalog?.spaces.length || 0), 0), j = (e) => e.checked && /* @__PURE__ */ (0, J.jsxs)("time", {
 		dateTime: new Date(e.checked).toISOString(),
 		children: [i("检查于 ", "Checked "), new Date(e.checked).toLocaleTimeString()]
 	});
@@ -20075,7 +20112,7 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 					children: [/* @__PURE__ */ (0, J.jsx)("button", {
 						disabled: d,
 						"aria-label": i("刷新远端空间", "Refresh remote spaces"),
-						onClick: () => h.current(),
+						onClick: () => b.current(),
 						children: d ? /* @__PURE__ */ (0, J.jsx)(Ea, {
 							size: 16,
 							className: "spaces-spinner",
@@ -20104,11 +20141,11 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 				className: "spaces-muted",
 				role: "status",
 				children: [
-					C,
+					A,
 					" ",
-					i("个空间", C === 1 ? "space" : "spaces"),
+					i("个空间", A === 1 ? "space" : "spaces"),
 					" · ",
-					_.length,
+					T.length,
 					"/",
 					s.length,
 					" ",
@@ -20116,10 +20153,10 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 					d && i(" · 正在检查", " · Checking")
 				]
 			}),
-			_.length > 0 && /* @__PURE__ */ (0, J.jsx)("div", {
+			T.length > 0 && /* @__PURE__ */ (0, J.jsx)("div", {
 				className: "remote-space-sources",
-				children: _.map((e) => {
-					let t = g(e);
+				children: T.map((e) => {
+					let t = x(e);
 					return /* @__PURE__ */ (0, J.jsxs)("article", {
 						className: "remote-space-source",
 						"aria-label": e.node,
@@ -20145,33 +20182,76 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 											children: t.shortId
 										})
 									]
-								}), w(e)]
+								}), j(e)]
 							}),
 							e.catalog?.spaces.length ? /* @__PURE__ */ (0, J.jsx)("ul", {
 								className: "remote-space-list",
-								children: e.catalog.spaces.map((e) => {
-									let t = Qs(e.node);
+								children: e.catalog.spaces.map((t) => {
+									let r = Qs(t.node);
 									return /* @__PURE__ */ (0, J.jsxs)("li", { children: [
 										/* @__PURE__ */ (0, J.jsx)(Qr, {
 											size: 18,
 											"aria-hidden": "true"
 										}),
-										/* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)("strong", { children: e.name }), /* @__PURE__ */ (0, J.jsxs)("small", { children: [
-											Ml[e.provider] || e.provider,
+										/* @__PURE__ */ (0, J.jsxs)("div", { children: [/* @__PURE__ */ (0, J.jsx)("strong", { children: t.name }), /* @__PURE__ */ (0, J.jsxs)("small", { children: [
+											Ml[t.provider] || t.provider,
 											" · ",
-											t.full ? /* @__PURE__ */ (0, J.jsxs)("span", {
+											r.full ? /* @__PURE__ */ (0, J.jsxs)("span", {
 												className: "cx-id-pill",
-												children: [t.display, /* @__PURE__ */ (0, J.jsxs)("span", {
+												children: [r.display, /* @__PURE__ */ (0, J.jsxs)("span", {
 													className: "cx-sr",
-													children: [" ", t.full]
+													children: [" ", r.full]
 												})]
-											}) : e.node
+											}) : t.node
 										] })] }),
-										/* @__PURE__ */ (0, J.jsx)("span", {
-											className: "remote-space-phase " + e.phase,
-											children: n(e.phase)
+										/* @__PURE__ */ (0, J.jsxs)("span", {
+											className: "remote-space-phase " + t.phase,
+											children: [w.includes(t.phase) && /* @__PURE__ */ (0, J.jsx)(Ea, {
+												size: 13,
+												className: "spaces-spinner",
+												"aria-hidden": "true"
+											}), n(t.phase)]
+										}),
+										/* @__PURE__ */ (0, J.jsxs)("span", {
+											className: "remote-space-actions",
+											children: [t.phase === "ready" && /* @__PURE__ */ (0, J.jsxs)("button", {
+												disabled: !!h,
+												"aria-busy": h === t.id,
+												"aria-label": i(`停止 ${t.name}`, `Stop ${t.name}`),
+												onClick: () => void C(e, t, "stop"),
+												children: [h === t.id ? /* @__PURE__ */ (0, J.jsx)(Ea, {
+													size: 14,
+													className: "spaces-spinner",
+													"aria-hidden": "true"
+												}) : /* @__PURE__ */ (0, J.jsx)(rs, {
+													size: 13,
+													"aria-hidden": "true"
+												}), i("停止", "Stop")]
+											}), [
+												"stopped",
+												"failed",
+												"interrupted"
+											].includes(t.phase) && /* @__PURE__ */ (0, J.jsxs)("button", {
+												disabled: !!h,
+												"aria-busy": h === t.id,
+												"aria-label": i(`启动 ${t.name}`, `Start ${t.name}`),
+												onClick: () => void C(e, t, "resume"),
+												children: [h === t.id ? /* @__PURE__ */ (0, J.jsx)(Ea, {
+													size: 14,
+													className: "spaces-spinner",
+													"aria-hidden": "true"
+												}) : /* @__PURE__ */ (0, J.jsx)(ho, {
+													size: 13,
+													"aria-hidden": "true"
+												}), i("启动", "Start")]
+											})]
+										}),
+										_?.id === t.id && /* @__PURE__ */ (0, J.jsx)("p", {
+											className: "direct-error remote-space-error",
+											role: "alert",
+											children: _.message
 										})
-									] }, e.id);
+									] }, t.id);
 								})
 							}) : /* @__PURE__ */ (0, J.jsxs)("p", {
 								className: "remote-space-empty-row spaces-muted",
@@ -20188,7 +20268,7 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 					}, e.node);
 				})
 			}),
-			(v.length > 0 || b > 0) && /* @__PURE__ */ (0, J.jsxs)("details", {
+			(E.length > 0 || D > 0) && /* @__PURE__ */ (0, J.jsxs)("details", {
 				className: "remote-space-details",
 				open: p,
 				onToggle: (e) => m(e.currentTarget.open),
@@ -20197,9 +20277,9 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 					/* @__PURE__ */ (0, J.jsx)("span", {
 						className: "remote-space-counts",
 						children: [
-							x > 0 && i(`${x} 个未共享`, `${x} not shared`),
-							S > 0 && i(`${S} 个不可用`, `${S} unavailable`),
-							b > 0 && i(`${b} 个正在检查`, `${b} checking`)
+							O > 0 && i(`${O} 个未共享`, `${O} not shared`),
+							k > 0 && i(`${k} 个不可用`, `${k} unavailable`),
+							D > 0 && i(`${D} 个正在检查`, `${D} checking`)
 						].filter(Boolean).join(" · ")
 					}),
 					/* @__PURE__ */ (0, J.jsx)(ci, {
@@ -20209,22 +20289,22 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 				] }), /* @__PURE__ */ (0, J.jsxs)("div", {
 					className: "remote-space-details-body",
 					children: [
-						x > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
+						O > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
 							className: "spaces-muted",
 							children: i("未共享的设备尚未开启空间目录权限。可在对应设备的入站权限中开启。", "Space catalog access is missing or unsupported on devices marked Not shared. Enable it in the target’s Incoming access settings.")
 						}),
-						S > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
+						k > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
 							className: "spaces-muted",
 							children: i("暂时无法连接这些设备，可刷新重试或检查设备连接。", "Could not reach these devices right now. Refresh to retry, or check Device connections.")
 						}),
-						b > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
+						D > 0 && /* @__PURE__ */ (0, J.jsx)("p", {
 							className: "spaces-muted",
 							children: i("正在检查其余设备的目录权限…", "Checking directory access on the remaining devices…")
 						}),
 						/* @__PURE__ */ (0, J.jsx)("div", {
 							className: "remote-space-issues",
-							children: v.map((e) => {
-								let t = g(e);
+							children: E.map((e) => {
+								let t = x(e);
 								return /* @__PURE__ */ (0, J.jsxs)("article", {
 									className: "remote-space-issue",
 									"aria-label": e.node,
@@ -20259,7 +20339,7 @@ function Nl({ client: e, language: t, phaseName: n, onDevices: r }) {
 											className: "remote-space-issue-error",
 											children: e.error
 										}),
-										w(e)
+										j(e)
 									]
 								}, e.node);
 							})
@@ -20279,7 +20359,8 @@ var Pl = [
 	"starting",
 	"enrolling",
 	"stopping",
-	"removing"
+	"removing",
+	"deleting"
 ], Fl = {
 	docker: "Docker",
 	colima: "Colima",
@@ -20306,6 +20387,7 @@ function Rl({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		stopped: s("已停止", "Stopped"),
 		stopping: s("停止中", "Stopping"),
 		removing: s("归档中", "Archiving"),
+		deleting: s("正在永久删除", "Deleting permanently"),
 		archived: s("已归档 · 数据保留", "Archived · data retained"),
 		interrupted: s("操作中断", "Interrupted"),
 		failed: s("需要处理", "Needs attention")
@@ -20424,10 +20506,10 @@ function Rl({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 		}) && (b(!1), S(0), M(""), h(s("空间正在后台创建，可以关闭此页面。", "Your space is being created in the background. You can close this page.")), de.current?.focus());
 	}
 	async function Re(e, t) {
-		(t !== "stop" || await nl(s("停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？", "Stopping this space interrupts its Agents and shells. Data is retained. Continue?"))) && (t !== "remove" || await nl(s("归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？", "Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?"))) && await Ee({
+		(t !== "stop" || await nl(s("停止此空间会中断其中的 Agent 和 Shell。数据会保留，继续？", "Stopping this space interrupts its Agents and shells. Data is retained. Continue?"))) && (t !== "remove" || await nl(s("归档将停止并移除此容器，其中的进程会结束。数据卷和节点身份保留，之后可恢复。继续？", "Archive stops and removes this container and ends its processes. Its data volume and node identity are retained for restoration. Continue?"))) && (t !== "delete" || await nl(s(`永久删除空间“${e.name}”？\n\n这会删除它的容器、数据卷（其中所有文件）和节点身份，以释放磁盘空间。此操作无法撤销。`, `Permanently delete the space “${e.name}”?\n\nThis removes its container, its data volume (every file in it) and its node identity to free disk space. This can't be undone.`))) && await Ee({
 			operation: t,
 			id: e.id
-		}) && (re(null), h(s("操作已在后台开始。", "Operation started in the background.")));
+		}) && (re(null), h(t === "delete" ? s(`正在永久删除“${e.name}”。`, `Deleting “${e.name}” permanently.`) : s("操作已在后台开始。", "Operation started in the background.")));
 	}
 	async function ze(e) {
 		let t = await Ee({
@@ -21071,6 +21153,20 @@ function Rl({ client: e, language: t, onOpenTerminal: n, onOpenApplication: r, o
 											}), e.registry && ke();
 										},
 										children: s("修改镜像", "Change image")
+									}),
+									[
+										"stopped",
+										"failed",
+										"interrupted",
+										"archived"
+									].includes(e.phase) && /* @__PURE__ */ (0, J.jsxs)("button", {
+										className: "space-btn-lifecycle space-btn-delete",
+										disabled: Se,
+										onClick: () => void Re(e, "delete"),
+										children: [/* @__PURE__ */ (0, J.jsx)(ps, {
+											size: 14,
+											"aria-hidden": "true"
+										}), s("永久删除", "Delete permanently")]
 									})
 								]
 							}),

@@ -58,6 +58,8 @@ fn capabilities(path: &str) -> Option<Vec<Capability>> {
         "computer" => vec![Computer],
         "browser" => vec![Browser],
         "update" => vec![Update],
+        // Stopping or starting a space is container control on this device.
+        "spaces" if segments.get(3) == Some(&"control") => vec![Spaces, Exec],
         "spaces" => vec![Spaces],
         "activity" => vec![Activity],
         "messages" | "tasks" | "agent-sessions" => vec![Messages],
@@ -253,4 +255,18 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
         },
     );
     Response::from_parts(parts, Body::from_stream(stream))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn stopping_or_starting_a_space_needs_exec_as_well_as_the_space_list() {
+        use Capability::*;
+        assert_eq!(capabilities("/nodes/node-a/spaces"), Some(vec![Spaces]));
+        assert_eq!(
+            capabilities("/nodes/node-a/spaces/control"),
+            Some(vec![Spaces, Exec])
+        );
+    }
 }

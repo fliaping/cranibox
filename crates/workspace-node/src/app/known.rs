@@ -21,7 +21,7 @@ pub struct Known {
     pub model: Option<String>,
     pub last_seen: Option<u64>,
     /// What the device last said it shares with this one (`desktop`, `computer`,
-    /// `browser`): granted to us and configured on that device.
+    /// `browser`, `exec`, `terminal`, …): granted to us and configured on that device.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub offers: BTreeMap<String, bool>,
 }
@@ -60,7 +60,10 @@ impl Known {
         self.kind = text("kind").or(self.kind.take());
         self.os_version = text("os_version").or(self.os_version.take());
         self.model = text("model").or(self.model.take());
-        for key in ["desktop", "computer", "browser"] {
+        for key in [
+            "desktop", "computer", "browser", "exec", "terminal", "projects", "messages",
+            "activity", "spaces",
+        ] {
             if let Some(offered) = node[key].as_bool() {
                 self.offers.insert(key.to_owned(), offered);
             }
@@ -130,6 +133,16 @@ pub fn update(peers: &Path, node: &str, edit: impl FnOnce(&mut Known)) -> Result
         )?;
     }
     Ok(())
+}
+
+/// Drop a device that no longer exists (a permanently deleted space). Best effort.
+pub fn forget(peers: &Path, node: &str) {
+    let mut all = load(peers);
+    if all.remove(node).is_some()
+        && let Ok(bytes) = serde_json::to_vec_pretty(&all)
+    {
+        let _ = agent_workspace_runtime::config::write_private(&path(peers), &bytes, true);
+    }
 }
 
 #[cfg(test)]

@@ -457,6 +457,39 @@ impl Store {
         self.save(&catalog)?;
         Ok(())
     }
+    /// Archive, then free the data volume and forget the space's identity and record.
+    pub(super) async fn delete(&self, id: Uuid) -> Result<()> {
+        self.stop(id, true).await?;
+        let catalog = self.read()?;
+        let space = catalog
+            .spaces
+            .iter()
+            .find(|space| space.id == id)
+            .context("space not found")?;
+        let runner = space.provider.runner()?;
+        if let Some(volume) = inspect(&runner, "volume", &space.volume()).await? {
+            check_labels(&volume["Labels"], catalog.installation, id)?;
+            runner
+                .run(&args(&["volume", "rm", &space.volume()]), None, 60)
+                .await?;
+        }
+        Config::update(&self.peers, |config| {
+            config.routes.remove(&space.node);
+            Ok(())
+        })?;
+        for file in [format!("{id}.token"), format!("{id}.env")] {
+            match std::fs::remove_file(self.directory.join(file)) {
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(error.into());
+                }
+                _ => {}
+            }
+        }
+        crate::app::known::forget(&self.peers, &space.node);
+        let mut catalog = self.read()?;
+        catalog.spaces.retain(|space| space.id != id);
+        self.save(&catalog)
+    }
 }
 
 #[cfg(test)]

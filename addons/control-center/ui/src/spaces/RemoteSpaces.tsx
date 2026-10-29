@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Cable, ChevronDown, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Box, Cable, ChevronDown, LoaderCircle, Play, RefreshCw, Square } from 'lucide-react';
+import { ask } from '../confirm';
 import { useOptionalApp } from '../app/store';
 import { DeviceIcon, formatDeviceLabel, shortNodeId } from '../app/ui';
 import type { DirectCatalog, DirectClient } from '../devices/DirectDevicesView';
@@ -21,6 +22,7 @@ export function RemoteSpaces({ client, language, phaseName, onDevices }: {
   const { nodes: terminalNodes } = useTerminalDevices();
   const [sources, setSources] = useState<Source[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
+  const [controlling, setControlling] = useState(''), [controlError, setControlError] = useState<{ id: string; message: string } | null>(null);
   const refresh = useRef<() => void>(() => {});
   useEffect(() => {
     let disposed = false, generation = 0, active = false, again = false;
@@ -82,6 +84,25 @@ export function RemoteSpaces({ client, language, phaseName, onDevices }: {
     return { ...formatDeviceLabel(rawName, source.node, t), kind };
   }
 
+  /** Plain-language reason a remote device refused or could not be reached. */
+  function controlProblem(message: string) {
+    if (/does not allow|\b403\b.*(forbidden|capability|not granted)|API 403|capability not granted|capability_off/i.test(message)) return t('这台设备不允许你停止或启动它的空间。请在那台设备的“入站权限”里为本设备同时开启“空间”和“命令执行”。', 'This device doesn’t allow you to stop or start its spaces. On that device, turn on both Spaces and Commands in Incoming access for this device.');
+    if (/space not found|API 404/i.test(message)) return t('那台设备上找不到这个空间，可能已被删除。请刷新后再试。', 'This space was not found on that device. It may have been deleted. Refresh and try again.');
+    if (/timed out|timeout|connect|unreachable|refused|offline|dns|network|reset/i.test(message)) return t('无法连接这台设备，它可能已离线或已休眠。请稍后重试。', 'Couldn’t reach this device. It may be offline or asleep. Try again later.');
+    return t('那台设备未能完成操作：', 'That device couldn’t do this: ') + message;
+  }
+  async function control(source: Source, space: Summary, action: 'stop' | 'resume') {
+    if (action === 'stop' && !await ask(t(`停止“${space.name}”？\n\n它在另一台设备上运行，其中的 Agent 和终端会被中断。数据会保留，之后可以再次启动。`, `Stop “${space.name}”?\n\nIt runs on another device; its Agents and terminals will be interrupted. Data is kept, and you can start it again later.`))) return;
+    setControlling(space.id); setControlError(null);
+    try {
+      const catalog = await client({ operation: 'space_control', node: source.node, id: space.id, action }) as Catalog;
+      if (catalog?.owner === source.node && Array.isArray(catalog.spaces)) setSources(previous => previous.map(item => item.node === source.node ? { ...item, catalog, checked: Date.now() } : item));
+      else refresh.current();
+    } catch (error) { setControlError({ id: space.id, message: controlProblem(problem(error)) }); }
+    finally { setControlling(''); }
+  }
+  const remoteBusy = ['preparing', 'pulling', 'creating', 'starting', 'enrolling', 'stopping', 'removing', 'deleting'];
+
   const ready = sources.filter(source => source.phase === 'ready');
   const unavailable = sources.filter(source => source.phase === 'denied' || source.phase === 'error');
   const checking = sources.filter(source => source.phase === 'loading').length;
@@ -107,7 +128,9 @@ export function RemoteSpaces({ client, language, phaseName, onDevices }: {
         </div>
         {!source.catalog?.spaces.length ? <p className="remote-space-empty-row spaces-muted">{t('这台设备上还没有空间', 'No spaces on this device yet')}<span className="cx-sr"> {t('此设备的空间目录为空。', 'This device’s space directory is empty.')}</span></p> : <ul className="remote-space-list">{source.catalog.spaces.map(space => {
           const shortNode = shortNodeId(space.node);
-          return <li key={space.id}><Box size={18} aria-hidden="true" /><div><strong>{space.name}</strong><small>{providers[space.provider] || space.provider} · {shortNode.full ? <span className="cx-id-pill">{shortNode.display}<span className="cx-sr"> {shortNode.full}</span></span> : space.node}</small></div><span className={'remote-space-phase ' + space.phase}>{phaseName(space.phase)}</span></li>;
+          return <li key={space.id}><Box size={18} aria-hidden="true" /><div><strong>{space.name}</strong><small>{providers[space.provider] || space.provider} · {shortNode.full ? <span className="cx-id-pill">{shortNode.display}<span className="cx-sr"> {shortNode.full}</span></span> : space.node}</small></div><span className={'remote-space-phase ' + space.phase}>{remoteBusy.includes(space.phase) && <LoaderCircle size={13} className="spaces-spinner" aria-hidden="true" />}{phaseName(space.phase)}</span>
+            <span className="remote-space-actions">{space.phase === 'ready' && <button disabled={!!controlling} aria-busy={controlling === space.id} aria-label={t(`停止 ${space.name}`, `Stop ${space.name}`)} onClick={() => void control(source, space, 'stop')}>{controlling === space.id ? <LoaderCircle size={14} className="spaces-spinner" aria-hidden="true" /> : <Square size={13} aria-hidden="true" />}{t('停止', 'Stop')}</button>}{['stopped', 'failed', 'interrupted'].includes(space.phase) && <button disabled={!!controlling} aria-busy={controlling === space.id} aria-label={t(`启动 ${space.name}`, `Start ${space.name}`)} onClick={() => void control(source, space, 'resume')}>{controlling === space.id ? <LoaderCircle size={14} className="spaces-spinner" aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}{t('启动', 'Start')}</button>}</span>
+            {controlError?.id === space.id && <p className="direct-error remote-space-error" role="alert">{controlError.message}</p>}</li>;
         })}</ul>}
         <span className="cx-sr">{t('以上为管理目录记录的状态，未检测容器。终端、项目和桌面需要单独连接并取得空间节点授权。', 'Status comes from the management directory; containers were not inspected. Connect to and obtain access from each space node to use its terminals, projects or desktop.')}</span>
       </article>;

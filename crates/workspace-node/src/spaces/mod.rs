@@ -88,6 +88,11 @@ pub enum Command {
     Remove {
         id: Uuid,
     },
+    /// Permanently delete a stopped or archived space: its container, data volume,
+    /// enrollment and record. This cannot be undone.
+    Delete {
+        id: Uuid,
+    },
     Credentials {
         id: Uuid,
     },
@@ -498,6 +503,23 @@ impl Store {
                 space.error = None;
                 Some(*id)
             }
+            Command::Delete { id } => {
+                let space = catalog
+                    .spaces
+                    .iter_mut()
+                    .find(|space| space.id == *id)
+                    .context("space not found")?;
+                ensure!(
+                    matches!(
+                        space.phase.as_str(),
+                        "stopped" | "archived" | "failed" | "interrupted"
+                    ),
+                    "Stop this space before deleting it."
+                );
+                space.phase = "deleting".into();
+                space.error = None;
+                Some(*id)
+            }
             _ => unreachable!(),
         };
         self.save(&catalog)?;
@@ -511,15 +533,15 @@ impl Store {
                 }
                 Command::Stop { .. } => store.stop(id.expect("space operation"), false).await,
                 Command::Remove { .. } => store.stop(id.expect("space operation"), true).await,
+                Command::Delete { .. } => store.delete(id.expect("space operation")).await,
                 _ => unreachable!(),
             };
             let mut catalog = store.read()?;
             if let Some(id) = id {
-                let space = catalog
-                    .spaces
-                    .iter_mut()
-                    .find(|space| space.id == id)
-                    .context("space not found")?;
+                // A deleted space has no record left to update.
+                let Some(space) = catalog.spaces.iter_mut().find(|space| space.id == id) else {
+                    return result;
+                };
                 if let Err(error) = &result {
                     space.phase = "failed".into();
                     space.error = Some(sanitize_error(error, space));
@@ -561,7 +583,14 @@ impl Store {
 fn busy(phase: &str) -> bool {
     matches!(
         phase,
-        "preparing" | "pulling" | "creating" | "starting" | "enrolling" | "stopping" | "removing"
+        "preparing"
+            | "pulling"
+            | "creating"
+            | "starting"
+            | "enrolling"
+            | "stopping"
+            | "removing"
+            | "deleting"
     )
 }
 fn validate_name(value: &str) -> Result<()> {
@@ -806,6 +835,50 @@ mod tests {
         assert!(store.lock().is_ok());
         drop(inherited);
     }
+    #[tokio::test]
+    async fn delete_refuses_running_spaces_and_unknown_ids() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(root.path().join("peers.json"));
+        let id = Uuid::new_v4();
+        store
+            .save(&Catalog {
+                version: 1,
+                installation: Uuid::new_v4(),
+                spaces: vec![Space {
+                    id,
+                    name: "Running".into(),
+                    provider: Provider::Docker,
+                    image: DEFAULT_IMAGE.into(),
+                    registry: None,
+                    desktop: None,
+                    display: Default::default(),
+                    pull_policy: PullPolicy::default(),
+                    node: "node-running".into(),
+                    owner: "node-owner".into(),
+                    password: "private-password".into(),
+                    token: "private-token".into(),
+                    phase: "ready".into(),
+                    error: None,
+                    ports: Default::default(),
+                }],
+                setup: None,
+                setup_plan: None,
+            })
+            .unwrap();
+        let error = store
+            .manage(Command::Delete { id }, false)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("Stop this space"));
+        // Refused before anything changed: still listed and still ready.
+        assert_eq!(store.read().unwrap().spaces[0].phase, "ready");
+        let missing = Command::Delete { id: Uuid::new_v4() };
+        assert!(store.manage(missing, false).await.is_err());
+        let parsed: Command =
+            serde_json::from_value(json!({"operation":"delete","id":id})).unwrap();
+        assert!(matches!(parsed, Command::Delete { id: got } if got == id));
+    }
+
     #[test]
     fn rejects_invalid_commands_before_touching_an_engine() {
         for image in ["--privileged", "ubuntu;echo bad", "", "ubuntu\n"] {

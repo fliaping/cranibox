@@ -1,4 +1,5 @@
-//! Read-only metadata from a space's managing device. This grants no container control.
+//! Metadata from a space's managing device, and stop/start of its spaces. Control
+//! needs the managing device's space and command grants; it never exposes credentials.
 use super::{Store, config::Config};
 use crate::{config, protocol::valid_node_id};
 use anyhow::{Context, Result, ensure};
@@ -69,6 +70,7 @@ impl Catalog {
                         | "archived"
                         | "interrupted"
                         | "failed"
+                        | "deleting"
                 ),
                 "invalid space phase"
             );
@@ -77,7 +79,40 @@ impl Catalog {
     }
 }
 
+/// What a managing device may be asked to do with one of its spaces.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Action {
+    Stop,
+    Resume,
+}
+
 impl Store {
+    /// Stop or start `id` on its managing device `node`; returns that device's catalog.
+    pub async fn space_control(&self, node: &str, id: Uuid, action: Action) -> Result<Value> {
+        ensure!(valid_node_id(node), "invalid node ID");
+        let path = self.path.clone();
+        let target = node.to_owned();
+        let route = tokio::task::spawn_blocking(move || -> Result<_> {
+            let _lock = config::lock_credentials(&path)?;
+            Config::read(&path)?
+                .routes
+                .get(&target)
+                .cloned()
+                .context("direct route is not configured")
+        })
+        .await??;
+        let value = route
+            .api(node)?
+            .post(
+                &format!("/api/v1/nodes/{node}/spaces/control"),
+                serde_json::json!({"id": id, "action": action}),
+            )
+            .await?;
+        let catalog: Catalog = serde_json::from_value(value)?;
+        catalog.validate(node)?;
+        Ok(serde_json::to_value(catalog)?)
+    }
     pub async fn space_catalog(&self, node: &str) -> Result<Value> {
         ensure!(valid_node_id(node), "invalid node ID");
         // Retain actual credential bytes so rotation at the same filename also
@@ -132,6 +167,27 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn space_control_accepts_only_stop_and_resume() {
+        let id = uuid::Uuid::new_v4();
+        let command: super::super::Command = serde_json::from_value(serde_json::json!({
+            "operation":"space_control","node":"node-a","id":id,"action":"stop"}))
+        .unwrap();
+        assert!(matches!(
+            command,
+            super::super::Command::SpaceControl {
+                action: Action::Stop,
+                ..
+            }
+        ));
+        for action in ["delete", "remove", "create"] {
+            assert!(
+                serde_json::from_value::<super::super::Command>(serde_json::json!({
+                "operation":"space_control","node":"node-a","id":id,"action":action}))
+                .is_err()
+            );
+        }
+    }
     #[test]
     fn remote_catalog_rejects_wrong_owners_duplicates_and_private_fields() {
         let mut catalog = Catalog {

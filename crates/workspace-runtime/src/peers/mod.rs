@@ -59,6 +59,12 @@ pub enum Command {
     SpaceCatalog {
         node: String,
     },
+    /// Stop or start a space on the device that manages it.
+    SpaceControl {
+        node: String,
+        id: uuid::Uuid,
+        action: space_catalog::Action,
+    },
     CopyRoot {
         path: Option<PathBuf>,
     },
@@ -452,6 +458,9 @@ impl Store {
                 tokio::task::spawn_blocking(move || project_sync::manage(&path, command)).await?
             }
             Command::SpaceCatalog { node } => self.space_catalog(&node).await,
+            Command::SpaceControl { node, id, action } => {
+                self.space_control(&node, id, action).await
+            }
             Command::Messages { command } => self.messages(command).await,
             Command::Tasks { command } => self.tasks(command).await,
             Command::AgentSessions { node, command } => self.agent_sessions(node, command).await,

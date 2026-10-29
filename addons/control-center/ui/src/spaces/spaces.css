@@ -401,7 +401,8 @@
   color: var(--text);
 }
 
-.virtual-spaces button.space-btn-archive:hover:not(:disabled) {
+.virtual-spaces button.space-btn-archive:hover:not(:disabled),
+.virtual-spaces button.space-btn-delete:hover:not(:disabled) {
   background: var(--bad-soft);
   border-color: transparent;
   color: var(--bad);
@@ -554,7 +555,7 @@
 
 .remote-space-list li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 12px;
   align-items: center;
   padding: 13px 18px;
@@ -582,7 +583,10 @@
   flex-wrap: wrap;
 }
 
-.remote-space-list > li > span {
+.remote-space-list > li > span.remote-space-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 3px 9px;
   border-radius: 999px;
   background: var(--surface-raised);
@@ -592,10 +596,33 @@
   font-weight: 600;
 }
 
-.remote-space-list > li > span.ready {
+.remote-space-list > li > span.remote-space-phase.ready {
   background: var(--good-soft);
   border-color: transparent;
   color: var(--good);
+}
+
+.remote-space-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.remote-space-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 11px;
+  font-size: 0.82rem;
+}
+
+.remote-space-actions:empty {
+  display: none;
+}
+
+.remote-space-list > li > .remote-space-error {
+  grid-column: 2 / -1;
+  margin: 0;
 }
 
 .remote-space-details {
@@ -705,4 +732,8 @@
   .spaces-spinner {
     animation: none;
   }
+}
+
+.virtual-spaces button.space-btn-delete {
+  color: var(--bad);
 }

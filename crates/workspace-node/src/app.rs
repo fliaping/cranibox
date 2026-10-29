@@ -658,10 +658,21 @@ impl AppApi for Service {
             }
             // A guest pairing grants messages only; an owner device gets full access.
             let guest = !(grant.permissions.exec && grant.permissions.terminals);
-            let caps = serde_json::from_value(
-                serde_json::to_value(grant.permissions).map_err(unavailable)?,
-            )
-            .map_err(unavailable)?;
+            // Field by field: the permissions' JSON omits `llm`/`vault` when off.
+            let p = grant.permissions;
+            let caps = DeviceCaps {
+                exec: p.exec,
+                terminals: p.terminals,
+                projects: p.projects,
+                desktop: p.desktop,
+                computer: p.computer,
+                browser: p.browser,
+                messages: p.messages,
+                activity: p.activity,
+                spaces: p.spaces,
+                llm: p.llm,
+                vault: p.vault,
+            };
             let mut path = match &iroh {
                 Some(iroh) => iroh.peer_path(&node).await,
                 None => None,
@@ -696,39 +707,57 @@ impl AppApi for Service {
                 },
             });
         }
-        // Virtual spaces are this device's own nodes, reached over the route it saved
-        // when the space was enrolled.
-        for space in spaces {
-            if devices.iter().any(|d| d.node_id == space.node) {
+        // Devices this one reaches only over a saved outgoing route: virtual spaces
+        // (enrolled by this device) and nodes joined with `peer connect` that hold no
+        // grant here. What they share is what they last reported to this device.
+        for node in config.routes.keys() {
+            if devices.iter().any(|d| &d.node_id == node) {
                 continue;
             }
-            let remembered = known.get(&space.node).cloned().unwrap_or_default();
-            let online = space.phase == "ready" && self.reachable(&space.node);
+            let space = spaces.iter().find(|space| &space.node == node);
+            let remembered = known.get(node).cloned().unwrap_or_default();
+            let live = match &iroh {
+                Some(iroh) => iroh.peer_path(node).await,
+                None => None,
+            };
+            // Online is what answers now; a remembered measurement only names the path.
+            let online = space.is_none_or(|space| space.phase == "ready")
+                && (self.reachable(node) || live.is_some());
+            let mut path = live;
+            if path.as_ref().is_none_or(|p| p.kind == PathKind::Unknown)
+                && let Some(measured) = observed_paths.get(&local.id).and_then(|row| row.get(node))
+            {
+                path = Some(measured.path.clone());
+            }
+            let path = match path.map(|p| p.kind) {
+                Some(kind) if kind != PathKind::Unknown => kind,
+                _ if online => PathKind::Direct,
+                _ => PathKind::Unknown,
+            };
+            let offers = |key: &str| remembered.offers(key);
             devices.push(Device {
-                name: remembered.alias.clone().unwrap_or(space.name),
-                kind: remembered.kind(),
-                node_id: space.node.clone(),
-                online,
-                path: if online {
-                    PathKind::Direct
-                } else {
-                    PathKind::Unknown
+                name: match space {
+                    Some(space) => remembered.alias.clone().unwrap_or(space.name.clone()),
+                    None => remembered.display(node),
                 },
-                rtt_ms: self
-                    .reach
-                    .lock()
-                    .unwrap()
-                    .get(&space.node)
-                    .and_then(|r| r.rtt_ms),
+                kind: remembered.kind(),
+                node_id: node.clone(),
+                online,
+                path,
+                rtt_ms: self.reach.lock().unwrap().get(node).and_then(|r| r.rtt_ms),
                 badges: vec![],
                 guest: false,
                 same_identity: false,
-                // What the space's enrollment grants its creator.
                 caps: DeviceCaps {
-                    exec: true,
-                    terminals: true,
-                    projects: true,
-                    computer: remembered.offers("computer"),
+                    exec: offers("exec"),
+                    terminals: offers("terminal"),
+                    projects: offers("projects"),
+                    desktop: space.is_none() && offers("desktop"),
+                    computer: offers("computer"),
+                    browser: space.is_none() && offers("browser"),
+                    messages: space.is_none() && offers("messages"),
+                    activity: space.is_none() && offers("activity"),
+                    spaces: space.is_none() && offers("spaces"),
                     ..Default::default()
                 },
                 os_version: remembered.os_version,
@@ -1583,6 +1612,62 @@ mod pairing_tests {
         .unwrap();
         let app = Service::new(Arc::downgrade(&local), models);
         (local, app)
+    }
+
+    /// A node joined only with `peer connect` has a route here but no grant: it is still
+    /// one of this device's devices, listed once even when it also holds a grant.
+    #[tokio::test]
+    async fn outbound_only_nodes_are_listed_once() {
+        let root = tempfile::tempdir().unwrap();
+        let stop = CancellationToken::new();
+        let (local, app) = node(root.path(), &stop).await;
+        let path = root.path().join("peers.json");
+        let (outbound, both) = (
+            "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+            "node-1a1b2c3d4e5f60718293a4b5c6d7e8f9",
+        );
+        peers::Store::new(path.clone())
+            .manage(peers::Command::Grant {
+                node: both.into(),
+                permissions: peers::config::Permissions {
+                    exec: true,
+                    terminals: true,
+                    ..Default::default()
+                },
+                inbound: None,
+                require_verified: None,
+            })
+            .await
+            .unwrap();
+        let token = root.path().join("route.token");
+        agent_workspace_runtime::config::write_private(&token, "a".repeat(64).as_bytes(), false)
+            .unwrap();
+        Config::update(&path, |config| {
+            for node in [outbound, both] {
+                config.routes.insert(
+                    node.into(),
+                    peers::config::Route {
+                        url: "http://127.0.0.1:9".into(),
+                        token_file: token.clone(),
+                        allow_insecure: true,
+                        local_forward_lock: None,
+                        alternatives: vec![],
+                        target_identity: None,
+                        config_path: None,
+                    },
+                );
+            }
+            Ok(())
+        })
+        .unwrap();
+        let devices = app.devices().await.unwrap();
+        for node in [outbound, both] {
+            assert_eq!(devices.iter().filter(|d| d.node_id == node).count(), 1);
+        }
+        let device = devices.iter().find(|d| d.node_id == outbound).unwrap();
+        assert!(!device.online && !device.guest && !device.same_identity);
+        stop.cancel();
+        drop(local);
     }
 
     /// Both sides of iroh pairing through the App API the desktop and web UIs call:
