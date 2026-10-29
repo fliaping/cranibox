@@ -36,7 +36,7 @@ function pages(models: ReactNode): Page[] {
   return [
     { path: "/app/home", section: "home", title: t => t("首页", "Home"), element: needsSetup() ? <Navigate to="/app/setup" replace /> : <Home /> },
     { path: "/app/setup", section: "home", title: t => t("设置向导", "Setup guide"), element: <SetupGuide /> },
-    { path: "/app/access-log", section: "devices", title: t => t("访问记录", "Access log"), element: <AccessLog /> },
+    { path: "/app/access-log", section: "devices", title: t => t("操作记录", "Operation log"), element: <AccessLog /> },
     { path: "/app/devices", section: "devices", title: t => t("设备", "Devices"), element: <Devices /> },
     { path: "/nodes", section: "devices", title: t => t("网络设置", "Network settings"), element: <NetworkPage /> },
     { path: "/spaces", section: "spaces", title: t => t("虚拟空间", "Virtual spaces"), heading: true, description: t => t("在设备上创建隔离的工作空间，带桌面和编辑器；也是 Agent 自己的电脑。", "Isolated workspaces with their own desktop and editor, created on your devices — your agents' own computers."), element: <Spaces /> },
@@ -71,7 +71,7 @@ const sections: { id: SectionId; to: string; icon: LucideIcon; label: (t: Transl
   { id: "settings", to: "/app/settings", icon: SettingsIcon, label: t => t("本机设置", "Settings") },
 ];
 function sectionTabs(section: SectionId, t: Translate, workspace: boolean, approvals: number): TabItem[] {
-  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/nodes", label: t("网络设置", "Network settings") }, { to: "/app/access-log", label: t("访问记录", "Access log") }];
+  if (section === "devices") return [{ to: "/app/devices", label: t("设备", "Devices") }, { to: "/nodes", label: t("网络设置", "Network settings") }, { to: "/app/access-log", label: t("操作记录", "Operation log") }];
   if (section === "inbox") return [{ to: "/app/inbox", label: t("审批", "Approvals"), count: approvals }, { to: "/tasks", label: t("任务", "Tasks") }, { to: "/messages", label: t("消息", "Messages") }];
   if (section === "models") return workspace ? [{ to: "/app/models", label: t("模型与 Agent", "Models & agents") }, { to: "/agents", label: t("工作区 Agent", "Workspace agents") }] : [];
   if (section === "settings") return [{ to: "/app/settings", label: t("通用", "General") }, { to: "/app/this", label: t("能力与权限", "Capabilities") }, { to: "/app/identity", label: t("身份与安全", "Identity & security") }, { to: "/app/agent-access", label: t("Agent 接入", "Agent access") }, ...(workspace ? [{ to: "/overview", label: t("工作区", "Workspace") }] : [])];

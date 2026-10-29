@@ -1,9 +1,12 @@
 use super::*;
-use crate::access::{Capability, Store};
+use crate::access::{Capability, Operation, Risk, Store};
 use sha2::{Digest, Sha256};
+use std::sync::{LazyLock, Mutex};
 
+/// The access key a handler re-checks when it starts its session, and whether the
+/// operation needs a one-time approval (see `Operation::confirm`).
 #[derive(Clone)]
-pub(super) struct AccessKey(pub String);
+pub(super) struct AccessKey(pub String, pub bool);
 pub(super) fn store(app: &App) -> Store {
     Store::new(&app.path)
 }
@@ -14,7 +17,7 @@ pub(super) fn begin(
     key: &AccessKey,
 ) -> Result<crate::access::Session, Failure> {
     store(app)
-        .start(&caller.node, capability, &key.0)
+        .start_for(&caller.node, capability, &key.0, key.1)
         .map_err(|_| failure(StatusCode::FORBIDDEN, "access changed before session start"))
 }
 pub(super) async fn request_state(
@@ -68,10 +71,152 @@ fn capabilities(path: &str) -> Option<Vec<Capability>> {
         _ => return None,
     })
 }
-pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: Next) -> Response {
+/// Remote operations a peer may start per minute before this device answers 429. Bounds
+/// how fast a misbehaving peer can push older entries out of the audit log.
+const OPERATIONS_PER_MINUTE: u32 = 240;
+/// Reads are polled constantly; the log keeps one per peer and kind per this many seconds.
+const READ_EVERY: u64 = 600;
+/// Refusals of the same operation are logged once per minute.
+const REFUSAL_EVERY: u64 = 60;
+static RECENT: LazyLock<Mutex<std::collections::HashMap<String, u64>>> =
+    LazyLock::new(Default::default);
+static RATE: LazyLock<Mutex<std::collections::HashMap<String, (u64, u32)>>> =
+    LazyLock::new(Default::default);
+fn due(key: String, every: u64) -> bool {
+    let now = crate::access::now();
+    let mut recent = RECENT.lock().unwrap_or_else(|e| e.into_inner());
+    if recent.len() > 4096 {
+        recent.retain(|_, at| now.saturating_sub(*at) < READ_EVERY);
+    }
+    match recent.get(&key) {
+        Some(at) if now.saturating_sub(*at) < every => false,
+        _ => {
+            recent.insert(key, now);
+            true
+        }
+    }
+}
+/// Counts one non-read operation; false once the peer is over its per-minute budget.
+fn within_rate(node: &str) -> bool {
+    let minute = crate::access::now() / 60;
+    let mut rate = RATE.lock().unwrap_or_else(|e| e.into_inner());
+    rate.retain(|_, (m, _)| *m == minute);
+    let entry = rate.entry(node.to_owned()).or_insert((minute, 0));
+    entry.1 += 1;
+    entry.1 <= OPERATIONS_PER_MINUTE
+}
+struct Recorder {
+    store: Store,
+    node: String,
+    capability: Option<Capability>,
+    operation: Option<Operation>,
+    transport: &'static str,
+}
+impl Recorder {
+    /// Writes the outcome to the target's audit chain. Reads and repeated refusals are
+    /// coalesced so polling cannot flood the log.
+    async fn finish(self, basis: Option<String>, status: u16) {
+        let Some(operation) = self.operation else {
+            return;
+        };
+        let result = match status {
+            0..400 => "ok",
+            403 => "refused",
+            429 => "rate_limited",
+            _ => "failed",
+        };
+        let coalesce = if result == "refused" || result == "rate_limited" {
+            Some(REFUSAL_EVERY)
+        } else if operation.risk == Risk::Read {
+            Some(READ_EVERY)
+        } else {
+            None
+        };
+        if let Some(every) = coalesce
+            && !due(format!("{}:{}:{result}", self.node, operation.kind), every)
+        {
+            return;
+        }
+        let (store, node, capability, transport) =
+            (self.store, self.node, self.capability, self.transport);
+        let written = tokio::task::spawn_blocking(move || {
+            store.record(
+                &node,
+                capability,
+                &operation,
+                basis.as_deref(),
+                result,
+                status,
+                transport,
+            )
+        })
+        .await;
+        if !matches!(written, Ok(Ok(()))) {
+            eprintln!("record remote operation: {written:?}");
+        }
+    }
+}
+/// Space ids are opaque to the person reading the log; show the name next to it.
+fn space_name(app: &App, operation: &mut Operation) {
+    if !operation.kind.starts_with("spaces.") || operation.summary.is_empty() {
+        return;
+    }
+    if let Ok(catalog) = crate::spaces::Store::new(app.path.clone()).shared_catalog(&app.node)
+        && let Some(space) = catalog
+            .spaces
+            .iter()
+            .find(|s| s.id.to_string() == operation.summary)
+    {
+        let name: String = space
+            .name
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(80)
+            .collect();
+        operation.summary = format!("{name} ({})", operation.summary);
+    }
+}
+pub(super) async fn enforce(State(app): State<App>, request: Request, next: Next) -> Response {
     let Some(caller) = request.extensions().get::<Caller>().cloned() else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
+    let route = request
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map(|p| {
+            p.as_str()
+                .strip_prefix("/api/v1/mesh")
+                .unwrap_or(p.as_str())
+                .to_owned()
+        });
+    let mut recorder = Recorder {
+        store: store(&app),
+        node: caller.node.clone(),
+        capability: None,
+        operation: None,
+        transport: if request.extensions().get::<Encrypted>().is_some() {
+            "e2e"
+        } else {
+            "bearer"
+        },
+    };
+    let response = guarded(&app, caller, route, request, next, &mut recorder).await;
+    let status = response.status().as_u16();
+    let basis = response.extensions().get::<Basis>().map(|b| b.0.clone());
+    recorder.finish(basis, status).await;
+    response
+}
+#[derive(Clone)]
+struct Basis(String);
+async fn guarded(
+    app: &App,
+    caller: Caller,
+    route_name: Option<String>,
+    mut request: Request,
+    next: Next,
+    recorder: &mut Recorder,
+) -> Response {
+    let app = app.clone();
     let uri = request
         .extensions()
         .get::<axum::extract::OriginalUri>()
@@ -100,6 +245,12 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
     if caps.is_empty() {
         return next.run(request).await;
     }
+    let route_name = route_name.unwrap_or_else(|| path.clone());
+    let method = request.method().as_str().to_owned();
+    recorder.capability = Some(caps[0]);
+    // Until the body is read, describe the call from its route alone.
+    recorder.operation =
+        crate::access::operations::describe(&method, &route_name, &BTreeMap::new(), &Value::Null);
 
     for capability in &caps {
         if !crate::access::granted(&caller.grant.permissions, *capability) {
@@ -141,7 +292,11 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
     };
     if let Some(id) = job {
         match store(&app).job_decision(&caller.node, caps[0], id) {
-            Ok(Some(_)) => return next.run(request).await,
+            Ok(Some(decision)) => {
+                let mut response = next.run(request).await;
+                response.extensions_mut().insert(Basis(decision.basis));
+                return response;
+            }
             Ok(None) => {}
             Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
         }
@@ -170,6 +325,24 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
         url::form_urlencoded::parse(parts.uri.query().unwrap_or_default().as_bytes())
             .into_owned()
             .collect();
+    recorder.operation = crate::access::operations::describe(&method, &route_name, &query, &value)
+        .map(|mut o| {
+            space_name(&app, &mut o);
+            o
+        });
+    let once = recorder.operation.as_ref().is_some_and(|o| o.confirm);
+    if recorder
+        .operation
+        .as_ref()
+        .is_some_and(|o| o.risk != Risk::Read)
+        && !within_rate(&caller.node)
+    {
+        return failure(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many remote operations; try again in a minute",
+        )
+        .into_response();
+    }
     // Lease follow-up calls use the key authorized for the acquire request. An unknown or
     // foreign lease is authorized like any other call; the handler then refuses it.
     let lease_key = if caps[0] == Capability::Computer
@@ -208,13 +381,30 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
         digest.update(&bytes);
         format!("{:x}", digest.finalize())
     };
+    let mut basis = None;
     for capability in &caps {
-        if let Err(e) = store(&app).authorize(&caller.node, *capability, &key) {
-            return e.response().into_response();
+        match store(&app).authorize_for(
+            &caller.node,
+            *capability,
+            &key,
+            recorder.operation.as_ref(),
+        ) {
+            Ok(decision) => {
+                basis.get_or_insert(decision.basis);
+            }
+            Err(e) => {
+                if matches!(e, crate::access::Denied::ApprovalRequired { .. }) {
+                    // The request_created entry already names the operation.
+                    recorder.operation = None;
+                }
+                return e.response().into_response();
+            }
         }
     }
     request = Request::from_parts(parts, Body::from(bytes));
-    request.extensions_mut().insert(AccessKey(key.clone()));
+    request
+        .extensions_mut()
+        .insert(AccessKey(key.clone(), once));
     // Streaming handlers transfer the guard to their actual transport/job/lease.
     let held = path.ends_with("/ws")
         || path.ends_with("/desktop/page")
@@ -226,7 +416,7 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
     let mut guards = Vec::new();
     if !held {
         for capability in caps {
-            match store(&app).start(&caller.node, capability, &key) {
+            match store(&app).start_for(&caller.node, capability, &key, once) {
                 Ok(g) => guards.push(g),
                 Err(_) => {
                     return failure(StatusCode::FORBIDDEN, "access changed before use")
@@ -235,7 +425,10 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
             }
         }
     }
-    let response = next.run(request).await;
+    let mut response = next.run(request).await;
+    if let Some(basis) = basis {
+        response.extensions_mut().insert(Basis(basis));
+    }
     if guards.is_empty() || !path.contains("/llm/") {
         return response;
     }
@@ -256,7 +449,6 @@ pub(super) async fn enforce(State(app): State<App>, mut request: Request, next: 
     );
     Response::from_parts(parts, Body::from_stream(stream))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

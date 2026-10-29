@@ -14,6 +14,7 @@ use std::{
 pub(crate) mod api;
 mod audit;
 pub(crate) mod cli;
+pub mod operations;
 #[cfg(test)]
 mod tests;
 
@@ -302,21 +303,53 @@ impl Store {
         result: &str,
         at: u64,
     ) -> Result<()> {
-        audit::append(
-            &self.peers.with_file_name("access-audit.jsonl"),
-            AuditEvent {
-                index: 0,
-                at,
-                event: kind,
-                from: node.map(str::to_owned),
-                name: node.map(|n| self.name(n)),
-                capability,
-                session_key: key.map(str::to_owned),
-                basis: basis.map(str::to_owned),
-                result: result.into(),
-                prev: String::new(),
-            },
-        )
+        self.append(AuditEvent {
+            index: 0,
+            at,
+            event: kind,
+            from: node.map(str::to_owned),
+            name: node.map(|n| self.name(n)),
+            capability,
+            session_key: key.map(str::to_owned),
+            basis: basis.map(str::to_owned),
+            result: result.into(),
+            prev: String::new(),
+            operation: None,
+            status: None,
+            transport: None,
+        })
+    }
+    fn append(&self, event: AuditEvent) -> Result<()> {
+        audit::append(&self.peers.with_file_name("access-audit.jsonl"), event)
+    }
+    /// Appends one remote operation and its outcome to this device's audit chain.
+    #[allow(clippy::too_many_arguments)]
+    pub fn record(
+        &self,
+        node: &str,
+        capability: Option<Capability>,
+        operation: &Operation,
+        basis: Option<&str>,
+        result: &str,
+        status: u16,
+        transport: &str,
+    ) -> Result<()> {
+        let _lock = config::lock_credentials(&self.path()).context("lock access policy")?;
+        self.append(AuditEvent {
+            index: 0,
+            at: now(),
+            event: EventKind::Operation,
+            from: Some(node.into()),
+            name: Some(self.name(node)),
+            capability,
+            session_key: None,
+            basis: basis.map(str::to_owned),
+            result: result.into(),
+            prev: String::new(),
+            operation: Some(operation.clone()),
+            status: Some(status),
+            transport: Some(transport.into()),
+        })
     }
     fn expire(&self, state: &mut State, at: u64) -> Result<()> {
         for r in state
@@ -366,12 +399,20 @@ impl Store {
         });
         Ok(())
     }
-    fn decision(state: &State, node: &str, capability: Capability, key: &str) -> Option<Decision> {
+    /// `once`: the operation always needs an approval for exactly this call; neither Allow
+    /// mode nor a timed approval covers it.
+    fn decision(
+        state: &State,
+        node: &str,
+        capability: Capability,
+        key: &str,
+        once: bool,
+    ) -> Option<Decision> {
         let mode = state.policy.mode(node, capability);
         if mode == Mode::Off {
             return None;
         }
-        if mode == Mode::Allow && !capability.requires_approval() {
+        if mode == Mode::Allow && !capability.requires_approval() && !once {
             return Some(Decision {
                 basis: "allow".into(),
             });
@@ -382,7 +423,8 @@ impl Store {
             .find(|a| {
                 a.from == node
                     && a.capability == capability
-                    && (a.scope == ApprovalScope::Until || a.session_key.as_deref() == Some(key))
+                    && ((a.scope == ApprovalScope::Until && !once)
+                        || a.session_key.as_deref() == Some(key))
             })
             .map(|a| Decision {
                 basis: a.id.clone(),
@@ -421,6 +463,18 @@ impl Store {
     ) -> std::result::Result<Decision, Denied> {
         self.authorize_at(node, capability, key, now())
     }
+    /// Like `authorize`, with the operation the call performs: a new approval request
+    /// carries it so the prompt can say what will happen, and a `confirm` operation is
+    /// never covered by Allow mode or a timed approval.
+    pub fn authorize_for(
+        &self,
+        node: &str,
+        capability: Capability,
+        key: &str,
+        operation: Option<&Operation>,
+    ) -> std::result::Result<Decision, Denied> {
+        self.authorize_op(node, capability, key, operation, now())
+    }
     fn authorize_at(
         &self,
         node: &str,
@@ -428,12 +482,23 @@ impl Store {
         key: &str,
         at: u64,
     ) -> std::result::Result<Decision, Denied> {
+        self.authorize_op(node, capability, key, None, at)
+    }
+    fn authorize_op(
+        &self,
+        node: &str,
+        capability: Capability,
+        key: &str,
+        operation: Option<&Operation>,
+        at: u64,
+    ) -> std::result::Result<Decision, Denied> {
+        let once = operation.is_some_and(|o| o.confirm);
         self.transaction(at, |state| {
             ensure!(
                 !key.is_empty() && key.len() <= 512,
                 "invalid access session key"
             );
-            if let Some(decision) = Self::decision(state, node, capability, key) {
+            if let Some(decision) = Self::decision(state, node, capability, key, once) {
                 return Ok(Ok(decision));
             }
             if state.policy.mode(node, capability) == Mode::Off {
@@ -484,16 +549,23 @@ impl Store {
                         .and_then(|row| row.get(node))
                         .and_then(|p| serde_json::to_value(p).ok())
                 }),
+                operation: operation.cloned(),
             };
-            self.event(
-                EventKind::RequestCreated,
-                Some(node),
-                Some(capability),
-                Some(key),
-                Some(&request.id),
-                "pending",
+            self.append(AuditEvent {
+                index: 0,
                 at,
-            )?;
+                event: EventKind::RequestCreated,
+                from: Some(node.into()),
+                name: Some(request.name.clone()),
+                capability: Some(capability),
+                session_key: Some(key.into()),
+                basis: Some(request.id.clone()),
+                result: "pending".into(),
+                prev: String::new(),
+                operation: operation.cloned(),
+                status: None,
+                transport: None,
+            })?;
             let denied = Denied::ApprovalRequired {
                 request_id: request.id.clone(),
                 capability,
@@ -506,7 +578,7 @@ impl Store {
     }
     pub fn permitted(&self, node: &str, capability: Capability, key: &str) -> bool {
         self.transaction(now(), |state| {
-            Ok(Self::decision(state, node, capability, key).is_some())
+            Ok(Self::decision(state, node, capability, key, false).is_some())
         })
         .unwrap_or(false)
     }
@@ -582,7 +654,11 @@ impl Store {
                 r.state = RequestState::Denied;
                 state.cooldown.insert(r.from.clone(), at + 60);
             } else {
-                let scope = input.scope.context("approval scope required")?;
+                let mut scope = input.scope.context("approval scope required")?;
+                // A confirm-every-time operation is approved for this one call only.
+                if r.operation.as_ref().is_some_and(|o| o.confirm) {
+                    scope = DurationScope::Session;
+                }
                 let (scope, expires_at) = match scope {
                     DurationScope::Session => (ApprovalScope::Session, Some(at + 120)),
                     DurationScope::Minutes30 => (ApprovalScope::Until, Some(at + 1800)),
@@ -667,8 +743,17 @@ impl Store {
         })
     }
     pub fn start(&self, node: &str, capability: Capability, key: &str) -> Result<Session> {
+        self.start_for(node, capability, key, false)
+    }
+    pub fn start_for(
+        &self,
+        node: &str,
+        capability: Capability,
+        key: &str,
+        once: bool,
+    ) -> Result<Session> {
         let session = self.transaction(now(), |state| {
-            let decision = Self::decision(state, node, capability, key)
+            let decision = Self::decision(state, node, capability, key, once)
                 .context("access changed before session start")?;
             if state
                 .approvals
@@ -711,6 +796,7 @@ impl Store {
         Ok(Session {
             store: self.clone(),
             session,
+            once,
         })
     }
     fn end(&self, state: &mut State, session: &ActiveSession, at: u64) -> Result<()> {
@@ -832,6 +918,7 @@ impl Store {
 pub struct Session {
     store: Store,
     session: ActiveSession,
+    once: bool,
 }
 impl Session {
     pub fn bind_job(&self, id: &str) -> Result<()> {
@@ -873,6 +960,7 @@ impl Session {
                         &self.session.from,
                         self.session.capability,
                         &self.session.session_key,
+                        self.once,
                     )
                     .is_some())
             })

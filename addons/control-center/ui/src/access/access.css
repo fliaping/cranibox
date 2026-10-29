@@ -30,3 +30,9 @@
 .cx-approval-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
 .cx-approval-deny { margin-right: auto; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 28%, var(--border)); }
 .cx-approval-deny:hover:not(:disabled) { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); color: var(--bad); }
+
+.cx-access-op { display: block; margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--border); font: 13px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9em; overflow: auto; }
+.cx-access-op-box { display: grid; gap: 4px; margin-bottom: 12px; }
+.cx-access-grants { list-style: none; padding: 0; margin: 0 0 8px; }
+.cx-access-grants li { padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+.cx-access-op-entry .cx-pill + .cx-pill { margin-left: 4px; }

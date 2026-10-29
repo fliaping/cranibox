@@ -6,7 +6,7 @@ const modes = () => Object.fromEntries(caps.map(cap => [cap, 'ask']));
 const request = (id: string, capability = 'terminals') => ({ id, from: remote, name: 'Design Mac', capability, state: 'pending', created_at: Math.floor(Date.now() / 1000), expires_at: Math.floor(Date.now() / 1000) + 120, path: { text: 'UNTRUSTED REQUESTER TEXT' } });
 async function mockAccess(page: Page) {
   const state = {
-    access: { peers: [{ node: remote, name: 'Design Mac', capabilities: modes() }], pending: [] as ReturnType<typeof request>[], approvals: [], sessions: [] as any[] },
+    access: { peers: [{ node: remote, name: 'Design Mac', capabilities: modes() }], pending: [] as any[], approvals: [] as any[], sessions: [] as any[] },
     saved: [] as any[], decisions: [] as any[], revoked: [] as any[], auditQueries: [] as URLSearchParams[],
     tampered: false, approval: 'pending', blocked: '', actions: [] as any[], polls: [] as string[], tickets: [] as any[], terminalBlocked: false,
     updateBlocked: false, updates: [] as string[], shells: [] as any[],
@@ -36,7 +36,7 @@ async function mockAccess(page: Page) {
       state.access.pending = state.access.pending.filter(item => item.id !== id);
       return route.fulfill({ json: {} });
     }
-    if (path === '/api/v1/app/access/revoke') { state.revoked.push(body); state.access.sessions = []; return route.fulfill({ json: {} }); }
+    if (path === '/api/v1/app/access/revoke') { state.revoked.push(body); state.access.sessions = body.id ? state.access.sessions.filter(s => s.basis !== body.id) : []; state.access.approvals = body.id ? state.access.approvals.filter(a => a.id !== body.id) : []; return route.fulfill({ json: {} }); }
     if (path === '/api/v1/app/access/audit') {
       state.auditQueries.push(url.searchParams);
       const before = Number(url.searchParams.get('before') || 52);
@@ -146,7 +146,7 @@ test('active sessions stay visible while scrolling and disconnect all', async ({
   const banner = page.locator('.cx-access-surfaces').getByRole('status').filter({ hasText: 'is using' });
   await expect(banner).toContainText('Design Mac is using Terminal · Remote desktop');
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight)); await expect(banner).toBeInViewport();
-  await banner.getByRole('link', { name: 'Access log', exact: true }).click(); await expect(page).toHaveURL(/access-log/);
+  await banner.getByRole('link', { name: 'Operation log', exact: true }).click(); await expect(page).toHaveURL(/access-log/);
   await banner.getByRole('button', { name: 'Disconnect all', exact: true }).click();
   await expect(banner).toHaveCount(0); expect(state.revoked).toEqual([{}]);
 });
@@ -232,7 +232,7 @@ for (const width of [375, 1280]) test('Chinese approval, sessions and audit fit 
   await dialog.getByRole('button', { name: '拒绝', exact: true }).click();
   const banner = page.locator('.cx-access-surfaces').getByRole('status').filter({ hasText: '正在使用' });
   await expect(banner).toContainText('Design Mac 正在使用 远程桌面');
-  await banner.getByRole('link', { name: '访问记录', exact: true }).click();
+  await banner.getByRole('link', { name: '操作记录', exact: true }).click();
   await expect(page.getByText('记录完整', { exact: true })).toBeVisible();
   state.tampered = true;
   await page.getByRole('button', { name: '刷新', exact: true }).click();
@@ -260,4 +260,79 @@ test('standalone terminal keeps the active session bar above its content', async
   await expect(button).toBeInViewport();
   await button.click(); expect(state.revoked).toEqual([{}]);
   await expect(banner).toBeHidden();
+});
+
+const destroy = { kind: 'exec.run', risk: 'danger', summary: "rm -rf /home/u/project  (env API_KEY)", confirm: true };
+for (const lang of ['en', 'zh-cn']) test('a destructive command is named in the prompt and can only be allowed once in ' + lang, async ({ page }) => {
+  const state = await mockAccess(page), zh = lang === 'zh-cn';
+  state.access.pending = [{ ...request('rm', 'exec'), operation: destroy }];
+  await openDevice(page, 'access', lang);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading')).toHaveText(zh ? 'Design Mac 想在本设备上运行命令' : 'Design Mac wants to run a command on this device');
+  await expect(dialog.locator('.cx-access-op')).toHaveText(destroy.summary);
+  await expect(dialog).toContainText(zh ? '高风险' : 'High risk');
+  await expect(dialog.getByRole('alert')).toContainText(zh ? '批准只对这一次有效' : 'covers only this one call');
+  await expect(dialog.getByRole('button')).toHaveCount(2);
+  await dialog.getByRole('button', { name: zh ? '允许这一次' : 'Allow this once', exact: true }).click();
+  expect(state.decisions).toEqual([{ id: 'rm', decision: 'approve', scope: 'session' }]);
+  await expect(dialog).toHaveCount(0);
+});
+
+test('an ordinary operation explains what a timed approval covers', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.access.pending = [{ ...request('stop', 'spaces'), operation: { kind: 'spaces.stop', risk: 'change', summary: 'Build box (5f8c)' } }];
+  await openDevice(page, 'access', 'zh-cn');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading')).toHaveText('Design Mac 想在本设备上停止虚拟空间');
+  await expect(dialog).toContainText('Build box (5f8c)');
+  await expect(dialog).toContainText('修改');
+  await expect(dialog).toContainText('「允许本次」只放行这一个操作');
+  await dialog.getByRole('button', { name: '允许 30 分钟', exact: true }).click();
+  expect(state.decisions).toEqual([{ id: 'stop', decision: 'approve', scope: '30m' }]);
+});
+
+test('operation log shows redacted operations, outcomes and filters by type', async ({ page }) => {
+  await mockAccess(page);
+  const at = 1800000000, entries = [
+    { index: 5, at, event: 'denied', from: 'local', name: '', capability: null, basis: 'a1', result: 'revoked' },
+    { index: 4, at, event: 'operation', from: remote, name: 'Design Mac', capability: 'exec', basis: 'req-1', result: 'ok', status: 200, transport: 'e2e', operation: destroy },
+    { index: 3, at, event: 'approved', from: remote, name: 'Design Mac', capability: 'exec', basis: 'req-1', result: 'local', operation: destroy },
+    { index: 2, at, event: 'operation', from: remote, name: 'Design Mac', capability: 'spaces', basis: null, result: 'refused', status: 403, transport: 'e2e', operation: { kind: 'spaces.stop', risk: 'change', summary: 'Build box (5f8c)' } },
+    { index: 1, at, event: 'operation', from: remote, name: 'Design Mac', capability: 'spaces', basis: 'allow', result: 'ok', status: 200, transport: 'bearer', operation: { kind: 'spaces.list', risk: 'read', summary: '' } },
+  ];
+  await page.route('**/api/v1/app/access/audit**', route => route.fulfill({ json: { verified: true, broken_index: null, entries } }));
+  await openDevice(page, 'access', 'zh-cn');
+  const log = page.getByRole('region', { name: '操作记录' }).or(page.locator('.cx-card').filter({ has: page.getByRole('heading', { name: '操作记录' }) })).first();
+  const items = log.locator('.cx-access-log li');
+  await expect(items).toHaveCount(5);
+  await expect(items.nth(0)).toContainText('收回授权');
+  await expect(items.nth(0)).toContainText('已撤销');
+  await expect(items.nth(0)).not.toContainText('已拒绝');
+  await expect(items.nth(1)).toContainText('运行命令');
+  await expect(items.nth(1)).toContainText('rm -rf /home/u/project');
+  await expect(items.nth(1)).toContainText('已完成');
+  await expect(items.nth(1)).toContainText('经你批准');
+  await expect(items.nth(2)).toContainText('已批准');
+  await expect(items.nth(3)).toContainText('停止虚拟空间');
+  await expect(items.nth(3)).toContainText('被阻止');
+  await expect(items.nth(4)).toContainText('只读');
+  await log.getByLabel('类型').selectOption('operations');
+  await expect(items).toHaveCount(3);
+  await log.getByLabel('类型').selectOption('access');
+  await expect(items).toHaveCount(2);
+});
+
+test('current approvals can be revoked one by one', async ({ page }) => {
+  const state = await mockAccess(page);
+  const until = Math.floor(Date.now() / 1000) + 1800;
+  state.access.approvals = [{ id: 'a1', from: remote, capability: 'terminals', scope: 'until', expires_at: until }, { id: 'a2', from: remote, capability: 'desktop', scope: 'session', expires_at: null }];
+  state.access.sessions = [{ id: 's1', from: remote, name: 'Design Mac', capability: 'desktop', basis: 'a2' }];
+  await openDevice(page, 'access', 'zh-cn');
+  const card = page.locator('.cx-access-grants');
+  await expect(card.locator('li')).toHaveCount(2);
+  await expect(card.locator('li').nth(1)).toContainText('正在使用');
+  await card.locator('li').nth(1).getByRole('button', { name: '撤销', exact: true }).click();
+  await expect(card.locator('li')).toHaveCount(1);
+  expect(state.revoked).toEqual([{ id: 'a2' }]);
+  await expect(card).toContainText('终端');
 });

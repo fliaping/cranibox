@@ -836,6 +836,171 @@ mod access_policy {
         f.running.shutdown().await.unwrap();
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn operations_are_audited_redacted_and_destructive_commands_need_a_one_time_approval() {
+        use crate::access::{EventKind, Risk};
+        let f = Fixture::new().await;
+        f.store
+            .change(&f.caller, [(Capability::Exec, Mode::Allow)].into())
+            .unwrap();
+        let path = format!("/api/v1/mesh/nodes/{}/exec", f.running.app.node);
+        let wait = |job: Value| {
+            let f = &f;
+            async move {
+                let job_path = format!("/api/v1/mesh/jobs/{}", job["id"].as_str().unwrap());
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    loop {
+                        let (_, job) = f.call("GET", &job_path, Value::Null).await;
+                        if job["outcome"] != "running" {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    while !f.store.view().unwrap().sessions.is_empty() {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .unwrap();
+            }
+        };
+        // An ordinary command in Allow mode runs and is logged without its secret.
+        let (status, job) = f
+            .call(
+                "POST",
+                &path,
+                json!({"program":"/bin/echo","args":["deploy","--token","hunter2-secret"],"env":{"API_KEY":"sk-live-0123456789abcdef"}}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{job}");
+        wait(job).await;
+        let log = f.store.audit(200, None, Some(&f.caller), None).unwrap();
+        assert!(log.verified);
+        let run = log
+            .entries
+            .iter()
+            .find(|e| e.operation.as_ref().is_some_and(|o| o.kind == "exec.run"))
+            .expect("operation recorded");
+        let operation = run.operation.as_ref().unwrap();
+        assert_eq!(
+            (operation.kind.as_str(), operation.risk),
+            ("exec.run", Risk::Danger)
+        );
+        assert_eq!(
+            (run.status, run.transport.as_deref(), run.result.as_str()),
+            (Some(200), Some("e2e"), "ok")
+        );
+        assert_eq!(run.basis.as_deref(), Some("allow"));
+        assert!(
+            operation.summary.contains("--token ***"),
+            "{}",
+            operation.summary
+        );
+        assert!(operation.summary.contains("(env API_KEY)"));
+        let text =
+            std::fs::read_to_string(f._root.path().join("target/access-audit.jsonl")).unwrap();
+        assert!(
+            !text.contains("hunter2") && !text.contains("sk-live"),
+            "secret in the audit file"
+        );
+
+        // A destructive command asks even though Exec is Allow, and says what it will do.
+        let victim = f._root.path().join("victim");
+        std::fs::create_dir_all(victim.join("inner")).unwrap();
+        let destroy = json!({"program":"/bin/rm","args":["-rf", victim.to_str().unwrap()]});
+        let (status, denied) = f.call("POST", &path, destroy.clone()).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(denied["error"], "approval_required");
+        let id = denied["request_id"].as_str().unwrap().to_owned();
+        let request = f.store.view().unwrap().pending.remove(0);
+        let asked = request.operation.unwrap();
+        assert!(
+            asked.confirm && asked.summary.contains("rm -rf"),
+            "{asked:?}"
+        );
+        // Revoking the approval before use makes the next call ask again.
+        f.approve(&id, "8h").await;
+        let approval = f.store.view().unwrap().approvals.remove(0);
+        assert_eq!(
+            approval.scope,
+            crate::access::ApprovalScope::Session,
+            "8h is narrowed to once"
+        );
+        f.store.revoke(Some(&id), false).unwrap();
+        let (status, again) = f.call("POST", &path, destroy.clone()).await;
+        assert_eq!(
+            (status, again["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("approval_required"))
+        );
+        assert!(victim.exists());
+        // Approved once: runs once.
+        f.approve(again["request_id"].as_str().unwrap(), "session")
+            .await;
+        let (status, job) = f.call("POST", &path, destroy.clone()).await;
+        assert_eq!(status, StatusCode::OK, "{job}");
+        wait(job).await;
+        assert!(!victim.exists());
+        let (status, third) = f.call("POST", &path, destroy.clone()).await;
+        assert_eq!(
+            (status, third["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("approval_required"))
+        );
+        // Denied: the requester waits out the cooldown.
+        crate::access::api::route(
+            &f.running.app.path,
+            "POST",
+            &format!("/access/requests/{}", third["request_id"].as_str().unwrap()),
+            "",
+            json!({"decision":"deny"}),
+        )
+        .await
+        .unwrap();
+        let (status, cooldown) = f.call("POST", &path, destroy).await;
+        assert_eq!(
+            (status, cooldown["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("approval_cooldown"))
+        );
+
+        let log = f.store.audit(200, None, Some(&f.caller), None).unwrap();
+        assert!(log.verified);
+        let kinds: Vec<_> = log.entries.iter().rev().map(|e| e.event).collect();
+        for kind in [
+            EventKind::RequestCreated,
+            EventKind::Approved,
+            EventKind::Denied,
+            EventKind::Operation,
+        ] {
+            assert!(kinds.contains(&kind), "{kind:?} missing from {kinds:?}");
+        }
+        let created = log
+            .entries
+            .iter()
+            .find(|e| e.event == EventKind::RequestCreated)
+            .unwrap();
+        assert!(
+            created
+                .operation
+                .as_ref()
+                .unwrap()
+                .summary
+                .contains("rm -rf")
+        );
+        let destroyed = log
+            .entries
+            .iter()
+            .filter(|e| e.event == EventKind::Operation)
+            .filter(|e| e.operation.as_ref().is_some_and(|o| o.confirm))
+            .collect::<Vec<_>>();
+        assert!(
+            destroyed
+                .iter()
+                .any(|e| e.status == Some(200) && e.basis.as_deref() != Some("allow"))
+        );
+        assert!(destroyed.iter().any(|e| e.result == "refused"));
+        f.running.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn session_approval_polling_cooldown_and_emergency_revoke() {
         let f = Fixture::new().await;

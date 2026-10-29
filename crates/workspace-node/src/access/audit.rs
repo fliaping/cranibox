@@ -82,6 +82,9 @@ pub(super) fn append(path: &Path, mut event: AuditEvent) -> Result<()> {
             basis: None,
             result: dropped.clone(),
             prev: dropped,
+            operation: None,
+            status: None,
+            transport: None,
         };
         let checkpoint = serde_json::to_string(&checkpoint)?;
         // Commit to the dropped prefix and re-link the retained suffix; indexes stay stable.

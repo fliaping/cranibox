@@ -158,6 +158,24 @@ pub fn run(peers: &Path, args: Args) -> Result<()> {
     ensure!(!failed, "access audit integrity check failed");
     Ok(())
 }
+/// `exec.run [danger, asks every time]: rm -rf /tmp/x` for an operation, if any.
+fn operation_line(operation: &Value) -> Option<String> {
+    let kind = operation["kind"].as_str()?;
+    let mut tags = vec![operation["risk"].as_str().unwrap_or("").to_owned()];
+    if operation["confirm"] == true {
+        tags.push("asks every time".into());
+    }
+    let summary = operation["summary"].as_str().unwrap_or("");
+    Some(format!(
+        "{kind} [{}]{}",
+        tags.join(", "),
+        if summary.is_empty() {
+            String::new()
+        } else {
+            format!(": {summary}")
+        }
+    ))
+}
 fn human(value: &Value) -> String {
     if let Some(peers) = value["peers"].as_array() {
         let mut output = String::from("Peers (what they may do on this device):\n");
@@ -199,6 +217,9 @@ fn human(value: &Value) -> String {
                             .map(|at| at.to_string())
                             .unwrap_or_else(|| "session end".into())
                     ));
+                    if let Some(line) = operation_line(&item["operation"]) {
+                        output.push_str(&format!("    wants to: {line}\n"));
+                    }
                 }
                 if items.is_empty() {
                     output.push_str("  none\n");
@@ -226,6 +247,13 @@ fn human(value: &Value) -> String {
                 entry["event"].as_str().unwrap_or(""),
                 entry["result"].as_str().unwrap_or("")
             ));
+            if let Some(line) = operation_line(&entry["operation"]) {
+                let status = entry["status"]
+                    .as_u64()
+                    .map(|s| format!("  status={s}"))
+                    .unwrap_or_default();
+                output.push_str(&format!("    {line}{status}\n"));
+            }
         }
         output
     } else if value["result"] == "saved" {

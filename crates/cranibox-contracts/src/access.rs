@@ -43,6 +43,31 @@ impl std::fmt::Display for Capability {
         f.write_str(name.as_str().ok_or(std::fmt::Error)?)
     }
 }
+/// How much a remote operation can change this device. `Read` only looks; `Change` alters
+/// state that can be put back (start a space, rename a session); `Danger` runs code, writes
+/// files, controls the screen or destroys data.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum Risk {
+    Read,
+    Change,
+    Danger,
+}
+/// What a remote device asked this device to do, described by the target itself.
+/// `summary` is redacted: it never contains file contents, message bodies, environment
+/// values or anything that looks like a credential.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Operation {
+    /// Stable machine name, e.g. `exec.run`, `spaces.stop`, `files.write`.
+    pub kind: String,
+    pub risk: Risk,
+    pub summary: String,
+    /// The target always asks before this operation, even when the capability is Allow,
+    /// and an approval covers only this exact call (destructive commands, writes into
+    /// login or key files).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub confirm: bool,
+}
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
@@ -99,6 +124,9 @@ pub struct AccessRequest {
     pub expires_at: u64,
     pub state: RequestState,
     pub path: Option<serde_json::Value>,
+    /// The operation that triggered the request, so the prompt can say what will happen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<Operation>,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -161,6 +189,8 @@ pub enum EventKind {
     Refused,
     EmergencyDisconnect,
     Checkpoint,
+    /// One remote operation that reached this device, with its outcome.
+    Operation,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AuditEvent {
@@ -174,6 +204,14 @@ pub struct AuditEvent {
     pub basis: Option<String>,
     pub result: String,
     pub prev: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<Operation>,
+    /// HTTP status the operation ended with (101 for an opened stream).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
+    /// `e2e` for the verified end-to-end channel, `bearer` for a legacy token request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<String>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PeerPolicy {
