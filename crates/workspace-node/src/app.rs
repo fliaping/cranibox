@@ -1168,12 +1168,23 @@ async fn route(
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     if path == "/access" || path.starts_with("/access/") {
         if let Some(service) = service.as_ref() {
+            let local = service.local()?;
+            let gateway = if path == "/access/review/test" {
+                local
+                    .models()
+                    .await
+                    .ok()
+                    .and_then(|m| m.proxy.addresses.first().map(ToString::to_string))
+            } else {
+                None
+            };
             return crate::access::api::route(
-                service.local()?.config_path(),
+                local.config_path(),
                 method,
                 path,
                 query,
                 body,
+                gateway,
             )
             .await;
         }

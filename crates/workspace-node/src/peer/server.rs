@@ -350,7 +350,7 @@ async fn execute(
     headers: HeaderMap,
     Extension(access_key): Extension<access::AccessKey>,
     Json(request): Json<ExecRequest>,
-) -> Result<Json<Value>, Failure> {
+) -> Result<Response, Failure> {
     check_target(&app, &node)?;
     check_permission(&caller, false)?;
     request
@@ -363,6 +363,7 @@ async fn execute(
         None => uuid::Uuid::new_v4().to_string(),
     };
     let encoded = serde_json::to_vec(&request).unwrap();
+    let described = serde_json::to_value(&request).unwrap_or_default();
     let mut jobs = app.jobs.lock().await;
     jobs.retain(|_, job| {
         job.finished
@@ -372,7 +373,7 @@ async fn execute(
         if !job.visible(&caller) || job.request != encoded {
             return Err(failure(StatusCode::CONFLICT, "request ID already in use"));
         }
-        return Ok(Json(job.view(&id, &node)));
+        return Ok(Json(job.view(&id, &node)).into_response());
     }
     if jobs.len() >= MAX_JOBS {
         return Err(failure(
@@ -410,6 +411,9 @@ async fn execute(
     let response = jobs[&id].view(&id, &node);
     drop(jobs);
     let task_app = app.clone();
+    let started = Instant::now();
+    let job_id = id.clone();
+    let started_job = access::StartedJob(id.clone());
     app.tasks.lock().await.spawn(async move {
         let _permit = permit;
         let access_cancel = cancel.clone();
@@ -460,8 +464,91 @@ async fn execute(
                 running.await;
             }
         }
+        record_finish(&task_app, &job_id, &node, &described, started).await;
     });
-    Ok(Json(response))
+    let mut response = Json(response).into_response();
+    response.extensions_mut().insert(started_job);
+    Ok(response)
+}
+/// Logs how a remote command ended: exit code, duration, output sizes and a redacted
+/// tail, under the same job id as the entry that started it.
+async fn record_finish(app: &App, id: &str, node: &str, request: &Value, started: Instant) {
+    use crate::access::operations;
+    let (caller, mut detail) = {
+        let jobs = app.jobs.lock().await;
+        let Some(job) = jobs.get(id) else {
+            return;
+        };
+        let outcome = serde_json::to_value(job.outcome)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned));
+        (
+            job.caller.node.clone(),
+            crate::access::OperationDetail {
+                outcome,
+                exit_code: job.code,
+                stdout_bytes: Some(job.stdout.len() as u64),
+                stderr_bytes: Some(job.stderr.len() as u64),
+                stdout_tail: operations::tail(&job.stdout, 400),
+                stderr_tail: operations::tail(&job.stderr, 400),
+                error: job.error.as_deref().map(operations::redact),
+                ..Default::default()
+            },
+        )
+    };
+    let route = format!("/nodes/{node}/exec");
+    let Some(mut operation) = operations::describe("POST", &route, &Default::default(), request)
+    else {
+        return;
+    };
+    if operations::findings("exec.run", request).contains(&"credential_access") {
+        detail.stdout_tail = None;
+        detail.stderr_tail = None;
+    }
+    let asked = operations::detail("exec.run", &Default::default(), request);
+    detail.argv = asked.argv;
+    detail.cwd = asked.cwd;
+    detail.env_keys = asked.env_keys;
+    detail.timeout_secs = asked.timeout_secs;
+    detail.findings = asked.findings;
+    detail.job = Some(id.to_owned());
+    detail.duration_ms = Some(started.elapsed().as_millis() as u64);
+    operation.kind = "exec.finished".into();
+    let result = if detail.outcome.as_deref() == Some("exited") && detail.exit_code == Some(0) {
+        "ok"
+    } else {
+        "failed"
+    };
+    let store = access::store(app);
+    let written = tokio::task::spawn_blocking(move || {
+        let basis = store
+            .job_decision(
+                &caller,
+                crate::access::Capability::Exec,
+                &job_id_of(&detail),
+            )
+            .ok()
+            .flatten()
+            .map(|d| d.basis);
+        store.record(crate::access::OperationRecord {
+            node: &caller,
+            capability: Some(crate::access::Capability::Exec),
+            operation: &operation,
+            basis: basis.as_deref(),
+            result,
+            status: 200,
+            transport: "job",
+            detail: Some(detail.clone()),
+            review: None,
+        })
+    })
+    .await;
+    if !matches!(written, Ok(Ok(()))) {
+        eprintln!("record remote command finish: {written:?}");
+    }
+}
+fn job_id_of(detail: &crate::access::OperationDetail) -> String {
+    detail.job.clone().unwrap_or_default()
 }
 async fn job(
     State(app): State<App>,

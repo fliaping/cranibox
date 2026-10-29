@@ -14,6 +14,7 @@ use std::{
 pub(crate) mod api;
 mod audit;
 pub(crate) mod cli;
+pub mod decision;
 pub mod operations;
 #[cfg(test)]
 mod tests;
@@ -145,7 +146,7 @@ impl Store {
     fn path(&self) -> PathBuf {
         self.peers.with_file_name("access-policy.json")
     }
-    fn name(&self, node: &str) -> String {
+    pub(crate) fn name(&self, node: &str) -> String {
         crate::app::known::load(&self.peers)
             .get(node)
             .map(|k| k.display(node))
@@ -317,38 +318,32 @@ impl Store {
             operation: None,
             status: None,
             transport: None,
+            detail: None,
+            review: None,
         })
     }
     fn append(&self, event: AuditEvent) -> Result<()> {
         audit::append(&self.peers.with_file_name("access-audit.jsonl"), event)
     }
     /// Appends one remote operation and its outcome to this device's audit chain.
-    #[allow(clippy::too_many_arguments)]
-    pub fn record(
-        &self,
-        node: &str,
-        capability: Option<Capability>,
-        operation: &Operation,
-        basis: Option<&str>,
-        result: &str,
-        status: u16,
-        transport: &str,
-    ) -> Result<()> {
+    pub fn record(&self, record: OperationRecord<'_>) -> Result<()> {
         let _lock = config::lock_credentials(&self.path()).context("lock access policy")?;
         self.append(AuditEvent {
             index: 0,
             at: now(),
             event: EventKind::Operation,
-            from: Some(node.into()),
-            name: Some(self.name(node)),
-            capability,
+            from: Some(record.node.into()),
+            name: Some(self.name(record.node)),
+            capability: record.capability,
             session_key: None,
-            basis: basis.map(str::to_owned),
-            result: result.into(),
+            basis: record.basis.map(str::to_owned),
+            result: record.result.into(),
             prev: String::new(),
-            operation: Some(operation.clone()),
-            status: Some(status),
-            transport: Some(transport.into()),
+            operation: Some(record.operation.clone()),
+            status: Some(record.status),
+            transport: Some(record.transport.into()),
+            detail: record.detail.filter(|d| !d.is_empty()),
+            review: record.review,
         })
     }
     fn expire(&self, state: &mut State, at: u64) -> Result<()> {
@@ -472,8 +467,9 @@ impl Store {
         capability: Capability,
         key: &str,
         operation: Option<&Operation>,
+        context: Pending<'_>,
     ) -> std::result::Result<Decision, Denied> {
-        self.authorize_op(node, capability, key, operation, now())
+        self.authorize_op(node, capability, key, operation, context, now())
     }
     fn authorize_at(
         &self,
@@ -482,17 +478,20 @@ impl Store {
         key: &str,
         at: u64,
     ) -> std::result::Result<Decision, Denied> {
-        self.authorize_op(node, capability, key, None, at)
+        self.authorize_op(node, capability, key, None, Pending::default(), at)
     }
+    /// A review that does not answer `allow` turns the operation into a one-time
+    /// approval, exactly like a rule finding: Allow mode and time grants no longer cover it.
     fn authorize_op(
         &self,
         node: &str,
         capability: Capability,
         key: &str,
         operation: Option<&Operation>,
+        context: Pending<'_>,
         at: u64,
     ) -> std::result::Result<Decision, Denied> {
-        let once = operation.is_some_and(|o| o.confirm);
+        let once = operation.is_some_and(|o| o.confirm) || decision::escalates(context.review);
         self.transaction(at, |state| {
             ensure!(
                 !key.is_empty() && key.len() <= 512,
@@ -550,6 +549,8 @@ impl Store {
                         .and_then(|p| serde_json::to_value(p).ok())
                 }),
                 operation: operation.cloned(),
+                detail: context.detail.cloned().filter(|d| !d.is_empty()),
+                review: context.review.cloned(),
             };
             self.append(AuditEvent {
                 index: 0,
@@ -565,6 +566,8 @@ impl Store {
                 operation: operation.cloned(),
                 status: None,
                 transport: None,
+                detail: request.detail.clone(),
+                review: request.review.clone(),
             })?;
             let denied = Denied::ApprovalRequired {
                 request_id: request.id.clone(),
@@ -655,22 +658,21 @@ impl Store {
                 state.cooldown.insert(r.from.clone(), at + 60);
             } else {
                 let mut scope = input.scope.context("approval scope required")?;
-                // A confirm-every-time operation is approved for this one call only.
-                if r.operation.as_ref().is_some_and(|o| o.confirm) {
+                // A confirm-every-time operation, or one the reviewer flagged, is approved
+                // for this one call only.
+                if r.operation.as_ref().is_some_and(|o| o.confirm)
+                    || decision::escalates(r.review.as_ref())
+                {
                     scope = DurationScope::Session;
                 }
-                let (scope, expires_at) = match scope {
-                    DurationScope::Session => (ApprovalScope::Session, Some(at + 120)),
-                    DurationScope::Minutes30 => (ApprovalScope::Until, Some(at + 1800)),
-                    DurationScope::Hours8 => (ApprovalScope::Until, Some(at + 28800)),
-                };
+                let (scope, expires_at) = scope_expiry(scope, at);
                 self.event(
                     EventKind::Approved,
                     Some(&r.from),
                     Some(r.capability),
                     Some(&r.session_key),
                     Some(id),
-                    "local",
+                    &format!("local:{}", scope_name(input.scope)),
                     at,
                 )?;
                 r.state = RequestState::Approved;
@@ -896,23 +898,276 @@ impl Store {
         node: Option<&str>,
         capability: Option<Capability>,
     ) -> Result<AuditView> {
-        let _lock = config::lock_credentials(&self.path())?;
-        let (entries, broken_index) =
-            audit::read(&self.peers.with_file_name("access-audit.jsonl"))?;
-        Ok(AuditView {
-            entries: entries
-                .into_iter()
-                .rev()
-                .filter(|e| {
-                    before.is_none_or(|b| e.index < b)
-                        && node.is_none_or(|n| e.from.as_deref() == Some(n))
-                        && capability.is_none_or(|c| e.capability == Some(c))
-                })
-                .take(limit.min(10000))
-                .collect(),
-            verified: broken_index.is_none(),
-            broken_index,
+        self.query(&AuditQuery {
+            limit,
+            before,
+            node: node.map(str::to_owned),
+            capability,
+            ..Default::default()
         })
+    }
+    /// Newest first, across archived segments, verifying each segment and the links
+    /// between those it reads.
+    pub fn query(&self, query: &AuditQuery) -> Result<AuditView> {
+        let _lock = config::lock_credentials(&self.path())?;
+        let limit = query.limit.clamp(1, 10000);
+        let mut history = audit::History::open(&self.peers.with_file_name("access-audit.jsonl"));
+        let mut entries = Vec::new();
+        let mut more = false;
+        'segments: while let Some(segment) = history.next_segment()? {
+            for entry in segment.into_iter().rev() {
+                if query.matches(&entry) {
+                    if entries.len() == limit {
+                        more = true;
+                        break 'segments;
+                    }
+                    entries.push(entry);
+                }
+            }
+        }
+        let next_before = more.then(|| entries.last().map(|e| e.index)).flatten();
+        Ok(AuditView {
+            entries,
+            verified: history.broken.is_none(),
+            broken_index: history.broken,
+            next_before,
+        })
+    }
+    /// The caller's mode, the time grant covering `capability`, and its last operations
+    /// here: the context a reviewer sees.
+    pub fn review_context(&self, node: &str, capability: Capability) -> DecisionContext {
+        let (mode, grant_expires_at) = self
+            .transaction(now(), |state| {
+                let grant = state
+                    .approvals
+                    .values()
+                    .filter(|a| {
+                        a.from == node
+                            && a.capability == capability
+                            && a.scope == ApprovalScope::Until
+                    })
+                    .map(|a| a.expires_at.unwrap_or(u64::MAX))
+                    .max();
+                Ok((state.policy.mode(node, capability), grant))
+            })
+            .unwrap_or_default();
+        let recent = self
+            .query(&AuditQuery {
+                limit: 5,
+                node: Some(node.into()),
+                category: Some("operations".into()),
+                ..Default::default()
+            })
+            .map(|view| {
+                view.entries
+                    .into_iter()
+                    .filter_map(|e| {
+                        Some(RecentOperation {
+                            at: e.at,
+                            kind: e.operation.as_ref()?.kind.clone(),
+                            summary: e.operation?.summary,
+                            result: e.result,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        DecisionContext {
+            mode,
+            grant_expires_at: grant_expires_at.filter(|e| *e != u64::MAX),
+            rules: vec![],
+            recent,
+        }
+    }
+    /// Grants `capabilities` to `node` for a while without waiting for a request. Remote
+    /// updates, models and accounts are never part of a standing grant.
+    pub fn grant(
+        &self,
+        node: &str,
+        capabilities: &[Capability],
+        scope: DurationScope,
+    ) -> Result<Vec<Approval>> {
+        ensure!(
+            agent_workspace_runtime::protocol::valid_node_id(node),
+            "invalid node ID"
+        );
+        ensure!(!capabilities.is_empty(), "choose what to allow");
+        ensure!(scope != DurationScope::Session, "choose how long");
+        ensure!(
+            !capabilities.iter().any(|c| c.requires_approval()),
+            "remote updates, models and accounts are approved one request at a time"
+        );
+        let at = now();
+        self.transaction(at, |state| {
+            let mut granted = Vec::new();
+            for capability in capabilities {
+                ensure!(
+                    state.policy.mode(node, *capability) != Mode::Off,
+                    "{capability} is off for this device; set it to Ask first"
+                );
+                let (scope_kind, expires_at) = scope_expiry(scope, at);
+                let approval = Approval {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    from: node.into(),
+                    capability: *capability,
+                    scope: scope_kind,
+                    session_key: None,
+                    expires_at,
+                    approved_by: "local".into(),
+                    approved_at: at,
+                };
+                self.event(
+                    EventKind::Approved,
+                    Some(node),
+                    Some(*capability),
+                    None,
+                    Some(&approval.id),
+                    &format!("grant:{}", scope_name(Some(scope))),
+                    at,
+                )?;
+                state
+                    .approvals
+                    .insert(approval.id.clone(), approval.clone());
+                granted.push(approval);
+            }
+            Ok(granted)
+        })
+    }
+}
+/// What the gateway knows about an operation when it asks for access.
+#[derive(Default, Clone, Copy)]
+pub struct Pending<'a> {
+    pub detail: Option<&'a OperationDetail>,
+    pub review: Option<&'a Review>,
+}
+pub struct OperationRecord<'a> {
+    pub node: &'a str,
+    pub capability: Option<Capability>,
+    pub operation: &'a Operation,
+    pub basis: Option<&'a str>,
+    pub result: &'a str,
+    pub status: u16,
+    pub transport: &'a str,
+    pub detail: Option<OperationDetail>,
+    pub review: Option<Review>,
+}
+/// Audit log filters. `category`: `operations` or `access`; `result`: `ok`, `blocked`
+/// (refused, denied, rate limited) or `failed`; `q`: case-insensitive text search over
+/// the device, operation, summary, command and paths.
+#[derive(Default, Debug)]
+pub struct AuditQuery {
+    pub limit: usize,
+    pub before: Option<u64>,
+    pub node: Option<String>,
+    pub capability: Option<Capability>,
+    pub category: Option<String>,
+    pub kind: Option<String>,
+    pub risk: Option<Risk>,
+    pub result: Option<String>,
+    pub reviewed: bool,
+    pub q: Option<String>,
+}
+impl AuditQuery {
+    fn matches(&self, e: &AuditEvent) -> bool {
+        let operation = e.event == EventKind::Operation;
+        self.before.is_none_or(|b| e.index < b)
+            && self
+                .node
+                .as_ref()
+                .is_none_or(|n| e.from.as_ref() == Some(n))
+            && self.capability.is_none_or(|c| e.capability == Some(c))
+            && self.category.as_deref().is_none_or(|c| match c {
+                "operations" => operation,
+                "access" => !operation,
+                _ => true,
+            })
+            && self.kind.as_ref().is_none_or(|k| {
+                e.operation
+                    .as_ref()
+                    .is_some_and(|o| o.kind == *k || o.kind.starts_with(&format!("{k}.")))
+            })
+            && self
+                .risk
+                .is_none_or(|r| e.operation.as_ref().is_some_and(|o| o.risk == r))
+            && self.result.as_deref().is_none_or(|r| match r {
+                "ok" => operation && e.result == "ok",
+                "failed" => operation && e.result == "failed",
+                "blocked" => {
+                    matches!(e.result.as_str(), "refused" | "rate_limited")
+                        || matches!(e.event, EventKind::Refused | EventKind::Denied)
+                }
+                "approved" => e.event == EventKind::Approved,
+                _ => true,
+            })
+            && (!self.reviewed || e.review.is_some())
+            && self.q.as_deref().is_none_or(|q| {
+                let q = q.to_lowercase();
+                let mut text = format!(
+                    "{} {} {} {}",
+                    e.name.as_deref().unwrap_or(""),
+                    e.from.as_deref().unwrap_or(""),
+                    e.result,
+                    e.basis.as_deref().unwrap_or("")
+                );
+                if let Some(o) = &e.operation {
+                    text.push_str(&format!(" {} {}", o.kind, o.summary));
+                }
+                if let Some(d) = &e.detail {
+                    text.push_str(&format!(
+                        " {} {} {} {} {} {}",
+                        d.argv.join(" "),
+                        d.paths.join(" "),
+                        d.cwd.as_deref().unwrap_or(""),
+                        d.target.as_deref().unwrap_or(""),
+                        d.url.as_deref().unwrap_or(""),
+                        d.job.as_deref().unwrap_or("")
+                    ));
+                    for part in [&d.stdout_tail, &d.stderr_tail, &d.error, &d.space]
+                        .into_iter()
+                        .flatten()
+                    {
+                        text.push(' ');
+                        text.push_str(part);
+                    }
+                }
+                if let Some(r) = &e.review {
+                    text.push_str(&format!(" {} {}", r.reason, r.labels.join(" ")));
+                }
+                text.to_lowercase().contains(&q)
+            })
+    }
+}
+fn scope_name(scope: Option<DurationScope>) -> String {
+    scope
+        .and_then(|s| serde_json::to_value(s).ok())
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_else(|| "session".into())
+}
+/// Local midnight after `at`, for "today".
+fn midnight(at: u64) -> u64 {
+    use chrono::{Duration, Local, TimeZone};
+    Local
+        .timestamp_opt(at as i64, 0)
+        .single()
+        .and_then(|t| {
+            let next = t.date_naive().succ_opt()?.and_hms_opt(0, 0, 0)?;
+            Local
+                .from_local_datetime(&next)
+                .earliest()
+                .map(|n| n.timestamp() as u64)
+        })
+        .unwrap_or(at + Duration::hours(24).num_seconds() as u64)
+        .max(at + 60)
+}
+fn scope_expiry(scope: DurationScope, at: u64) -> (ApprovalScope, Option<u64>) {
+    match scope {
+        DurationScope::Session => (ApprovalScope::Session, Some(at + 120)),
+        DurationScope::Minutes30 => (ApprovalScope::Until, Some(at + 1800)),
+        DurationScope::Hour1 => (ApprovalScope::Until, Some(at + 3600)),
+        DurationScope::Hours8 => (ApprovalScope::Until, Some(at + 28800)),
+        DurationScope::Today => (ApprovalScope::Until, Some(midnight(at))),
+        DurationScope::Days7 => (ApprovalScope::Until, Some(at + 7 * 86400)),
+        DurationScope::Always => (ApprovalScope::Until, None),
     }
 }
 pub struct Session {

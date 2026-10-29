@@ -5,7 +5,7 @@
 .cx-access-group summary { cursor: pointer; color: var(--muted); }
 .cx-access-group details .cx-between { margin-top: 12px; }
 .cx-access-modes { display: flex; flex-shrink: 0; gap: 3px; }
-.cx-access-filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.cx-access-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .cx-access-filters .cx-field { flex: 1; min-width: 0; }
 .cx-access-log { list-style: none; padding: 0; }
 .cx-access-log li { padding: 12px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
@@ -36,3 +36,29 @@
 .cx-access-grants { list-style: none; padding: 0; margin: 0 0 8px; }
 .cx-access-grants li { padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
 .cx-access-op-entry .cx-pill + .cx-pill { margin-left: 4px; }
+.cx-access-filters .cx-field { min-width: 120px; }
+.cx-access-search { display: flex; gap: 8px; margin: 8px 0 12px; }
+.cx-access-search input { flex: 1; min-width: 0; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; }
+.cx-access-more { flex-shrink: 0; }
+.cx-access-choices { border: 0; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.cx-access-choices legend { font-weight: 600; margin-bottom: 6px; }
+.cx-access-review-options { display: grid; gap: 8px; margin: 12px 0; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.cx-access-option { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.cx-access-option.active { border-color: var(--accent); background: var(--surface); }
+.cx-access-option span { display: grid; gap: 4px; }
+.cx-access-review { margin: 12px 0; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); display: grid; gap: 6px; overflow-wrap: anywhere; }
+.cx-access-review p { margin: 0; }
+.cx-access-review.good { border-left: 4px solid var(--good, #16a34a); }
+.cx-access-review.warn { border-left: 4px solid var(--warn, #d97706); }
+.cx-access-review.bad { border-left: 4px solid var(--bad); }
+.cx-access-review .cx-pill { margin-right: 4px; }
+.cx-access-rows { display: grid; gap: 8px; margin: 12px 0; }
+.cx-access-row { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; gap: 12px; }
+.cx-access-row dt { color: var(--muted); }
+.cx-access-row dd { margin: 0; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.cx-access-more-detail { margin-top: 8px; }
+.cx-access-more-detail summary { cursor: pointer; color: var(--muted); }
+.cx-access-batch { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.cx-access-drawer { max-height: 90vh; overflow: auto; }
+@media (min-width: 900px) { .cx-sheet.cx-access-drawer { margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh; width: min(560px, 100vw); border-radius: 0; border-block: 0; } }
+@media (max-width: 520px) { .cx-access-row { grid-template-columns: 1fr; gap: 2px; } }

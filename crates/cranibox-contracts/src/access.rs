@@ -127,6 +127,12 @@ pub struct AccessRequest {
     /// The operation that triggered the request, so the prompt can say what will happen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation: Option<Operation>,
+    /// Full redacted parameters of that operation, shown in the prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<OperationDetail>,
+    /// What the automatic review said, when it is why a person is being asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<Review>,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -142,6 +148,16 @@ pub enum DurationScope {
     Minutes30,
     #[serde(rename = "8h")]
     Hours8,
+    #[serde(rename = "1h")]
+    Hour1,
+    /// Until local midnight on the target.
+    #[serde(rename = "today")]
+    Today,
+    #[serde(rename = "7d")]
+    Days7,
+    /// Until the owner revokes it.
+    #[serde(rename = "always")]
+    Always,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -212,6 +228,176 @@ pub struct AuditEvent {
     /// `e2e` for the verified end-to-end channel, `bearer` for a legacy token request.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<String>,
+    /// The operation's full parameters and outcome, redacted by the target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<OperationDetail>,
+    /// The automatic review that let the operation through or sent it to a person.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<Review>,
+}
+/// Everything the target knows about one remote operation, redacted before it is stored:
+/// argument values that look like credentials are masked, environment variables keep
+/// their names only, and file or message contents are never included.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OperationDetail {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub argv: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_secs: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<String>,
+    /// Declared transfer size (file write) or requested length (file read).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub space: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Terminal session, project or other named object the operation acts on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// Command job id; its finish entry carries the same id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdout_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stderr_bytes: Option<u64>,
+    /// The last few hundred characters of output, redacted; omitted for commands that
+    /// touch credential files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdout_tail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stderr_tail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Identical polling reads folded into this entry since the previous one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeats: Option<u32>,
+    /// Safety rules this operation matched, e.g. `recursive_delete`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub findings: Vec<String>,
+}
+impl OperationDetail {
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+}
+/// The decision API's answer (see `DecisionRequest`).
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Verdict {
+    Allow,
+    Ask,
+    Deny,
+}
+/// One automatic review of a remote operation, as recorded with it.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Review {
+    /// `rules`, `model`, `jev` or `http`.
+    pub source: String,
+    pub verdict: Verdict,
+    /// 0 (harmless) to 100 (destructive).
+    pub risk: u8,
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The configured reviewer was unavailable and the built-in rules decided instead.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fallback: bool,
+    #[serde(default)]
+    pub latency_ms: u64,
+}
+/// Decision API v1 request: what a pluggable reviewer is asked about one operation.
+/// Everything in it is already redacted, and all of it is untrusted data from the
+/// requesting device.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DecisionRequest {
+    pub version: u32,
+    pub caller: DecisionCaller,
+    pub capability: Capability,
+    pub operation: Operation,
+    pub detail: OperationDetail,
+    pub context: DecisionContext,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DecisionCaller {
+    pub node: String,
+    pub name: String,
+    /// One of the owner's own devices (same roster).
+    pub owner: bool,
+}
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DecisionContext {
+    pub mode: Mode,
+    /// The time grant that would cover the operation, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grant_expires_at: Option<u64>,
+    /// Built-in rule findings; a reviewer cannot clear them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<String>,
+    /// The caller's last few operations here, newest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent: Vec<RecentOperation>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RecentOperation {
+    pub at: u64,
+    pub kind: String,
+    pub summary: String,
+    pub result: String,
+}
+/// Decision API v1 response.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DecisionResponse {
+    pub verdict: Verdict,
+    /// 0.0 to 1.0.
+    pub risk_score: f64,
+    pub reason: String,
+    #[serde(default)]
+    pub labels: Vec<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+/// Which reviewer this device asks before letting granted operations through.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewSettings {
+    pub backend: ReviewBackend,
+    /// Cranibox model id (`provider/model`) for `model`, Jev model for `jev`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Endpoint for `http`, or a Jev-compatible base URL override for `jev`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
+}
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewBackend {
+    /// Built-in rules only.
+    #[default]
+    Rules,
+    /// A model through this device's Cranibox model gateway.
+    Model,
+    /// TypeSafe Jev (System One).
+    Jev,
+    /// Any service implementing the decision API.
+    Http,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PeerPolicy {
@@ -231,6 +417,9 @@ pub struct AuditView {
     pub entries: Vec<AuditEvent>,
     pub verified: bool,
     pub broken_index: Option<u64>,
+    /// Pass as `before` to read the next page; absent on the last page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_before: Option<u64>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "error", rename_all = "snake_case")]

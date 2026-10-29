@@ -1,5 +1,5 @@
 use super::*;
-use crate::access::{Capability, Operation, Risk, Store};
+use crate::access::{Capability, Operation, OperationDetail, Review, Risk, Store};
 use sha2::{Digest, Sha256};
 use std::sync::{LazyLock, Mutex};
 
@@ -74,27 +74,44 @@ fn capabilities(path: &str) -> Option<Vec<Capability>> {
 /// Remote operations a peer may start per minute before this device answers 429. Bounds
 /// how fast a misbehaving peer can push older entries out of the audit log.
 const OPERATIONS_PER_MINUTE: u32 = 240;
-/// Reads are polled constantly; the log keeps one per peer and kind per this many seconds.
-const READ_EVERY: u64 = 600;
+/// List and status reads are polled constantly; the log keeps one per peer and kind per
+/// minute and counts the rest in `repeats`. Content reads are logged one by one.
+const POLL_EVERY: u64 = 60;
 /// Refusals of the same operation are logged once per minute.
 const REFUSAL_EVERY: u64 = 60;
-static RECENT: LazyLock<Mutex<std::collections::HashMap<String, u64>>> =
+static RECENT: LazyLock<Mutex<std::collections::HashMap<String, (u64, u32)>>> =
     LazyLock::new(Default::default);
 static RATE: LazyLock<Mutex<std::collections::HashMap<String, (u64, u32)>>> =
     LazyLock::new(Default::default);
-fn due(key: String, every: u64) -> bool {
+/// `Some(skipped since the last entry)` when this one should be written.
+fn due(key: String, every: u64) -> Option<u32> {
     let now = crate::access::now();
     let mut recent = RECENT.lock().unwrap_or_else(|e| e.into_inner());
     if recent.len() > 4096 {
-        recent.retain(|_, at| now.saturating_sub(*at) < READ_EVERY);
+        recent.retain(|_, (at, _)| now.saturating_sub(*at) < every);
     }
-    match recent.get(&key) {
-        Some(at) if now.saturating_sub(*at) < every => false,
-        _ => {
-            recent.insert(key, now);
-            true
+    match recent.get_mut(&key) {
+        Some((at, skipped)) if now.saturating_sub(*at) < every => {
+            *skipped = skipped.saturating_add(1);
+            None
+        }
+        Some((at, skipped)) => {
+            *at = now;
+            Some(std::mem::take(skipped))
+        }
+        None => {
+            recent.insert(key, (now, 0));
+            Some(0)
         }
     }
+}
+/// Reads that only list or report state, which clients poll.
+fn polling(operation: &Operation) -> bool {
+    operation.risk == Risk::Read
+        && !matches!(
+            operation.kind.as_str(),
+            "files.read" | "exec.run" | "projects.sync"
+        )
 }
 /// Counts one non-read operation; false once the peer is over its per-minute budget.
 fn within_rate(node: &str) -> bool {
@@ -110,15 +127,21 @@ struct Recorder {
     node: String,
     capability: Option<Capability>,
     operation: Option<Operation>,
+    detail: OperationDetail,
+    review: Option<Review>,
     transport: &'static str,
 }
+/// The job an accepted `exec` started, for its log entry.
+#[derive(Clone)]
+pub(super) struct StartedJob(pub String);
 impl Recorder {
     /// Writes the outcome to the target's audit chain. Reads and repeated refusals are
     /// coalesced so polling cannot flood the log.
-    async fn finish(self, basis: Option<String>, status: u16) {
+    async fn finish(self, basis: Option<String>, status: u16, error: Option<String>) {
         let Some(operation) = self.operation else {
             return;
         };
+        let mut detail = self.detail;
         let result = match status {
             0..400 => "ok",
             403 => "refused",
@@ -127,28 +150,39 @@ impl Recorder {
         };
         let coalesce = if result == "refused" || result == "rate_limited" {
             Some(REFUSAL_EVERY)
-        } else if operation.risk == Risk::Read {
-            Some(READ_EVERY)
+        } else if polling(&operation) {
+            Some(POLL_EVERY)
         } else {
             None
         };
-        if let Some(every) = coalesce
-            && !due(format!("{}:{}:{result}", self.node, operation.kind), every)
-        {
-            return;
+        if let Some(every) = coalesce {
+            match due(format!("{}:{}:{result}", self.node, operation.kind), every) {
+                None => return,
+                Some(skipped) => detail.repeats = (skipped > 0).then_some(skipped),
+            }
         }
-        let (store, node, capability, transport) =
-            (self.store, self.node, self.capability, self.transport);
+        if result != "ok" && detail.error.is_none() {
+            detail.error = error;
+        }
+        let (store, node, capability, transport, review) = (
+            self.store,
+            self.node,
+            self.capability,
+            self.transport,
+            self.review,
+        );
         let written = tokio::task::spawn_blocking(move || {
-            store.record(
-                &node,
+            store.record(crate::access::OperationRecord {
+                node: &node,
                 capability,
-                &operation,
-                basis.as_deref(),
+                operation: &operation,
+                basis: basis.as_deref(),
                 result,
                 status,
                 transport,
-            )
+                detail: Some(detail),
+                review,
+            })
         })
         .await;
         if !matches!(written, Ok(Ok(()))) {
@@ -194,6 +228,8 @@ pub(super) async fn enforce(State(app): State<App>, request: Request, next: Next
         node: caller.node.clone(),
         capability: None,
         operation: None,
+        detail: OperationDetail::default(),
+        review: None,
         transport: if request.extensions().get::<Encrypted>().is_some() {
             "e2e"
         } else {
@@ -203,11 +239,34 @@ pub(super) async fn enforce(State(app): State<App>, request: Request, next: Next
     let response = guarded(&app, caller, route, request, next, &mut recorder).await;
     let status = response.status().as_u16();
     let basis = response.extensions().get::<Basis>().map(|b| b.0.clone());
-    recorder.finish(basis, status).await;
+    if let Some(job) = response.extensions().get::<StartedJob>() {
+        recorder.detail.job = Some(job.0.clone());
+    }
+    let error = response
+        .extensions()
+        .get::<Refusal>()
+        .map(|r| r.0.clone())
+        .or_else(|| (status >= 400).then(|| reason(status)));
+    recorder.finish(basis, status, error).await;
     response
 }
 #[derive(Clone)]
 struct Basis(String);
+/// Why the gateway refused, for the log entry.
+#[derive(Clone)]
+struct Refusal(String);
+fn reason(status: u16) -> String {
+    StatusCode::from_u16(status)
+        .ok()
+        .and_then(|s| s.canonical_reason())
+        .unwrap_or("error")
+        .to_owned()
+}
+fn refused(status: StatusCode, message: &str) -> Response {
+    let mut response = failure(status, message).into_response();
+    response.extensions_mut().insert(Refusal(message.into()));
+    response
+}
 async fn guarded(
     app: &App,
     caller: Caller,
@@ -291,6 +350,12 @@ async fn guarded(
         _ => None,
     };
     if let Some(id) = job {
+        // Status polls fold into the job's own entries; a cancel is logged.
+        if request.method() == axum::http::Method::GET {
+            recorder.operation = None;
+        } else {
+            recorder.detail.job = Some(id.chars().take(64).collect());
+        }
         match store(&app).job_decision(&caller.node, caps[0], id) {
             Ok(Some(decision)) => {
                 let mut response = next.run(request).await;
@@ -330,19 +395,33 @@ async fn guarded(
             space_name(&app, &mut o);
             o
         });
-    let once = recorder.operation.as_ref().is_some_and(|o| o.confirm);
+    recorder.detail = crate::access::operations::detail(
+        recorder.operation.as_ref().map_or("", |o| o.kind.as_str()),
+        &query,
+        &value,
+    );
+    if recorder
+        .operation
+        .as_ref()
+        .is_some_and(|o| o.kind.starts_with("spaces.") && !o.summary.is_empty())
+    {
+        recorder.detail.space = recorder.operation.as_ref().map(|o| o.summary.clone());
+    }
     if recorder
         .operation
         .as_ref()
         .is_some_and(|o| o.risk != Risk::Read)
         && !within_rate(&caller.node)
     {
-        return failure(
+        return refused(
             StatusCode::TOO_MANY_REQUESTS,
             "too many remote operations; try again in a minute",
-        )
-        .into_response();
+        );
     }
+    // A second opinion on operations a grant would otherwise let through silently.
+    recorder.review = review(&app, &caller.node, caps[0], recorder).await;
+    let once = recorder.operation.as_ref().is_some_and(|o| o.confirm)
+        || crate::access::decision::escalates(recorder.review.as_ref());
     // Lease follow-up calls use the key authorized for the acquire request. An unknown or
     // foreign lease is authorized like any other call; the handler then refuses it.
     let lease_key = if caps[0] == Capability::Computer
@@ -388,6 +467,10 @@ async fn guarded(
             *capability,
             &key,
             recorder.operation.as_ref(),
+            crate::access::Pending {
+                detail: Some(&recorder.detail),
+                review: recorder.review.as_ref(),
+            },
         ) {
             Ok(decision) => {
                 basis.get_or_insert(decision.basis);
@@ -397,7 +480,16 @@ async fn guarded(
                     // The request_created entry already names the operation.
                     recorder.operation = None;
                 }
-                return e.response().into_response();
+                let message = match &e {
+                    crate::access::Denied::Off { .. } => "capability_off",
+                    crate::access::Denied::ApprovalRequired { .. } => "approval_required",
+                    crate::access::Denied::Cooldown { .. } => "approval_cooldown",
+                    crate::access::Denied::Unavailable(_) => "access_store_unavailable",
+                }
+                .to_owned();
+                let mut response = e.response().into_response();
+                response.extensions_mut().insert(Refusal(message));
+                return response;
             }
         }
     }
@@ -448,6 +540,67 @@ async fn guarded(
         },
     );
     Response::from_parts(parts, Body::from_stream(stream))
+}
+/// Asks the configured reviewer about a reviewable operation the caller may already be
+/// allowed to run. `None` with the rules-only backend, when the capability is off, or
+/// for operations that are reads, always confirmed, or never covered by a grant.
+async fn review(
+    app: &App,
+    node: &str,
+    capability: Capability,
+    recorder: &Recorder,
+) -> Option<Review> {
+    use crate::access::decision;
+    use cranibox_contracts::access::{DecisionCaller, DecisionRequest, Mode, ReviewBackend};
+    let operation = recorder.operation.as_ref()?;
+    if !decision::reviewable(operation) {
+        return None;
+    }
+    let store = store(app);
+    let settings = store.review_settings();
+    if settings.backend == ReviewBackend::Rules {
+        return None;
+    }
+    let (context, key, name, owner) = {
+        let node = node.to_owned();
+        let roster = app.path.with_file_name("models").join("roster.json");
+        tokio::task::spawn_blocking(move || {
+            let context = store.review_context(&node, capability);
+            let owner = agent_workspace_runtime::peers::roster::RosterStore::load(roster)
+                .is_ok_and(|r| {
+                    use cranibox_contracts::roster::RosterView;
+                    r.is_owner_node(&node)
+                });
+            (context, store.review_key(), store.name(&node), owner)
+        })
+        .await
+        .ok()?
+    };
+    if context.mode == Mode::Off {
+        return None;
+    }
+    let request = DecisionRequest {
+        version: 1,
+        caller: DecisionCaller {
+            node: node.into(),
+            name,
+            owner,
+        },
+        capability,
+        operation: operation.clone(),
+        detail: recorder.detail.clone(),
+        context,
+    };
+    let gateway = match settings.backend {
+        ReviewBackend::Model => app
+            .models()
+            .await
+            .ok()
+            .and_then(|m| m.proxy.addresses.first().map(ToString::to_string)),
+        _ => None,
+    };
+    let reviewer = decision::reviewer(&settings, key, gateway);
+    decision::review(&settings, reviewer, &request).await
 }
 #[cfg(test)]
 mod tests {
