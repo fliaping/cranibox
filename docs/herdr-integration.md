@@ -61,4 +61,6 @@ CRANIBOX_HERDR_BIN="$PWD/target/herdr/herdr" python3 -m unittest discover -s tes
 CRANIBOX_HERDR_BIN="$PWD/target/herdr/herdr" npm test --prefix addons/control-center/ui
 ~~~
 
-回归使用隔离服务、节点和 herdr，引擎在测试结束后停止。
+回归使用隔离服务、节点和 herdr，引擎在测试结束后停止。UI 预览（`tests/preview.mjs`）在未设置 `CRANIBOX_HERDR_BIN` 时使用 `target/herdr/herdr`，不存在则先用上面的脚本自动下载并校验；离线环境请预先安装或设置该变量。没有 herdr 时本机终端用例会因“Install herdr”提示而失败，这是环境缺失而非产品缺陷。
+
+The UI preview falls back to `target/herdr/herdr` and installs it with the script above when `CRANIBOX_HERDR_BIN` is unset; offline machines must provide it.

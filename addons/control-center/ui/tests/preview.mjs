@@ -7,8 +7,11 @@ import net from 'node:net';
 import { snapshot } from './fixture.mjs';
 import { rfbFixture } from './rfb-fixture.mjs';
 import { selkiesFixture } from './selkies-fixture.mjs';
+import { ensureHerdr } from './herdr.mjs';
 
 const uiRoot = fileURLToPath(new URL('..', import.meta.url));
+// The host's Workspace terminals need herdr; the simulated device deliberately has none.
+process.env.CRANIBOX_HERDR_BIN = await ensureHerdr();
 // Leave room for herdr's Unix socket names when TMPDIR is inside a worktree.
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ui-'));
 const command = path.join(directory, 'workspacectl');
