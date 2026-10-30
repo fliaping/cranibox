@@ -203,6 +203,32 @@ fn job_approval_covers_only_its_results_and_is_revocable_after_restart() {
             .unwrap()
             .is_none()
     );
+    store.revoke(Some(&request_id), false).unwrap();
+    assert!(
+        store
+            .job_decision(NODE, Capability::Update, "update-id")
+            .unwrap()
+            .is_none()
+    );
+    drop(session);
+}
+#[test]
+fn restart_ends_job_approvals() {
+    let (_root, store) = fixture();
+    store
+        .change(NODE, [(Capability::Update, Mode::Ask)].into())
+        .unwrap();
+    let Denied::ApprovalRequired { request_id, .. } = store
+        .authorize(NODE, Capability::Update, "install-version")
+        .unwrap_err()
+    else {
+        panic!("approval")
+    };
+    approve(&store, &request_id, DurationScope::Session, now());
+    let session = store
+        .start(NODE, Capability::Update, "install-version")
+        .unwrap();
+    session.bind_job("update-id").unwrap();
     drop(session);
     let reopened = Store::new(&store.peers);
     reopened.initialize().unwrap();
@@ -210,19 +236,12 @@ fn job_approval_covers_only_its_results_and_is_revocable_after_restart() {
         reopened
             .job_decision(NODE, Capability::Update, "update-id")
             .unwrap()
-            .is_some()
+            .is_none()
     );
     assert!(
         reopened
             .authorize(NODE, Capability::Update, "install-version")
             .is_err()
-    );
-    reopened.revoke(Some(&request_id), false).unwrap();
-    assert!(
-        reopened
-            .job_decision(NODE, Capability::Update, "update-id")
-            .unwrap()
-            .is_none()
     );
 }
 
@@ -315,7 +334,7 @@ fn migration_preserves_direct_decisions_and_roster_members() {
 }
 
 #[test]
-fn restart_preserves_timed_approvals_and_ends_active_sessions() {
+fn restart_ends_timed_approvals_and_active_sessions() {
     let (_root, store) = fixture();
     let at = now();
     store
@@ -324,17 +343,23 @@ fn restart_preserves_timed_approvals_and_ends_active_sessions() {
     let id = pending(&store, "one", at);
     approve(&store, &id, DurationScope::Hours8, at);
     let session = store.start(NODE, Capability::Terminals, "one").unwrap();
-    store.initialize().unwrap();
-    assert!(!session.valid());
     assert!(
         store
-            .authorize_at(NODE, Capability::Terminals, "two", at + 28799)
+            .authorize_at(NODE, Capability::Terminals, "two", at + 1)
             .is_ok()
     );
+    store.initialize().unwrap();
+    assert!(!session.valid());
+    // Time grants are not kept across a restart: the next use asks again.
+    assert!(matches!(
+        store.authorize_at(NODE, Capability::Terminals, "two", at + 2),
+        Err(Denied::ApprovalRequired { .. })
+    ));
+    let log = store.audit(20, None, None, None).unwrap();
     assert!(
-        store
-            .authorize_at(NODE, Capability::Terminals, "two", at + 28800)
-            .is_err()
+        log.entries
+            .iter()
+            .any(|e| e.event == EventKind::Expired && e.result == "restart")
     );
 }
 
@@ -391,9 +416,9 @@ fn a_full_segment_is_archived_unchanged_and_the_chain_continues_across_it() {
     }
     std::fs::write(&path, &output).unwrap();
     audit::forget_cache();
-    for _ in 0..2 {
+    for mode in [Mode::Allow, Mode::Ask] {
         store
-            .change(NODE, [(Capability::Exec, Mode::Allow)].into())
+            .change(NODE, [(Capability::Exec, mode)].into())
             .unwrap();
     }
     let archive = root.path().join(format!(

@@ -1,6 +1,7 @@
 # 远程控制的安全：操作审计与分级批准 / Remote control security
 
-> 状态：已实现两部分（2026-10-29，北京时间）：操作审计与分级批准（§4.1–4.5），明细记录、按时间授权与自动审核（§4.6–4.10）。建立在[设备访问控制](../device-access-control.md)第一阶段之上，
+> 状态：已实现三部分（2026-10-30，北京时间）：操作审计与分级批准（§4.1–4.5），明细记录、按时间授权与自动审核（§4.6–4.10），
+> 在其他设备上审批与可调的 Jev 尺度（§4.11–4.13）。建立在[设备访问控制](../device-access-control.md)第一阶段之上，
 > 管理员签名策略见 [`admin-access-policy.md`](../admin-access-policy.md)。
 
 **English summary.** Every remote operation that reaches a device is now described by that device
@@ -18,6 +19,19 @@ model through the Cranibox gateway, TypeSafe Jev, or any service implementing th
 looks at each covered operation first. It can only add friction: a flagged operation becomes a
 one-time approval for the person at the target; it never allows anything the owner and rules did
 not, and when it is unreachable high-risk operations ask instead of running.
+
+Part three lets the owner approve a request from **another of their own devices**. The person types
+their Cranibox recovery passphrase (or recovery code) on the approving device; that device derives
+the recovery key in memory, signs a short-lived, single-use assertion bound to the exact request,
+operation, target and a challenge from the target, then forgets the key. The secret never leaves
+the device and is stored nowhere; targets hold only the public verifier that is already pinned with
+the identity. The **target** verifies and rate-limits (5 wrong tries per approving device, 10 overall,
+then a doubling lock). Approving on the target itself still needs nothing. Destructive operations can
+only be allowed once from another device. Automatic review is off by default, time grants end on
+restart, and Jev's thresholds are adjustable (Relaxed / Standard / Strict or exact values) without
+ever overriding the built-in rules. The recovery secret can be replaced; the old one signs the
+hand-over so the other devices follow. Typing the root secret on a compromised device (keylogger)
+remains the main residual risk; see §4.11.6.
 
 ## 1. 问题
 
@@ -241,6 +255,8 @@ OpenClaw（[`openclaw/openclaw`](https://github.com/openclaw/openclaw)，读的�
   （1 小时 / 今天 / 7 天 / 直到撤销），不必等对方先来请求。接口 `POST /access/grants {node, capabilities, scope}`。
 - 「今天」到本地时间当天 24:00（至少 1 分钟）；「直到撤销」没有到期时间。每条授权显示到期时间，可以单独撤销。
 - 授权只保存在内存里：本机服务重启后所有授权失效，需要重新授权（宁可多问一次，也不让旧授权意外延续）。
+  重启时写一条 `expired`（`result: restart`）记录，正在运行的命令授权也一并结束。界面在「当前授权」卡片、
+  按时间授权弹窗和每条授权的到期时间（「直到撤销或本机重启」）上都写明这一点。
 - 不能按时间授权的：远程更新、模型与账号（这些每次都要批准），已「关闭」的能力，以及每次确认的危险操作。
   授权写入审计（`approved`，`result` 为 `grant:<时长>`）。
 
@@ -306,7 +322,9 @@ Content-Type: application/json
 组合：注入 ≥ 0.7 或风险 ≥ 2.5 → `deny`；风险 ≥ 1.5、外传 ≥ 0.6、超范围 ≥ 0.75，或置信度 < 0.4 且风险 ≥ 1 → `ask`；
 否则 `allow`。`risk_score = score / 3`。这符合 TypeSafe 的建议：Jev 只给信号，由应用执行；不要把密钥发给它。
 
-**设置。** 设备详情「访问」页的「自动审核」卡片：仅内置规则（默认）/ 用我的模型 / Jev / 自定义决策服务；
+**可调的 Jev 尺度（§4.13）。** 上面的数字是「标准」档的默认值，可以调整。
+
+**设置。** 自动审核**默认关闭**：新装和升级的设备都是「仅内置规则」，需要用户自己打开。设备详情「访问」页的「自动审核」卡片：仅内置规则（默认）/ 用我的模型 / Jev / 自定义决策服务；
 密钥保存在本机（不回显，只显示「已保存」）；「测试」用一个示例写文件操作调用一次，不走缓存。
 接口：`GET/PUT /access/review`、`POST /access/review/test`。设置变更写入审计。
 
@@ -314,6 +332,130 @@ Content-Type: application/json
 
 多个请求同时等待时，弹窗显示「另有 N 个请求等待处理」，可以「全部拒绝」；当它们都不是每次确认、也没有被审核标记时，
 还可以「全部允许 1 小时」。
+
+### 4.11 在其他设备上审批
+
+需求：本机发起的、等本机批准的请求，在本机点「允许」不需要任何认证（人就在这台设备前）；但如果人在**另一台**设备上，
+要能看到并批准，同时必须证明「是本人」，而不只是「某台拥有者设备」——那台设备可能被别人拿着、被远程控制或被恶意软件驱动。
+
+#### 4.11.1 为什么用恢复口令，不用系统认证
+
+曾考虑用审批设备的系统认证（Touch ID、Windows Hello、polkit、本地 PIN）。**刻意没有采用**：
+
+- 系统认证证明的是「这台设备前的人能解锁这台设备」，目标机无法验证这一点，只能相信审批设备自己说的话。
+  审批设备一旦被攻陷，它可以直接谎称「已认证」。
+- 本地 PIN 需要在每台设备上分别设置和保存校验值，增加一个用户要管理的秘密，丢一台设备就多一份可离线猜测的材料。
+
+采用**账号级秘密**：Cranibox 已有的恢复口令（或随机恢复码）。
+
+- 它从不保存在任何设备上（只在设置和使用时出现在内存里）。
+- 生成的恢复码有 256 位熵；自选口令至少 12 个字符，经 Argon2id（64 MiB、3 轮）派生，盐写在拥有者证书里。
+- 它对应的公钥（`OwnerCert.recovery_pub`）在配对时就已钉在每台设备的身份文件里，并随拥有者签名的设备名单同步；
+  只持有拥有者密钥的攻击者**无法替换它**。所以目标机能自己验证签名，不需要相信审批设备。
+- 用户不需要新的秘密。
+
+系统认证没有作为额外的门保留：它不增加目标机能验证的东西，只会让流程更复杂。
+
+#### 4.11.2 谁能看到、谁能批准
+
+- 只有同一身份（同一设备名单、`Role::Owner`）的设备，经端到端加密通道，才能列出和决定。配对的访客、其他人的设备看不到，
+  请求返回 `not_owner`。
+- 审批设备的界面在「设备 → 待处理的审批」列出每台设备上等待的请求；任意页面顶部提示「你的其他设备上有 N 个请求等你批准」；
+  桌面应用每 10 秒查询一次，有新请求时发系统通知「另一台设备上有请求等你批准」（通知不含命令内容，点开进入审批页）。
+- 目标机可以在「待处理的审批 → 从其他设备批准本机」关掉，关掉后只能在本机批准（`PUT /access/approver {remote_enabled}`）。
+- 拒绝也需要恢复口令（协议统一；否则任何拥有者设备都能静默拒绝，干扰正常使用）。
+
+#### 4.11.3 协议
+
+1. 审批设备 `GET /access/remote`：对每台拥有者设备调用对方 peer 接口 `GET /api/v1/access/remote`。目标机为每个等待中的请求返回
+   `RemotePending {request, op_hash, challenge, challenge_expires_at, once_only}`。`challenge` 是目标机生成的 256 位随机数，
+   90 秒有效；`op_hash` 是对「谁、哪个能力、哪个操作及其参数、何时发起」的 SHA-256。
+2. 用户在审批弹窗看到操作内容，输入恢复口令，选「拒绝 / 允许这一次 / 1 小时 / 今天」。
+3. 审批设备 `POST /access/remote/decide {node, request, op_hash, decision, scope, auth:{code}}`：
+   - 重新取一次目标机的待批列表，核对 `op_hash` 与用户看到的一致（请求在查看后变了就不签）；
+   - 风险操作只接受「允许这一次」；
+   - 在阻塞线程里用恢复口令派生恢复私钥（口令保存在 `Zeroizing` 里），签出下面的断言，随即丢弃私钥；
+   - 把**断言**（不是口令）发给目标机的 `POST /api/v1/access/remote/decide`，并在本机审计里记一条 `remote_decision`。
+4. 断言 `RemoteApproval`（签名域 `cranibox-remote-approval-v1\0`，规范 JSON）：
+
+   ```json
+   {"v":1,"id":"<uuid>","target":"node-…","request":"<请求 id>","op_hash":"<hex>",
+    "decision":"approve","scope":"session","approver":"node-…","auth":"recovery_passphrase",
+    "issued_at":1793300000,"expires_at":1793300060,"nonce":"<128 位随机数>","challenge":"<目标机的 challenge>",
+    "sig":"<恢复私钥的 ed25519 签名>"}
+   ```
+
+5. 目标机校验（`access/remote.rs` 的 `verify_remote`，顺序固定）：
+   调用方是拥有者设备且就是 `approver` → 版本 → `target` 是自己 → `auth` 属于 {recovery_code, recovery_passphrase} →
+   有已钉住的恢复公钥（否则 `no_recovery`）→ 未被锁定 → **用钉住的恢复公钥验签**（失败计入错误次数）→
+   未过期（有效期不超过 90 秒，容许 30 秒时钟偏差）→ 决定合法 → 然后在一个事务里：远程审批未关闭、
+   断言 `id` 和 `nonce` 没用过（重放）、`challenge` 是自己发的、未过期且**只用一次**、请求仍在等待、`op_hash` 与当前请求一致（替换）、
+   风险操作只允许一次。全部通过才按普通批准处理（与本机点击走同一条路径），授权范围不会超过本机弹窗能给的。
+6. 双方审计：目标机写 `approved`/`denied`，审批设备写 `remote_decision`，都带 `remote: {device, device_name, auth, assertion}`
+   ——审批设备、验证方式（恢复码 / 恢复口令）、断言编号，**从不记录口令本身**。失败写 `refused`，`result` 为 `remote:<原因>`
+   （wrong_code、locked、replayed、expired、operation_mismatch、once_only、not_owner…）。
+
+#### 4.11.4 目标机限速与锁定
+
+错误次数**在目标机上计数**，审批设备无法绕过：
+
+- 每台审批设备 5 次、所有审批设备合计 10 次验签失败后锁定 5 分钟；再次触发时锁定时间加倍，最长 1 小时；安静 1 小时后计数清零。锁定到期后计数并不清零：在这 1 小时内再输错一次会立即重新锁定，且时间加倍；输对一次也不会清零，避免攻击者用一次合法批准“刷新”猜测次数。
+- 锁定期间即使签名正确也拒绝（`423 locked`，界面显示恢复时间，并提示「仍可以在那台设备上直接处理」）。
+- 一次成功清零计数。每次输错都会写审计（不做每分钟合并）。
+- 审批设备不做本地预检：恢复码的校验和错误（明显打错）在本地就提示「不是有效恢复码」，其余每次猜测都由目标机计数并记录。
+
+代价：攻击者如果控制了一台拥有者设备，可以故意输错让目标机暂停远程审批（拒绝服务）。本机审批不受影响。
+
+#### 4.11.5 用户界面
+
+- 审批弹窗：「在另一台设备上批准，需要输入你的 Cranibox 恢复口令」「只在本机用来签名这一次决定，不会发送出去，也不会保存」；
+  风险操作写明「从其他设备只能『允许这一次』」。输错显示「还可以再试 N 次」，锁定显示恢复时间。
+- 没有设置恢复口令时，审批页提示「设置后，才能在一台设备上批准另一台设备的请求」并链接到「设置 → 身份」。
+- 「设置 → 身份 → 更换恢复口令」见 §4.12。
+
+#### 4.11.6 仍然存在的风险（如实说明）
+
+**恢复口令是身份的根秘密。** 能拿到它的人可以更换拥有者密钥、移除设备、更换恢复口令——也就是接管整个身份。
+在一台设备上输入它，就意味着信任这台设备在那一刻没有键盘记录器或屏幕录制。
+
+- 如果审批设备已被植入键盘记录器，攻击者会得到恢复口令。这个设计**不能防住这种情况**。
+- 缓解：
+  1. 断言只能用一次、只对一个请求和一个 challenge 有效、签发 60 秒后过期（目标机容许 30 秒时钟偏差）：截获**断言**没有用。
+  2. 双方审计和通知：每次远程审批都在两台设备上留下记录（审批设备、验证方式、断言编号），审批设备弹出系统通知。
+  3. 目标机锁定：在线猜口令很快被锁住。
+  4. 可以随时更换恢复口令（§4.12），更换后旧的立即失效；界面在审批弹窗里建议「如果担心这台设备不安全，请在可信的设备上处理，并更换恢复口令」。
+  5. 本机审批永远不需要口令：最谨慎的做法仍然是到目标机前批准。
+- 离线猜测：拥有者证书（含盐和公钥）是公开同步的，持有它的人可以离线猜自选口令。Argon2id 和至少 12 个字符的要求提高了成本；
+  随机恢复码不受此影响。重视这点的用户应选择随机恢复码。
+- 待决定（见 §6）：可以另设一个由恢复密钥签发、只能用于审批的「审批口令」，泄露后不能接管身份。代价是用户多记一个秘密。
+
+### 4.12 更换恢复口令
+
+「设置 → 身份 → 更换恢复口令」：输入当前恢复口令（或恢复码），再设置新口令或生成新恢复码（新码只显示一次）。
+接口 `POST /identity/recovery/rotate {current, passphrase?}`，必须在持有拥有者密钥的设备上进行。
+
+- 新的拥有者证书序号加一，写入新的恢复公钥和盐，并带 `previous_pub` 与旧恢复私钥对交接消息的签名 `previous_sig`
+  （签名域 `cranibox-recovery-handover-v1\0`，内容为规范 JSON `{previous_pub, recovery_pub, recovery_salt, serial}`）。
+- 其他设备收到新名单时，只有当序号更新、且交接由**当前钉住的**恢复公钥签名时，才改钉新公钥（`peers/roster.rs` 的 `identity_of`）。
+  不需要在每台设备上操作。
+- 效果：旧口令立即不能再用于审批或身份操作；身份码（`cbo-…`，由恢复公钥派生）会改变，界面上显示新的；
+  已签发但未使用的审批断言因 challenge 只用一次且 90 秒过期而自然失效。
+- 交接只链一步：错过**两次及以上**更换、期间一直离线的设备无法验证新的恢复公钥，需要重新配对。
+
+### 4.13 可调的 Jev 尺度
+
+自动审核选 Jev 时，「判断尺度」可选 **宽松 / 标准 / 严格**，「高级：调整具体数值」可以逐项改，「恢复默认」回到标准。
+
+| 档位 | 直接拒绝的风险分 | 请你确认的风险分 | 注入 | 外传 | 超范围 | 最低把握 |
+|---|---|---|---|---|---|---|
+| 宽松 | 2.8 | 2.0 | 0.8 | 0.75 | 0.85 | 0.3 |
+| 标准（默认，等于之前的固定值） | 2.5 | 1.5 | 0.7 | 0.6 | 0.75 | 0.4 |
+| 严格 | 2.2 | 1.0 | 0.5 | 0.4 | 0.6 | 0.5 |
+
+- 范围：拒绝分 1.5–3，确认分 0.5–3 且不高于拒绝分，注入 0.3–0.95，外传与超范围 0.2–0.95，最低把握 0–0.9。
+  超出范围界面不能保存，服务端也拒绝（`ReviewSettings.jev`，标准值存为 `null`）。
+- 每次改动写入审计（`policy_changed`，记录改前改后）。
+- 尺度只影响 Jev 的结论；§4.9 的组合规则不变：内置规则始终优先，危险操作无论哪一档都要人确认，审核者只能升级不能放行。
 
 ## 5. 实现位置
 
@@ -328,7 +470,12 @@ Content-Type: application/json
 | 决策 API、审核后端、缓存、退回规则 | `crates/workspace-node/src/access/decision.rs` |
 | 分段、保留、校验 | `crates/workspace-node/src/access/audit.rs` |
 | 命令结束记录 | `crates/workspace-node/src/peer/server.rs`（`record_finish`） |
-| 测试 | `access/decision.rs`（严格格式、标签不可闭合、Jev 映射、退回、缓存），`access/tests.rs`（分段、保留、按时间授权、审核升级、筛选），`multi_node.rs` 的 `a_decision_service_reviews_…`（端到端：模拟决策服务、密钥不外发、退回），`access/operations.rs`（脱敏、分级、危险判定），`peer/server/multi_node.rs` 的 `operations_are_audited_…`（端到端：审计、脱敏、一次性批准、撤销、拒绝冷却），`ui/tests/access.spec.ts`（弹窗、操作记录、逐条撤销） |
+| 在其他设备上审批：断言校验、challenge、锁定 | `crates/workspace-node/src/access/remote.rs`，契约 `RemoteApproval` / `RemotePending` 在 `cranibox-contracts/src/access.rs` |
+| 审批接口、签名、错误码 | `crates/workspace-node/src/access/api.rs`，目标机端 `peer/server/access.rs` |
+| 恢复密钥派生与更换、交接校验 | `crates/workspace-node/src/models.rs`（`recovery_signing_key`、`rotate_recovery`），`crates/workspace-runtime/src/peers/roster.rs`（`identity_of`） |
+| 审批界面、身份页更换 | `addons/control-center/ui/src/access/Remote.tsx`、`src/app/Identity.tsx` |
+| 桌面通知 | `apps/node-desktop/src-tauri/src/approvals.rs`（`remote_refresh`） |
+| 测试 | `access/remote_tests.rs`（成功与双方审计、输错锁定、篡改/替换/过期/重放、非拥有者、一次性、未设恢复口令、本机无需口令），`roster.rs` 的 `the_recovery_key_hands_the_identity_to_a_new_one_once`，`models.rs` 的恢复口令更换测试，`access/decision.rs`（严格格式、标签不可闭合、Jev 映射、退回、缓存），`access/tests.rs`（分段、保留、按时间授权、审核升级、筛选），`multi_node.rs` 的 `a_decision_service_reviews_…`（端到端：模拟决策服务、密钥不外发、退回），`access/operations.rs`（脱敏、分级、危险判定），`peer/server/multi_node.rs` 的 `operations_are_audited_…`（端到端：审计、脱敏、一次性批准、撤销、拒绝冷却），`ui/tests/access.spec.ts`（弹窗、操作记录、逐条撤销） |
 
 ## 6. 已作出的决定与仍然存在的风险
 
@@ -345,8 +492,8 @@ Content-Type: application/json
 
 仍然存在：
 
-1. **没有通知其他设备。** 高风险操作的确认只出现在目标机的界面和 CLI 上；目标机无人值守时请求 120 秒后过期。
-   后续可以把待批请求推送到拥有者的其他设备（需要设计「谁有权远程批准」，目前刻意只允许本机批准）。
+1. **远程审批依赖恢复口令。** 见 §4.11.6：在被攻陷的设备上输入会泄露身份根秘密。待批请求仍然 120 秒后过期，
+   目标机无人值守且无人远程处理时，请求方需要重试。
 2. **同一能力共用一个待批请求。** 对方在一次请求待批期间发起第二个被标记的操作，会复用同一个请求；批准后
    第二个操作重试时会再次审核。
 3. **审核者的质量。** 模型可能漏判；这只会让结果退回「规则 + 授权」，不会更糟。误判为可疑只会多问一次。
@@ -354,11 +501,20 @@ Content-Type: application/json
 5. **日志只在本机。** 本机管理员可以整体重写所有段。后续可以把段的末尾哈希定期发给拥有者的另一台设备。
 6. **命令行调用方不等待批准。** `cranibox exec` 收到 `approval_required` 后立即退出，需要原样重新执行；界面会等待并自动重试。
 7. **脱敏是尽力而为**，日志不应当作可分享的材料。
+8. **每台请求设备同时只有一个待批请求。** 同一台设备连续发起的请求会合并，远程审批看到的是最新的一个。
+9. **远程审批可以被拒绝服务。** 控制了一台拥有者设备的人可以故意输错，让目标机暂停远程审批；本机审批不受影响。
+
+待你决定：
+
+- 是否另设「只能用于审批」的审批口令（由恢复密钥签发，可单独更换，泄露不能接管身份），以降低在不可信设备上输入根秘密的风险。
+- 拒绝是否也需要口令（目前需要）。
+- 锁定参数（5 / 10 次、5 分钟起、最长 1 小时）是否合适。
 
 ## 7. 验证
 
 ```bash
-cargo test --locked -p cranibox-node access
+cargo test --locked -p cranibox-node access          # 含 access::remote 的 6 个测试
+cargo test --locked -p agent-workspace-runtime roster
 npm run test:access --prefix addons/control-center/ui
 ```
 

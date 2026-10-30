@@ -11,12 +11,26 @@ export type Verdict = 'allow' | 'ask' | 'deny';
 /** The automatic reviewer's verdict on an operation. */
 export type Review = { source: string; verdict: Verdict; risk: number; reason: string; labels?: string[]; model?: string | null; fallback?: boolean; latency_ms?: number };
 export type ReviewBackend = 'rules' | 'model' | 'jev' | 'http';
-export type ReviewSettings = { backend: ReviewBackend; model?: string | null; url?: string | null; timeout_ms?: number | null };
+export type JevThresholds = { deny_score: number; ask_score: number; injection: number; exfiltration: number; out_of_scope: number; min_confidence: number };
+export type ReviewSettings = { backend: ReviewBackend; model?: string | null; url?: string | null; timeout_ms?: number | null; jev?: JevThresholds | null };
+/** Jev presets and allowed ranges; the same values the device enforces. */
+export const jevPresets: Record<'relaxed' | 'standard' | 'strict', JevThresholds> = {
+  relaxed: { deny_score: 2.8, ask_score: 2.0, injection: 0.8, exfiltration: 0.75, out_of_scope: 0.85, min_confidence: 0.3 },
+  standard: { deny_score: 2.5, ask_score: 1.5, injection: 0.7, exfiltration: 0.6, out_of_scope: 0.75, min_confidence: 0.4 },
+  strict: { deny_score: 2.2, ask_score: 1.0, injection: 0.5, exfiltration: 0.4, out_of_scope: 0.6, min_confidence: 0.5 },
+};
+export const jevRanges: Record<keyof JevThresholds, [number, number, number]> = {
+  deny_score: [1.5, 3, 0.1], ask_score: [0.5, 3, 0.1], injection: [0.3, 0.95, 0.05], exfiltration: [0.2, 0.95, 0.05], out_of_scope: [0.2, 0.95, 0.05], min_confidence: [0, 0.9, 0.05],
+};
+export type RemoteRecord = { device: string; device_name?: string | null; auth: string; assertion: string };
+export type RemoteDevice = { node: string; name: string; online: boolean; error?: string; requests: { request: AccessRequest; op_hash: string; once_only: boolean; challenge_expires_at: number }[] };
+export type Approver = { recovery: boolean; recovery_kind: 'passphrase' | 'code' | null; remote_enabled: boolean; owner_device: boolean; attempts: number };
+export type RemoteView = { devices: RemoteDevice[]; approver: Approver };
 export type ReviewState = { settings: ReviewSettings; has_key: boolean };
 export type AccessRequest = { id: string; from: string; name: string; capability: Capability; created_at: number; expires_at: number; state: string; path: unknown; operation?: Operation; detail?: OperationDetail; review?: Review };
 export type Approval = { id: string; from: string; capability: Capability; scope?: 'session' | 'until'; expires_at: number | null; approved_at?: number };
 export type AccessView = { peers: { node: string; name: string; capabilities: Modes }[]; pending: AccessRequest[]; approvals: Approval[]; sessions: { id: string; from: string; name: string; capability: Capability; basis?: string }[] };
-export type AuditEntry = { index: number; at: number; event: string; from: string | null; name: string | null; capability: Capability | null; basis: string | null; result: string; prev?: string; operation?: Operation; status?: number; transport?: string; detail?: OperationDetail; review?: Review };
+export type AuditEntry = { index: number; at: number; event: string; from: string | null; name: string | null; capability: Capability | null; basis: string | null; result: string; prev?: string; operation?: Operation; status?: number; transport?: string; detail?: OperationDetail; review?: Review; remote?: RemoteRecord };
 export type AuditView = { entries: AuditEntry[]; verified: boolean; broken_index: number | null; next_before?: number | null };
 export const groups: { id: string; zh: string; en: string; caps: Capability[]; risk?: boolean; always?: boolean }[] = [
   { id: 'messages', zh: '消息与任务', en: 'Messages & tasks', caps: ['messages'] },

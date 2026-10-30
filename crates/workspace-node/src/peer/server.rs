@@ -977,6 +977,8 @@ async fn network_identity(State(app): State<App>, headers: HeaderMap) -> Respons
 pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
     let router = Router::new()
         .route("/access/requests/{id}", get(access::request_state))
+        .route("/access/remote", get(access::remote_pending))
+        .route("/access/remote/decide", post(access::remote_decide))
         .route("/nodes", get(nodes))
         .route("/nodes/{node}/exec", post(execute))
         .route("/jobs/{id}", get(job))

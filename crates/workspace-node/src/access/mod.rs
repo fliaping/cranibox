@@ -16,6 +16,7 @@ mod audit;
 pub(crate) mod cli;
 pub mod decision;
 pub mod operations;
+pub mod remote;
 #[cfg(test)]
 mod tests;
 
@@ -45,6 +46,18 @@ struct State {
     /// The grant credential each peer's modes were last derived from (see `reconcile`).
     #[serde(default)]
     derived: BTreeMap<String, String>,
+    /// Single-use challenges issued to the owner's other devices (see `remote`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    challenges: BTreeMap<String, remote::Challenge>,
+    /// Remote approval ids already used, kept until they could no longer be valid.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    assertions: BTreeMap<String, u64>,
+    /// The owner's other devices may not decide requests waiting here.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    remote_off: bool,
+    /// Wrong remote approval signatures per approving device (and `*` for all of them).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    lockouts: BTreeMap<String, remote::Lockout>,
 }
 // A job's approval also covers observing/cancelling that job, never starting another one.
 #[derive(Serialize, Deserialize)]
@@ -290,6 +303,23 @@ impl Store {
             for session in sessions.into_values() {
                 self.end(state, &session, now())?;
             }
+            // Approvals live only as long as this process: after a restart every device
+            // asks again. Allow modes are settings and stay.
+            for approval in std::mem::take(&mut state.approvals).into_values() {
+                self.event(
+                    EventKind::Expired,
+                    Some(&approval.from),
+                    Some(approval.capability),
+                    approval.session_key.as_deref(),
+                    Some(&approval.id),
+                    "restart",
+                    now(),
+                )?;
+                if let Some(request) = state.requests.get_mut(&approval.id) {
+                    request.state = RequestState::Expired;
+                }
+            }
+            state.jobs.clear();
             Ok(())
         })
     }
@@ -320,6 +350,7 @@ impl Store {
             transport: None,
             detail: None,
             review: None,
+            remote: None,
         })
     }
     fn append(&self, event: AuditEvent) -> Result<()> {
@@ -344,6 +375,7 @@ impl Store {
             transport: Some(record.transport.into()),
             detail: record.detail.filter(|d| !d.is_empty()),
             review: record.review,
+            remote: None,
         })
     }
     fn expire(&self, state: &mut State, at: u64) -> Result<()> {
@@ -389,6 +421,9 @@ impl Store {
             .jobs
             .retain(|_, job| job.expires_at.is_none_or(|e| e > at));
         state.refusals.retain(|_, minute| *minute >= at / 60);
+        state.challenges.retain(|_, c| c.expires_at + 60 > at);
+        state.assertions.retain(|_, until| *until > at);
+        state.lockouts.retain(|_, l| !l.stale(at));
         state.requests.retain(|_, r| {
             r.state == RequestState::Pending || r.expires_at.saturating_add(86400) > at
         });
@@ -568,6 +603,7 @@ impl Store {
                 transport: None,
                 detail: request.detail.clone(),
                 review: request.review.clone(),
+                remote: None,
             })?;
             let denied = Denied::ApprovalRequired {
                 request_id: request.id.clone(),
@@ -599,6 +635,12 @@ impl Store {
         ensure!(!changes.is_empty(), "empty policy change");
         self.transaction(now(), |state| {
             for (capability, mode) in changes {
+                // Saving the whole form must not withdraw approvals for unchanged modes.
+                if state.policy.peers.contains_key(node)
+                    && state.policy.mode(node, capability) == mode
+                {
+                    continue;
+                }
                 self.event(
                     EventKind::PolicyChanged,
                     Some(node),
@@ -635,64 +677,85 @@ impl Store {
         self.decide_at(id, input, now())
     }
     fn decide_at(&self, id: &str, input: DecideRequest, at: u64) -> Result<AccessRequest> {
-        self.transaction(at, |state| {
-            let r = state
-                .requests
-                .get_mut(id)
-                .context("unknown access request")?;
-            ensure!(
-                r.state == RequestState::Pending,
-                "request already decided or expired"
-            );
-            if input.decision == ApprovalDecision::Deny {
-                self.event(
-                    EventKind::Denied,
-                    Some(&r.from),
-                    Some(r.capability),
-                    Some(&r.session_key),
-                    Some(id),
-                    "local",
-                    at,
-                )?;
-                r.state = RequestState::Denied;
-                state.cooldown.insert(r.from.clone(), at + 60);
+        self.transaction(at, |state| self.decide_in(state, id, input, at, None))
+    }
+    /// Records the decision. `remote`: it was made on another of the owner's devices.
+    fn decide_in(
+        &self,
+        state: &mut State,
+        id: &str,
+        input: DecideRequest,
+        at: u64,
+        remote: Option<&RemoteRecord>,
+    ) -> Result<AccessRequest> {
+        let by = remote.map_or_else(|| "local".to_owned(), |r| format!("remote:{}", r.device));
+        let r = state
+            .requests
+            .get_mut(id)
+            .context("unknown access request")?;
+        ensure!(
+            r.state == RequestState::Pending,
+            "request already decided or expired"
+        );
+        let mut event = AuditEvent {
+            index: 0,
+            at,
+            event: EventKind::Denied,
+            from: Some(r.from.clone()),
+            name: Some(self.name(&r.from)),
+            capability: Some(r.capability),
+            session_key: Some(r.session_key.clone()),
+            basis: Some(id.into()),
+            result: if remote.is_some() {
+                "remote".into()
             } else {
-                let mut scope = input.scope.context("approval scope required")?;
-                // A confirm-every-time operation, or one the reviewer flagged, is approved
-                // for this one call only.
-                if r.operation.as_ref().is_some_and(|o| o.confirm)
-                    || decision::escalates(r.review.as_ref())
-                {
-                    scope = DurationScope::Session;
-                }
-                let (scope, expires_at) = scope_expiry(scope, at);
-                self.event(
-                    EventKind::Approved,
-                    Some(&r.from),
-                    Some(r.capability),
-                    Some(&r.session_key),
-                    Some(id),
-                    &format!("local:{}", scope_name(input.scope)),
-                    at,
-                )?;
-                r.state = RequestState::Approved;
-                state.approvals.insert(
-                    id.into(),
-                    Approval {
-                        id: id.into(),
-                        from: r.from.clone(),
-                        capability: r.capability,
-                        scope,
-                        session_key: (scope == ApprovalScope::Session)
-                            .then(|| r.session_key.clone()),
-                        expires_at,
-                        approved_by: "local".into(),
-                        approved_at: at,
-                    },
-                );
+                "local".into()
+            },
+            prev: String::new(),
+            operation: r.operation.clone(),
+            status: None,
+            transport: None,
+            detail: None,
+            review: None,
+            remote: remote.cloned(),
+        };
+        if input.decision == ApprovalDecision::Deny {
+            self.append(event)?;
+            r.state = RequestState::Denied;
+            state.cooldown.insert(r.from.clone(), at + 60);
+        } else {
+            let mut scope = input.scope.context("approval scope required")?;
+            // A confirm-every-time operation, or one the reviewer flagged, is approved
+            // for this one call only.
+            if r.operation.as_ref().is_some_and(|o| o.confirm)
+                || decision::escalates(r.review.as_ref())
+            {
+                scope = DurationScope::Session;
             }
-            Ok(r.clone())
-        })
+            let (scope, expires_at) = scope_expiry(scope, at);
+            event.event = EventKind::Approved;
+            event.result = format!(
+                "{}:{}",
+                if remote.is_some() { "remote" } else { "local" },
+                scope_name(input.scope)
+            );
+            self.append(event)?;
+            r.state = RequestState::Approved;
+            state.approvals.insert(
+                id.into(),
+                Approval {
+                    id: id.into(),
+                    from: r.from.clone(),
+                    capability: r.capability,
+                    scope,
+                    session_key: (scope == ApprovalScope::Session).then(|| r.session_key.clone()),
+                    expires_at,
+                    approved_by: by,
+                    approved_at: at,
+                },
+            );
+        }
+        Ok(r.clone())
     }
     pub fn request(&self, id: &str, requester: &str) -> Result<Option<AccessRequest>> {
         self.transaction(now(), |state| {
@@ -1071,10 +1134,9 @@ impl AuditQuery {
     fn matches(&self, e: &AuditEvent) -> bool {
         let operation = e.event == EventKind::Operation;
         self.before.is_none_or(|b| e.index < b)
-            && self
-                .node
-                .as_ref()
-                .is_none_or(|n| e.from.as_ref() == Some(n))
+            && self.node.as_ref().is_none_or(|n| {
+                e.from.as_ref() == Some(n) || e.remote.as_ref().is_some_and(|r| r.device == *n)
+            })
             && self.capability.is_none_or(|c| e.capability == Some(c))
             && self.category.as_deref().is_none_or(|c| match c {
                 "operations" => operation,
@@ -1096,7 +1158,11 @@ impl AuditQuery {
                     matches!(e.result.as_str(), "refused" | "rate_limited")
                         || matches!(e.event, EventKind::Refused | EventKind::Denied)
                 }
-                "approved" => e.event == EventKind::Approved,
+                "approved" => {
+                    e.event == EventKind::Approved
+                        || (e.event == EventKind::RemoteDecision
+                            && e.result.starts_with("approved"))
+                }
                 _ => true,
             })
             && (!self.reviewed || e.review.is_some())
@@ -1111,6 +1177,14 @@ impl AuditQuery {
                 );
                 if let Some(o) = &e.operation {
                     text.push_str(&format!(" {} {}", o.kind, o.summary));
+                }
+                if let Some(r) = &e.remote {
+                    text.push_str(&format!(
+                        " {} {} {}",
+                        r.device,
+                        r.device_name.as_deref().unwrap_or(""),
+                        r.assertion
+                    ));
                 }
                 if let Some(d) = &e.detail {
                     text.push_str(&format!(

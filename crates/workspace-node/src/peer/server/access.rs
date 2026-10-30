@@ -31,6 +31,69 @@ pub(super) async fn request_state(
         .map(|r| Json(json!(r)))
         .ok_or_else(|| failure(StatusCode::NOT_FOUND, "unknown access request"))
 }
+/// Only the owner's other devices, over the verified end-to-end channel, see or decide
+/// requests waiting here. Everything else is checked by the store, which stays the
+/// enforcer.
+fn owner_channel(caller: &Caller, encrypted: bool) -> Result<(), Failure> {
+    if !encrypted || !caller.grant.peer.as_ref().is_some_and(|p| p.verified) {
+        return Err(failure(
+            StatusCode::FORBIDDEN,
+            "verified end-to-end owner channel required",
+        ));
+    }
+    Ok(())
+}
+fn remote_refusal(refusal: crate::access::remote::Refusal) -> Failure {
+    use crate::access::remote::Refusal;
+    let status = match &refusal {
+        Refusal::NotOwner | Refusal::Disabled => StatusCode::FORBIDDEN,
+        Refusal::WrongCode { .. } => StatusCode::UNAUTHORIZED,
+        Refusal::Locked { .. } => StatusCode::LOCKED,
+        Refusal::NoRecovery | Refusal::Invalid(_) => StatusCode::CONFLICT,
+        Refusal::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    let mut body = json!({"error": "remote_approval_refused", "reason": refusal.code()});
+    match refusal {
+        Refusal::WrongCode { left } => body["left"] = json!(left),
+        Refusal::Locked { until } => body["until"] = json!(until),
+        _ => {}
+    }
+    (status, Json(body))
+}
+pub(super) async fn remote_pending(
+    State(app): State<App>,
+    Extension(caller): Extension<Caller>,
+    encrypted: Option<Extension<Encrypted>>,
+) -> Result<Json<Value>, Failure> {
+    owner_channel(&caller, encrypted.is_some())?;
+    let list = tokio::task::spawn_blocking(move || store(&app).remote_pending(&caller.node))
+        .await
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE, "access store unavailable"))?
+        .map_err(remote_refusal)?;
+    Ok(Json(json!(list)))
+}
+pub(super) async fn remote_decide(
+    State(app): State<App>,
+    Extension(caller): Extension<Caller>,
+    encrypted: Option<Extension<Encrypted>>,
+    body: axum::body::Bytes,
+) -> Result<Json<Value>, Failure> {
+    owner_channel(&caller, encrypted.is_some())?;
+    if body.len() > 16 << 10 {
+        return Err(failure(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "assertion too large",
+        ));
+    }
+    let assertion: cranibox_contracts::access::RemoteApproval = serde_json::from_slice(&body)
+        .map_err(|_| failure(StatusCode::BAD_REQUEST, "invalid remote approval"))?;
+    let request =
+        tokio::task::spawn_blocking(move || store(&app).decide_remote(&caller.node, &assertion))
+            .await
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE, "access store unavailable"))?
+            .map_err(remote_refusal)?;
+    Ok(Json(json!(request)))
+}
 /// `None` for a per-node route that names no capability.
 fn capabilities(path: &str) -> Option<Vec<Capability>> {
     use Capability::*;

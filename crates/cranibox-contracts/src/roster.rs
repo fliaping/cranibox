@@ -76,10 +76,31 @@ pub struct OwnerCert {
     /// chose; absent for a generated recovery code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_salt: Option<String>,
+    /// Set when this certificate hands the identity to a new recovery key: the previous
+    /// recovery key (hex) and its signature over [`OwnerCert::handover_message`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_pub: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_sig: Option<String>,
     /// ed25519 signature by the recovery key, hex.
     pub sig: String,
 }
+/// Signature domain of a recovery key handover.
+pub const RECOVERY_HANDOVER_DOMAIN: &[u8] = b"cranibox-recovery-handover-v1\0";
 impl OwnerCert {
+    /// What the previous recovery key signs to hand the identity over to this one.
+    pub fn handover_message(&self) -> Vec<u8> {
+        crate::canonical::signing_message(
+            RECOVERY_HANDOVER_DOMAIN,
+            &serde_json::json!({
+                "previous_pub": self.previous_pub,
+                "recovery_pub": self.recovery_pub,
+                "recovery_salt": self.recovery_salt,
+                "serial": self.serial,
+            }),
+        )
+        .expect("handover serializes")
+    }
     /// The exact bytes the recovery key signs (`sig` is cleared first).
     pub fn signing_message(&self) -> Vec<u8> {
         let mut unsigned = self.clone();

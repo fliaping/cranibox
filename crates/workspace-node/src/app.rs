@@ -1259,6 +1259,20 @@ async fn route(
                 .map_err(conflict)?;
                 Ok(serde_json::json!({"code": code, "identity": service.models.identity()}))
             }
+            ("POST", "/recovery/rotate") => {
+                let models = service.models.clone();
+                let current = zeroize::Zeroizing::new(
+                    body["current"].as_str().unwrap_or_default().to_owned(),
+                );
+                let passphrase = body["passphrase"].as_str().map(str::to_owned);
+                let code = tokio::task::spawn_blocking(move || {
+                    models.rotate_recovery(&current, passphrase.as_deref())
+                })
+                .await
+                .map_err(unavailable)?
+                .map_err(conflict)?;
+                Ok(serde_json::json!({"code": code, "identity": service.models.identity()}))
+            }
             ("POST", "/rotate") => {
                 let remove: Vec<String> =
                     serde_json::from_value(body["remove"].clone()).unwrap_or_default();

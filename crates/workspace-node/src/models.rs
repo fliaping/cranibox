@@ -81,6 +81,8 @@ fn sign_cert(
 ) -> cranibox_contracts::roster::OwnerCert {
     use ed25519_dalek::Signer;
     let mut cert = cranibox_contracts::roster::OwnerCert {
+        previous_pub: None,
+        previous_sig: None,
         recovery_pub: hex32(recovery.verifying_key().as_bytes()),
         owner_pub: owner_pub.to_owned(),
         serial,
@@ -95,8 +97,49 @@ fn sign_cert(
         .collect();
     cert
 }
+type RecoverySeed = (zeroize::Zeroizing<[u8; 32]>, Option<String>, Option<String>);
+/// A new recovery seed: from a passphrase (with its new salt) or generated (with its code).
+fn new_recovery_seed(passphrase: Option<&str>) -> Result<RecoverySeed> {
+    Ok(match passphrase {
+        Some(passphrase) => {
+            check_passphrase(passphrase)?;
+            let mut salt = [0u8; 16];
+            rand::RngCore::fill_bytes(&mut rand::rng(), &mut salt);
+            (
+                passphrase_seed(passphrase, &salt)?,
+                Some(hex_bytes(&salt)),
+                None,
+            )
+        }
+        None => {
+            let mut seed = zeroize::Zeroizing::new([0u8; 32]);
+            rand::RngCore::fill_bytes(&mut rand::rng(), seed.as_mut());
+            let code = recovery_code(&seed);
+            (seed, None, Some(code))
+        }
+    })
+}
+/// The recovery key behind a generated code or, for a passphrase identity (`cert`
+/// carries its salt), the passphrase. Derived in memory only; the key wipes itself
+/// when dropped.
+pub fn recovery_signing_key(
+    secret: &str,
+    cert: Option<&cranibox_contracts::roster::OwnerCert>,
+) -> Result<ed25519_dalek::SigningKey> {
+    if let Ok(seed) = parse_recovery_code(secret) {
+        return Ok(recovery_key(&seed));
+    }
+    let salt = cert
+        .and_then(|c| c.recovery_salt.as_deref())
+        .context("That is not this identity's recovery code")?;
+    let salt = (0..salt.len() / 2)
+        .map(|i| u8::from_str_radix(&salt[i * 2..i * 2 + 2], 16))
+        .collect::<Result<Vec<u8>, _>>()
+        .context("invalid recovery salt")?;
+    Ok(recovery_key(&*passphrase_seed(secret, &salt)?))
+}
 /// 56 base32 characters in groups of four: the seed plus a 4-character checksum.
-fn recovery_code(seed: &[u8; 32]) -> String {
+pub(crate) fn recovery_code(seed: &[u8; 32]) -> String {
     use sha2::Digest;
     let check = sha2::Sha256::digest([b"cranibox-recovery-check\0".as_slice(), seed].concat());
     let text = data_encoding::BASE32_NOPAD.encode(&[seed.as_slice(), &check[..3]].concat());
@@ -509,24 +552,7 @@ impl Models {
             self.roster.identity().is_none(),
             "this identity already has a recovery code"
         );
-        let (seed, salt, code) = match passphrase {
-            Some(passphrase) => {
-                check_passphrase(passphrase)?;
-                let mut salt = [0u8; 16];
-                rand::RngCore::fill_bytes(&mut rand::rng(), &mut salt);
-                (
-                    passphrase_seed(passphrase, &salt)?,
-                    Some(hex_bytes(&salt)),
-                    None,
-                )
-            }
-            None => {
-                let mut seed = zeroize::Zeroizing::new([0u8; 32]);
-                rand::RngCore::fill_bytes(&mut rand::rng(), seed.as_mut());
-                let code = recovery_code(&seed);
-                (seed, None, Some(code))
-            }
-        };
+        let (seed, salt, code) = new_recovery_seed(passphrase)?;
         let recovery = recovery_key(&seed);
         let owner = OwnerKey::load_or_create(&self.owner_path)?;
         let roster = self.roster.current().context("no roster")?;
@@ -538,20 +564,47 @@ impl Models {
     }
     /// The recovery key from a generated code or, for a passphrase identity, the passphrase.
     fn recovery_from(&self, secret: &str) -> Result<ed25519_dalek::SigningKey> {
-        if let Ok(seed) = parse_recovery_code(secret) {
-            return Ok(recovery_key(&seed));
-        }
-        let salt = self
-            .roster
-            .current()
-            .and_then(|r| r.owner_cert)
-            .and_then(|c| c.recovery_salt)
-            .context("That is not this identity's recovery code")?;
-        let salt = (0..salt.len() / 2)
-            .map(|i| u8::from_str_radix(&salt[i * 2..i * 2 + 2], 16))
-            .collect::<Result<Vec<u8>, _>>()
-            .context("invalid recovery salt")?;
-        Ok(recovery_key(&*passphrase_seed(secret, &salt)?))
+        let cert = self.roster.current().and_then(|r| r.owner_cert);
+        recovery_signing_key(secret, cert.as_ref())
+    }
+    /// Replace the recovery code or passphrase: the current one hands the identity over
+    /// to a new recovery key. Devices that receive the new roster follow the handover and
+    /// stop accepting the old code. Returns a newly generated code, if one was asked for.
+    pub fn rotate_recovery(
+        &self,
+        current: &str,
+        passphrase: Option<&str>,
+    ) -> Result<Option<String>> {
+        use ed25519_dalek::Signer;
+        let old = self.recovery_from(current)?;
+        let old_pub = hex32(old.verifying_key().as_bytes());
+        ensure!(
+            self.roster.identity().as_deref() == Some(old_pub.as_str()),
+            "That recovery code or passphrase does not belong to this identity"
+        );
+        let (seed, salt, code) = new_recovery_seed(passphrase)?;
+        let recovery = recovery_key(&seed);
+        let owner = OwnerKey::load_or_create(&self.owner_path)?;
+        ensure!(
+            owner.public() == self.roster.owner(),
+            "this device does not hold the owner key"
+        );
+        let roster = self.roster.current().context("no roster")?;
+        let serial = roster.owner_cert.as_ref().map_or(0, |c| c.serial) + 1;
+        let mut cert = cranibox_contracts::roster::OwnerCert {
+            recovery_pub: hex32(recovery.verifying_key().as_bytes()),
+            owner_pub: owner.public(),
+            serial,
+            recovery_salt: salt,
+            previous_pub: Some(old_pub),
+            previous_sig: None,
+            sig: String::new(),
+        };
+        cert.previous_sig = Some(hex_bytes(&old.sign(&cert.handover_message()).to_bytes()));
+        cert.sig = hex_bytes(&recovery.sign(&cert.signing_message()).to_bytes());
+        self.roster
+            .issue_with(&owner, roster.members, Some(cert), Default::default())?;
+        Ok(code)
     }
     /// Lost a device: with the recovery code, replace the owner key, remove `remove`
     /// from the identity and hand the new key to every remaining member.
@@ -1011,6 +1064,29 @@ mod identity_tests {
         // The identity is the recovery key, so its code stays; the salt carries over.
         assert_eq!(service.identity()["code"], code);
         service.rotate_owner(passphrase, &[]).unwrap();
+        // Replacing the passphrase: the old one hands over to a new generated code.
+        let old = service.roster.identity();
+        assert!(service.rotate_recovery("wrong passphrase!!", None).is_err());
+        let new = service
+            .rotate_recovery(passphrase, None)
+            .unwrap()
+            .expect("a generated code");
+        assert_ne!(service.roster.identity(), old);
+        assert_eq!(service.identity()["recovery_kind"], "code");
+        assert!(
+            service.rotate_owner(passphrase, &[]).is_err(),
+            "the old one is spent"
+        );
+        service.rotate_owner(&new, &[]).unwrap();
+        // And back to a passphrase.
+        assert_eq!(
+            service
+                .rotate_recovery(&new, Some("another long phrase"))
+                .unwrap(),
+            None
+        );
+        assert!(service.rotate_owner(&new, &[]).is_err());
+        service.rotate_owner("another long phrase", &[]).unwrap();
     }
 
     #[test]

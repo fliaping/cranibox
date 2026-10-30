@@ -26,6 +26,28 @@ pub fn verify_cert(cert: &OwnerCert) -> Result<()> {
     Ok(())
 }
 
+/// Whether `cert` belongs to the pinned identity `pinned`: the same recovery key, or a
+/// newer certificate the pinned key handed over to a new one. Returns the new key for a
+/// handover.
+pub fn identity_of(cert: &OwnerCert, pinned: &str, serial: u64) -> Result<Option<String>> {
+    if cert.recovery_pub == pinned {
+        return Ok(None);
+    }
+    ensure!(
+        cert.previous_pub.as_deref() == Some(pinned),
+        "owner certificate is for another identity"
+    );
+    ensure!(cert.serial > serial, "stale owner certificate");
+    let key = VerifyingKey::from_bytes(&unhex::<32>(pinned)?)?;
+    key.verify_strict(
+        &cert.handover_message(),
+        &Signature::from_bytes(&unhex::<64>(
+            cert.previous_sig.as_deref().unwrap_or_default(),
+        )?),
+    )
+    .context("recovery handover signature is invalid")?;
+    Ok(Some(cert.recovery_pub.clone()))
+}
 pub fn verify(roster: &Roster, owner: &str) -> Result<()> {
     ensure!(
         roster.version == ROSTER_VERSION && roster.epoch > 0,
@@ -141,9 +163,10 @@ impl RosterStore {
             verify(roster, &owner)?;
             if let (Some(identity), Some(cert)) = (&identity, &roster.owner_cert) {
                 ensure!(
-                    &cert.recovery_pub == identity && cert.owner_pub == owner,
+                    cert.owner_pub == owner,
                     "owner certificate is for another identity"
                 );
+                identity_of(cert, identity, serial)?;
                 verify_cert(cert)?;
             }
             return Ok(false);
@@ -154,10 +177,11 @@ impl RosterStore {
             .as_ref()
             .context("roster owner changed without a certificate")?;
         ensure!(
-            cert.recovery_pub == identity && cert.owner_pub == roster.owner_pub,
+            cert.owner_pub == roster.owner_pub,
             "owner certificate is for another identity"
         );
         ensure!(cert.serial > serial, "stale owner certificate");
+        identity_of(cert, &identity, serial)?;
         verify_cert(cert)?;
         verify(roster, &roster.owner_pub)?;
         Ok(true)
@@ -186,6 +210,13 @@ impl RosterStore {
     }
     pub fn install(&self, roster: Roster) -> Result<Vec<String>> {
         let rotation = self.check(&roster)?;
+        // A verified handover to a new recovery key (`check` accepted it).
+        let handover = match (self.identity(), &roster.owner_cert) {
+            (Some(pinned), Some(cert)) if cert.recovery_pub != pinned => {
+                Some(cert.recovery_pub.clone())
+            }
+            _ => None,
+        };
         let mut guard = self
             .current
             .write()
@@ -226,6 +257,17 @@ impl RosterStore {
                 .write()
                 .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? =
                 Some(cert.recovery_pub.clone());
+        }
+        if let Some(identity) = handover {
+            crate::config::write_private(
+                &self.path.with_extension("identity"),
+                identity.as_bytes(),
+                true,
+            )?;
+            *self
+                .identity
+                .write()
+                .map_err(|_| anyhow::anyhow!("roster lock poisoned"))? = Some(identity);
         }
         if rotation {
             crate::config::write_private(
@@ -481,6 +523,8 @@ mod rotation_tests {
     }
     fn cert(recovery: &SigningKey, owner: &OwnerKey, serial: u64) -> OwnerCert {
         let mut cert = OwnerCert {
+            previous_pub: None,
+            previous_sig: None,
             recovery_pub: hex(recovery.verifying_key().as_bytes()),
             owner_pub: owner.public(),
             serial,
@@ -566,5 +610,87 @@ mod rotation_tests {
         let reopened = RosterStore::load(path).unwrap();
         assert_eq!(reopened.owner(), new.public());
         assert!(reopened.identity().is_some());
+    }
+
+    #[test]
+    fn the_recovery_key_hands_the_identity_to_a_new_one_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("roster.json");
+        let owner = OwnerKey::load_or_create(&dir.path().join("owner.key")).unwrap();
+        RosterStore::pin(&path, &owner.public()).unwrap();
+        let store = RosterStore::load(path.clone()).unwrap();
+        let old = SigningKey::from_bytes(&[41; 32]);
+        let new = SigningKey::from_bytes(&[42; 32]);
+        let other = SigningKey::from_bytes(&[43; 32]);
+        store
+            .issue_with(
+                &owner,
+                vec![member(1)],
+                Some(cert(&old, &owner, 1)),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(store.identity(), Some(hex(old.verifying_key().as_bytes())));
+        let handover = |by: &SigningKey, to: &SigningKey, serial: u64| {
+            let mut c = cert(to, &owner, serial);
+            c.previous_pub = Some(hex(old.verifying_key().as_bytes()));
+            c.previous_sig = Some(hex(&by.sign(&c.handover_message()).to_bytes()));
+            c.sig = String::new();
+            c.sig = hex(&to.sign(&c.signing_message()).to_bytes());
+            c
+        };
+        // Not signed by the pinned key, or not newer: refused.
+        assert!(
+            store
+                .issue_with(
+                    &owner,
+                    vec![member(1)],
+                    Some(handover(&other, &new, 2)),
+                    Default::default()
+                )
+                .is_err()
+        );
+        assert!(
+            store
+                .issue_with(
+                    &owner,
+                    vec![member(1)],
+                    Some(handover(&old, &new, 1)),
+                    Default::default()
+                )
+                .is_err()
+        );
+        let mut bare = cert(&new, &owner, 2);
+        bare.previous_pub = None;
+        assert!(
+            store
+                .issue_with(&owner, vec![member(1)], Some(bare), Default::default())
+                .is_err()
+        );
+        store
+            .issue_with(
+                &owner,
+                vec![member(1)],
+                Some(handover(&old, &new, 2)),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(store.identity(), Some(hex(new.verifying_key().as_bytes())));
+        // The re-pin is on disk, and the old key can no longer hand anything over.
+        let reopened = RosterStore::load(path).unwrap();
+        assert_eq!(
+            reopened.identity(),
+            Some(hex(new.verifying_key().as_bytes()))
+        );
+        assert!(
+            reopened
+                .issue_with(
+                    &owner,
+                    vec![member(1)],
+                    Some(handover(&old, &other, 3)),
+                    Default::default()
+                )
+                .is_err()
+        );
     }
 }

@@ -11,6 +11,8 @@ async function mockAccess(page: Page) {
     tampered: false, approval: 'pending', blocked: '', actions: [] as any[], polls: [] as string[], tickets: [] as any[], terminalBlocked: false,
     updateBlocked: false, updates: [] as string[], shells: [] as any[],
     review: { settings: { backend: 'rules', model: null, url: null, timeout_ms: 4000 }, has_key: false } as any, reviewSaves: [] as any[], grants: [] as any[], reviewTests: 0,
+    remote: { devices: [] as any[], approver: { recovery: true, recovery_kind: 'passphrase', remote_enabled: true, owner_device: false, attempts: 5 } } as any,
+    remoteDecisions: [] as any[], remoteAnswers: [] as any[], approverSaves: [] as any[],
   };
   await page.addInitScript(() => {
     class Events extends EventTarget {
@@ -36,6 +38,15 @@ async function mockAccess(page: Page) {
       const id = path.split('/').at(-1); state.decisions.push({ id, ...body });
       state.access.pending = state.access.pending.filter(item => item.id !== id);
       return route.fulfill({ json: {} });
+    }
+    if (path === '/api/v1/app/access/remote') return route.fulfill({ json: state.remote });
+    if (path === '/api/v1/app/access/approver') { state.approverSaves.push(body); state.remote.approver.remote_enabled = body.remote_enabled; return route.fulfill({ json: state.remote.approver }); }
+    if (path === '/api/v1/app/access/remote/decide') {
+      state.remoteDecisions.push(body);
+      const answer = state.remoteAnswers.shift();
+      if (answer) return route.fulfill({ status: answer.status, json: answer.json });
+      state.remote.devices[0].requests = state.remote.devices[0].requests.filter((item: any) => item.request.id !== body.request);
+      return route.fulfill({ json: { result: body.decision === 'approve' ? 'approved' : 'denied' } });
     }
     if (path === '/api/v1/app/access/review') {
       if (req.method() === 'PUT') { state.reviewSaves.push(body); state.review = { settings: { timeout_ms: 4000, ...body.settings }, has_key: state.review.has_key || !!body.key }; }
@@ -397,7 +408,7 @@ test('automatic review can use Jev with a saved key and be tested', async ({ pag
   await card.getByLabel('Jev API 密钥').fill('sk-test');
   await card.getByRole('button', { name: '保存审核方式', exact: true }).click();
   await expect(card.getByRole('status')).toHaveText('已保存');
-  expect(state.reviewSaves).toEqual([{ settings: { backend: 'jev', model: null, url: null }, key: 'sk-test' }]);
+  expect(state.reviewSaves).toEqual([{ settings: { backend: 'jev', model: null, url: null, jev: null }, key: 'sk-test' }]);
   await expect(card.getByLabel('Jev API 密钥')).toHaveAttribute('placeholder', '已保存，留空则不变');
   await card.getByRole('button', { name: '测试', exact: true }).click();
   await expect(card).toContainText('测试成功：可放行 · Routine file write in the project. · 85 ms');
@@ -423,4 +434,80 @@ test('the log searches on the device and opens the full record of an operation',
   const drawer = page.getByRole('dialog');
   for (const text of ['make deploy --token ***', '/srv/app', 'API_KEY', '2.0 KB', 'make: *** [deploy] Error 2', 'job-7', '1.5 s', 'Uploads a key file to an unknown host.', '#9']) await expect(drawer).toContainText(text);
   await page.keyboard.press('Escape'); await expect(drawer).toHaveCount(0);
+});
+
+const laptop = 'node-2b54abcdef0123456789abcdef012345';
+function waitingOn(id: string, once = false) {
+  const now = Math.floor(Date.now() / 1000);
+  return { request: { ...request(id, 'exec'), from: 'node-agent', name: 'Build agent', operation: { kind: once ? 'exec.run' : 'terminal.open', risk: once ? 'destructive' : 'change', summary: once ? 'rm -rf ./build' : 'open a shell' } }, op_hash: 'hash-' + id, once_only: once, challenge: 'c-' + id, challenge_expires_at: now + 90 };
+}
+test('requests on my other devices are approved here with the recovery passphrase', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.remote = { devices: [{ node: laptop, name: 'Work Laptop', online: true, requests: [waitingOn('r1'), waitingOn('r2', true)] }, { node: 'node-off', name: 'Old PC', online: false, error: 'unreachable', requests: [] }], approver: { recovery: true, recovery_kind: 'passphrase', remote_enabled: true, owner_device: true, attempts: 5 } };
+  state.remoteAnswers.push({ status: 401, json: { error: 'wrong_code', left: 4 } });
+  await page.goto('/?lang=zh-cn#/app/devices');
+  await expect(page.getByRole('status').filter({ hasText: '你的其他设备上有 2 个请求等你批准' })).toBeVisible();
+  await page.getByRole('link', { name: '去处理', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '待处理的审批', exact: true })).toBeVisible();
+  await expect(page.getByText('连不上', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '查看并决定', exact: true }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('在另一台设备上批准，需要输入你的 Cranibox 恢复口令');
+  await expect(dialog).toContainText('不会发送出去，也不会保存');
+  await expect(dialog.getByRole('button', { name: '允许 1 小时', exact: true })).toBeDisabled();
+  const code = dialog.getByLabel(/需要输入你的 Cranibox 恢复口令/);
+  await code.fill('wrong passphrase');
+  await dialog.getByRole('button', { name: '允许本次', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('还可以再试 4 次');
+  await expect(code).toHaveValue('');
+  await code.fill('correct horse battery staple');
+  await dialog.getByRole('button', { name: '允许 1 小时', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: '已在「Work Laptop」上批准' })).toBeVisible();
+  expect(state.remoteDecisions[1]).toEqual({ node: laptop, request: 'r1', op_hash: 'hash-r1', decision: 'approve', scope: '1h', auth: { code: 'correct horse battery staple' } });
+  await page.getByRole('button', { name: '查看并决定', exact: true }).first().click();
+  await expect(dialog).toContainText('只能「允许这一次」');
+  await expect(dialog.getByRole('button', { name: '允许 1 小时', exact: true })).toHaveCount(0);
+  state.remoteAnswers.push({ status: 423, json: { error: 'locked', until: Math.floor(Date.now() / 1000) + 300 } });
+  await code.fill('another guess');
+  await dialog.getByRole('button', { name: '允许这一次', exact: true }).click();
+  await expect(dialog.getByRole('alert').last()).toContainText('仍可以在那台设备上直接处理');
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByLabel('允许我的其他设备批准本机上的请求').uncheck();
+  await expect.poll(() => state.approverSaves).toEqual([{ remote_enabled: false }]);
+});
+test('without a recovery passphrase the page explains how to set one', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.remote = { devices: [{ node: laptop, name: 'Work Laptop', online: true, requests: [waitingOn('r1')] }], approver: { recovery: false, recovery_kind: null, remote_enabled: true, owner_device: true, attempts: 5 } };
+  await page.goto('/?lang=zh-cn#/app/approvals');
+  await expect(page.getByRole('link', { name: '去设置', exact: true })).toHaveAttribute('href', /identity/);
+  await expect(page.getByRole('button', { name: '查看并决定', exact: true })).toBeDisabled();
+});
+test('Jev strictness has presets, checked advanced numbers and a reset', async ({ page }) => {
+  const state = await mockAccess(page);
+  state.review = { settings: { backend: 'jev', model: null, url: null, timeout_ms: 4000 }, has_key: true };
+  await openDevice(page, 'access', 'zh-cn');
+  const card = page.locator('.cx-card').filter({ has: page.getByRole('heading', { name: '自动审核' }) });
+  await expect(card.getByRole('button', { name: '标准', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await card.getByRole('button', { name: '严格', exact: true }).click();
+  await card.getByRole('button', { name: '保存审核方式', exact: true }).click();
+  await expect(card.getByRole('status')).toHaveText('已保存');
+  expect(state.reviewSaves.at(-1).settings.jev).toEqual({ deny_score: 2.2, ask_score: 1, injection: 0.5, exfiltration: 0.4, out_of_scope: 0.6, min_confidence: 0.5 });
+  await card.getByText('高级：调整具体数值').click();
+  await card.getByLabel('风险分达到多少时请你确认（0–3）').fill('2.9');
+  await expect(card.getByRole('alert')).toContainText('不能高于');
+  await card.getByRole('button', { name: '恢复默认', exact: true }).click();
+  await expect(card.getByRole('alert')).toHaveCount(0);
+  await card.getByRole('button', { name: '保存审核方式', exact: true }).click();
+  await expect.poll(() => state.reviewSaves.at(-1).settings.jev).toBeNull();
+});
+test('the log shows which device approved and how it was verified', async ({ page }) => {
+  const state = await mockAccess(page), at = 1800000000;
+  const entry = { index: 3, at, event: 'approved', from: remote, name: 'Design Mac', capability: 'exec', basis: 'r1', result: 'approved:session', operation: { kind: 'exec.run', risk: 'destructive', summary: 'rm -rf ./build' }, remote: { device: laptop, device_name: 'Work Laptop', auth: 'recovery_passphrase', assertion: 'ra-123' } };
+  await page.route('**/api/v1/app/access/audit**', route => { state.auditQueries.push(new URL(route.request().url()).searchParams); return route.fulfill({ json: { verified: true, broken_index: null, entries: [entry], next_before: null } }); });
+  await page.goto('/?lang=zh-cn#/app/access-log');
+  await expect(page.locator('.cx-access-log li').first()).toContainText('在「Work Laptop」上用恢复口令批准');
+  await page.getByRole('button', { name: '详情', exact: true }).click();
+  const drawer = page.getByRole('dialog');
+  for (const text of ['审批设备', 'Work Laptop', '恢复口令', 'ra-123']) await expect(drawer).toContainText(text);
 });

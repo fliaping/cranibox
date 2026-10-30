@@ -26,6 +26,38 @@ fn access_window(app: &tauri::AppHandle) {
     }
 }
 
+fn remote_window(app: &tauri::AppHandle) {
+    if show_at(app, Some("/#/app/approvals"))
+        && let Some(window) = app.get_webview_window("main")
+    {
+        let _ = window.eval("location.hash = '/app/approvals'");
+    }
+}
+
+/// Requests waiting on the owner's other devices. The notification only says that
+/// something waits; deciding needs the recovery passphrase in the approvals page.
+pub fn remote_refresh(app: &tauri::AppHandle, view: &Value, seen: &mut BTreeSet<String>) {
+    let waiting: BTreeSet<String> = view["devices"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|device| device["requests"].as_array().into_iter().flatten())
+        .filter_map(|item| item["request"]["id"].as_str().map(str::to_owned))
+        .collect();
+    let new = waiting.iter().filter(|id| !seen.contains(*id)).count();
+    *seen = waiting;
+    if new == 0 {
+        return;
+    }
+    let _ = app
+        .notification()
+        .builder()
+        .title("Cranibox · 其他设备待批准 / Approval on another device")
+        .body("另一台设备上有请求等你批准 / A request on another device needs your approval")
+        .extra("remote_request", new)
+        .show();
+}
+
 /// Access requests use the existing notification plugin; decisions stay in the local dialog.
 pub fn access_refresh(app: &tauri::AppHandle, pending: &[Value], seen: &mut BTreeSet<String>) {
     let active: BTreeSet<_> = pending
@@ -104,6 +136,15 @@ pub fn setup(app: &tauri::AppHandle) -> tauri_plugin_notification::Result<()> {
     ])?;
     let handle = app.clone();
     app.notification().on_action(move |action| {
+        if action
+            .notification()
+            .is_some_and(|n| n.extra().contains_key("remote_request"))
+        {
+            if action.action_id() != "dismiss" {
+                remote_window(&handle);
+            }
+            return;
+        }
         if action
             .notification()
             .is_some_and(|n| n.extra().contains_key("access_request"))

@@ -38,6 +38,11 @@ enum Command {
         all: bool,
         approval_id: Option<String>,
     },
+    /// Requests waiting on your other devices, and deciding them from here.
+    Remote {
+        #[command(subcommand)]
+        command: Remote,
+    },
     /// Show recent audit entries; integrity is always checked.
     Log {
         #[arg(long, default_value_t = 100)]
@@ -50,6 +55,103 @@ enum Command {
         #[arg(long)]
         verify: bool,
     },
+}
+#[derive(Subcommand, Debug)]
+enum Remote {
+    /// List requests waiting on your other devices.
+    List,
+    /// Approve or deny a request waiting on another of your devices. Reads your
+    /// recovery code (or recovery passphrase) from standard input; it is used on this
+    /// device only to sign the decision and is never sent or kept.
+    Approve {
+        node: String,
+        request_id: String,
+        #[arg(long = "for", default_value = "session", value_parser = scope)]
+        duration: DurationScope,
+        #[arg(long)]
+        deny: bool,
+    },
+    /// Send an already signed decision file to the device it names, unchanged. The
+    /// device accepts each decision once.
+    Submit { file: std::path::PathBuf },
+    /// Whether your other devices may decide requests waiting on this one.
+    Allow {
+        #[arg(value_parser = clap::builder::BoolishValueParser::new())]
+        enabled: bool,
+    },
+}
+fn read_line() -> Result<String> {
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line)?;
+    Ok(line.trim_end_matches(['\r', '\n']).to_owned())
+}
+fn app_error(e: cranibox_contracts::app::AppError) -> anyhow::Error {
+    match e.body {
+        Some(body) => anyhow::anyhow!("{}: {} {}", e.code, e.message, body),
+        None => anyhow::anyhow!("{}: {}", e.code, e.message),
+    }
+}
+async fn remote(peers: &Path, store: &Store, command: Remote) -> Result<Value> {
+    match command {
+        Remote::List => Ok(super::api::remote_list(peers, store).await),
+        Remote::Approve {
+            node,
+            request_id,
+            duration,
+            deny,
+        } => {
+            let node = store
+                .owner_devices()
+                .into_iter()
+                .find(|(id, name)| *id == node || name.eq_ignore_ascii_case(&node))
+                .map(|(id, _)| id)
+                .context("not one of your other devices")?;
+            let list = super::api::remote_list(peers, store).await;
+            let shown = list["devices"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|d| d["node"] == node.as_str())
+                .flat_map(|d| d["requests"].as_array().cloned().unwrap_or_default())
+                .find(|p| p["request"]["id"] == request_id.as_str())
+                .context("no such request waiting on that device")?;
+            eprintln!(
+                "{} wants {} on {}",
+                shown["request"]["name"].as_str().unwrap_or(""),
+                operation_line(&shown["request"]["operation"])
+                    .unwrap_or_else(|| shown["request"]["capability"].to_string()),
+                store.name(&node)
+            );
+            eprintln!("Recovery code or passphrase:");
+            let auth = json!({"code": *zeroize::Zeroizing::new(read_line()?)});
+            let body = json!({
+                "node": node,
+                "request": request_id,
+                "op_hash": shown["op_hash"],
+                "decision": if deny { "deny" } else { "approve" },
+                "scope": (!deny).then_some(duration),
+                "auth": auth,
+            });
+            super::api::remote_decide(peers, store, body)
+                .await
+                .map_err(app_error)
+        }
+        Remote::Submit { file } => {
+            let assertion: cranibox_contracts::access::RemoteApproval =
+                serde_json::from_slice(&std::fs::read(&file)?).context("not a signed decision")?;
+            agent_workspace_runtime::client::Fleet::new(peers.to_owned())
+                .post(
+                    &assertion.target,
+                    "/api/v1/access/remote/decide",
+                    serde_json::to_value(&assertion)?,
+                )
+                .await
+        }
+        Remote::Allow { enabled } => {
+            store.set_remote_enabled(enabled)?;
+            Ok(json!({"remote_enabled": store.remote_enabled()}))
+        }
+    }
 }
 #[derive(Clone, Debug)]
 struct Assignment(Vec<Capability>, Mode);
@@ -97,6 +199,7 @@ fn resolve(store: &Store, value: &str) -> Result<String> {
 }
 fn execute(store: &Store, command: Command) -> Result<(Value, bool)> {
     match command {
+        Command::Remote { .. } => anyhow::bail!("remote commands run asynchronously"),
         Command::List => Ok((serde_json::to_value(store.view()?)?, false)),
         Command::Set { node, changes } => {
             let node = resolve(store, &node)?;
@@ -149,8 +252,12 @@ fn execute(store: &Store, command: Command) -> Result<(Value, bool)> {
         }
     }
 }
-pub fn run(peers: &Path, args: Args) -> Result<()> {
-    let (value, failed) = execute(&Store::new(peers), args.command)?;
+pub async fn run(peers: &Path, args: Args) -> Result<()> {
+    let store = Store::new(peers);
+    let (value, failed) = match args.command {
+        Command::Remote { command } => (remote(peers, &store, command).await?, false),
+        command => execute(&store, command)?,
+    };
     if args.json {
         println!("{}", serde_json::to_string_pretty(&value)?);
     } else {
@@ -404,8 +511,8 @@ mod tests {
         assert_eq!(resolve(&store, "laptop").unwrap(), node);
         assert_eq!(resolve(&store, node).unwrap(), node);
     }
-    #[test]
-    fn log_reports_tampering_and_verify_fails() {
+    #[tokio::test]
+    async fn log_reports_tampering_and_verify_fails() {
         let (root, store) = super::super::tests::fixture();
         let node = super::super::tests::NODE;
         execute(
@@ -426,6 +533,7 @@ mod tests {
                 &store.peers,
                 parse(&["access", "log", "--verify", "--json"])
             )
+            .await
             .is_err()
         );
     }

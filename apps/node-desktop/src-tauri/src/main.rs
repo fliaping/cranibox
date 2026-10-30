@@ -612,6 +612,22 @@ fn main() -> anyhow::Result<()> {
             if !background || (url.is_none() && !managed_starting) {
                 show(app.handle());
             }
+            // The owner's other devices are asked on their own clock: a slow or offline
+            // device must not hold up the local status loop.
+            let remote_state = setup_state.clone();
+            let remote_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let mut seen = std::collections::BTreeSet::new();
+                loop {
+                    if let Ok(view) = managed::dispatch(&remote_state, "GET", "/access/remote", Value::Null).await {
+                        approvals::remote_refresh(&remote_handle, &view, &mut seen);
+                    }
+                    tokio::select! {
+                        _ = remote_state.stop.cancelled() => break,
+                        _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {},
+                    }
+                }
+            });
             let status_state = setup_state.clone();
             let held_menu = held_item.clone();
             tauri::async_runtime::spawn(async move {

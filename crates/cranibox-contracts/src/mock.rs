@@ -60,6 +60,9 @@ pub mod fixtures {
 fn load<T: serde::de::DeserializeOwned>(json: &str) -> T {
     serde_json::from_str(json).expect("contract fixture matches its type")
 }
+fn mock_approver() -> serde_json::Value {
+    serde_json::json!({"recovery": false, "recovery_kind": null, "remote_enabled": true, "owner_device": false, "attempts": 5})
+}
 pub fn access_route(
     method: &str,
     path: &str,
@@ -87,6 +90,10 @@ pub fn access_route(
         }
         ("POST", "/access/review/test") => {
             Ok(serde_json::json!({"ok": false, "error": "mock reviewer"}))
+        }
+        ("GET", "/access/approver") => Ok(mock_approver()),
+        ("GET", "/access/remote") => {
+            Ok(serde_json::json!({"devices": [], "approver": mock_approver()}))
         }
         ("POST", "/access/grants") => {
             let node = body["node"].as_str().unwrap_or_default().to_owned();

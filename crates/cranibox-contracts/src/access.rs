@@ -207,6 +207,9 @@ pub enum EventKind {
     Checkpoint,
     /// One remote operation that reached this device, with its outcome.
     Operation,
+    /// The owner, on this device, decided a request waiting on another of their devices
+    /// (or failed to confirm it was them).
+    RemoteDecision,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AuditEvent {
@@ -234,6 +237,22 @@ pub struct AuditEvent {
     /// The automatic review that let the operation through or sent it to a person.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<Review>,
+    /// Set when the decision was made on another of the owner's devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<RemoteRecord>,
+}
+/// Who decided a request from another device, and how they proved it was the owner.
+/// Never contains the secret itself.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RemoteRecord {
+    /// The approving device on the target; the target device on the approver.
+    pub device: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    /// `pin`, `macos_local_auth` or `windows_hello`.
+    pub auth: String,
+    /// The signed assertion's id.
+    pub assertion: String,
 }
 /// Everything the target knows about one remote operation, redacted before it is stored:
 /// argument values that look like credentials are masked, environment variables keep
@@ -385,6 +404,100 @@ pub struct ReviewSettings {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
+    /// Jev score thresholds; `None` is the standard set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jev: Option<JevThresholds>,
+}
+/// When Jev's answers make an operation go to a person (`ask`) or be refused (`deny`).
+/// Risk scores are on Jev's 0–3 scale; the others are probabilities from 0 to 1.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct JevThresholds {
+    /// Refuse at or above this risk score.
+    pub deny_score: f64,
+    /// Ask a person at or above this risk score.
+    pub ask_score: f64,
+    /// Refuse when prompt injection is at least this likely.
+    pub injection: f64,
+    /// Ask when sending data off the computer is at least this likely.
+    pub exfiltration: f64,
+    /// Ask when changes outside the project are at least this likely.
+    pub out_of_scope: f64,
+    /// Ask when Jev is less sure than this and the risk score is at least 1.
+    pub min_confidence: f64,
+}
+impl Eq for JevThresholds {}
+impl Default for JevThresholds {
+    fn default() -> Self {
+        Self::STANDARD
+    }
+}
+impl JevThresholds {
+    pub const STANDARD: Self = Self {
+        deny_score: 2.5,
+        ask_score: 1.5,
+        injection: 0.7,
+        exfiltration: 0.6,
+        out_of_scope: 0.75,
+        min_confidence: 0.4,
+    };
+    pub const RELAXED: Self = Self {
+        deny_score: 2.8,
+        ask_score: 2.0,
+        injection: 0.8,
+        exfiltration: 0.75,
+        out_of_scope: 0.85,
+        min_confidence: 0.3,
+    };
+    pub const STRICT: Self = Self {
+        deny_score: 2.2,
+        ask_score: 1.0,
+        injection: 0.5,
+        exfiltration: 0.4,
+        out_of_scope: 0.6,
+        min_confidence: 0.5,
+    };
+    /// Allowed range for each field, so a typo cannot switch the review off.
+    pub const RANGES: [(&'static str, f64, f64); 6] = [
+        ("deny_score", 1.5, 3.0),
+        ("ask_score", 0.5, 3.0),
+        ("injection", 0.3, 0.95),
+        ("exfiltration", 0.2, 0.95),
+        ("out_of_scope", 0.2, 0.95),
+        ("min_confidence", 0.0, 0.9),
+    ];
+    pub fn values(&self) -> [f64; 6] {
+        [
+            self.deny_score,
+            self.ask_score,
+            self.injection,
+            self.exfiltration,
+            self.out_of_scope,
+            self.min_confidence,
+        ]
+    }
+    /// The problem with these values, if any.
+    pub fn invalid(&self) -> Option<String> {
+        for ((name, low, high), value) in Self::RANGES.iter().zip(self.values()) {
+            if !value.is_finite() || value < *low || value > *high {
+                return Some(format!("{name} must be between {low} and {high}"));
+            }
+        }
+        (self.ask_score > self.deny_score)
+            .then(|| "ask_score must not be above deny_score".to_owned())
+    }
+    /// `relaxed`, `standard`, `strict` or `custom`.
+    pub fn preset(&self) -> &'static str {
+        if *self == Self::STANDARD {
+            "standard"
+        } else if *self == Self::RELAXED {
+            "relaxed"
+        } else if *self == Self::STRICT {
+            "strict"
+        } else {
+            "custom"
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -438,4 +551,73 @@ pub enum Denied {
         capability: Capability,
         expires_at: u64,
     },
+}
+
+/// Signature domain of a [`RemoteApproval`].
+pub const REMOTE_APPROVAL_DOMAIN: &[u8] = b"cranibox-remote-approval-v1\0";
+/// Longest a remote approval may be valid for, in seconds.
+pub const REMOTE_APPROVAL_TTL: u64 = 90;
+
+/// A decision made on one of the owner's devices for a request waiting on another,
+/// signed by the approving device's node key. The target verifies it against the
+/// owner-signed roster and accepts each one once, for the exact request it names.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RemoteApproval {
+    pub v: u32,
+    /// Random id; the target refuses an id it has seen.
+    pub id: String,
+    /// Node the request is waiting on.
+    pub target: String,
+    pub request: String,
+    /// Hash of the request as the approver showed it (`access::remote::op_hash`).
+    pub op_hash: String,
+    /// `approve` or `deny`.
+    pub decision: String,
+    /// Grant scope for an approval (`session` is allow once).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<DurationScope>,
+    /// Approving node.
+    pub approver: String,
+    /// How the person proved it was them: `pin`, `macos_local_auth`, `windows_hello`.
+    pub auth: String,
+    pub issued_at: u64,
+    pub expires_at: u64,
+    pub nonce: String,
+    /// The single-use challenge the target issued for this request and approver.
+    pub challenge: String,
+    /// Hex ed25519 signature over [`REMOTE_APPROVAL_DOMAIN`] + canonical JSON of every
+    /// other field.
+    #[serde(default)]
+    pub sig: String,
+}
+impl RemoteApproval {
+    pub fn signing_message(&self) -> serde_json::Result<Vec<u8>> {
+        let mut unsigned = self.clone();
+        unsigned.sig.clear();
+        let mut value = serde_json::to_value(&unsigned)?;
+        if let Some(object) = value.as_object_mut() {
+            object.remove("sig");
+        }
+        crate::canonical::signing_message(REMOTE_APPROVAL_DOMAIN, &value)
+    }
+}
+
+/// A request waiting on one of the owner's devices, as that device shows it to another
+/// owner device.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RemotePending {
+    pub request: AccessRequest,
+    /// The target's hash of the request; the approver recomputes and compares it.
+    pub op_hash: String,
+    pub challenge: String,
+    pub challenge_expires_at: u64,
+    /// Only `allow once` (or deny) is accepted for this request.
+    pub once_only: bool,
+}
+/// What one owner device answers when another asks for its waiting requests.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RemotePendingList {
+    pub node: String,
+    pub requests: Vec<RemotePending>,
 }

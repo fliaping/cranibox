@@ -23,10 +23,11 @@ export function IdentitySettings() {
     <Card label={t("恢复口令", "Recovery passphrase")}>
       <div className="cx-card-head"><span className="cx-card-icon"><KeyRound size={20} aria-hidden="true" /></span>
         <div className="cx-grow"><h3>{t("恢复口令", "Recovery passphrase")}</h3>
-          <p className="cx-muted cx-small">{t("设备丢失或被盗时，用它移除那台设备并更换身份密钥。它不会保存在任何设备上，像账号密码一样只记在你心里。", "If a device is lost or stolen, use it to remove that device and replace the identity key. It is never stored on any device — keep it in your head, like an account password.")}</p></div></div>
+          <p className="cx-muted cx-small">{t("设备丢失或被盗时，用它移除那台设备并更换身份密钥；在一台设备上批准另一台设备的请求时，也要输入它。它不会保存在任何设备上，像账号密码一样只记在你心里。", "If a device is lost or stolen, use it to remove that device and replace the identity key; you also type it to approve one device’s request from another. It is never stored on any device — keep it in your head, like an account password.")}</p></div></div>
       {identity?.recovery ? <p className="cx-muted" style={{ marginTop: 12 }}>{identity.recovery_kind === "passphrase" ? t("已设置恢复口令。", "A recovery passphrase is set.") : t("已设置恢复码。", "A recovery code is set.")}</p>
         : <RecoveryCreator onCreated={setIdentity} />}
     </Card>
+    {identity?.recovery && <RecoveryRotator kind={identity.recovery_kind === "code" ? "code" : "passphrase"} onRotated={setIdentity} />}
     {identity?.recovery && <Card label={t("移除丢失的设备", "Remove a lost device")}>
       <div className="cx-card-head"><span className="cx-card-icon"><ShieldAlert size={20} aria-hidden="true" /></span>
         <div className="cx-grow"><h3>{t("移除丢失的设备", "Remove a lost device")}</h3>
@@ -46,6 +47,57 @@ export function IdentitySettings() {
     {done && <div className="cx-notice" role="status"><span>{done}</span></div>}
     {error && <Alert>{error}</Alert>}
   </div>;
+}
+function passphraseProblem(first: string, second: string, t: (zh: string, en: string) => string) {
+  const length = [...first.trim()].length, distinct = new Set(first.trim()).size;
+  return !first ? "" : length < 12 ? t("至少 12 个字符（可以是一句话）", "At least 12 characters (a sentence works)")
+    : distinct < 5 ? t("太简单了，换一些不同的字符", "Too simple; mix more characters")
+    : second && second.trim() !== first.trim() ? t("两次输入不一致", "The two entries differ") : "";
+}
+/** Replace the recovery passphrase or code, for example after typing it on a device you
+ * do not trust. The old one signs the hand-over, so your other devices follow it. */
+function RecoveryRotator({ kind, onRotated }: { kind: "passphrase" | "code"; onRotated: (identity: Identity) => void }) {
+  const { t, api } = useApp();
+  const [open, setOpen] = useState(false), [mode, setMode] = useState<"passphrase" | "code">("passphrase");
+  const [current, setCurrent] = useState(""), [first, setFirst] = useState(""), [second, setSecond] = useState("");
+  const [code, setCode] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState(""), [done, setDone] = useState(""), [copied, setCopied] = useState(false);
+  const problem = mode === "passphrase" ? passphraseProblem(first, second, t) : "";
+  const ready = current.trim() && (mode === "code" || (!problem && !!second));
+  async function rotate() {
+    setBusy(true); setError(""); setDone("");
+    try {
+      const value = await api.call<{ code: string | null; identity: Identity }>("POST", "/identity/recovery/rotate", mode === "passphrase" ? { current: current.trim(), passphrase: first.trim() } : { current: current.trim() });
+      setCurrent(""); setFirst(""); setSecond("");
+      if (value.code) setCode(value.code); else { onRotated(value.identity); setOpen(false); setDone(t("恢复口令已更换。", "The recovery passphrase was replaced.")); }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); } finally { setBusy(false); }
+  }
+  const old = kind === "code" ? t("当前恢复码", "Current recovery code") : t("当前恢复口令", "Current recovery passphrase");
+  return <Card label={t("更换恢复口令", "Replace recovery passphrase")}>
+    <div className="cx-card-head"><span className="cx-card-icon"><RotateCcw size={20} aria-hidden="true" /></span>
+      <div className="cx-grow"><h3>{t("更换恢复口令", "Replace recovery passphrase")}</h3>
+        <p className="cx-muted cx-small">{t("如果你在不放心的设备上输入过它，或怀疑被别人看到，就换一个。你的其他设备会自动改用新的；旧的立刻失效。身份码会随之改变。离线太久、错过两次更换的设备需要重新配对。", "Replace it if you typed it on a device you do not trust or think someone saw it. Your other devices switch to the new one automatically and the old one stops working at once. Your identity code changes too. A device that was offline through two replacements must be paired again.")}</p></div>
+      {!open && !code && <button className="cx-btn" onClick={() => setOpen(true)}>{t("更换", "Replace")}</button>}</div>
+    {code ? <div className="cx-stack" style={{ marginTop: 12 }}>
+      <Alert tone="warn">{t("这是新的恢复码，只显示这一次。请抄写或存进密码管理器，旧的已经失效。", "This is your new recovery code, shown only once. Write it down or keep it in a password manager; the old one no longer works.")}</Alert>
+      <code className="cx-identity-code">{code}</code>
+      <div className="cx-actions"><button className="cx-btn" onClick={() => void copyText(code).then(setCopied)}><Copy size={14} aria-hidden="true" />{copied ? t("已复制", "Copied") : t("复制", "Copy")}</button>
+        <button className="cx-btn primary" onClick={() => { setCode(""); setOpen(false); void api.call<Identity>("GET", "/identity").then(onRotated); }}>{t("我已保存", "I have saved it")}</button></div>
+    </div> : open && <form className="cx-stack" style={{ marginTop: 12 }} onSubmit={event => { event.preventDefault(); if (ready) void rotate(); }}>
+      <label className="cx-field">{old}<input type="password" autoComplete="off" spellCheck={false} value={current} onChange={event => setCurrent(event.target.value)} /></label>
+      <div className="cx-segment" role="group" aria-label={t("新的恢复方式", "New recovery method")}>
+        <button type="button" aria-pressed={mode === "passphrase"} onClick={() => setMode("passphrase")}>{t("自己设置口令", "Choose a passphrase")}</button>
+        <button type="button" aria-pressed={mode === "code"} onClick={() => setMode("code")}>{t("生成随机恢复码", "Generate a code")}</button></div>
+      {mode === "passphrase" ? <>
+        <label className="cx-field">{t("新的恢复口令", "New recovery passphrase")}<input type="password" autoComplete="new-password" value={first} onChange={event => setFirst(event.target.value)} /></label>
+        <label className="cx-field">{t("再输入一次", "Enter it again")}<input type="password" autoComplete="new-password" value={second} onChange={event => setSecond(event.target.value)} /></label>
+        <small className={problem ? "cx-error" : "cx-muted"}>{problem || t("用一句只有你知道的话，至少 12 个字符。", "Use a sentence only you know, at least 12 characters.")}</small>
+      </> : <small className="cx-muted">{t("新的恢复码只显示一次。", "The new code is shown once.")}</small>}
+      <div className="cx-actions"><button className="cx-btn primary" disabled={busy || !ready}>{busy ? t("正在更换…", "Replacing…") : t("更换", "Replace")}</button>
+        <button type="button" className="cx-btn ghost" onClick={() => { setOpen(false); setError(""); }}>{t("取消", "Cancel")}</button></div>
+    </form>}
+    {done && <p className="cx-muted" role="status">{done}</p>}
+    {error && <Alert>{error}</Alert>}
+  </Card>;
 }
 /** Set the identity's recovery key: a passphrase the owner chooses (default) or a
  * generated code shown once. */

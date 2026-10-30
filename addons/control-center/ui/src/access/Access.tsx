@@ -5,7 +5,8 @@ import { useTerminalDevices } from '../app/targets';
 import { Alert, capabilityName, Card, formatDeviceLabel, isThis, Pill } from '../app/ui';
 import type { Device } from '../personal/api';
 import { accessWaits, subscribeAccessWaits, type AccessWait } from './request';
-import { capabilities, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState } from './types';
+import { RemoteBanner } from './Remote';
+import { capabilities, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, jevPresets, jevRanges, type JevThresholds, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState } from './types';
 import './access.css';
 
 function ModeControl({ label, value, disabled, change }: { label: string; value?: Mode; disabled: boolean; change: (mode: Mode) => void }) {
@@ -49,7 +50,7 @@ export function DeviceAccess({ device }: { device: Device }) {
 
 const ownerOnly: Capability[] = ['update', 'llm', 'vault'];
 function until(at: number | null | undefined, t: (zh: string, en: string) => string) {
-  if (!at) return t('直到撤销', 'Until revoked');
+  if (!at) return t('直到撤销或本机重启', 'Until revoked or this device restarts');
   const date = new Date(at * 1000), today = new Date();
   const sameDay = date.toDateString() === today.toDateString();
   const text = sameDay ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : date.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -73,6 +74,7 @@ function Grants({ node }: { node: string }) {
   return <Card label={t('当前授权', 'Current approvals')}>
     <div className="cx-between"><h2>{t('当前授权', 'Current approvals')}</h2>{allowed && <button className="cx-btn small" onClick={() => setAdding(true)}>{t('按时间授权…', 'Grant for a while…')}</button>}</div>
     {!approvals.length && <p className="cx-muted">{t('没有临时授权。需要时对方会再次请求；你也可以按时间预先授权，期间不再逐条打扰你。', 'No temporary approvals. The device asks again when it needs one, or grant access for a while so it does not ask each time.')}</p>}
+    <p className="cx-muted cx-small">{t('临时授权只保存在内存里：本机重启后全部失效，对方需要时会重新请求批准。', 'Temporary approvals live in memory only: they all end when this device restarts, and the device asks again when it needs access.')}</p>
     {!!approvals.length && <ul className="cx-access-grants">{approvals.map(approval => {
       const using = sessions.some(session => session.basis === approval.id);
       return <li key={approval.id} className="cx-between">
@@ -109,7 +111,7 @@ function GrantDialog({ node, modes, close }: { node: string; modes: Modes; close
       </fieldset>
       <fieldset className="cx-access-choices"><legend>{t('多长时间', 'For how long')}</legend>
         <div className="cx-segment" role="group" aria-label={t('多长时间', 'For how long')}>{grantScopes.map(item => <button key={item} aria-pressed={scope === item} onClick={() => setScope(item)}>{scopeName(item, t)}</button>)}</div>
-        {scope === 'always' && <small className="cx-muted">{t('直到你在这里撤销为止。', 'Until you revoke it here.')}</small>}
+        <small className="cx-muted">{scope === 'always' ? t('直到你在这里撤销，或本机重启为止。', 'Until you revoke it here or this device restarts.') : t('本机重启后授权会提前结束，需要重新批准。', 'A restart of this device ends it early; approve again afterwards.')}</small>
       </fieldset>
       {error && <Alert>{error}</Alert>}
       <div className="cx-actions cx-approval-actions">
@@ -123,14 +125,14 @@ function GrantDialog({ node, modes, close }: { node: string; modes: Modes; close
 /** Which second opinion this device asks before a covered operation runs. */
 function AutoReview() {
   const { t, api } = useApp();
-  const [state, setState] = useState<ReviewState | null>(null), [draft, setDraft] = useState<{ backend: ReviewBackend; model: string; url: string; key: string } | null>(null);
+  const [state, setState] = useState<ReviewState | null>(null), [draft, setDraft] = useState<{ backend: ReviewBackend; model: string; url: string; key: string; jev: JevThresholds } | null>(null);
   const [models, setModels] = useState<string[]>([]), [busy, setBusy] = useState(''), [error, setError] = useState(''), [result, setResult] = useState<{ ok: boolean; review?: Review; error?: string } | null>(null), [saved, setSaved] = useState(false);
   useEffect(() => {
     api.call<ReviewState>('GET', '/access/review').then(setState).catch(problem => setError(problem instanceof Error ? problem.message : String(problem)));
     api.call<{ id: string; availability?: string }[]>('GET', '/models').then(list => setModels(Array.isArray(list) ? list.map(item => item.id).filter(Boolean) : [])).catch(() => setModels([]));
   }, [api]);
   if (!state) return error ? <Card label={t('自动审核', 'Automatic review')}><h2>{t('自动审核', 'Automatic review')}</h2><Alert>{error}</Alert></Card> : null;
-  const current = draft || { backend: state.settings.backend, model: state.settings.model || '', url: state.settings.url || '', key: '' };
+  const current = draft || { backend: state.settings.backend, model: state.settings.model || '', url: state.settings.url || '', key: '', jev: state.settings.jev || jevPresets.standard };
   const edit = (change: Partial<typeof current>) => { setDraft({ ...current, ...change }); setSaved(false); setResult(null); };
   const options: [ReviewBackend, string, string][] = [
     ['rules', t('仅内置规则', 'Built-in rules only'), t('不请模型判断。危险操作每次确认，其余按你的授权放行。', 'No model. Dangerous operations always ask; the rest follow your approvals.')],
@@ -140,7 +142,8 @@ function AutoReview() {
   ];
   async function save() {
     setBusy('save'); setError('');
-    const settings = { backend: current.backend, model: current.backend === 'model' ? current.model || null : current.backend === 'jev' && current.model ? current.model : null, url: current.backend === 'http' || current.backend === 'jev' ? current.url.trim() || null : null };
+    const standard = (Object.keys(jevPresets.standard) as (keyof JevThresholds)[]).every(key => current.jev[key] === jevPresets.standard[key]);
+    const settings = { backend: current.backend, model: current.backend === 'model' ? current.model || null : current.backend === 'jev' && current.model ? current.model : null, url: current.backend === 'http' || current.backend === 'jev' ? current.url.trim() || null : null, jev: standard ? null : current.jev };
     try { setState(await api.call<ReviewState>('PUT', '/access/review', { settings, ...(current.key ? { key: current.key } : {}) })); setDraft(null); setSaved(true); }
     catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
     finally { setBusy(''); }
@@ -158,10 +161,39 @@ function AutoReview() {
     {current.backend === 'model' && <label className="cx-field">{t('模型', 'Model')}{models.length ? <select value={current.model} onChange={event => edit({ model: event.target.value })}><option value="">{t('请选择', 'Choose')}</option>{models.map(id => <option key={id} value={id}>{id}</option>)}</select> : <input value={current.model} placeholder="provider/model" onChange={event => edit({ model: event.target.value })} />}{!models.length && <small className="cx-muted">{t('本机还没有可用的模型，请先在「模型」里添加。', 'No models on this device yet; add one under Models first.')}</small>}</label>}
     {(current.backend === 'http' || current.backend === 'jev') && <label className="cx-field">{current.backend === 'jev' ? t('服务地址（可选）', 'Service address (optional)') : t('服务地址', 'Service address')}<input value={current.url} placeholder={current.backend === 'jev' ? 'https://api.typesafe.ai' : 'https://decide.example.com/v1/decide'} onChange={event => edit({ url: event.target.value })} /></label>}
     {(current.backend === 'jev' || current.backend === 'http') && <label className="cx-field">{current.backend === 'jev' ? t('Jev API 密钥', 'Jev API key') : t('访问密钥（可选）', 'Access key (optional)')}<input type="password" autoComplete="off" value={current.key} placeholder={state.has_key ? t('已保存，留空则不变', 'Saved; leave empty to keep') : ''} onChange={event => edit({ key: event.target.value })} /></label>}
+    {current.backend === 'jev' && <JevScale value={current.jev} change={jev => edit({ jev })} />}
     {error && <Alert>{error}</Alert>}
     {result && (result.ok && result.review ? <Alert tone="info">{t('测试成功：', 'Test passed: ')}{verdictName(result.review.verdict, t)} · {result.review.reason} · {result.review.latency_ms ?? 0} ms</Alert> : <Alert>{t('测试失败：', 'Test failed: ')}{result.error}</Alert>)}
-    <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || !!busy} onClick={() => void save()}>{busy === 'save' ? t('保存中…', 'Saving…') : t('保存审核方式', 'Save review method')}</button>{state.settings.backend !== 'rules' && !draft && <button className="cx-btn" disabled={!!busy} onClick={() => void check()}>{busy === 'test' ? t('测试中…', 'Testing…') : t('测试', 'Test')}</button>}{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
+    <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || !!busy || current.backend === 'jev' && jevBad(current.jev)} onClick={() => void save()}>{busy === 'save' ? t('保存中…', 'Saving…') : t('保存审核方式', 'Save review method')}</button>{state.settings.backend !== 'rules' && !draft && <button className="cx-btn" disabled={!!busy} onClick={() => void check()}>{busy === 'test' ? t('测试中…', 'Testing…') : t('测试', 'Test')}</button>}{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
   </Card>;
+}
+
+const jevFields: [keyof JevThresholds, string, string][] = [
+  ['ask_score', '风险分达到多少时请你确认（0–3）', 'Ask you from this risk score (0–3)'],
+  ['deny_score', '风险分达到多少时直接拒绝（0–3）', 'Refuse from this risk score (0–3)'],
+  ['injection', '像是被注入恶意指令的可能性达到多少时拒绝', 'Refuse when injected instructions are this likely'],
+  ['exfiltration', '可能把数据发到外面的可能性达到多少时请你确认', 'Ask when sending data out is this likely'],
+  ['out_of_scope', '可能改动项目以外内容的可能性达到多少时请你确认', 'Ask when changes outside the project are this likely'],
+  ['min_confidence', 'Jev 把握低于多少时请你确认', 'Ask when Jev is less sure than this'],
+];
+const jevBad = (value: JevThresholds) => value.ask_score > value.deny_score || jevFields.some(([key]) => Number.isNaN(value[key]) || value[key] < jevRanges[key][0] || value[key] > jevRanges[key][1]);
+/** How strict Jev's answers are read: three presets and, for experts, the numbers. */
+function JevScale({ value, change }: { value: JevThresholds; change: (value: JevThresholds) => void }) {
+  const { t } = useApp();
+  const same = (preset: JevThresholds) => jevFields.every(([key]) => value[key] === preset[key]);
+  const preset = (Object.keys(jevPresets) as (keyof typeof jevPresets)[]).find(name => same(jevPresets[name]));
+  const names = { relaxed: t('宽松', 'Relaxed'), standard: t('标准', 'Standard'), strict: t('严格', 'Strict') };
+  const hints = { relaxed: t('少打扰你，只拦明显有问题的操作。', 'Fewer questions; only clear problems are stopped.'), standard: t('推荐。可疑的请你确认，明显危险的直接拒绝。', 'Recommended. Suspicious ones ask you, clearly dangerous ones are refused.'), strict: t('更多操作会请你确认，适合放着重要资料的设备。', 'More operations ask you; for devices with important data.') };
+  const invalid = value.ask_score > value.deny_score ? t('「请你确认」的风险分不能高于「直接拒绝」的。', 'The ask score cannot be above the refuse score.') : jevFields.some(([key]) => value[key] < jevRanges[key][0] || value[key] > jevRanges[key][1] || Number.isNaN(value[key])) ? t('有数值超出允许范围。', 'A value is outside its allowed range.') : '';
+  return <fieldset className="cx-access-choices"><legend>{t('判断尺度', 'How strict')}</legend>
+    <div className="cx-segment" role="group" aria-label={t('判断尺度', 'How strict')}>{(Object.keys(jevPresets) as (keyof typeof jevPresets)[]).map(name => <button type="button" key={name} aria-pressed={preset === name} onClick={() => change(jevPresets[name])}>{names[name]}</button>)}</div>
+    <small className="cx-muted">{preset ? hints[preset] : t('自定义尺度。', 'Custom values.')} {t('内置安全规则始终优先：危险操作无论选哪档都会请你确认。', 'Built-in safety rules always come first: dangerous operations ask you whatever you choose.')}</small>
+    <details><summary>{t('高级：调整具体数值', 'Advanced: adjust the numbers')}</summary>
+      <div className="cx-access-jev">{jevFields.map(([key, zh, en]) => { const [min, max, step] = jevRanges[key]; return <label key={key} className="cx-field">{t(zh, en)}<input type="number" min={min} max={max} step={step} value={value[key]} onChange={event => change({ ...value, [key]: Number(event.target.value) })} /><small className="cx-muted">{t('范围 ', 'Range ') + min + '–' + max + t('，标准 ', ', standard ') + jevPresets.standard[key]}</small></label>; })}</div>
+      <div className="cx-actions"><button type="button" className="cx-btn small" disabled={preset === 'standard'} onClick={() => change(jevPresets.standard)}>{t('恢复默认', 'Reset to default')}</button></div>
+    </details>
+    {invalid && <Alert>{invalid}</Alert>}
+  </fieldset>;
 }
 
 export function AccessLog({ initialNode = '' }: { initialNode?: string }) {
@@ -214,8 +246,15 @@ function outcomeName(entry: AuditEntry, t: (zh: string, en: string) => string) {
   if (entry.operation?.kind === 'exec.finished') return entry.result === 'ok' ? t('成功结束', 'Succeeded') : entry.detail?.outcome === 'timed_out' ? t('超时', 'Timed out') : entry.detail?.outcome === 'cancelled' ? t('已停止', 'Stopped') : t('失败', 'Failed') + (entry.detail?.exit_code != null ? t('（退出码 ' + entry.detail.exit_code + '）', ' (exit ' + entry.detail.exit_code + ')') : '');
   return entry.result === 'ok' ? t('已完成', 'Done') : entry.result === 'refused' ? t('被阻止', 'Blocked') : entry.result === 'rate_limited' ? t('过于频繁', 'Too frequent') : t('失败', 'Failed');
 }
+function remoteName(entry: AuditEntry, t: (zh: string, en: string) => string) {
+  const remote = entry.remote;
+  if (!remote) return '';
+  const device = remote.device_name || remote.device.slice(0, 13);
+  return entry.event === 'remote_decision' ? t('在本机替「' + device + '」决定', 'Decided here for ' + device) : t('在「' + device + '」上用恢复口令批准', 'Approved on ' + device + ' with the recovery passphrase');
+}
 function basisName(entry: AuditEntry, t: (zh: string, en: string) => string) {
   if (!entry.basis) return '';
+  if (entry.remote && entry.event !== 'remote_decision') return remoteName(entry, t);
   if (entry.basis === 'allow') return t('「允许」模式', 'Allow mode');
   return t('经你批准', 'You approved');
 }
@@ -233,12 +272,13 @@ function LogEntry({ entry, who, open }: { entry: AuditEntry; who: string; open: 
     </li>;
   }
   const revoked = entry.event === 'denied' && entry.result === 'revoked';
-  const reason = entry.event === 'refused' ? refusalReason(entry.result, t) : '';
+  const reason = entry.event === 'refused' ? refusalReason(entry.result, t) : entry.event === 'remote_decision' ? remoteResult(entry.result, t) : '';
   const grant = entry.event === 'approved' && entry.result.includes(':') ? scopeName(entry.result.split(':')[1], t) : '';
   return <li>
     <div className="cx-between"><span><strong>{who}</strong> · {entry.capability ? capabilityName(entry.capability, t) : revoked ? t('收回授权', 'Withdrew an approval') : entry.event === 'policy_changed' && entry.basis === 'review' ? t('自动审核', 'Automatic review') : '—'}{operation && <> · {operationName(operation.kind, t)}</>}</span>{details}</div>
     {operation?.summary && <code className="cx-access-op">{operation.summary}</code>}
-    <div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={revoked ? '' : entry.result === 'allow' || entry.event === 'approved' ? 'good' : entry.result === 'deny' || entry.event === 'denied' || entry.event === 'refused' ? 'bad' : ''}>{revoked ? t('已撤销', 'Revoked') : eventName(entry.event, t)}</Pill>{grant && <> {grant}</>}{entry.review && entry.event === 'request_created' && <> <Pill tone={verdictTone(entry.review.verdict)}>{entry.review.fallback ? t('审核不可用', 'Review unavailable') : verdictName(entry.review.verdict, t)}</Pill></>}{reason && <> {reason}</>} · {time}</div>
+    {entry.remote && entry.event !== 'refused' && <small className="cx-muted">{remoteName(entry, t)}</small>}
+    <div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={revoked ? '' : entry.result === 'allow' || entry.event === 'approved' || entry.event === 'remote_decision' && entry.result.startsWith('approved') ? 'good' : entry.result === 'deny' || entry.event === 'denied' || entry.event === 'refused' ? 'bad' : ''}>{revoked ? t('已撤销', 'Revoked') : eventName(entry.event, t)}</Pill>{grant && <> {grant}</>}{entry.review && entry.event === 'request_created' && <> <Pill tone={verdictTone(entry.review.verdict)}>{entry.review.fallback ? t('审核不可用', 'Review unavailable') : verdictName(entry.review.verdict, t)}</Pill></>}{reason && <> {reason}</>} · {time}</div>
     <small className="cx-muted cx-sr">#{entry.index} · {entry.result}{entry.basis && ' · ' + entry.basis}</small>
   </li>;
 }
@@ -293,6 +333,11 @@ function EntryDetail({ entry, who, close }: { entry: AuditEntry; who: string; cl
         <div className="cx-access-row"><dt>{t('结果', 'Result')}</dt><dd>{entry.event === 'operation' ? outcomeName(entry, t) : eventName(entry.event, t)}{entry.status ? ' · HTTP ' + entry.status : ''}</dd></div>
         {entry.basis && <div className="cx-access-row"><dt>{t('放行依据', 'Allowed by')}</dt><dd>{basisName(entry, t)}{entry.basis !== 'allow' && <small className="cx-muted cx-mono"> {entry.basis}</small>}</dd></div>}
         {entry.detail && <DetailRows detail={entry.detail} />}
+        {entry.remote && <>
+          <div className="cx-access-row"><dt>{entry.event === 'remote_decision' ? t('目标设备', 'Target device') : t('审批设备', 'Approving device')}</dt><dd>{entry.remote.device_name || entry.remote.device}<small className="cx-muted cx-mono"> {entry.remote.device}</small></dd></div>
+          <div className="cx-access-row"><dt>{t('验证方式', 'Verified with')}</dt><dd>{entry.remote.auth === 'recovery_code' ? t('恢复码', 'Recovery code') : entry.remote.auth === 'recovery_passphrase' ? t('恢复口令', 'Recovery passphrase') : entry.remote.auth}</dd></div>
+          {entry.remote.assertion && <div className="cx-access-row"><dt>{t('批准凭证编号', 'Assertion')}</dt><dd className="cx-mono">{entry.remote.assertion}</dd></div>}
+        </>}
         {entry.transport && <div className="cx-access-row"><dt>{t('通道', 'Channel')}</dt><dd>{entry.transport === 'e2e' ? t('端到端加密', 'End-to-end encrypted') : entry.transport === 'job' ? t('本机记录', 'Recorded here') : t('旧版令牌', 'Legacy token')}</dd></div>}
         <div className="cx-access-row"><dt>{t('记录编号', 'Entry')}</dt><dd className="cx-mono">#{entry.index}{entry.prev && <small className="cx-muted"> · {t('上一条哈希 ', 'prev ') + entry.prev.slice(0, 12)}…</small>}</dd></div>
       </dl>
@@ -300,11 +345,17 @@ function EntryDetail({ entry, who, close }: { entry: AuditEntry; who: string; cl
     </div>
   </dialog>;
 }
+function remoteResult(result: string, t: (zh: string, en: string) => string) {
+  if (result.startsWith('approved')) return t('已批准', 'approved') + (result.includes(':') ? ' · ' + scopeName(result.split(':')[1], t) : '');
+  if (result === 'denied') return t('已拒绝', 'denied');
+  return t('未通过：', 'not accepted: ') + refusalReason('remote:' + result.replace(/^rejected:/, ''), t);
+}
 function refusalReason(result: string, t: (zh: string, en: string) => string) {
+  if (result.startsWith('remote:')) return ({ 'remote:wrong_code': t('其他设备批准时恢复口令不正确', 'wrong recovery passphrase in a remote approval'), 'remote:locked': t('输错太多，其他设备的批准已暂停', 'remote approval locked after wrong attempts'), 'remote:replayed': t('重复使用的批准凭证', 'a reused approval'), 'remote:expired': t('批准凭证已过期', 'an expired approval'), 'remote:operation_mismatch': t('批准的内容与请求不符', 'the approval does not match the request'), 'remote:not_owner': t('不是你的设备', 'not one of your devices'), 'remote:once_only': t('高风险操作只能允许一次', 'high-risk operations can only be allowed once'), 'remote:not_a_code': t('输入的不是有效的恢复码', 'not a valid recovery code'), 'remote:request_unavailable': t('请求已被处理或已过期', 'the request was already decided or expired'), 'remote:disabled': t('那台设备不接受其他设备的批准', 'that device does not accept remote approval'), 'remote:unreachable': t('连不上那台设备', 'that device was unreachable') } as Record<string, string>)[result] || t('其他设备的批准未通过校验', 'a remote approval failed verification');
   return ({ approval_pending: t('已有请求在等你批准', 'a request is already waiting for you'), cooldown: t('刚被拒绝，稍后才能再请求', 'recently denied, cooling down'), off: t('此能力已关闭', 'this capability is off') } as Record<string, string>)[result] || '';
 }
 function eventName(event: string, t: (zh: string, en: string) => string) {
-  return ({ session_started: t('开始使用', 'Session started'), session_ended: t('结束使用', 'Session ended'), request_created: t('请求批准', 'Approval requested'), approved: t('已批准', 'Approved'), denied: t('已拒绝', 'Denied'), expired: t('已过期', 'Expired'), policy_changed: t('访问设置已更改', 'Policy changed'), refused: t('访问被阻止', 'Access refused'), emergency_disconnect: t('全部断开', 'Disconnected'), checkpoint: t('归档校验点', 'Archive checkpoint'), operation: t('远程操作', 'Remote operation') } as Record<string, string>)[event] || event;
+  return ({ session_started: t('开始使用', 'Session started'), session_ended: t('结束使用', 'Session ended'), request_created: t('请求批准', 'Approval requested'), approved: t('已批准', 'Approved'), denied: t('已拒绝', 'Denied'), expired: t('已过期', 'Expired'), policy_changed: t('访问设置已更改', 'Policy changed'), refused: t('访问被阻止', 'Access refused'), emergency_disconnect: t('全部断开', 'Disconnected'), checkpoint: t('归档校验点', 'Archive checkpoint'), operation: t('远程操作', 'Remote operation'), remote_decision: t('替其他设备审批', 'Decided for another device') } as Record<string, string>)[event] || event;
 }
 
 export function RequesterStatus({ target, session }: { target?: string; session?: string }) {
@@ -346,6 +397,7 @@ export function AccessSurfaces() {
     {!!sessions.size && <div className="cx-access-banner" role="status"><span>{[...sessions].map(([node, items]) => t(displayName(node) + ' 正在使用 ', displayName(node) + ' is using ') + [...new Set(items.map(item => capabilityName(item.capability, t)))].join(' · ')).join('；')}</span><div className="cx-actions"><button className="cx-btn small danger" disabled={busy} onClick={async () => { setBusy(true); try { await api.call('POST', '/access/revoke', {}); await refresh(); } catch (problem) { setError(String(problem)); } finally { setBusy(false); } }}>{t('全部断开', 'Disconnect all')}</button><Link className="cx-btn small" to="/app/access-log">{t('操作记录', 'Operation log')}</Link></div></div>}
     {error && !pending.length && <Alert>{error}</Alert>}
     <RequesterStatus />
+    <RemoteBanner />
     {pending[0] && <ApprovalDialog key={pending[0].id} request={pending[0]} name={displayName(pending[0].from) || pending[0].name} left={Math.max(0, Math.ceil(pending[0].expires_at - now / 1000))} busy={busy} error={error} decide={scope => void decide(pending[0], scope)} others={pending.slice(1)} decideAll={scope => void decideAll(scope)} />}
   </div>;
 }

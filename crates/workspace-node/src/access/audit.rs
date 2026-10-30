@@ -33,6 +33,7 @@ fn checkpoint(index: u64, at: u64, prev: String) -> AuditEvent {
         transport: None,
         detail: None,
         review: None,
+        remote: None,
     }
 }
 /// One segment, verified on its own: entries, first broken index, and the hash of its

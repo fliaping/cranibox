@@ -9,7 +9,8 @@
 //! follow the built-in rules.
 use super::*;
 use cranibox_contracts::access::{
-    DecisionRequest, DecisionResponse, Review, ReviewBackend, ReviewSettings, Verdict,
+    DecisionRequest, DecisionResponse, JevThresholds, Review, ReviewBackend, ReviewSettings,
+    Verdict,
 };
 use serde_json::{Value, json};
 use std::{
@@ -96,6 +97,16 @@ impl Store {
                 "invalid model"
             );
         }
+        if let Some(problem) = settings.jev.as_ref().and_then(JevThresholds::invalid) {
+            anyhow::bail!("invalid Jev thresholds: {problem}");
+        }
+        let mut settings = settings;
+        // The standard set is stored as no override, so a later change of the
+        // defaults reaches it.
+        if settings.jev == Some(JevThresholds::STANDARD) {
+            settings.jev = None;
+        }
+        let before = self.review_settings().jev.unwrap_or_default();
         let _lock = config::lock_credentials(&self.path()).context("lock access policy")?;
         config::write_private(&self.review_path(), &serde_json::to_vec(&settings)?, true)?;
         match key {
@@ -120,7 +131,24 @@ impl Store {
             Some("review"),
             backend.as_str().unwrap_or("rules"),
             now(),
-        )
+        )?;
+        let after = settings.jev.unwrap_or_default();
+        if after != before {
+            let [deny, ask, injection, exfiltration, out_of_scope, confidence] = after.values();
+            self.event(
+                EventKind::PolicyChanged,
+                None,
+                None,
+                None,
+                Some("review_thresholds"),
+                &format!(
+                    "{}: deny_score={deny} ask_score={ask} injection={injection} exfiltration={exfiltration} out_of_scope={out_of_scope} min_confidence={confidence}",
+                    after.preset()
+                ),
+                now(),
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -164,6 +192,7 @@ pub fn reviewer(
             url: settings.url.clone().unwrap_or_else(|| JEV_URL.into()),
             model: settings.model.clone().unwrap_or_else(|| JEV_MODEL.into()),
             key: key.context("no Jev API key")?,
+            thresholds: settings.jev.unwrap_or_default(),
         })),
         ReviewBackend::Http => Some(Box::new(HttpReviewer {
             url: settings
@@ -311,6 +340,7 @@ pub struct JevReviewer {
     pub url: String,
     pub model: String,
     pub key: String,
+    pub thresholds: JevThresholds,
 }
 pub fn jev_body(model: &str, request: &DecisionRequest) -> Value {
     json!({
@@ -342,7 +372,8 @@ pub fn jev_body(model: &str, request: &DecisionRequest) -> Value {
         },
     })
 }
-pub fn jev_answer(reply: &Value, model: &str) -> Result<DecisionResponse> {
+/// Jev's answers combined into a verdict with the owner's thresholds.
+pub fn jev_answer(reply: &Value, model: &str, limits: &JevThresholds) -> Result<DecisionResponse> {
     let answers = &reply["answers"];
     let score = answers["risk"]["score"]
         .as_f64()
@@ -358,24 +389,24 @@ pub fn jev_answer(reply: &Value, model: &str) -> Result<DecisionResponse> {
     let exfiltration = noul("exfiltration").unwrap_or(0.0);
     let out_of_scope = noul("out_of_scope").unwrap_or(0.0);
     let mut labels = vec![];
-    if injection >= 0.7 {
+    if injection >= limits.injection {
         labels.push("injection".to_owned());
     }
-    if exfiltration >= 0.6 {
+    if exfiltration >= limits.exfiltration {
         labels.push("exfiltration".to_owned());
     }
-    if out_of_scope >= 0.75 {
+    if out_of_scope >= limits.out_of_scope {
         labels.push("out_of_scope".to_owned());
     }
-    if score >= 2.5 {
+    if score >= limits.deny_score {
         labels.push("destructive".to_owned());
     }
-    let verdict = if injection >= 0.7 || score >= 2.5 {
+    let verdict = if injection >= limits.injection || score >= limits.deny_score {
         Verdict::Deny
-    } else if score >= 1.5
-        || exfiltration >= 0.6
-        || out_of_scope >= 0.75
-        || (confidence < 0.4 && score >= 1.0)
+    } else if score >= limits.ask_score
+        || exfiltration >= limits.exfiltration
+        || out_of_scope >= limits.out_of_scope
+        || (confidence < limits.min_confidence && score >= 1.0)
     {
         Verdict::Ask
     } else {
@@ -412,7 +443,7 @@ impl Reviewer for JevReviewer {
             1 << 20,
         )
         .await?;
-        jev_answer(&reply, &self.model)
+        jev_answer(&reply, &self.model, &self.thresholds)
     }
 }
 
@@ -690,7 +721,11 @@ mod tests {
                 "out_of_scope":{"type":"noul","noul":0.1},
             }})
         };
-        let verdict = |r: Value| jev_answer(&r, JEV_MODEL).unwrap().verdict;
+        let verdict = |r: Value| {
+            jev_answer(&r, JEV_MODEL, &JevThresholds::STANDARD)
+                .unwrap()
+                .verdict
+        };
         assert_eq!(verdict(reply(0.3, 0.9, 0.0, 0.0)), Verdict::Allow);
         assert_eq!(verdict(reply(1.7, 0.9, 0.0, 0.0)), Verdict::Ask);
         assert_eq!(verdict(reply(1.1, 0.2, 0.0, 0.0)), Verdict::Ask, "unsure");
@@ -701,11 +736,55 @@ mod tests {
             Verdict::Deny,
             "injection"
         );
-        let answer = jev_answer(&reply(1.5, 0.9, 0.0, 0.0), JEV_MODEL).unwrap();
+        let answer = jev_answer(
+            &reply(1.5, 0.9, 0.0, 0.0),
+            JEV_MODEL,
+            &JevThresholds::STANDARD,
+        )
+        .unwrap();
         assert!((answer.risk_score - 0.5).abs() < 1e-9);
         assert_eq!(answer.model.as_deref(), Some("jev-1"));
-        assert!(jev_answer(&json!({"answers":{}}), JEV_MODEL).is_err());
-        assert!(jev_answer(&reply(9.0, 0.9, 0.0, 0.0), JEV_MODEL).is_err());
+        assert!(jev_answer(&json!({"answers":{}}), JEV_MODEL, &JevThresholds::STANDARD).is_err());
+        assert!(
+            jev_answer(
+                &reply(9.0, 0.9, 0.0, 0.0),
+                JEV_MODEL,
+                &JevThresholds::STANDARD
+            )
+            .is_err()
+        );
+        // The owner's thresholds move the boundaries; the standard set is the default.
+        let strict = |r: Value| {
+            jev_answer(&r, JEV_MODEL, &JevThresholds::STRICT)
+                .unwrap()
+                .verdict
+        };
+        let relaxed = |r: Value| {
+            jev_answer(&r, JEV_MODEL, &JevThresholds::RELAXED)
+                .unwrap()
+                .verdict
+        };
+        assert_eq!(strict(reply(1.2, 0.9, 0.0, 0.0)), Verdict::Ask);
+        assert_eq!(verdict(reply(1.2, 0.9, 0.0, 0.0)), Verdict::Allow);
+        assert_eq!(strict(reply(2.3, 0.9, 0.0, 0.0)), Verdict::Deny);
+        assert_eq!(relaxed(reply(1.7, 0.9, 0.0, 0.0)), Verdict::Allow);
+        assert_eq!(relaxed(reply(0.2, 0.9, 0.75, 0.0)), Verdict::Allow);
+        assert_eq!(verdict(reply(0.2, 0.9, 0.75, 0.0)), Verdict::Deny);
+        assert_eq!(JevThresholds::default(), JevThresholds::STANDARD);
+        assert!(JevThresholds::STANDARD.invalid().is_none());
+        assert!(JevThresholds::RELAXED.invalid().is_none());
+        assert!(JevThresholds::STRICT.invalid().is_none());
+        let off = JevThresholds {
+            deny_score: 9.0,
+            ..JevThresholds::STANDARD
+        };
+        assert!(off.invalid().is_some());
+        let inverted = JevThresholds {
+            ask_score: 2.8,
+            deny_score: 2.0,
+            ..JevThresholds::STANDARD
+        };
+        assert!(inverted.invalid().is_some());
         let body = jev_body(JEV_MODEL, &request("ls"));
         assert_eq!(
             body["questions"]["risk"]["criteria"]

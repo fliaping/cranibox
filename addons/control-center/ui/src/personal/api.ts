@@ -143,6 +143,7 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly code = "",
+    readonly body: Record<string, unknown> | null = null,
   ) {
     super(message);
   }
@@ -182,6 +183,7 @@ export function httpApi(csrf: string): Api {
           value?.message || value?.error || value?.code || "Request failed (" + response.status + ")",
           response.status,
           typeof value?.code === "string" ? value.code : typeof value?.error === "string" ? value.error : "",
+          value && typeof value === "object" ? value : null,
         );
       return value as T;
     },
