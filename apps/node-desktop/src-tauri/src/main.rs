@@ -534,16 +534,23 @@ fn main() -> anyhow::Result<()> {
             let url = tauri::async_runtime::block_on(async {
                 let root = cranibox_node::update::runtime_root(path.parent().unwrap_or(&path));
                 // Remote updates are on by default: the first start makes this program the first
-                // managed version. If that fails the app keeps running unmanaged as before.
+                // managed version, and a newly installed newer app replaces an older managed
+                // runtime (pending, so it rolls back if it does not start). If adoption fails
+                // the app keeps running unmanaged as before; a managed device keeps its runtime.
                 let adopted = match managed::adopted(&root).map(|adopted| {
-                    if adopted || std::env::var_os("CRANIBOX_NO_MANAGED").is_some() {
+                    if std::env::var_os("CRANIBOX_NO_MANAGED").is_some() {
                         return adopted;
                     }
-                    match cranibox_node::update::cli::adopt(&root) {
-                        Ok(_) => true,
+                    match cranibox_node::update::cli::adopt_or_upgrade(&root) {
+                        Ok(startup) => {
+                            if let cranibox_node::update::cli::Startup::Activated(version) = startup {
+                                eprintln!("Starting the runtime of this app: {version}");
+                            }
+                            true
+                        }
                         Err(error) => {
                             eprintln!("Remote updates are not available on this device: {error:#}");
-                            false
+                            adopted
                         }
                     }
                 }) {

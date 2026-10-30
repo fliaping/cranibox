@@ -290,19 +290,65 @@ pub fn adopt(root: &Path) -> Result<String> {
     );
     let version = Version::parse(&super::product_version())
         .context("this program's version is not a release version")?;
-    let exe = std::env::current_exe()?;
-    let staging = layout.begin_stage(&version)?;
-    let target = staging.join(npm::executable_relative_path());
-    let copy = std::fs::create_dir_all(target.parent().context("no parent")?)
-        .and_then(|()| std::fs::copy(&exe, &target).map(drop));
-    if let Err(error) = copy {
-        layout.abort_stage(&version);
-        return Err(error).context("copy the program into the managed versions");
-    }
-    layout.commit_stage(&version)?;
+    install(&layout, &version, &std::env::current_exe()?)?;
     layout.activate_forced(&version)?;
     layout.confirm(&version)?;
     Ok(version.to_string())
+}
+
+/// Copy a program into the managed versions as `version`.
+fn install(layout: &Layout, version: &Version, exe: &Path) -> Result<()> {
+    let staging = layout.begin_stage(version)?;
+    let target = staging.join(npm::executable_relative_path());
+    let copy = std::fs::create_dir_all(target.parent().context("no parent")?)
+        .and_then(|()| std::fs::copy(exe, &target).map(drop));
+    if let Err(error) = copy {
+        layout.abort_stage(version);
+        return Err(error).context("copy the program into the managed versions");
+    }
+    layout.commit_stage(version)?;
+    Ok(())
+}
+
+/// What starting this program did to the managed runtimes.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Startup {
+    /// The first managed version: this program.
+    Adopted(String),
+    /// This program is newer than the managed runtime and runs next, pending confirmation.
+    Activated(String),
+    /// The managed runtime stays: it is this version or newer, or this version was
+    /// installed here before (and failed, or the owner went back from it).
+    Kept,
+}
+
+/// On every start: a newly installed app or package replaces an older managed runtime,
+/// instead of the device running the version it had before. Never downgrades, and a version
+/// installed here before is left alone: it failed, or the owner rolled back from it. The new
+/// version starts pending: if it does not confirm, the launcher rolls back to the one it replaced.
+pub fn adopt_or_upgrade(root: &Path) -> Result<Startup> {
+    let version = Version::parse(&super::product_version())
+        .context("this program's version is not a release version")?;
+    upgrade_to(root, &version, &std::env::current_exe()?)
+}
+
+fn upgrade_to(root: &Path, version: &Version, exe: &Path) -> Result<Startup> {
+    let layout = Layout::new(root);
+    let Some(pointer) = layout.pointer()? else {
+        install(&layout, version, exe)?;
+        layout.activate_forced(version)?;
+        layout.confirm(version)?;
+        return Ok(Startup::Adopted(version.to_string()));
+    };
+    let current = Version::parse(&pointer.current).context("current runtime version")?;
+    let name = version.to_string();
+    if *version <= current || pointer.failed.contains(&name) || layout.version_dir(version).exists()
+    {
+        return Ok(Startup::Kept);
+    }
+    install(&layout, version, exe)?;
+    layout.activate(version)?;
+    Ok(Startup::Activated(name))
 }
 
 /// Run the managed runtime in the foreground until a stop signal; returns the exit code.
@@ -355,13 +401,140 @@ pub async fn auto_launch(args: &[String]) -> Result<Option<i32>> {
     let config = config.unwrap_or_else(crate::settings::default_path);
     let peers = crate::peer::config::path_for(&config);
     let root = super::runtime_root(peers.parent().unwrap_or(&peers));
-    if Layout::new(&root).pointer()?.is_none()
-        && let Err(error) = adopt(&root)
-    {
-        eprintln!("Remote updates are not available on this device: {error:#}");
-        return Ok(None);
+    match adopt_or_upgrade(&root) {
+        Ok(Startup::Activated(version)) => eprintln!("Starting the newly installed {version}"),
+        Ok(_) => {}
+        // A device already managed keeps its runtime; otherwise run unmanaged as before.
+        Err(error) if Layout::new(&root).pointer()?.is_some() => {
+            eprintln!("Keeping the managed runtime: {error:#}")
+        }
+        Err(error) => {
+            eprintln!("Remote updates are not available on this device: {error:#}");
+            return Ok(None);
+        }
     }
     let runtime_args = args.iter().skip(1).map(Into::into).collect();
     super::start_terminal_host(peers.parent().unwrap_or(&peers)).await;
     Ok(Some(launch_foreground(&root, runtime_args).await?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::update::layout::PointerState;
+
+    fn version(v: &str) -> Version {
+        Version::parse(v).unwrap()
+    }
+    fn program(dir: &Path, body: &str) -> PathBuf {
+        let exe = dir.join(format!("program-{body}"));
+        std::fs::write(&exe, body).unwrap();
+        exe
+    }
+    fn installed(root: &Path, v: &str) -> String {
+        std::fs::read_to_string(
+            Layout::new(root)
+                .version_dir(&version(v))
+                .join(npm::executable_relative_path()),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn first_start_adopts_this_program() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("runtime");
+        let exe = program(dir.path(), "302");
+        let outcome = upgrade_to(&root, &version("1.1.1-dev.302"), &exe).unwrap();
+        assert_eq!(outcome, Startup::Adopted("1.1.1-dev.302".into()));
+        let pointer = Layout::new(&root).pointer().unwrap().unwrap();
+        assert_eq!(pointer.current, "1.1.1-dev.302");
+        assert_eq!(pointer.state, PointerState::Confirmed);
+        assert_eq!(installed(&root, "1.1.1-dev.302"), "302");
+    }
+
+    #[test]
+    fn a_newer_installed_app_replaces_the_older_managed_runtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("runtime");
+        upgrade_to(
+            &root,
+            &version("1.1.1-dev.292"),
+            &program(dir.path(), "292"),
+        )
+        .unwrap();
+        let outcome = upgrade_to(
+            &root,
+            &version("1.1.1-dev.302"),
+            &program(dir.path(), "302"),
+        )
+        .unwrap();
+        assert_eq!(outcome, Startup::Activated("1.1.1-dev.302".into()));
+        let layout = Layout::new(&root);
+        let pointer = layout.pointer().unwrap().unwrap();
+        assert_eq!(pointer.current, "1.1.1-dev.302");
+        assert_eq!(pointer.previous.as_deref(), Some("1.1.1-dev.292"));
+        // Pending: the launcher confirms it or rolls back to the runtime it replaced.
+        assert_eq!(pointer.state, PointerState::Pending);
+        assert_eq!(installed(&root, "1.1.1-dev.302"), "302");
+        assert_eq!(installed(&root, "1.1.1-dev.292"), "292");
+        let rolled = layout.rollback("did not confirm").unwrap();
+        assert_eq!(rolled.current, "1.1.1-dev.292");
+        // The failed version is not tried again on the next start.
+        let outcome = upgrade_to(
+            &root,
+            &version("1.1.1-dev.302"),
+            &program(dir.path(), "302"),
+        )
+        .unwrap();
+        assert_eq!(outcome, Startup::Kept);
+        assert_eq!(layout.pointer().unwrap().unwrap().current, "1.1.1-dev.292");
+    }
+
+    #[test]
+    fn an_older_or_equal_app_never_downgrades() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("runtime");
+        upgrade_to(
+            &root,
+            &version("1.1.1-dev.302"),
+            &program(dir.path(), "302"),
+        )
+        .unwrap();
+        for older in ["1.1.1-dev.302", "1.1.1-dev.292", "1.1.0"] {
+            let outcome = upgrade_to(&root, &version(older), &program(dir.path(), "old")).unwrap();
+            assert_eq!(outcome, Startup::Kept, "{older}");
+        }
+        let layout = Layout::new(&root);
+        assert_eq!(layout.pointer().unwrap().unwrap().current, "1.1.1-dev.302");
+        assert_eq!(layout.versions().unwrap(), [version("1.1.1-dev.302")]);
+    }
+
+    #[test]
+    fn an_owner_rollback_is_respected() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("runtime");
+        upgrade_to(
+            &root,
+            &version("1.1.1-dev.292"),
+            &program(dir.path(), "292"),
+        )
+        .unwrap();
+        upgrade_to(
+            &root,
+            &version("1.1.1-dev.302"),
+            &program(dir.path(), "302"),
+        )
+        .unwrap();
+        let layout = Layout::new(&root);
+        layout.revert().unwrap();
+        let outcome = upgrade_to(
+            &root,
+            &version("1.1.1-dev.302"),
+            &program(dir.path(), "302"),
+        )
+        .unwrap();
+        assert_eq!(outcome, Startup::Kept);
+        assert_eq!(layout.pointer().unwrap().unwrap().current, "1.1.1-dev.292");
+    }
 }

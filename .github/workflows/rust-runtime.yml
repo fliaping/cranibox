@@ -154,7 +154,9 @@ jobs:
             version=$(python -c 'import os, sys, tomllib; from pathlib import Path; sys.path.insert(0, "scripts/release"); from release_common import dev_version; print(dev_version(tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"], os.environ["GITHUB_RUN_NUMBER"]))')
           fi
           echo "CRANIBOX_BUILD_VERSION=$version" >> "$GITHUB_ENV"
-      - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} -- --locked
+          # The bundle too (Info.plist, installer and disk image names), not only the program.
+          printf '{"version":"%s"}\n' "$version" > "$RUNNER_TEMP/tauri-version.json"
+      - run: npm run tauri -- build --features desktop --bundles ${{ matrix.bundles }} --config "${{ runner.temp }}/tauri-version.json" -- --locked
         working-directory: apps/node-desktop
         env:
           # On CI the bundler otherwise skips the Finder step that lays out the disk
