@@ -12,8 +12,9 @@ async fn call<T: serde::de::DeserializeOwned>(
         .header("content-type", "application/json")
         .body(BoxBody::full(serde_json::to_vec(&body).map_err(other)?))
         .map_err(other)?;
+    // The first request to a peer may include connecting and the Noise handshake, possibly via a relay.
     let response = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(15),
         transport.request(&node.to_owned(), request),
     )
     .await

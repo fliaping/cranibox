@@ -972,7 +972,8 @@ mod tests {
     }
 
     async fn until(mut condition: impl FnMut() -> bool) {
-        timeout(Duration::from_secs(2), async {
+        // A ceiling only: busy CI runners can be slow to schedule the fake processes.
+        timeout(Duration::from_secs(10), async {
             while !condition() {
                 sleep(Duration::from_millis(5)).await;
             }
@@ -1092,7 +1093,8 @@ mod tests {
             let actor_pid = fixture.fake.pid(actor);
             let outcome = fixture.update(actor, &version).await;
             assert!(
-                matches!(outcome, UpdateOutcome::RolledBack { restored, reason } if restored.to_string() == "1.0.0" && !reason.is_empty())
+                matches!(&outcome, UpdateOutcome::RolledBack { restored, reason } if restored.to_string() == "1.0.0" && !reason.is_empty()),
+                "{actor:?} updating {target:?}: {outcome:?}"
             );
             fixture.healthy(target, "1.0.0").await;
             assert_eq!(fixture.fake.pid(actor), actor_pid);
@@ -1524,8 +1526,10 @@ mod tests {
             fixture.start().await;
             let target = actor.other();
             let version = fixture.install(target, "2.0.0");
+            let outcome = fixture.update(actor, &version).await;
             assert!(
-                matches!(fixture.update(actor, &version).await, UpdateOutcome::RolledBack { restored, .. } if restored.to_string() == "1.0.0")
+                matches!(&outcome, UpdateOutcome::RolledBack { restored, .. } if restored.to_string() == "1.0.0"),
+                "{actor:?} updating {target:?}: {outcome:?}"
             );
             let state = fixture.fake.state.lock().unwrap();
             let spawns: Vec<_> = state
