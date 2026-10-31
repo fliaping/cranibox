@@ -10,8 +10,9 @@ import subprocess
 from npm_stage import NPM, REGISTRY, list_stages, package_names
 
 
-def manage(package_name, action=None, otp=None):
-    stages = [stage for name in package_names(package_name) for stage in list_stages(name)]
+def manage(package_name, action=None, otp=None, version=None):
+    stages = [stage for name in package_names(package_name) for stage in list_stages(name)
+              if version is None or stage["version"] == version]
     for stage in stages:
         print(f"{stage['name']}@{stage['version']} tag={stage['tag']} stage={stage['id']}", flush=True)
     if not stages:
@@ -45,10 +46,12 @@ def main():
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument("--approve", action="store_true")
     actions.add_argument("--reject", action="store_true")
+    parser.add_argument("--version", help="Only act on this version, e.g. 1.1.1-dev.296.")
     parser.add_argument("--otp", help="Authenticator-app OTP; omit to confirm in the browser (WebAuthn).")
     args = parser.parse_args()
     try:
-        manage(args.package_name, "approve" if args.approve else "reject" if args.reject else None, args.otp)
+        manage(args.package_name, "approve" if args.approve else "reject" if args.reject else None, args.otp,
+               args.version)
     except (OSError, ValueError, RuntimeError, EOFError) as error:
         parser.exit(1, f"approve-staged: {error}\n")
 

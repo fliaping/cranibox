@@ -548,6 +548,16 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(call[call.index("--auth-type") + 1], "web")
             self.assertNotIn("--otp", call)
 
+    def test_approve_only_the_requested_version(self):
+        stages = self.stage_fixtures()
+        stages[0] = {**stages[0], "version": "0.0.1"}
+        environment = self.fake_npm({"stages": stages})
+        result = self.approve_with_fake(environment, "--approve", "--version", stages[1]["version"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        approved = [call[2] for call in self.fake_calls() if call[:2] == ["stage", "approve"]]
+        self.assertNotIn(stages[0]["id"], approved)
+        self.assertEqual(len(approved), len(stages) - 1)
+
     def test_approve_failure_does_not_leak_otp_from_child_output(self):
         environment = self.fake_npm({"stages": self.stage_fixtures(), "fail_action": True})
         result = self.approve_with_fake(environment, "--approve", "--otp", "123456")
