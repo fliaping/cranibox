@@ -1,0 +1,492 @@
+#!/usr/bin/env python3
+"""Switch the graphical desktop of an Agent Workspace container on and off.
+
+The Selkies web page (nginx) always stays up. What gets stopped is the heavy
+part: the compositor / X server, the desktop session and its apps (including
+the desktop browser), the Selkies streaming backend and PulseAudio. Agents,
+terminals, the node and the gateway are separate services and keep running.
+
+    cranibox-desktop status [--json]     current state and memory
+    cranibox-desktop on | off            start or stop the desktop now
+    cranibox-desktop gate SERVICE CMD..  s6 run wrapper (image internal)
+    cranibox-desktop serve [--port N]    loopback control API used by the page
+
+The boot state comes from CRANIBOX_DESKTOP (on by default; off/false/0/no
+boots without a desktop). Runtime changes last until the container restarts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import http.server
+import json
+import os
+import pathlib
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+STATE_DIR = pathlib.Path(os.environ.get("CRANIBOX_DESKTOP_STATE_DIR", "/run/cranibox-desktop"))
+SERVICE_ROOT = pathlib.Path(os.environ.get("CRANIBOX_DESKTOP_SERVICE_ROOT", "/run/service"))
+CONTAINER_ENV = pathlib.Path("/run/s6/container_environment")
+DEFAULT_PORT = 3079
+# Start order; stop runs in reverse. All of them are gated by `gate`.
+SERVICES = ("svc-pulseaudio", "svc-xorg", "svc-selkies", "svc-xsettingsd", "svc-de", "svc-watchdog")
+SELKIES_PORT = int(os.environ.get("CUSTOM_WS_PORT") or 8082)
+# Desktop programs that may escape the service sessions (daemonized helpers).
+DESKTOP_NAMES = {
+    "xfce4-session", "xfwm4", "xfce4-panel", "xfdesktop", "xfsettingsd", "xfconfd", "Thunar", "thunar",
+    "xfce4-notifyd", "xfce4-power-manager", "xfce4-screensaver", "xfce4-terminal", "panel-1-whiskermenu",
+    "labwc", "selkies-desktop", "pulseaudio", "Xvfb", "Xwayland", "xsettingsd", "lxqt-session",
+    "lxqt-panel", "pcmanfm-qt", "openbox", "plasmashell", "kwin_wayland", "kwin_x11", "ksmserver",
+    "kded6", "kded5", "at-spi-bus-launcher", "at-spi2-registryd", "tumblerd", "gvfsd", "polkit-gnome-au",
+    "wrapper-2.0", "ibus-daemon", "fcitx5", "nm-applet", "blueman-applet", "xiccd", "foot",
+}
+# System D-Bus services that only the desktop (gvfs, file manager) activates.
+# They are activated again on demand.
+SYSTEM_HELPERS = {"udisksd", "polkitd"}
+MEMORY_HINT_MB = 250
+
+
+def truthy_off(value: str | None) -> bool:
+    return (value or "").strip().lower() in {"off", "false", "0", "no", "disabled", "headless"}
+
+
+def container_env(name: str) -> str | None:
+    path = CONTAINER_ENV / name
+    try:
+        return path.read_text()
+    except OSError:
+        return os.environ.get(name)
+
+
+def boot_state() -> str:
+    return "off" if truthy_off(container_env("CRANIBOX_DESKTOP")) else "on"
+
+
+def read_state() -> str:
+    try:
+        value = (STATE_DIR / "state").read_text().strip()
+        if value in {"on", "off"}:
+            return value
+    except OSError:
+        pass
+    value = boot_state()
+    write_file("state", value)
+    return value
+
+
+def write_file(name: str, value: str) -> None:
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = STATE_DIR / f".{name}.{os.getpid()}"
+        tmp.write_text(value)
+        os.replace(tmp, STATE_DIR / name)
+    except OSError:
+        pass
+
+
+def read_file(name: str) -> str:
+    try:
+        return (STATE_DIR / name).read_text().strip()
+    except OSError:
+        return ""
+
+
+# ---------------------------------------------------------------- processes
+def proc_stat(pid: int) -> tuple[str, int, int] | None:
+    """(comm, ppid, sid) of a process."""
+    try:
+        raw = pathlib.Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    comm = raw[raw.index("(") + 1 : raw.rindex(")")]
+    fields = raw[raw.rindex(")") + 2 :].split()
+    return comm, int(fields[1]), int(fields[3])
+
+
+def proc_uid(pid: int) -> int:
+    try:
+        return pathlib.Path(f"/proc/{pid}").stat().st_uid
+    except OSError:
+        return -1
+
+
+def proc_cmdline(pid: int) -> str:
+    try:
+        return pathlib.Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+    except OSError:
+        return ""
+
+
+def proc_rss_kb(pid: int) -> int:
+    """Private-ish memory a process gives back when it exits: proportional
+    anonymous + shared-memory pages (file cache is excluded, like docker stats)."""
+    try:
+        values = {}
+        for line in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+            key, _, rest = line.partition(":")
+            if key in {"Pss_Anon", "Pss_Shmem"}:
+                values[key] = int(rest.split()[0])
+        if values:
+            return sum(values.values())
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        return sum(int(line.split()[1]) for line in pathlib.Path(f"/proc/{pid}/status").read_text().splitlines()
+                   if line.startswith(("RssAnon:", "RssShmem:")))
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def all_pids() -> list[int]:
+    return [int(p) for p in os.listdir("/proc") if p.isdigit()]
+
+
+def service_pid(service: str) -> int | None:
+    try:
+        out = subprocess.run(["s6-svstat", "-o", "up,pid", str(SERVICE_ROOT / service)],
+                             capture_output=True, text=True, timeout=5).stdout.split()
+        if len(out) == 2 and out[0] == "true" and int(out[1]) > 0:
+            return int(out[1])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def desktop_pids() -> list[int]:
+    """Processes that belong to the desktop: the gated service sessions plus
+    desktop programs (and the desktop browser) owned by the desktop user."""
+    roots = {pid for service in SERVICES if (pid := service_pid(service))}
+    me = os.getpid()
+    result = []
+    abc_uid = abc_user_id()
+    for pid in all_pids():
+        if pid in (1, me):
+            continue
+        info = proc_stat(pid)
+        if not info:
+            continue
+        comm, _ppid, sid = info
+        if comm.startswith("s6-"):
+            continue
+        if sid in roots:
+            if comm == "sleep" and pid in roots:
+                continue  # the idle placeholder of a gated service
+            result.append(pid)
+            continue
+        if comm in SYSTEM_HELPERS:
+            result.append(pid)
+            continue
+        if proc_uid(pid) != abc_uid:
+            continue
+        if comm in DESKTOP_NAMES or comm.startswith("xfce4-"):
+            result.append(pid)
+        elif comm in {"chromium", "chrome", "chrome_crashpad"} or comm.startswith("chromium"):
+            if "--headless" not in proc_cmdline(pid):
+                result.append(pid)
+        elif comm == "dbus-daemon" and "--session" in proc_cmdline(pid):
+            result.append(pid)
+        elif comm == "dbus-launch":
+            result.append(pid)
+    return result
+
+
+def abc_user_id() -> int:
+    try:
+        import pwd
+        return pwd.getpwnam("abc").pw_uid
+    except (KeyError, ImportError):
+        return 1000
+
+
+def kill_all(pids: list[int], grace: float = 6.0) -> None:
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.time() + grace
+    while time.time() < deadline:
+        alive = [pid for pid in pids if pathlib.Path(f"/proc/{pid}").exists() and not is_zombie(pid)]
+        if not alive:
+            return
+        time.sleep(0.25)
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
+def is_zombie(pid: int) -> bool:
+    try:
+        raw = pathlib.Path(f"/proc/{pid}/stat").read_text()
+        return raw[raw.rindex(")") + 2] == "Z"
+    except (OSError, IndexError):
+        return True
+
+
+def port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
+def container_memory_mb() -> int | None:
+    root = pathlib.Path("/sys/fs/cgroup")
+    try:
+        current = int((root / "memory.current").read_text())
+        inactive = 0
+        for line in (root / "memory.stat").read_text().splitlines():
+            if line.startswith("inactive_file "):
+                inactive = int(line.split()[1])
+        return max(0, current - inactive) // (1024 * 1024)
+    except (OSError, ValueError):
+        pass
+    try:  # cgroup v1
+        return int((root / "memory/memory.usage_in_bytes").read_text()) // (1024 * 1024)
+    except (OSError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------- state
+def status() -> dict[str, object]:
+    state = read_state()
+    busy = read_file("busy")
+    pids = desktop_pids()
+    desktop_mb = sum(proc_rss_kb(pid) for pid in pids) // 1024
+    selkies = port_open(SELKIES_PORT)
+    session = any((proc_stat(pid) or ("",))[0] in {"xfce4-session", "lxqt-session", "plasmashell", "startplasma-way", "ksmserver"} for pid in pids)
+    if busy in {"starting", "stopping"}:
+        phase = busy
+    elif state == "on":
+        phase = "running" if selkies else "starting"
+    else:
+        phase = "stopped"
+    last = read_file("last-desktop-mb")
+    return {
+        "state": state,
+        "phase": phase,
+        "boot_state": boot_state(),
+        "stream_ready": selkies,
+        "session_running": session,
+        "process_count": len(pids),
+        "desktop_memory_mb": desktop_mb,
+        "last_desktop_memory_mb": int(last) if last.isdigit() else None,
+        "memory_hint_mb": int(last) if last.isdigit() and int(last) > 0 else MEMORY_HINT_MB,
+        "container_memory_mb": container_memory_mb(),
+        "error": read_file("error") or None,
+    }
+
+
+class Lock:
+    def __enter__(self):
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        self.handle = open(STATE_DIR / "lock", "w")
+        fcntl.flock(self.handle, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *_):
+        fcntl.flock(self.handle, fcntl.LOCK_UN)
+        self.handle.close()
+
+
+def svc(action: str, service: str) -> None:
+    path = SERVICE_ROOT / service
+    if path.exists():
+        subprocess.run(["s6-svc", action, str(path)], check=False, timeout=10)
+
+
+def clean_runtime_files() -> None:
+    runtime = container_env("XDG_RUNTIME_DIR") or "/config/.XDG"
+    paths = ["/de-pid", "/tmp/.X1-lock", "/defaults/pid", "/dev/shm/audio.lock"]
+    try:
+        for entry in pathlib.Path(runtime).iterdir():
+            if entry.name.startswith("wayland-"):
+                paths.append(str(entry))
+    except OSError:
+        pass
+    for path in paths:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def power(target: str) -> dict[str, object]:
+    if target not in {"on", "off"}:
+        raise ValueError("target must be on or off")
+    require_root()
+    with Lock():
+        write_file("error", "")
+        if target == "off":
+            before = desktop_pids()
+            measured = sum(proc_rss_kb(pid) for pid in before) // 1024
+            if measured > 0:
+                write_file("last-desktop-mb", str(measured))
+            write_file("busy", "stopping")
+            write_file("state", "off")
+            try:
+                for service in reversed(SERVICES):
+                    svc("-r", service)  # restarts into the idle placeholder
+                time.sleep(0.5)
+                kill_all(sorted(set(before) | set(desktop_pids())))
+                leftovers = desktop_pids()
+                if leftovers:
+                    kill_all(leftovers, grace=1.0)
+                clean_runtime_files()
+            finally:
+                write_file("busy", "")
+        else:
+            write_file("busy", "starting")
+            try:
+                clean_runtime_files()
+                write_file("state", "on")
+                for service in SERVICES:
+                    svc("-r", service)
+            finally:
+                write_file("busy", "")
+    return status()
+
+
+def require_root() -> None:
+    if os.geteuid() != 0:
+        os.execvp("sudo", ["sudo", "-n", sys.executable, os.path.abspath(__file__), *sys.argv[1:]])
+
+
+def wait_ready(timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if port_open(SELKIES_PORT):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+# ---------------------------------------------------------------- s6 gate
+def gate(service: str, command: list[str]) -> None:
+    if read_state() == "off":
+        print(f"[cranibox-desktop] desktop is off; {service} stays idle", flush=True)
+        os.execvp("sleep", ["sleep", "infinity"])
+    os.execvp(command[0], command)
+
+
+# ---------------------------------------------------------------- HTTP API
+class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "cranibox-desktop"
+
+    def log_message(self, *_):
+        pass
+
+    def reply(self, code: int, body: dict[str, object]) -> None:
+        data = json.dumps(body).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        if self.path.split("?")[0].rstrip("/") in {"/status", ""}:
+            return self.reply(200, status())
+        self.reply(404, {"error": "not found"})
+
+    def do_POST(self):
+        # A custom header forces a CORS preflight, which this API never grants,
+        # so other web origins cannot switch the desktop.
+        if self.headers.get("X-Cranibox-Desktop") != "1":
+            return self.reply(403, {"error": "missing X-Cranibox-Desktop header"})
+        path = self.path.split("?")[0].rstrip("/")
+        target = {"/on": "on", "/off": "off"}.get(path)
+        if not target:
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), 4096)
+                target = json.loads(self.rfile.read(length) or b"{}").get("state")
+            except (ValueError, AttributeError):
+                target = None
+        if path not in {"/on", "/off", "/power"} or target not in {"on", "off"}:
+            return self.reply(400, {"error": "use POST /on, /off or /power {\"state\":\"on|off\"}"})
+        if read_file("busy"):
+            return self.reply(409, status())
+        write_file("busy", "starting" if target == "on" else "stopping")
+        threading.Thread(target=background_power, args=(target,), daemon=True).start()
+        self.reply(202, status())
+
+
+def background_power(target: str) -> None:
+    try:
+        power(target)
+    except Exception as error:  # noqa: BLE001 - surfaced through status
+        write_file("busy", "")
+        write_file("error", str(error))
+
+
+def serve(port: int) -> None:
+    read_state()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server.daemon_threads = True
+    print(f"[cranibox-desktop] control API on 127.0.0.1:{port}", flush=True)
+    server.serve_forever()
+
+
+# ---------------------------------------------------------------- CLI
+def print_status(value: dict[str, object], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(value, ensure_ascii=False))
+        return
+    label = {"running": "运行中 (on)", "starting": "正在开启 (starting)", "stopping": "正在关闭 (stopping)",
+             "stopped": "已关闭 (off)"}.get(str(value["phase"]), str(value["phase"]))
+    print(f"桌面 Desktop: {label}")
+    if value["phase"] == "running":
+        print(f"桌面占用内存 Desktop memory: ~{value['desktop_memory_mb']} MB ({value['process_count']} processes)")
+    if value.get("container_memory_mb") is not None:
+        print(f"容器内存 Container memory: ~{value['container_memory_mb']} MB")
+    print(f"开机状态 Boot state (CRANIBOX_DESKTOP): {value['boot_state']}")
+    if value.get("error"):
+        print(f"错误 Error: {value['error']}")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="cranibox-desktop", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command")
+    st = sub.add_parser("status")
+    st.add_argument("--json", action="store_true")
+    for name in ("on", "off"):
+        p = sub.add_parser(name)
+        p.add_argument("--json", action="store_true")
+        p.add_argument("--no-wait", action="store_true", help="return before the stream is ready")
+    g = sub.add_parser("gate")
+    g.add_argument("service")
+    g.add_argument("cmd", nargs=argparse.REMAINDER)
+    s = sub.add_parser("serve")
+    s.add_argument("--port", type=int, default=int(os.environ.get("CRANIBOX_DESKTOP_PORT") or DEFAULT_PORT))
+    args = parser.parse_args(argv)
+    if args.command == "gate":
+        gate(args.service, args.cmd)
+        return 1
+    if args.command == "serve":
+        serve(args.port)
+        return 0
+    if args.command in {"on", "off"}:
+        value = power(args.command)
+        if args.command == "on" and not args.no_wait:
+            wait_ready(90)
+            value = status()
+        print_status(value, args.json)
+        return 0 if value["phase"] in ({"running"} if args.command == "on" and not args.no_wait else {"running", "starting", "stopped"}) else 1
+    print_status(status(), getattr(args, "json", False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

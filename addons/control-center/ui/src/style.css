@@ -199,3 +199,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .node-list .row-end .field { flex: 1 1 140px; min-width: 0; max-width: 240px; margin-top: 0; }
 .field select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
 .history-output { padding:16px; border-radius:8px; background:var(--bg); font:13px/1.6 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; max-height:520px; overflow:auto; }
+
+/* Desktop on/off switch */
+.desktop-power { margin-bottom: 16px; }
+.desktop-power-title { display: inline-flex; align-items: center; gap: 8px; }

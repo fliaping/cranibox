@@ -21,6 +21,9 @@ jobs:
       - name: Test image release gate
         run: python3 -m unittest discover -s tests -p test_workspace_image_check.py -v
 
+      - name: Test desktop on/off switch
+        run: python3 -m unittest discover -s tests -p test_desktop_power.py -v
+
       - name: Test install.sh syntax
         run: bash -n install.sh
 

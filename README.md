@@ -389,6 +389,7 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | 可选码率模式，首项 CRF 为默认值 |
 | `SELKIES_CONGESTION_CONTROL` | `false` | 关闭会压低动态画质的 GCC 自适应码率 |
 | `SELKIES_ENABLE_RESIZE` | `true` | 浏览器窗口变化时同步调整桌面分辨率 |
+| `CRANIBOX_DESKTOP` | `on` | 启动时是否开启图形桌面。设为 `off` 时容器以无桌面模式启动以节省内存，桌面网页仍可打开，并可在网页上随时开启；见[桌面开关（省内存）](#桌面开关省内存) |
 | `PIXELFLUX_WAYLAND` | `true`（新镜像） | 桌面以上游 Wayland（labwc）模式运行，桌面 Computer Use 依赖该模式；设为 `false` 回退 X11（Xvfb）。已发布的 `ubuntu-xfce-1.0.35` 及更早镜像未设置该变量，默认仍为 X11，需要 Computer Use 时请显式设为 `true` |
 | `PIXELFLUX_CU` | `8764` | Selkies 原生 Computer Use 内部端口（仅 Wayland 模式生效）。源码 Dockerfile 默认设置该值，较早构建的镜像（如 `ubuntu-xfce-1.0.35`）未内置，需显式添加 `-e PIXELFLUX_CU=8764`；上游绑定容器接口，绝不能通过 Docker 或代理暴露 |
 | `XFCE_PANEL_SCALING` | `true` | Wayland 缩放变化时同步调整 XFCE 面板与图标；设为 `false` 可关闭 |
@@ -397,6 +398,19 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `TAILSCALE_HOSTNAME` | `agent-workspace` | Tailnet 中的设备名 |
 | `TAILSCALE_ADVERTISE_TAGS` / `TAILSCALE_EXTRA_ARGS` | 不设置 | 透传给 `tailscale up` 的 `--advertise-tags` 与其他参数（如 `--ssh`） |
 | `TAILSCALE_SERVE` | `false` | 设为 `true` 时登录后自动执行 `workspacectl tailscale serve`（需先在 Tailnet 管理后台启用 Serve / HTTPS） |
+
+## 桌面开关（省内存）
+
+图形桌面（Wayland 合成器、XFCE、桌面浏览器、音频和画面推流）是镜像里最占内存的部分。不需要看桌面时可以把它关掉，Agent、终端、code-server、Control Center、节点和网关都会继续运行，不需要重启容器。
+
+- **桌面网页上开关**：桌面网页（默认 `https://<主机>:3001`）始终可以打开。桌面关闭时显示“桌面已关闭”和 **开启桌面** 按钮；桌面运行时，右侧边缘有一个 **关闭桌面** 小按钮，点击并确认后关闭。开启通常只需几秒到二十秒。
+- **启动时不开桌面**：`-e CRANIBOX_DESKTOP=off`（compose 里同名变量）。容器重启后会回到这个启动设置。
+- **命令行**（容器内）：`workspacectl desktop on`、`workspacectl desktop off`、`workspacectl desktop power --json`；也可以直接用 `cranibox-desktop on|off|status`。
+- **Control Center**：桌面页面的“图形桌面”卡片显示状态和内存，并提供开启 / 关闭按钮。
+
+关闭桌面会关闭桌面里所有打开的窗口和桌面浏览器，未保存的内容会丢失；桌面版 Computer Use 也会暂停，直到再次开启。无头浏览器和命令行工具不受影响。
+
+实测（`ubuntu-xfce` 镜像，空闲桌面、未打开桌面浏览器，已排除可回收的文件缓存）：开启桌面约 260 MiB，关闭后约 78 MiB，节省约 180 MiB；打开桌面浏览器后节省得更多。
 
 ## Docker 模式
 

@@ -27,6 +27,7 @@ Operate: service <status|start|stop|restart|enable|disable> <name>
          timezone rollback | browser setup|open | desktop setup|start|stop|restart
          desktop emergency-stop|resume|screenshot [--output <path>]
          desktop scaling status|repair|restore | network domain <domain>
+         desktop on|off|power [--json]   (graphical desktop; off frees its memory)
          tailscale login|up|serve|autoconnect|logout | proxy init|add|remove|list|check|render|domain|rollback
          web install|start|stop|restart|status|url|configure
 Devices: nodes | node exec|job|cancel|mcp [arguments]   (paired and same-identity devices)
@@ -219,6 +220,19 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
                 "--json is only available for inspect commands"
             );
             proxy::run(&ctx, proxy::Args::parse_from(parser_args(name))).await
+        }
+        "desktop"
+            if rest
+                .first()
+                .is_some_and(|value| ["on", "off", "power"].contains(&value.as_str())) =>
+        {
+            ensure!(rest.len() == 1, "Usage: workspacectl desktop on|off|power [--json]");
+            let action = if rest[0] == "power" { "status" } else { rest[0].as_str() };
+            let mut command = vec!["cranibox-desktop", action];
+            if json_output {
+                command.push("--json");
+            }
+            ctx.execute(&command).await
         }
         "desktop" if rest.first().is_some_and(|value| value == "scaling") => {
             ensure!(

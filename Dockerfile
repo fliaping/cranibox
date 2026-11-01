@@ -4,6 +4,10 @@
 #   DESKTOP=xfce (默认) | lxqt | kde    — 桌面环境 (内存: xfce 800M / lxqt 300M / kde 1.1G)
 #   USE_CHINA_MIRROR=false (默认，国际源) | true (国内源)
 #
+# 运行时环境变量:
+#   CRANIBOX_DESKTOP=on (默认) | off   — off 时不启动图形桌面以节省内存，
+#                                        之后可在桌面网页或 `workspacectl desktop on` 随时开启
+#
 # 示例:
 #   docker compose build --pull                                       # XFCE + 国际源
 #   docker compose build --pull --build-arg DESKTOP=kde                 # KDE 桌面
@@ -136,6 +140,21 @@ COPY --chmod=0755 agent-context/ /usr/local/share/agent-workspace/context/
 COPY --chmod=0755 s6-rc.d/ /etc/s6-overlay/s6-rc.d/
 COPY --chmod=0644 nginx/cranibox-applications.conf /usr/local/share/agent-workspace/cranibox-applications.conf
 RUN cat /usr/local/share/agent-workspace/cranibox-applications.conf >> /defaults/default.conf
+# Desktop on/off switch: the Selkies page (nginx) always stays up; the heavy
+# desktop services run through `cranibox-desktop gate`, which idles them while
+# the desktop is off. CRANIBOX_DESKTOP=off boots without a desktop.
+COPY --chmod=0755 addons/desktop-power/ /usr/local/share/agent-workspace/desktop-power/
+RUN /usr/local/share/agent-workspace/desktop-power/install.sh \
+    && for service in svc-pulseaudio svc-xorg svc-selkies svc-xsettingsd svc-de svc-watchdog; do \
+        dir="/etc/s6-overlay/s6-rc.d/$service"; \
+        [ -f "$dir/run" ] || continue; \
+        mv "$dir/run" "$dir/run.upstream"; \
+        printf '#!/bin/sh\nexec /usr/local/bin/cranibox-desktop gate %s %s\n' "$service" "$dir/run.upstream" > "$dir/run"; \
+        chmod 0755 "$dir/run" "$dir/run.upstream"; \
+    done \
+    && grep -q 'cranibox-desktop gate' /etc/s6-overlay/s6-rc.d/svc-selkies/run \
+    && grep -q 'cranibox-desktop gate' /etc/s6-overlay/s6-rc.d/svc-de/run
+ENV CRANIBOX_DESKTOP=on
 EXPOSE 3002
 COPY --chmod=0755 --from=workspace-rust-builder /build/target/release/cranibox /usr/local/lib/agent-workspace/
 COPY --chmod=0755 --from=herdr-builder /herdr/herdr /usr/local/lib/agent-workspace/herdr
@@ -156,7 +175,7 @@ RUN mkdir -p /custom-cont-init.d \
 # exo-open and the XFCE preferred-application helper only exist on the XFCE
 # base; LXQt and KDE resolve the browser through chromium.desktop.
 RUN chmod +x /usr/local/bin/*.sh /usr/local/bin/agent-workspace-manager \
-        /usr/local/bin/workspacectl /usr/local/bin/agent-workspace-browser \
+        /usr/local/bin/cranibox-desktop /usr/local/bin/workspacectl /usr/local/bin/agent-workspace-browser \
         /usr/local/bin/agent-workspace-exo-open \
     && chmod a+r /usr/local/bin/workspacectl-*.py \
     && if [ -e /usr/bin/exo-open ]; then \

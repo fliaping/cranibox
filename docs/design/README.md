@@ -12,6 +12,7 @@
 | [OWNERS.md](./OWNERS.md) | 文件归属到文件级，以及 Phase 0 预建的挂载点 |
 | [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md) | 2026-10-19 逐工作流实现、验证边界、缺口与下一步优先级 |
 | [HANDOFF.md](./HANDOFF.md) | 当前集成状态及接手规则 |
+| [DESKTOP-ON-OFF.md](./DESKTOP-ON-OFF.md) | 图形桌面运行时开关（无桌面启动、桌面网页上开关、省内存）的设计与实测 |
 | [tasks/](./tasks/) | 每条工作流一份任务书，可以直接交给 Codex、Claude Code 或其他编码 Agent |
 
 ## 任务书一览
