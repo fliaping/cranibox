@@ -302,10 +302,17 @@ async fn three_nodes_sync_over_noise_and_keep_local_account_after_hub_shutdown()
             Some(generation_only.secret()),
         )
         .unwrap();
-    for _ in 0..3 {
+    for attempt in 0..3 {
+        let response = count(c).await.unwrap();
+        let status = response.status();
+        // Name the failing hop (C's routing state and the error body) if this
+        // ever is not a 501, instead of a bare status mismatch.
+        let candidates = c.router.candidates("custom-noise");
+        let body = response.text().await.unwrap_or_default();
         assert_eq!(
-            count(c).await.unwrap().status(),
-            reqwest::StatusCode::NOT_IMPLEMENTED
+            status,
+            reqwest::StatusCode::NOT_IMPLEMENTED,
+            "count attempt {attempt}: body {body}; candidates {candidates:?}"
         );
     }
     assert_eq!(

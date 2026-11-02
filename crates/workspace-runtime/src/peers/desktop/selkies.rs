@@ -39,12 +39,23 @@ async fn socket(address: SocketAddr) -> Result<Socket> {
         .await
         {
             Ok(Ok((socket, _))) => return Ok(socket),
+            Ok(Err(error)) if desktop_off(&error) => anyhow::bail!(DESKTOP_OFF),
             Ok(Err(error)) => failure = Some(anyhow::Error::from(error)),
             Err(_) => anyhow::bail!("Local Selkies connection timed out"),
         }
     }
     Err(failure.unwrap_or_else(|| anyhow::anyhow!("no Selkies endpoint")))
         .context("Local Selkies websocket server is unavailable (use its internal websocket port, usually 8082)")
+}
+
+pub const DESKTOP_OFF: &str = "The workspace desktop is turned off (桌面已关闭). Turn it on from the desktop page (开启桌面) or with `workspacectl desktop on`";
+
+/// While the image's desktop is switched off, its switch service holds the
+/// Selkies port and answers 503 with `X-Cranibox-Desktop: off`.
+fn desktop_off(error: &tokio_tungstenite::tungstenite::Error) -> bool {
+    matches!(error, tokio_tungstenite::tungstenite::Error::Http(response)
+        if response.status() == 503
+            && response.headers().get("x-cranibox-desktop").is_some_and(|value| value == "off"))
 }
 
 /// A probe never sends SETTINGS, takes over a display, or changes its resolution.
@@ -213,6 +224,41 @@ fn allowed(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn answer_once(response: &'static str) -> SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let mut request = [0; 4096];
+                let _ = stream.read(&mut request).await;
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+        address
+    }
+
+    #[tokio::test]
+    async fn switched_off_desktop_is_reported_plainly() {
+        let off = answer_once("HTTP/1.1 503 Service Unavailable\r\nX-Cranibox-Desktop: off\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+        let error = socket(off).await.err().unwrap();
+        assert_eq!(error.to_string(), DESKTOP_OFF);
+        assert!(
+            check(off)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("turned off")
+        );
+
+        let other = answer_once(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        let error = format!("{:#}", socket(other).await.err().unwrap());
+        assert!(error.contains("websocket server is unavailable"), "{error}");
+    }
     fn framed(text: &str) -> Vec<u8> {
         let mut data = vec![0];
         data.extend_from_slice(&(text.len() as u32).to_be_bytes());

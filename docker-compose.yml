@@ -47,6 +47,11 @@ services:
       #- CUSTOM_USER=agent
       #- PASSWORD=replace-with-a-long-random-password
       - TITLE=Webtop
+      # --- 图形桌面开关 ---
+      # on: 启动时开启桌面（默认）；off: 不开启桌面以节省内存。
+      # 桌面网页始终可以打开，可在网页上随时开启或关闭桌面；
+      # 也可在容器里运行 `workspacectl desktop on|off`。
+      - CRANIBOX_DESKTOP=${CRANIBOX_DESKTOP:-on}
       # --- Docker（默认不启用，按需选择模式）---
       - START_DOCKER=false
       #- START_DOCKER=true  # DinD 模式时启用

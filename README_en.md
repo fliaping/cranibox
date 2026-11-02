@@ -393,6 +393,7 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 | `SELKIES_RATE_CONTROL_MODE` | `crf,cbr` | Available modes, with CRF selected by default |
 | `SELKIES_CONGESTION_CONTROL` | `false` | Disable GCC adaptation that can reduce quality during motion |
 | `SELKIES_ENABLE_RESIZE` | `true` | Synchronize desktop resolution with the browser window |
+| `CRANIBOX_DESKTOP` | `on` | Whether the graphical desktop starts with the container. `off` boots without a desktop to save memory; the desktop web page still opens and can switch it on at any time. See [Desktop On/Off (Save Memory)](#desktop-onoff-save-memory) |
 | `PIXELFLUX_WAYLAND` | `true` (new images) | Runs the desktop in upstream Wayland (labwc) mode, which desktop Computer Use requires; set to `false` to fall back to X11 (Xvfb). In the published `ubuntu-xfce-1.0.35` and older images it is unset and the desktop defaults to X11; set it to `true` explicitly for Computer Use |
 | `PIXELFLUX_CU` | `8764` | Native Selkies Computer Use internal port (Wayland mode only). The source Dockerfile sets it; older images such as `ubuntu-xfce-1.0.35` do not, so add `-e PIXELFLUX_CU=8764`. Upstream binds the container interface, so never publish it |
 | `XFCE_PANEL_SCALING` | `true` | Keep XFCE panel rows and icons in step with Wayland scaling; set to `false` to disable |
@@ -401,6 +402,19 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 | `TAILSCALE_HOSTNAME` | `agent-workspace` | Device name in the tailnet |
 | `TAILSCALE_ADVERTISE_TAGS` / `TAILSCALE_EXTRA_ARGS` | unset | Passed to `tailscale up` as `--advertise-tags` and extra arguments (for example `--ssh`) |
 | `TAILSCALE_SERVE` | `false` | Set to `true` to run `workspacectl tailscale serve` after login (Serve/HTTPS must be enabled in the tailnet admin console first) |
+
+## Desktop On/Off (Save Memory)
+
+The graphical desktop (Wayland compositor, XFCE, the desktop browser, audio and the video stream) is the heaviest part of the image. Switch it off when nobody needs to look at it; agents, terminals, code-server, Control Center, the node and the gateway keep running, and the container is not restarted.
+
+- **On the desktop web page**: the desktop page (default `https://<host>:3001`) always opens. With the desktop off it shows "桌面已关闭" (Desktop is off) and a **开启桌面** (Turn on) button; with the desktop on, a small **关闭桌面** (Turn off) tab sits on the right edge and asks for confirmation. Starting usually takes a few seconds to about twenty.
+- **Boot without a desktop**: `-e CRANIBOX_DESKTOP=off` (same variable in compose). A container restart returns to this boot setting.
+- **CLI** (inside the container): `workspacectl desktop on`, `workspacectl desktop off`, `workspacectl desktop power --json`, or `cranibox-desktop on|off|status`.
+- **Control Center**: the Desktop page shows a "图形桌面" card with state, memory and on/off buttons.
+
+Turning the desktop off closes every desktop window and the desktop browser; unsaved work is lost, and desktop Computer Use pauses until the desktop is back. Headless browsers and CLI tools are unaffected.
+
+Measured on `ubuntu-xfce` (idle desktop, no desktop browser open, reclaimable file cache excluded): about 260 MiB with the desktop on and about 78 MiB with it off, saving about 180 MiB; more with the desktop browser open.
 
 ## Docker Modes
 

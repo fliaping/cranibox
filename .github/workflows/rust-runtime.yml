@@ -304,6 +304,17 @@ jobs:
       - run: cargo check --locked -p cranibox-node
       - run: cargo build --locked
       - run: cargo test --locked
+        if: runner.os != 'Windows'
+      # The three-node mesh test runs real Noise sessions, vault sync and SQLite
+      # writes with fixed 5 s request deadlines. Next to the rest of the suite
+      # on the Windows runner it intermittently missed one of those deadlines
+      # (probe, exchange or count), so it runs on its own there.
+      - name: cargo test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo test --locked -- --skip peer::server::multi_node::three_nodes_sync_over_noise
+          cargo test --locked -p cranibox-node --lib peer::server::multi_node::three_nodes_sync_over_noise -- --test-threads=1
       - name: Contract snapshot (fixtures round-trip through cranibox-contracts types)
         run: cargo test --locked -p cranibox-contracts --test fixtures
       - uses: actions/setup-node@v7

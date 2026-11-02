@@ -18,6 +18,7 @@ const ACTIONS: &[&str] = &[
     "setupComputerUse",
     "desktopControl",
     "desktopEmergencyStop",
+    "desktopPower",
     "setupBrowser",
     "openManagedBrowser",
     "installTailscale",
@@ -77,6 +78,10 @@ pub fn validate(body: &Value) -> Result<()> {
         "desktopControl" => ensure!(
             ["start", "stop", "restart", "resume"].contains(&text(body, "action")),
             "Unsupported desktop action"
+        ),
+        "desktopPower" => ensure!(
+            ["on", "off"].contains(&text(body, "action")),
+            "Unsupported desktop power action"
         ),
         "showLogs" | "updateSkill" | "removeSkill" | "removeRoute" | "removeMcp" => ensure!(
             valid_name(text(
@@ -224,6 +229,30 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
                 60,
             )
             .await?;
+        }
+        "desktopPower" => {
+            let on = text(&body, "action") == "on";
+            let title = match (zh, on) {
+                (true, true) => "开启桌面",
+                (true, false) => "关闭桌面",
+                (false, true) => "Start desktop",
+                (false, false) => "Stop desktop",
+            };
+            let question = if zh {
+                "关闭桌面？桌面里打开的窗口和桌面浏览器会被关闭，未保存的内容会丢失。Agent、终端和其他服务会继续运行。"
+            } else {
+                "Turn off the desktop? Open desktop windows and the desktop browser will close and unsaved work is lost. Agents, terminals and other services keep running."
+            };
+            if on || confirm(state, session, question, title).await? {
+                operation(
+                    state,
+                    session,
+                    title,
+                    &["desktop", if on { "on" } else { "off" }],
+                    150,
+                )
+                .await?;
+            }
         }
         "desktopEmergencyStop" => {
             operation(

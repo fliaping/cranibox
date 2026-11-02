@@ -28,6 +28,12 @@ and `/run` can be replaced when the container is rebuilt.
 - Selkies Desktop is the container's graphical workspace. Inspect it with
   `workspacectl status --json` and manage its image service with
   `workspacectl s6 status|restart svc-selkies`.
+- The graphical desktop can be switched off to save memory. Check it with
+  `workspacectl desktop power --json`; when `state` is `off`, there is no
+  display, desktop browser or Computer Use backend. Start it with
+  `workspacectl desktop on` only when a task truly needs the GUI, and prefer
+  headless tools (CLI, headless browsers) otherwise. Do not switch the
+  desktop off yourself unless the user asks: it closes their open windows.
 - Use `workspacectl browser status` before operating the user's managed Chromium
   window. Configured container Agents can access all open tabs and signed-in
   sessions without a per-session prompt. Treat that access as sensitive and

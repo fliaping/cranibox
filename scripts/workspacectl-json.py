@@ -832,17 +832,32 @@ def desktop_capability(service_rows: list[dict[str, Any]]) -> dict[str, Any]:
     runtime = pathlib.Path("/run/service/svc-selkies").exists()
     running = bool(service and service["status"] == "running")
     computer_use = desktop_computer_use_state(service_rows)
+    power = desktop_power_status()
+    off = isinstance(power, dict) and power.get("state") == "off"
+    running = running and not off
     return {
         "installed": integration,
         "runtime_available": runtime,
         "running": running,
-        "state": "ready" if integration and running else "missing" if not integration else "stopped",
+        "state": "off" if off else "ready" if integration and running else "missing" if not integration else "stopped",
         "service": "svc-selkies",
         "local_url": "https://localhost:3001",
         "code_server_path": "/proxy/3000/",
         "install_target": "desktop",
+        "power": power,
         "computer_use": computer_use,
     }
+
+
+def desktop_power_status() -> dict[str, Any] | None:
+    """State of the desktop switch (cranibox-desktop), or None when unreachable."""
+    url = os.environ.get("CRANIBOX_DESKTOP_URL") or f"http://127.0.0.1:{os.environ.get('CRANIBOX_DESKTOP_PORT', '3079')}"
+    try:
+        with urllib.request.urlopen(url + "/status", timeout=0.5) as response:
+            value = json.loads(response.read())
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def desktop_computer_use_state(service_rows: list[dict[str, Any]]) -> dict[str, Any]:

@@ -582,7 +582,28 @@ pub async fn desktop(ctx: &Context, rows: &Value) -> Value {
         state["mcp_agents"] = json!(mcp_agents);
         state["mcp_configured"] = json!(!mcp_agents.is_empty());
     }
-    json!({"installed":integration,"runtime_available":Path::new("/run/service/svc-selkies").exists(),"running":running,"state":if integration && running {"ready"} else if !integration {"missing"} else {"stopped"},"service":"svc-selkies","local_url":"https://localhost:3001","code_server_path":"/proxy/3000/","install_target":"desktop","computer_use":state})
+    // The desktop switch (cranibox-desktop) can stop the whole graphical stack.
+    let power = match ctx
+        .http
+        .get(format!("{}/status", desktop_power_url()))
+        .timeout(std::time::Duration::from_millis(500))
+        .send()
+        .await
+    {
+        Ok(response) => response.json::<Value>().await.unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    };
+    let running = running && power["state"] != "off";
+    json!({"installed":integration,"runtime_available":Path::new("/run/service/svc-selkies").exists(),"running":running,"state":if power["state"] == "off" {"off"} else if integration && running {"ready"} else if !integration {"missing"} else {"stopped"},"service":"svc-selkies","local_url":"https://localhost:3001","code_server_path":"/proxy/3000/","install_target":"desktop","power":power,"computer_use":state})
+}
+pub fn desktop_power_url() -> String {
+    env::var("CRANIBOX_DESKTOP_URL").unwrap_or_else(|_| {
+        let port = env::var("CRANIBOX_DESKTOP_PORT")
+            .ok()
+            .and_then(|v| v.parse::<u16>().ok())
+            .unwrap_or(3079);
+        format!("http://127.0.0.1:{port}")
+    })
 }
 pub fn debug_port() -> u16 {
     env::var("AGENT_WORKSPACE_BROWSER_PORT")

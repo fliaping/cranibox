@@ -15,7 +15,7 @@ export interface Snapshot {
   mcp?: { count?: number; global_count?: number; manager?: { installed?: boolean }; items?: { id: string; name: string; detail?: string; managed?: boolean; enabled?: boolean; transport?: string; agents: { id: string; label: string; enabled?: boolean }[] }[] };
   skills?: { count?: number; shared_count?: number; root?: string; items?: { id: string; name: string; description?: string; path?: string; shared?: boolean; agents: string[] }[] };
   browser?: { installed?: boolean; supported?: boolean; state?: string; running?: boolean; remote_debugging?: boolean; mcp_configured?: boolean; managed_default?: boolean; version?: string; profile?: string; profile_name?: string; desired_profile_name?: string; profile_name_applied?: boolean; profile_exists?: boolean; migration_pending?: boolean; debug_port?: number; mcp_agents?: string[]; exposed?: boolean };
-  desktop?: { installed?: boolean; runtime_available?: boolean; running?: boolean; state?: string; service?: string; local_url?: string; code_server_path?: string; computer_use?: { installed?: boolean; running?: boolean; paused?: boolean; state?: string; backend_available?: boolean; loopback_only?: boolean; bridge_url?: string; native_url?: string; native_bind?: string; backend?: string; backend_diagnostic?: { detail?: string }; resolution?: { width: number; height: number }; active_sessions?: { id: string; last_action?: string; idle_seconds?: number }[]; mcp_agents?: string[]; capabilities?: string[] } };
+  desktop?: { installed?: boolean; runtime_available?: boolean; running?: boolean; state?: string; service?: string; local_url?: string; code_server_path?: string; power?: DesktopPower | null; computer_use?: { installed?: boolean; running?: boolean; paused?: boolean; state?: string; backend_available?: boolean; loopback_only?: boolean; bridge_url?: string; native_url?: string; native_bind?: string; backend?: string; backend_diagnostic?: { detail?: string }; resolution?: { width: number; height: number }; active_sessions?: { id: string; last_action?: string; idle_seconds?: number }[]; mcp_agents?: string[]; capabilities?: string[] } };
   network?: { installed?: boolean; mode?: string; root_domain?: string; routes?: { name: string; host?: string; target: string; public_url?: string }[] };
   tailscale?: { installed?: boolean; state?: string; serve_enabled?: boolean; url?: string; ips?: string[]; dns_name?: string };
   local_node?: { id: string; online: boolean; terminal_sessions: boolean };
@@ -54,3 +54,6 @@ export type UpdateRequest = { node: string; action: 'apply'; spec: string; force
 export interface UpdateAccepted { id: string }
 export interface UpdateAdopted { adopted: string; needs_restart: boolean }
 declare global { interface Window { workspaceWeb: BootConfig } }
+
+/** Desktop on/off switch (cranibox-desktop). Off stops the whole graphical stack to save memory. */
+export type DesktopPower = { state: 'on' | 'off'; phase: 'running' | 'starting' | 'stopping' | 'stopped'; boot_state?: 'on' | 'off'; desktop_memory_mb?: number; memory_hint_mb?: number; container_memory_mb?: number | null; process_count?: number; error?: string | null };
