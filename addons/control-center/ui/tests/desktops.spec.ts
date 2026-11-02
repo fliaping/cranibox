@@ -204,12 +204,14 @@ test('noVNC asks for VNC credentials itself and retries after a rejected passwor
   try {
     await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
     const frame = desktop(page), username = frame.locator('#noVNC_username_input'), password = frame.locator('#noVNC_password_input');
-    await expect(password).toBeVisible();
+    // The closed dialog stays in the layout, so wait for the server to ask before typing.
+    const asked = () => expect(frame.locator('#noVNC_credentials_dlg')).toHaveClass(/noVNC_open/);
+    await asked();
     await username.fill('cranibox'); await password.fill('incorrect-password'); await password.press('Enter');
     await expect(frame.locator('#noVNC_status')).toContainText('Invalid fixture credentials');
     // noVNC offers its own Connect button and asks again; nothing is remembered.
     await frame.locator('#noVNC_connect_button').dispatchEvent('click');
-    await expect(password).toBeVisible();
+    await asked();
     await expect(password).toHaveValue('');
     await username.fill('cranibox'); await password.fill('wayland8'); await password.press('Enter');
     await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);

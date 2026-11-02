@@ -612,7 +612,9 @@ class DistributionTests(unittest.TestCase):
                     if member.name.startswith("package/bin/") and member.isfile():
                         self.assertEqual(member.mode & 0o111, 0o111)
 
-    @unittest.skipUnless(sys.platform == "linux" and shutil.which("npm") and shutil.which("node"), "requires Linux, Node and npm")
+    # The fixture installs the linux-x64-gnu package, which npm refuses on other CPUs.
+    @unittest.skipUnless(sys.platform == "linux" and os.uname().machine == "x86_64" and shutil.which("npm") and shutil.which("node"),
+                         "requires x86_64 Linux, Node and npm")
     def test_npm_install_without_scripts_or_external_downloads_and_stdio_signals(self):
         output = self.root / "npm"
         plan = builder.build(self.assets, output, self.tag)
