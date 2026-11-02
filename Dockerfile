@@ -116,11 +116,15 @@ RUN mkdir -p /config/custom-services.d /config/agent-workspace-manager \
     && chown -R 1000:1000 /config
 
 COPY scripts/install-tools.sh /usr/local/bin/install-tools.sh
+# The installers run as root with HOME=/config: hand their caches and settings
+# (/config/.cache, .config, .npm...) back to abc, or desktop programs cannot
+# write their caches (KDE then shows blank launchers).
 RUN chmod +x /usr/local/bin/install-tools.sh \
     && USE_CHINA_MIRROR=${USE_CHINA_MIRROR} \
        GO_VERSION=${GO_VERSION} \
        NODE_VERSION=${NODE_VERSION} \
-       /usr/local/bin/install-tools.sh
+       /usr/local/bin/install-tools.sh \
+    && chown -R 1000:1000 /config
 
 # Application-layer TUI framework. The image keeps only stable runtime
 # dependencies; application logic is installed/updated under /config by

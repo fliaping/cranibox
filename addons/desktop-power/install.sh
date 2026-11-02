@@ -50,4 +50,20 @@ if "cranibox-desktop/" not in conf:
     conf = conf.replace(marker, block + marker)
     open(path, "w", encoding="utf-8").write(conf)
 PY
+# XFCE: xfsettingsd treats the stream's resizable output as a newly connected
+# monitor and opens "xfce4-display-settings -m" or re-applies a saved display
+# profile; either can switch the only output off (a black desktop on connect).
+# Defaults only: a user's own displays settings still win.
+xfconf_dir="${XFCONF_SYSTEM_DIR:-/etc/xdg/xfce4/xfconf/xfce-perchannel-xml}"
+if [[ -d "$xfconf_dir" ]]; then
+  cat > "$xfconf_dir/displays.xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+
+<channel name="displays" version="1.0">
+  <property name="Notify" type="int" value="0"/>
+  <property name="AutoEnableProfiles" type="bool" value="false"/>
+</channel>
+XML
+  chmod 0644 "$xfconf_dir/displays.xml"
+fi
 echo "[desktop-power] patched $patched dashboard(s) and nginx"

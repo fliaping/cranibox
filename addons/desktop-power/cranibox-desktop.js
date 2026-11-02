@@ -20,7 +20,11 @@
       signal: controller ? controller.signal : undefined
     }).then(function (response) {
       if (timer) clearTimeout(timer);
-      if (!response.ok && response.status !== 409) throw new Error('HTTP ' + response.status);
+      if (!response.ok && response.status !== 409) {
+        var error = new Error('HTTP ' + response.status);
+        error.status = response.status;
+        throw error;
+      }
       return response.json();
     });
   }
@@ -128,7 +132,7 @@
       '<button class="cx-primary" id="cx-on">' + ICON_POWER + '开启桌面</button>' +
       (error ? '<div class="cx-error">' + error + '</div>' : '<p class="cx-muted" style="margin-top:12px">开启通常需要 10–20 秒</p>');
     c.querySelector('#cx-on').addEventListener('click', turnOn);
-    poll(function (s) { if (s.state === 'on') location.reload(); }, 5000);
+    poll(function (s) { if (s.state === 'on') location.reload(); }, 5000, reloadWhenSelkiesIsBack);
   }
 
   function showBusy(title, detail) {
@@ -145,7 +149,7 @@
       poll(function (s) {
         if (s.phase === 'running') { location.reload(); return true; }
         if (s.error || Date.now() > deadline) { showOff(s, '没能开启桌面' + (s.error ? '：' + s.error : '，请稍后重试。')); return true; }
-      }, 1500);
+      }, 1500, reloadWhenSelkiesIsBack);
     }).catch(function () { showOff(null, '没能连接到桌面服务，请稍后重试。'); });
   }
 
@@ -169,12 +173,21 @@
     }).catch(function () { location.reload(); });
   }
 
-  function poll(handler, interval) {
+  // Viewers that connect to the Selkies port directly get this page from the
+  // switch service while the desktop is off. Once Selkies has the port back,
+  // the switch API is gone there (404): reload into the desktop.
+  function reloadWhenSelkiesIsBack(error) {
+    if (error && error.status === 404) { location.reload(); return true; }
+  }
+
+  function poll(handler, interval, onError) {
     clearTimeout(pollTimer);
     pollTimer = setTimeout(function tick() {
       request('status').then(function (s) {
         if (!handler(s)) pollTimer = setTimeout(tick, interval);
-      }).catch(function () { pollTimer = setTimeout(tick, interval); });
+      }).catch(function (error) {
+        if (!(onError && onError(error))) pollTimer = setTimeout(tick, interval);
+      });
     }, interval);
   }
 

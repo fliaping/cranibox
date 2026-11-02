@@ -30,6 +30,16 @@ fi
 chown -R abc:abc /config/.linuxbrew 2>/dev/null || true
 chown -h abc:abc /home/linuxbrew/.linuxbrew 2>/dev/null || true
 
+# Older images left build-time caches in /config owned by root (tools were
+# installed as root with HOME=/config). abc must own its cache and settings
+# directories, or desktop programs fail to write them: KDE cannot build its
+# application database and the panel launchers show blank icons.
+for path in /config/.cache /config/.config /config/.local /config/.npm /config/.npm-global /config/.wget-hsts; do
+    if [ -e "$path" ] && [ "$(stat -c %u "$path")" = 0 ]; then
+        chown -R abc:abc "$path"
+    fi
+done
+
 # Seed concise container instructions shared by every installed Agent.
 # Never overwrite user-maintained project instructions.
 context_source="/usr/local/share/agent-workspace/context"

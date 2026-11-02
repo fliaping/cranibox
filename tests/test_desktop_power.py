@@ -4,8 +4,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import socket
 import tempfile
+import time
 import unittest
+import urllib.error
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/cranibox-desktop"
@@ -111,7 +115,8 @@ class DesktopPowerTests(unittest.TestCase):
         (dashboard / "index.html").write_text(INDEX)
         conf = self.root / "default.conf"
         conf.write_text(NGINX)
-        env = {**os.environ, "SELKIES_ROOT": str(self.root / "selkies"), "NGINX_DEFAULT_CONF": str(conf)}
+        env = {**os.environ, "SELKIES_ROOT": str(self.root / "selkies"), "NGINX_DEFAULT_CONF": str(conf),
+               "XFCONF_SYSTEM_DIR": str(self.root / "no-xfce")}
         for _ in range(2):  # idempotent
             result = subprocess.run(["bash", str(INSTALL)], capture_output=True, text=True, env=env, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -122,6 +127,81 @@ class DesktopPowerTests(unittest.TestCase):
         text = conf.read_text()
         self.assertEqual(text.count("location ^~ SUBFOLDERcranibox-desktop/"), 2)
         self.assertEqual(text.count("proxy_pass              http://127.0.0.1:3079/;"), 2)
+
+    def test_xfce_display_defaults_keep_the_stream_output_on(self):
+        dashboard = self.root / "selkies/selkies-dashboard"
+        dashboard.mkdir(parents=True)
+        (dashboard / "index.html").write_text(INDEX)
+        conf = self.root / "default.conf"
+        conf.write_text(NGINX)
+        xfconf = self.root / "xfconf"
+        xfconf.mkdir()
+        env = {**os.environ, "SELKIES_ROOT": str(self.root / "selkies"), "NGINX_DEFAULT_CONF": str(conf),
+               "XFCONF_SYSTEM_DIR": str(xfconf)}
+        result = subprocess.run(["bash", str(INSTALL)], capture_output=True, text=True, env=env, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        displays = (xfconf / "displays.xml").read_text()
+        self.assertIn('<property name="Notify" type="int" value="0"/>', displays)
+        self.assertIn('<property name="AutoEnableProfiles" type="bool" value="false"/>', displays)
+
+    def test_stale_shared_memory(self):
+        module = load_script()
+        table = (" key shmid perms size cpid lpid nattch uid gid cuid cgid atime dtime ctime rss swap\n"
+                 "0 11 1600 4096 100 100 0 1000 1000 1000 1000 0 0 0 0 0\n"   # creator gone: stale
+                 "0 12 1600 4096 200 200 0 1000 1000 1000 1000 0 0 0 0 0\n"   # creator alive
+                 "0 13 1600 4096 100 100 1 1000 1000 1000 1000 0 0 0 0 0\n"   # still attached
+                 "0 14 1600 4096 100 100 0 0 0 0 0 0 0 0 0 0\n")               # another user
+        self.assertEqual(module.stale_shared_memory(table, 1000, lambda pid: pid == 200), [11])
+
+    def test_selkies_port_answers_while_off(self):
+        api_port, selkies_port = free_port(), free_port()
+        state = self.root / "state"
+        state.mkdir()
+        (state / "state").write_text("off")
+        js = self.root / "cranibox-desktop.js"
+        js.write_text("/* page */")
+        env = {**self.env, "CRANIBOX_DESKTOP_PORT": str(api_port), "CUSTOM_WS_PORT": str(selkies_port),
+               "CRANIBOX_DESKTOP_PAGE_SCRIPT": str(js)}
+        server = subprocess.Popen([sys.executable, str(SCRIPT), "serve"], env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(server.wait, 10)
+        self.addCleanup(server.terminate)
+        base = f"http://127.0.0.1:{selkies_port}"
+        page = wait_for(lambda: urllib.request.urlopen(base + "/", timeout=1).read().decode())
+        self.assertIn("桌面已关闭", page)
+        self.assertIn('src="cranibox-desktop.js"', page)
+        self.assertEqual(urllib.request.urlopen(base + "/cranibox-desktop.js", timeout=2).read(), b"/* page */")
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(base + "/api/websockets", timeout=2)
+        self.assertEqual(caught.exception.code, 503)
+        self.assertEqual(caught.exception.headers["X-Cranibox-Desktop"], "off")
+        self.assertEqual(json.loads(caught.exception.read())["error"], "desktop_off")
+        # The page's API works on this port too, and the placeholder never counts as a running stream.
+        value = json.loads(urllib.request.urlopen(base + "/cranibox-desktop/status", timeout=2).read())
+        self.assertEqual((value["state"], value["phase"], value["stream_ready"]), ("off", "stopped", False))
+        value = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{api_port}/status", timeout=2).read())
+        self.assertFalse(value["stream_ready"])
+        request = urllib.request.Request(base + "/cranibox-desktop/on", method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(request, timeout=2)
+        self.assertEqual(caught.exception.code, 403)  # the switch header is still required
+
+
+def free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def wait_for(read, timeout=10.0):
+    deadline = time.time() + timeout
+    while True:
+        try:
+            return read()
+        except OSError:
+            if time.time() > deadline:
+                raise
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":
