@@ -1,6 +1,6 @@
 # Caddy Proxy Manager
 
-code-server extension for viewing and managing Agent Workspace Caddy routes.
+code-server extension for viewing and managing Cranibox Caddy routes.
 
 It reads state from `/config/proxyctl` and uses `workspacectl proxy` for
 mutations. It does not edit generated Caddy JSON directly.

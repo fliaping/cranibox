@@ -1,6 +1,6 @@
 # 节点远程更新 / Remote node update
 
-> 状态：设计稿（2026-10-24 修订）。平台实验见 [node-update-platform-trust.md](node-update-platform-trust.md)，
+> 状态：已实现，持续验证中（2026-11-02 修订）。平台实验见 [node-update-platform-trust.md](node-update-platform-trust.md)，
 > 底座与上层的拆分评估见 [node-base-layer-split.md](node-base-layer-split.md)。
 
 ## 目标
@@ -51,8 +51,27 @@
 ### 桌面应用
 
 安装一次的外壳（Tauri：托盘、自启、窗口）只负责启动 `current` 指向的运行时，界面来自运行时提供的本地网页。
-之后的更新不再经过安装器，也不再碰 `/Applications` 或 `Program Files`。外壳只在托盘 / 窗口代码变化时才需要重装。
+远程更新只替换运行时，不碰 `/Applications` 或 `Program Files`。
 无桌面服务器同样的目录布局，由 systemd / launchd / 任务计划启动一个很小的启动器。
+
+### 本机完整更新：连同桌面应用
+
+在桌面应用窗口里更新**这台设备**时，做的是完整更新：运行时和桌面应用一起换，然后整个 Cranibox 重启。
+远程更新仍然只换运行时，界面会标出对方的桌面应用版本，过旧时提示到那台设备上完成更新。
+
+- **外壳声明能力：** 外壳启动运行时时传入 `CRANIBOX_SHELL_VERSION` 与 `CRANIBOX_SHELL_API`（当前为 1）。
+  没有这两个变量的旧外壳视为 API 0，不能自我更新，需要手动安装一次新版桌面应用。
+- **桌面应用包：** `@fliaping/cranibox-desktop-{darwin-arm64,linux-x64-gnu,win32-x64}`，分别包含
+  `app/Cranibox.app`、`app/Cranibox.AppImage` 与 `app/cranibox-setup.exe`，与运行时同版本发布。
+- **顺序：** 先下载并校验桌面应用包（失败则什么都不改）→ 更新运行时 → 请外壳安装新应用 → 整体重启。
+  外壳安装失败时运行时照常更新，并在状态里给出 `warning`。
+- **各平台安装：** macOS 先 `codesign --verify --deep --strict` 并核对标识符（非临时签名时核对指定要求），
+  复制到旁边再原子交换，保留 `.Cranibox.app.previous`；Windows 由分离的 PowerShell 等待当前进程退出后静默运行安装程序，
+  再启动新版本；Linux 仅支持 AppImage（替换 `$APPIMAGE`）。
+- **不支持自我更新的安装方式：** Windows 装在 Program Files、Linux 用 `.deb` 安装。这些情况只更新运行时，界面说明原因。
+
+接口：`POST /api/v1/app/update {"node":"self","action":"apply","spec":"dev","full":true}`。
+`full` 只允许本机 apply，远程请求返回 400。`GET` 的结果带 `shell`（版本、API、是否过旧、能否安装及原因）。
 
 ### 底座与上层
 
@@ -181,10 +200,10 @@ CRANIBOX_APP_MOCK=1 提供相同路由的本机、受管远端与未受管远端
 
 ## 已知问题与前置条件
 
-- **运行时产物已补齐：** CI 在 macOS / Windows / Linux 均先构建并保存无 GUI 的独立 CLI，
-  再打包桌面应用；npm 平台包使用该 CLI 作为节点运行时。完成 npm 发布配置后，main 的
-  开发构建进入 `dev` 通道，设备可执行 `cranibox update apply dev`。
-- **引导：** 已安装的旧版本没有更新能力，需要手动安装一次包含本功能的版本。
+- **运行时产物：** CI 在 macOS / Windows / Linux 均先构建并保存无 GUI 的独立 CLI，
+  再打包桌面应用；npm 平台包使用该 CLI 作为节点运行时，桌面应用另发布为 `-desktop-*` 包。
+  main 的每次构建经 Trusted Publishing 直接发布到 `dev` 通道（见[客户端分发](distribution.md)）。
+- **引导：** 已安装的旧版本没有更新能力；外壳 API 0 的旧桌面应用不能自我更新。两种情况都需要手动安装一次新版。
 - Windows 节点目前没有远程桌面兜底（`desktop: false`）。
 - 未验证：Smart App Control 开启的 Windows、macOS 子进程的 TCC 归属、macOS App Management 权限。
 
@@ -212,7 +231,8 @@ CRANIBOX_APP_MOCK=1 提供相同路由的本机、受管远端与未受管远端
 - **底座 / 上层的进程拆分。** `duo.rs` 是协议部分，尚未接到真实节点上；节点仍是单进程，
   所以整体更新会重启整个节点，终端和桌面会话会中断。拆分的范围与未知项见 [node-base-layer-split.md](node-base-layer-split.md)。
 - **真机验证：** macOS、Windows 上的端到端，桌面外壳受管模式的实际 GUI 行为，macOS 上子进程与 TCC 授权的归属，
-  Smart App Control 开启的 Windows，首次 npm 发布和 `dev` 通道的真实 Actions 运行。
+  Smart App Control 开启的 Windows，本机完整更新替换 `.app` 时的 macOS App Management 权限。
+  `dev` 通道的真实发布已经跑通（1.1.1-dev.313 起由 Trusted Publishing 发布）。
 - 桌面外壳的托盘“紧急停止”在受管模式下走既有的 `/api/peers` 接口，未在真机验证。
 
 ## 分期

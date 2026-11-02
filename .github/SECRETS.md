@@ -18,6 +18,12 @@
 | `ALIYUN_REGISTRY_USERNAME` | 阿里云账号（通常是邮箱） | 阿里云控制台 |
 | `ALIYUN_REGISTRY_PASSWORD` | 阿里云容器镜像服务密码 | 容器镜像服务控制台 |
 
+### npm 发布（不需要密钥）
+
+npm 包经 Trusted Publishing 发布：GitHub Actions 用 OIDC 身份直接发布，不需要 `NPM_TOKEN`。
+七个包都已在 npmjs.com 配置 Trusted Publisher（仓库 `fliaping/cranibox`、工作流 `rust-runtime.yml`、环境 `npm`）。
+`NPM_TOKEN` 只在正式版仍用暂存审批（`CRANIBOX_NPM_PUBLISH_MODE=stage`）或手动补发时使用。详见 [客户端分发](../docs/distribution.md)。
+
 ## 配置步骤
 
 ### 1. 配置 Docker Hub Secrets

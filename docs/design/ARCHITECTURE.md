@@ -511,5 +511,5 @@ pub trait AgentAdapter: Send + Sync {
 | D4 | n0 公共 relay 兜底是否默认开启 | A 默认开（体验最好，n0 只看到元数据）；B 默认关，只用自有 relay | A，「高级」里可关 | 本文 §4.4 |
 | D5 | Owner 密钥丢失后怎么恢复 | A 只能由名册里的其他主人设备恢复；B 再加一组助记词或 Passkey | B 助记词（可选） | 本文 §5.1 |
 | D6 | DSH 锁定哪个版本、多久升级一次 | 由 WS5 验证后定版本号；之后每月评估一次 | — | Agent CLI 调研 |
-| D7 | 总览插画和 HTML 标题里剩下的「Agent Workspace」是否也改名 | 改 / 不改 | 随 UI 重做一起改 | PR 栈验证 |
+| D7 | 总览插画和 HTML 标题里剩下的「Agent Workspace」是否也改名 | 改 / 不改 | 已改（2026-11-02）：可见文字统一为 Cranibox；镜像名、命令名与 `AGENT_WORKSPACE_*` 变量保留 | PR 栈验证 |
 | D8 | UI 设计技能（Claude-Design、UI/UX Pro Max） | 用户提供来源后再安装；否则按本文 §8 和现有 design-system 来做 | — | 产品需求 |

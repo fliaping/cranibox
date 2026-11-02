@@ -1,7 +1,7 @@
 # Common Software
 
 This document records reusable software capabilities that should stay useful
-across Agent Workspace deployments. Keep runtime state under `/config`.
+across Cranibox deployments. Keep runtime state under `/config`.
 
 ## Custom-domain routing
 
@@ -118,7 +118,7 @@ launcher always uses `/config/.config/agent-browser`, so users and Agents share
 one visible browser without per-session approval prompts. The endpoint is not
 published outside the container.
 
-The active Chromium profile is visibly named `Agent Workspace (Managed)` by
+The active Chromium profile is visibly named `Cranibox (Managed)` by
 default, making a separately launched unmanaged Chromium profile easy to spot.
 Override it with `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` when needed.
 

@@ -1,6 +1,6 @@
 # Remote Workspace Profiles
 
-Agent Workspace separates the reusable container environment from
+The Cranibox workspace image separates the reusable container environment from
 deployment-specific ingress. Only `/config` needs to be durable.
 
 ## Direct profile
@@ -39,15 +39,15 @@ The first boot sets `AGENT_WORKSPACE_BOOTSTRAP=remote`. The s6 bootstrap service
 updates the application source and installs:
 
 - official standalone code-server under `/config/opt/code-server`
-- the unified Agent Workspace Control Center and desktop integration
+- the unified Cranibox Control Center and desktop integration
 - persistent custom-service registration
 - the selected Agent CLI or Web runtime
 
 The completion marker is stored under `/config/.local/state/agent-workspace`.
 After installation, open code-server. Control Center opens automatically on the
 first session and walks through Agent sign-in, the durable workspace, remote
-access, and optional capabilities. It remains available from the single Agent
-Workspace Activity Bar icon. Terminal-only users can run `codex`, `claude`, or
+access, and optional capabilities. It remains available from the single Cranibox
+Activity Bar icon. Terminal-only users can run `codex`, `claude`, or
 `hermes setup --portal` directly. DeepSeek Harness runs as a loopback user
 service and opens on the same authenticated code-server origin at
 `/proxy/3080/`. Seeded `AGENTS.md` and `CLAUDE.md` files teach
@@ -104,7 +104,7 @@ and gateway authentication remain deployment responsibilities.
 ## Private Tailscale profile
 
 Tailscale is an optional alternative when a public domain or inbound port is
-undesirable. Agent Workspace uses userspace networking, so the default mode
+undesirable. Cranibox uses userspace networking, so the default mode
 does not need `/dev/net/tun`, `NET_ADMIN`, or a Docker socket:
 
 ```bash

@@ -16,7 +16,7 @@ queries and fragments are not accepted in the configured upstream origin.
 Absolute links, cookie domains and redirects in upstream responses are not rewritten;
 applications that generate these should support their external URL configuration.
 
-Agent Workspace uses a small Caddy-based HTTP router for optional custom-domain
+Cranibox uses a small Caddy-based HTTP router for optional custom-domain
 access. Users and agents manage it through `workspacectl`; configuration and
 runtime files remain under `/config/proxyctl` for upgrade compatibility.
 

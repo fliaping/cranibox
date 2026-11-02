@@ -2,7 +2,7 @@
   <h1>Cranibox</h1>
   <p><b>设备互联的 Agent 工作台</b></p>
   <p>你的每台设备，都是 Agent 的工作台：终端、桌面、浏览器与 Computer Use，端到端加密、对等直连。</p>
-  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace；工作区镜像名暂不变（<code>xuping/agent-workspace</code>）。</sub></p>
+  <p><sub>Cranibox = cranium（脑壳）+ box。项目原名 Agent Workspace；工作区镜像（<code>xuping/agent-workspace</code>）、容器内命令（如 <code>agent-workspace-manager</code>）和 <code>AGENT_WORKSPACE_*</code> 环境变量暂沿用旧名。</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -39,7 +39,7 @@ macOS 客户端使用自签名证书（未经 Apple 公证）：`.dmg` 可直接
 
 桌面客户端本身就是 `cranibox` 命令：Linux 安装包和 Windows 安装程序会把它加入 PATH，macOS 在“这台设备 → 设置 → 桌面应用”里点“安装命令行工具”。带参数运行时是命令行，不带参数时打开窗口。
 
-CLI 的 npm 包发布后，也可以通过 npm 安装或更新（需要 Node.js 22+）：
+也可以通过 npm 安装或更新命令行版（需要 Node.js 22+）：
 
 ```bash
 npm install -g @fliaping/cranibox@latest
@@ -50,8 +50,14 @@ cranibox --version
 
 npm 包名为 `@fliaping/cranibox`；镜像同步可能晚于发布。
 平台支持 macOS Apple Silicon、Windows x64 和 glibc Linux x64；其他平台暂不包含在 npm 包中。
-受管设备可直接执行 `cranibox update apply latest`（正式）、`next`（预发布）或 `dev`（main 开发构建），无需 Node.js / npm。
-安装说明、首次配置、发布与重试流程见[客户端分发](docs/distribution.md)。
+### 更新
+
+已安装的设备无需 Node.js / npm，在“本机设置 → 通用 → 更新”里检查和安装，或执行 `cranibox update apply latest`（正式）、`next`（预发布）、`dev`（main 开发构建）。
+
+- **本机更新**：在桌面应用里更新这台设备时，运行时和桌面应用一起更新，然后 Cranibox 整体重启。
+- **远程更新**：同一身份的任意设备都能更新其他设备（`--node <NodeID>` 或设备详情页），只替换运行时；新版本 20 秒内没有正常运行就自动回滚。
+
+旧版桌面应用不能自我更新，需要手动安装一次新版。原理见[节点远程更新](docs/node-remote-update.md)，安装包与发布流程见[客户端分发](docs/distribution.md)。
 
 命令行用法：
 
@@ -92,6 +98,29 @@ cranibox mcp             # 以 MCP stdio 服务器方式提供同样的能力
 
 工作区镜像本身的能力（Selkies 浏览器桌面、code-server 与控制中心、托管 Chromium、桌面 Computer Use、`.deb` 安装器、Docker 模式、GPU 加速、开发工具链、单卷持久化等）见下方[工作区镜像](#工作区镜像)。
 
+### 界面截图
+
+桌面客户端和命令行版使用同一套界面（截图为预览模式的示例数据，点击可查看原图）：
+
+<table>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/home.png"><img src="images/screenshots/app/zh/home.png" width="420" alt="首页"></a><br><sub>首页：设备在线情况、待你确认的事项和常用操作</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/devices.png"><img src="images/screenshots/app/zh/devices.png" width="420" alt="设备与网络"></a><br><sub>设备与网络：每台设备的连接方式和能力</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/device.png"><img src="images/screenshots/app/zh/device.png" width="420" alt="设备详情"></a><br><sub>设备详情：终端、桌面、浏览器、项目与访问授权</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/network.png"><img src="images/screenshots/app/zh/network.png" width="420" alt="网络设置"></a><br><sub>网络设置：设备之间是直连还是中继、延迟多少</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/inbox.png"><img src="images/screenshots/app/zh/inbox.png" width="420" alt="待办"></a><br><sub>待办：配对、Agent 的高风险操作和屏幕控制都先经过你</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/models.png"><img src="images/screenshots/app/zh/models.png" width="420" alt="Agent 与模型"></a><br><sub>Agent 与模型：连接订阅，选择哪些设备可以使用</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/capabilities.png"><img src="images/screenshots/app/zh/capabilities.png" width="420" alt="能力与权限"></a><br><sub>能力与权限：本机提供哪些能力、是否共享</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 ## 工作区镜像
 
 工作区镜像是给 Agent 准备的一台 Linux 电脑：一个跑在你的服务器、NAS 或 WSL2 上的容器，Codex、Claude Code、Hermes 在里面拥有真实的桌面、浏览器和终端，你用任何设备的浏览器就能接入。镜像内置 Cranibox 节点，和你的其他设备对等组网；虚拟空间也基于它创建。
@@ -104,9 +133,9 @@ cranibox mcp             # 以 MCP stdio 服务器方式提供同样的能力
 
 技术上它基于 [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/)（Selkies 浏览器桌面串流）构建，桌面可选 XFCE（默认）、LXQt 或 KDE。
 
-### 界面截图
+### 工作区镜像截图
 
-以下截图来自真实运行的 `ubuntu-xfce` 镜像（`remote-up.sh` 部署，点击可查看原图）：
+以下截图来自真实运行的 `ubuntu-xfce` 镜像（`remote-up.sh` 部署，点击可查看原图），展示容器内的桌面、code-server 与控制中心：
 
 <table>
   <tr>
@@ -144,10 +173,10 @@ cranibox mcp             # 以 MCP stdio 服务器方式提供同样的能力
 
 ## 架构
 
-Cranibox 新里程碑的目标规格与逐项完成情况见[设计文档](docs/design/README.md)及[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)。
+Cranibox 新里程碑的目标规格与逐项完成情况见[设计文档](docs/design/README.md)及[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)。下图是工作区镜像（容器）的内部结构。
 
 <p align="center">
-  <a href="images/architecture.zh.svg"><img src="images/architecture.zh.png" width="900" alt="Agent Workspace 架构图"></a>
+  <a href="images/architecture.zh.svg"><img src="images/architecture.zh.png" width="900" alt="Cranibox 工作区镜像架构图"></a>
   <br><sub>点击图片查看可缩放的 SVG 版本</sub>
 </p>
 
@@ -241,7 +270,7 @@ flowchart TB
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 ./scripts/remote-up.sh
 ```
 
@@ -328,7 +357,7 @@ docker run -d --name agent-workspace \
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 # 按需修改 docker-compose.yml
 docker compose up -d
 ```
@@ -382,7 +411,7 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 | `SSH_PASSWORD` | 不设置 | 设置后启用 SSH 服务（容器端口 22），值为 abc 用户密码；compose 文件默认不映射该端口，需要时添加如 `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js 选项（如 `--max-old-space-size=2048`） |
 | `AGENT_WORKSPACE_BROWSER_PROFILE` | `/config/.config/agent-browser` | 桌面默认托管 Chromium 的持久化用户目录 |
-| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Agent Workspace (Managed)` | Chromium 内显示的托管 Profile 名称，用于快速识别是否打开了错误的浏览器 |
+| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Cranibox (Managed)` | Chromium 内显示的托管 Profile 名称，用于快速识别是否打开了错误的浏览器 |
 | `AGENT_WORKSPACE_BROWSER_PORT` | `9222` | 仅监听 `127.0.0.1` 的容器内部 Chrome DevTools 端口 |
 | `AGENT_WORKSPACE_BROWSER_DISPLAY` | 自动探测 | 需要覆盖时指定 Chromium 使用的 X 显示器，如 `:0` |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | 启用 CRF/CBR 码率控制切换 |
@@ -445,7 +474,7 @@ code-server 默认监听 `0.0.0.0:8443`，因此需要在创建容器时映射 `
 
 ## 应用层能力管理
 
-镜像主要负责稳定的系统依赖、桌面、开发工具链和 s6 基础服务。代理、code-server 插件、Agent 安装器等变化更快的应用逻辑由 `agent-workspace-manager` 管理，并安装到持久化的 `/config`。
+镜像主要负责稳定的系统依赖、桌面、开发工具链和 s6 基础服务。代理、code-server 插件、Agent 安装器等变化更快的应用逻辑由工作区管理器 `agent-workspace-manager` 管理，并安装到持久化的 `/config`（命令名沿用旧名，暂不更改）。
 
 进入容器后直接运行会打开 TUI：
 
@@ -477,7 +506,7 @@ workspacectl tailscale serve   # code-server 启用 TLS（默认）时使用 htt
 agent-workspace-manager status
 ```
 
-`AGENT_WORKSPACE_SOURCE_DIR` 可以指向已有源码目录，便于测试本地 checkout；默认源码会持久化在 `/config/agent-workspace-manager/source`。详见 [Agent Workspace Manager](docs/agent-workspace-manager.md)。通用软件和用法见 [Common Software](docs/common-software.md)。
+`AGENT_WORKSPACE_SOURCE_DIR` 可以指向已有源码目录，便于测试本地 checkout；默认源码会持久化在 `/config/agent-workspace-manager/source`。详见[工作区管理器](docs/agent-workspace-manager.md)。通用软件和用法见 [Common Software](docs/common-software.md)。
 
 ## Agent 软件管理
 
@@ -552,7 +581,7 @@ Docker 网络。bridge 提供截图、点击、拖拽、滚动、按键、文本
 桌面输入时执行 `workspacectl desktop emergency-stop`，确认安全后再执行
 `workspacectl desktop resume`。
 
-文件管理器中的 `.deb` 文件默认由 Agent Workspace 软件包安装器打开。安装前会展示
+文件管理器中的 `.deb` 文件默认由 Cranibox 软件包安装器打开。安装前会展示
 软件包名称、版本、架构、路径和高权限风险提示，确认后使用 `apt` 自动解析依赖；日志
 保存在 `/config/.local/log/agent-workspace/deb-installer.log`。Agent 可以先运行
 `agent-workspace-deb-installer --dry-run /path/to/package.deb` 检查变更，只有在用户明确
@@ -585,7 +614,7 @@ Docker 网络。bridge 提供截图、点击、拖拽、滚动、按键、文本
 agent-workspace-manager install code-server-extensions
 ```
 
-安装器会迁移旧版独立的服务与 Caddy 侧栏，只保留一个 Agent Workspace 入口。
+安装器会迁移旧版独立的服务与 Caddy 侧栏，只保留一个 Cranibox 入口。
 用户和 Agent 统一使用 `workspacectl`；Caddy 路由后端仍保持独立，但无需直接操作。
 
 路由后端实现说明见 `addons/proxyctl/README.md`，code-server 插件说明见 [code-server Extensions](docs/code-server-extensions.md)。
@@ -621,7 +650,7 @@ agent-workspace-manager install code-server-extensions
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 
 # 默认构建（XFCE + 国际源）
 docker compose build --pull

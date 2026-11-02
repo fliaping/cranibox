@@ -1,6 +1,6 @@
-# Agent Workspace Control Center
+# Cranibox Control Center
 
-The single code-server entry point for Agent Workspace onboarding and daily
+The single code-server entry point for Cranibox onboarding and daily
 operations. It presents Agents, global MCP servers and Skills, workspace access,
 services, ports, proxy routes, capabilities, and diagnostics while using
 `workspacectl --json` as its backend.
@@ -18,7 +18,7 @@ terminal instead of being collected by the webview.
 
 Global Skills use `npx skills` with `/config/.agents/skills` as the shared
 source. MCP management can use the optional MCPM runtime for install-once
-profiles, while native Codex, Claude Code, Hermes, and Agent Workspace-managed
+profiles, while native Codex, Claude Code, Hermes, and Cranibox-managed
 DeepSeek Harness configuration remains visible and operable through the same
 page. DeepSeek Harness opens on the same authenticated code-server origin at
 `/proxy/3080/`.

@@ -15,7 +15,7 @@ The extension:
 - keeps the default desktop on the current code-server origin even when
   `proxy-domain` is configured, so `/proxy/3000/` reuses the existing gateway
   session instead of opening a separately authenticated port subdomain;
-- leaves startup ownership to Agent Workspace Control Center by default.
+- leaves startup ownership to Cranibox Control Center by default.
 
 No Selkies or nginx server files are modified. In automatic mode the bootstrap
 HTTP listener binds to `127.0.0.1` on an ephemeral port and is reached through

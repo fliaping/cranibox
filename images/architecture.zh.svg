@@ -8,7 +8,7 @@
 <marker id="so" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>
 </defs>
 <rect width="1620" height="940" fill="#ffffff"/>
-<text x="30" y="42" font-size="24" font-weight="800" fill="#0f172a" text-anchor="start" >Agent Workspace 架构</text>
+<text x="30" y="42" font-size="24" font-weight="800" fill="#0f172a" text-anchor="start" >Cranibox 工作区镜像架构</text>
 <text x="30" y="66" font-size="14" font-weight="400" fill="#475569" text-anchor="start" >一个容器、一个 /config 数据卷：桌面、IDE、Agent 与管理接口</text>
 <rect x="20" y="86" width="262" height="622" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
 <text x="151" y="112" font-size="14" font-weight="700" fill="#334155" text-anchor="middle" >客户端与入口</text>

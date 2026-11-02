@@ -56,7 +56,7 @@ Web 入口必须使用独立域名根路径，不支持挂载到 `/workspace/` �
 - 「远程节点」页注册和撤销节点、下载一次性凭据，并提交程序和参数执行。
   远程任务在统一服务端网关模块运行，详见 [远程节点说明](rust-remote-nodes.md)。
 - Computer Use 紧急停止不受当前安装任务或对话框阻塞。
-- Agents 页的「更新 Gateway」由 Agent Workspace 管理 OpenClaw：先把新版安装到
+- Agents 页的「更新 Gateway」由 Cranibox 管理 OpenClaw：先把新版安装到
   `/config/opt/openclaw/releases`，再切换并验证 Gateway；失败会恢复原用户服务。
   OpenClaw 自带网页更新仍依赖真正的 systemd 用户服务，容器内请使用此入口或
   `workspacectl agent update openclaw`。新安装的 Gateway 会设置

@@ -1,7 +1,7 @@
-# Agent Workspace Manager
+# Cranibox Workspace Manager
 
-`agent-workspace-manager` is the application-layer bootstrapper for Agent
-Workspace.
+`agent-workspace-manager` is the application-layer bootstrapper for the Cranibox
+workspace image. The command keeps its original name for now.
 
 The container image should remain stable and focus on operating-system
 dependencies, desktop/runtime tooling, and base s6 services. Application
@@ -108,7 +108,7 @@ agent-workspace-manager install mcpm
 Skills use the shared `/config/.agents/skills` source managed by `npx skills`.
 MCPM is optional; when installed, new MCP definitions are stored once in MCPM
 and each selected Agent connects through `mcpm run <name>`. Existing native
-Codex, Claude Code, Hermes, and Agent Workspace-managed DeepSeek Harness MCP
+Codex, Claude Code, Hermes, and Cranibox-managed DeepSeek Harness MCP
 entries remain visible and are not silently migrated. DeepSeek Harness also
 discovers the shared `/config/.agents/skills` root natively.
 

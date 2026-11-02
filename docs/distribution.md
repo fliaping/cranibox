@@ -1,7 +1,10 @@
 # 客户端分发
 
-节点运行时只通过 npm 分发和更新；GitHub Actions 负责构建，GitHub Release 保留安装包、
-独立 CLI 和许可证归档。首次发布前需要完成下方 npm 配置。
+节点运行时和桌面应用都通过 npm 分发和更新；GitHub Actions 负责构建，GitHub Release 保留安装包、
+独立 CLI 和许可证归档。
+
+当前状态（2026-11-02）：main 的每次构建经 npm Trusted Publishing 直接发布到 `dev` 通道，
+不需要令牌或人工审批；打 tag 的正式版与预发布仍先暂存，由维护者用 WebAuthn 审批后公开。
 
 ## 安装与设备更新
 
@@ -27,7 +30,10 @@ cranibox update apply dev --node <节点ID>
 节点读取 npm registry，下载平台包并核对 `dist.integrity`（SHA-512），再切换运行时；
 未确认或崩溃时由启动器回滚。国内默认 npmmirror，镜像同步可能滞后，缺版本时回退其他
 registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安装具备更新能力的版本，
-受管目录与启动方式见[节点远程更新](node-remote-update.md)。桌面外壳更新仍需重新安装。
+受管目录与启动方式见[节点远程更新](node-remote-update.md)。
+
+在桌面应用窗口里更新本机时，运行时与桌面应用一起更新，然后整体重启；远程更新只替换运行时。
+不能自我更新的旧桌面应用（外壳 API 0）需要手动安装一次新版。
 
 ## 平台包
 
@@ -38,6 +44,14 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 | macOS Apple Silicon | `cranibox-macos-arm64` | `@fliaping/cranibox-darwin-arm64` |
 | Linux x64 / glibc | `cranibox-linux-x86_64` | `@fliaping/cranibox-linux-x64-gnu` |
 | Windows x64 | `cranibox-windows-x86_64.exe` | `@fliaping/cranibox-win32-x64` |
+
+桌面应用另有三个包，只在本机完整更新时下载，不是入口包的依赖：
+
+| 平台 | npm 包 | 内容 |
+| --- | --- | --- |
+| macOS Apple Silicon | `@fliaping/cranibox-desktop-darwin-arm64` | `app/Cranibox.app`（取自 `.dmg`） |
+| Linux x64 / glibc | `@fliaping/cranibox-desktop-linux-x64-gnu` | `app/Cranibox.AppImage` |
+| Windows x64 | `@fliaping/cranibox-desktop-win32-x64` | `app/cranibox-setup.exe`（NSIS 安装程序） |
 
 平台包中的命令位于 `bin/cranibox`（Windows 为 `bin/cranibox.exe`），同时附带 LICENSE 和
 第三方许可证。入口包的 `optionalDependencies` 精确固定到相同版本；没有 postinstall，
@@ -50,7 +64,10 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
 
 ## 首次发布（引导）
 
-首次四个包尚不存在时，可直接暂存创建，无需先运行 `npm publish`。现有 `NPM_TOKEN`
+> 七个包均已完成引导并配置了 Trusted Publisher；以下步骤保留给新增包或换用自定义包名时参考。
+> 审批与 `npm trust` 需要 npm >= 11.15 和交互式终端；`approve-staged.py --version <版本>` 只处理指定版本。
+
+首次包尚不存在时，可直接暂存创建，无需先运行 `npm publish`。现有 `NPM_TOKEN`
 只有 stage 权限：它可以暂存，但不能直接发布；暂存本身不要求 2FA，审批才需要。
 确认该 secret 已配置在仓库或 GitHub 的 `npm` environment，然后按以下顺序操作：
 
@@ -120,10 +137,10 @@ npmmirror 不需要发布凭据。
 - **正式版 / 预发布：** 更新 CLI Cargo、Tauri、桌面前端与 npm 入口包的版本及相应
   lockfile，再创建不可变的 `vX.Y.Z` 或 `vX.Y.Z-beta.N` tag。CI 通过后创建 GitHub Release，
   调用 `distribute.yml` 下载归档、校验 SHA256SUMS 并打包。版本必须一致，禁止 build metadata。
-  npm 按三个平台包、入口包顺序发布；正式版使用 `latest`，预发布使用 `next`。
+  npm 按三个平台包、入口包、三个桌面应用包的顺序发布；正式版使用 `latest`，预发布使用 `next`。
 - **开发构建：** 每次 main push（包括仅修改文档）在 desktop、native、Wayland 和分发测试
   全部通过后，由 `publish-dev` 发布 `<crates/cranibox 的 Cargo version>-dev.<github.run_number>`。
-  `--version` 覆盖四个 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo
+  `--version` 覆盖七个 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo
   版本一致性；仍严格校验 SemVer，禁止 build metadata。二进制 `--version` 仍为 Cargo
   版本。开发包显式使用 `--dist-tag dev`，不会推进 `latest` 或 `next`。
 

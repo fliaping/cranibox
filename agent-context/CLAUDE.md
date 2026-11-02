@@ -1,6 +1,6 @@
-# Agent Workspace Container
+# Cranibox Workspace Container
 
-You are running inside an Agent Workspace container. Treat `/config` as the
+You are running inside a Cranibox workspace container. Treat `/config` as the
 only durable filesystem area; image-layer paths such as `/etc`, `/usr/local`,
 and `/run` can be replaced when the container is rebuilt.
 
@@ -19,7 +19,7 @@ and `/run` can be replaced when the container is rebuilt.
   `workspacectl node job <job-id>` and `workspacectl node cancel <job-id>`
   for asynchronous jobs. Commands are not replayed after disconnection.
   The `workspace-runtime mcp` stdio server exposes the same operations.
-- Use `workspacectl install ...` for optional Agent Workspace capabilities.
+- Use `workspacectl install ...` for optional Cranibox workspace capabilities.
 - Use `workspacectl network domain <domain>` for the managed Caddy domain;
   DNS, TLS, and gateway authentication remain deployment responsibilities.
 - Use `workspacectl tailscale status|login|serve` for private Tailnet access.

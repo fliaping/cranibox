@@ -2,7 +2,7 @@
   <h1>Cranibox</h1>
   <p><b>An Agent workbench across your devices</b></p>
   <p>Every device you own becomes a workbench for your Agents: terminal, desktop, browser and Computer Use, end-to-end encrypted and peer to peer.</p>
-  <p><sub>Cranibox = cranium + box. The project was formerly Agent Workspace; the workspace image keeps its name for now (<code>xuping/agent-workspace</code>).</sub></p>
+  <p><sub>Cranibox = cranium + box. The project was formerly Agent Workspace; the workspace image (<code>xuping/agent-workspace</code>), in-container commands such as <code>agent-workspace-manager</code> and <code>AGENT_WORKSPACE_*</code> variables keep their names for now.</sub></p>
   <p>
     <a href="README.md">中文</a> &bull;
     <a href="README_en.md">English</a>
@@ -37,7 +37,7 @@ Checksums are in `SHA256SUMS` in the same release.
 
 The desktop app is also the `cranibox` command: the Linux package and the Windows installer put it on PATH; on macOS choose Install command line tool under This device → Settings → Desktop app. With arguments it runs as the command line; without them it opens the window.
 
-Once the CLI npm packages have been published, install or upgrade with Node.js 22+:
+You can also install or upgrade the command-line build through npm (Node.js 22+):
 
 ```bash
 npm install -g @fliaping/cranibox@latest
@@ -47,10 +47,16 @@ cranibox --version
 ```
 
 The npm package name is `@fliaping/cranibox`. Mirror synchronization may lag behind
-a release. Initial npm platforms are
-macOS Apple Silicon, Windows x64 and glibc Linux x64. See the [distribution guide](docs/distribution.md)
-for first-time publisher setup, release validation and retries.
-Managed devices can run `cranibox update apply latest` (stable), `next` (prerelease), or `dev` (main builds) directly, without Node.js or npm.
+a release. npm packages cover macOS Apple Silicon, Windows x64 and glibc Linux x64.
+
+### Updates
+
+Installed devices update without Node.js or npm: check and install under Settings → General → Updates, or run `cranibox update apply latest` (stable), `next` (prerelease) or `dev` (main builds).
+
+- **This device**: updating from the desktop app replaces both the runtime and the desktop app, then restarts Cranibox.
+- **Other devices**: any device of the same identity can update the others (`--node <NodeID>` or the device page). Only the runtime is replaced, and a version that does not come up within 20 seconds is rolled back.
+
+An older desktop app cannot update itself; install the new version once by hand. See [remote node update](docs/node-remote-update.md) for how it works and the [distribution guide](docs/distribution.md) for packages and publishing.
 
 Command-line usage:
 
@@ -91,6 +97,29 @@ Once paired, the device appears on the network map with its path (direct or rela
 
 The workspace image's own capabilities (Selkies browser desktop, code-server and Control Center, managed Chromium, desktop Computer Use, the `.deb` installer, Docker modes, GPU acceleration, toolchain and single-volume persistence) are described under [Workspace image](#workspace-image) below.
 
+### Screenshots
+
+The desktop app and the command-line build share one interface (preview data; click to enlarge):
+
+<table>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/home.png"><img src="images/screenshots/app/en/home.png" width="420" alt="Home"></a><br><sub>Home: devices online, decisions waiting for you and quick actions</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/devices.png"><img src="images/screenshots/app/en/devices.png" width="420" alt="Devices &amp; network"></a><br><sub>Devices &amp; network: how each device is connected and what it offers</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/device.png"><img src="images/screenshots/app/en/device.png" width="420" alt="Device details"></a><br><sub>Device details: terminal, desktop, browser, projects and access</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/network.png"><img src="images/screenshots/app/en/network.png" width="420" alt="Network settings"></a><br><sub>Network settings: direct or relayed, and the latency between devices</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/inbox.png"><img src="images/screenshots/app/en/inbox.png" width="420" alt="Inbox"></a><br><sub>Inbox: pairing, risky Agent actions and screen control wait for you</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/models.png"><img src="images/screenshots/app/en/models.png" width="420" alt="Agents &amp; models"></a><br><sub>Agents &amp; models: connect subscriptions and choose which devices use them</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/capabilities.png"><img src="images/screenshots/app/en/capabilities.png" width="420" alt="Capabilities"></a><br><sub>Capabilities: what this device offers and whether it is shared</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 ## Workspace image
 
 The workspace image is a Linux computer for your Agents: a container on your server, NAS or WSL2 host where Codex, Claude Code and Hermes get a real desktop, browser and terminal, reachable from the browser on any device. It includes the Cranibox node and joins your other devices as a peer; virtual spaces are built from it.
@@ -103,9 +132,9 @@ The workspace image is a Linux computer for your Agents: a container on your ser
 
 It is built on [LinuxServer Webtop](https://docs.linuxserver.io/images/docker-webtop/) (Selkies browser desktop streaming), with XFCE (default), LXQt or KDE.
 
-### Screenshots
+### Workspace image screenshots
 
-Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh` (click to enlarge):
+Captured from a real `ubuntu-xfce` container deployed with `remote-up.sh`, showing the desktop, code-server and Control Center inside the container (click to enlarge):
 
 <table>
   <tr>
@@ -143,8 +172,10 @@ The shortest path is: run `remote-up.sh` → open code-server → sign in to one
 
 ## Architecture
 
+The diagram shows the inside of the workspace image (the container).
+
 <p align="center">
-  <a href="images/architecture.svg"><img src="images/architecture.png" width="900" alt="Agent Workspace architecture diagram"></a>
+  <a href="images/architecture.svg"><img src="images/architecture.png" width="900" alt="Cranibox workspace image architecture diagram"></a>
   <br><sub>Click the image for the zoomable SVG version</sub>
 </p>
 
@@ -238,7 +269,7 @@ flowchart TB
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 ./scripts/remote-up.sh
 ```
 
@@ -330,7 +361,7 @@ drop `AGENT_WORKSPACE_BOOTSTRAP`, `AGENT_WORKSPACE_AGENT`, and `-p 8443:8443`.
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 # Edit docker-compose.yml as needed
 docker compose up -d
 ```
@@ -386,7 +417,7 @@ Each release also publishes pinned tags such as `ubuntu-xfce-1.0.35`; see
 | `SSH_PASSWORD` | unset | Set to enable SSH service (container port 22), value is abc user password; the compose files do not publish it, add e.g. `-p 2222:22` |
 | `NODE_OPTIONS` | - | Node.js options (e.g., `--max-old-space-size=2048`) |
 | `AGENT_WORKSPACE_BROWSER_PROFILE` | `/config/.config/agent-browser` | Persistent profile for the default managed desktop Chromium |
-| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Agent Workspace (Managed)` | Visible Chromium profile name that makes an accidentally opened unmanaged browser easy to spot |
+| `AGENT_WORKSPACE_BROWSER_PROFILE_NAME` | `Cranibox (Managed)` | Visible Chromium profile name that makes an accidentally opened unmanaged browser easy to spot |
 | `AGENT_WORKSPACE_BROWSER_PORT` | `9222` | Container-internal Chrome DevTools port bound only to `127.0.0.1` |
 | `AGENT_WORKSPACE_BROWSER_DISPLAY` | auto-detected | Override the X display used by Chromium when needed, such as `:0` |
 | `SELKIES_ENABLE_RATE_CONTROL` | `true` | Enable CRF/CBR rate-control switching |
@@ -451,8 +482,8 @@ Measured on `ubuntu-xfce` (idle desktop, no desktop browser open, reclaimable fi
 
 The image focuses on stable system dependencies, desktop/runtime tooling, and
 base s6 services. Faster-moving application capabilities such as proxy routing,
-code-server extensions, and Agent installers are managed by
-`agent-workspace-manager` and installed under the persistent `/config` volume.
+code-server extensions, and Agent installers are managed by the workspace manager,
+`agent-workspace-manager` (the command keeps its old name for now), and installed under the persistent `/config` volume.
 
 Run it inside the container to open the TUI:
 
@@ -489,7 +520,7 @@ agent-workspace-manager status
 
 Set `AGENT_WORKSPACE_SOURCE_DIR` to use an existing checkout while developing.
 By default, source is persisted at `/config/agent-workspace-manager/source`.
-See [Agent Workspace Manager](docs/agent-workspace-manager.md).
+See the [workspace manager](docs/agent-workspace-manager.md).
 
 ## Agent Software
 
@@ -563,7 +594,7 @@ Web tasks continue to prefer managed Chromium CDP. Run
 `workspacectl desktop emergency-stop` to block all Agent desktop input and
 `workspacectl desktop resume` only after it is safe to continue.
 
-`.deb` files in the desktop file manager open with the Agent Workspace Software
+`.deb` files in the desktop file manager open with the Cranibox Software
 Installer by default. It shows the package name, version, architecture, source
 path, and privileged-install warning before using `apt` to resolve dependencies.
 Logs are stored in `/config/.local/log/agent-workspace/deb-installer.log`. Agents
@@ -609,7 +640,7 @@ agent-workspace-manager install code-server-extensions
 ```
 
 The installer migrates the old standalone Services and Caddy sidebar entries
-to one Agent Workspace entry. Users and Agents operate everything through
+to one Cranibox entry. Users and Agents operate everything through
 `workspacectl`; the Caddy routing backend stays decoupled but does not need to
 be used directly.
 
@@ -646,7 +677,7 @@ The base follows the latest official `linuxserver/webtop:ubuntu-{desktop}` tag. 
 
 ```bash
 git clone https://github.com/fliaping/cranibox.git
-cd agent-workspace
+cd cranibox
 
 # Default build (XFCE + international mirrors)
 docker compose build --pull

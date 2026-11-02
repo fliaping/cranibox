@@ -2,7 +2,7 @@
 
 This optional Agent installs DeepSeek AI's official developer-preview
 `@deepseek-ai/dsh` package into the persistent npm prefix under `/config`. The
-Agent Workspace wrapper keeps runtime state in `/config/.dsh`, starts from
+Cranibox wrapper keeps runtime state in `/config/.dsh`, starts from
 `/config/Workspace`, and loads the MCP patch owned by Control Center.
 
 Install and operate it through the same Agent interfaces as the other Agents:

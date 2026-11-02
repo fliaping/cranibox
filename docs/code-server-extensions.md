@@ -1,6 +1,6 @@
 # code-server Control Center
 
-Agent Workspace presents one code-server Activity Bar entry for onboarding and
+Cranibox presents one code-server Activity Bar entry for onboarding and
 daily operations:
 
 - `extensions/control-center`: five-step first-run guide plus Overview, Agents,
@@ -38,8 +38,8 @@ Developer: Reload Window
 ```
 
 On a fresh profile, Control Center opens automatically until its guide is
-completed or skipped. It can always be reopened from the Agent Workspace icon
-or from `Agent Workspace: Show Getting Started` in the Command Palette.
+completed or skipped. It can always be reopened from the Cranibox icon
+or from `Cranibox: Show Getting Started` in the Command Palette.
 
 The layout follows the active VS Code theme, uses a compact sidebar summary and
 a responsive editor-area dashboard, and collapses cleanly on narrow screens.
