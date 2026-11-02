@@ -30,12 +30,14 @@ fi
 chown -R abc:abc /config/.linuxbrew 2>/dev/null || true
 chown -h abc:abc /home/linuxbrew/.linuxbrew 2>/dev/null || true
 
-# Older images left build-time caches in /config owned by root (tools were
-# installed as root with HOME=/config). abc must own its cache and settings
-# directories, or desktop programs fail to write them: KDE cannot build its
-# application database and the panel launchers show blank icons.
+# abc must own its cache and settings directories, or desktop programs fail
+# to write them: KDE cannot build its application database and the panel
+# launchers show blank icons. Older images left them owned by root (tools were
+# installed as root with HOME=/config), and the image hands them to uid 1000,
+# which is not abc when PUID is unset or different.
+abc_uid="$(id -u abc)"
 for path in /config/.cache /config/.config /config/.local /config/.npm /config/.npm-global /config/.wget-hsts; do
-    if [ -e "$path" ] && [ "$(stat -c %u "$path")" = 0 ]; then
+    if [ -e "$path" ] && [ "$(stat -c %u "$path")" != "$abc_uid" ]; then
         chown -R abc:abc "$path"
     fi
 done
