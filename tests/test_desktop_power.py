@@ -10,6 +10,16 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/cranibox-desktop"
 INSTALL = ROOT / "addons/desktop-power/install.sh"
+
+
+def load_script():
+    import importlib.machinery
+    import importlib.util
+    loader = importlib.machinery.SourceFileLoader("cranibox_desktop", str(SCRIPT))
+    spec = importlib.util.spec_from_loader("cranibox_desktop", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
 NGINX = """server {
   listen 3000 default_server;
   location SUBFOLDER {
@@ -79,6 +89,21 @@ class DesktopPowerTests(unittest.TestCase):
         self.assertEqual(value["phase"], "stopped")
         for key in ("desktop_memory_mb", "memory_hint_mb", "container_memory_mb", "process_count"):
             self.assertIn(key, value)
+
+    def test_desktop_programs_of_every_variant(self):
+        module = load_script()
+        desktop = ["xfdesktop", "xfce4-panel", "labwc", "lxqt-panel", "lxqt-session", "pcmanfm-qt", "openbox",
+                   "plasmashell", "plasma_waitforn", "kwin_wayland", "kded6", "kactivitymanage", "ksecretd",
+                   "baloo_file", "pipewire", "wireplumber", "xembedsniproxy", "Xwayland", "pulseaudio"]
+        for comm in desktop:
+            self.assertTrue(module.is_desktop_program(comm, lambda: ""), comm)
+        for comm in ["cranibox", "node", "bash", "codex", "python3", "code-server"]:
+            self.assertFalse(module.is_desktop_program(comm, lambda: ""), comm)
+        self.assertTrue(module.is_desktop_program("chromium", lambda: "chromium --user-data-dir=/x"))
+        self.assertFalse(module.is_desktop_program("chromium", lambda: "chromium --headless=new"))
+        self.assertTrue(module.is_desktop_program("dbus-daemon", lambda: "dbus-daemon --session --nofork"))
+        self.assertFalse(module.is_desktop_program("dbus-daemon", lambda: "dbus-daemon --system"))
+        self.assertIn("geoclue", module.SYSTEM_HELPERS)
 
     def test_page_and_nginx_patch(self):
         dashboard = self.root / "selkies/selkies-dashboard"

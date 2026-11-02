@@ -45,11 +45,27 @@ DESKTOP_NAMES = {
     "lxqt-panel", "pcmanfm-qt", "openbox", "plasmashell", "kwin_wayland", "kwin_x11", "ksmserver",
     "kded6", "kded5", "at-spi-bus-launcher", "at-spi2-registryd", "tumblerd", "gvfsd", "polkit-gnome-au",
     "wrapper-2.0", "ibus-daemon", "fcitx5", "nm-applet", "blueman-applet", "xiccd", "foot",
+    # KDE Plasma helpers (comm is cut to 15 characters).
+    "kactivitymanage", "kactivitymanagerd", "kglobalacceld", "ksecretd", "kwalletd6", "kwalletd5",
+    "baloo_file", "knighttimed", "xembedsniproxy", "gmenudbusmenupr", "kioworker", "kiod6",
+    "pipewire", "wireplumber", "pipewire-pulse", "dconf-service",
 }
+# Name prefixes of desktop programs (LXQt, Plasma, XFCE).
+DESKTOP_PREFIXES = ("xfce4-", "lxqt-", "plasma", "kwin_", "kded")
 # System D-Bus services that only the desktop (gvfs, file manager) activates.
 # They are activated again on demand.
-SYSTEM_HELPERS = {"udisksd", "polkitd"}
+SYSTEM_HELPERS = {"udisksd", "polkitd", "geoclue"}
+# Extra memory of an idle desktop before one has been measured, by desktop
+# (measured on the ubuntu-* images without the desktop browser).
+MEMORY_HINTS_MB = (("/usr/bin/plasmashell", 450), ("/usr/bin/lxqt-session", 170))
 MEMORY_HINT_MB = 250
+
+
+def memory_hint_mb() -> int:
+    for path, value in MEMORY_HINTS_MB:
+        if os.path.exists(path):
+            return value
+    return MEMORY_HINT_MB
 
 
 def truthy_off(value: str | None) -> bool:
@@ -184,16 +200,21 @@ def desktop_pids() -> list[int]:
             continue
         if proc_uid(pid) != abc_uid:
             continue
-        if comm in DESKTOP_NAMES or comm.startswith("xfce4-"):
-            result.append(pid)
-        elif comm in {"chromium", "chrome", "chrome_crashpad"} or comm.startswith("chromium"):
-            if "--headless" not in proc_cmdline(pid):
-                result.append(pid)
-        elif comm == "dbus-daemon" and "--session" in proc_cmdline(pid):
-            result.append(pid)
-        elif comm == "dbus-launch":
+        if is_desktop_program(comm, lambda pid=pid: proc_cmdline(pid)):
             result.append(pid)
     return result
+
+
+def is_desktop_program(comm: str, cmdline) -> bool:
+    """Whether a process of the desktop user belongs to the desktop. `cmdline`
+    is a callable so the command line is only read when it matters."""
+    if comm in DESKTOP_NAMES or comm.startswith(DESKTOP_PREFIXES):
+        return True
+    if comm in {"chromium", "chrome", "chrome_crashpad"} or comm.startswith("chromium"):
+        return "--headless" not in cmdline()  # agents' headless browsers keep running
+    if comm == "dbus-daemon":
+        return "--session" in cmdline()
+    return comm in {"dbus-launch", "dbus-run-sessio"}
 
 
 def abc_user_id() -> int:
@@ -280,7 +301,7 @@ def status() -> dict[str, object]:
         "process_count": len(pids),
         "desktop_memory_mb": desktop_mb,
         "last_desktop_memory_mb": int(last) if last.isdigit() else None,
-        "memory_hint_mb": int(last) if last.isdigit() and int(last) > 0 else MEMORY_HINT_MB,
+        "memory_hint_mb": int(last) if last.isdigit() and int(last) > 0 else memory_hint_mb(),
         "container_memory_mb": container_memory_mb(),
         "error": read_file("error") or None,
     }
