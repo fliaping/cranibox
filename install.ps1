@@ -1,5 +1,5 @@
 #
-# Agent Workspace One-Click Deploy (Windows PowerShell)
+# Cranibox One-Click Deploy (Windows PowerShell)
 # Based on LinuxServer webtop (Selkies)
 # Requires: Windows 10/11 + Docker Desktop
 # Project: https://github.com/fliaping/cranibox
@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 # ============================================================================
 $Texts = @{
     cn = @{
-        welcome_title = "Agent Workspace 一键部署"
+        welcome_title = "Cranibox 一键部署"
         step1_title = "步骤 1/9: 选择语言"
         lang_cn = "1) 中文 (Chinese)"
         lang_en = "2) English"
@@ -108,7 +108,7 @@ $Texts = @{
         gpu_not_supported = "Windows Docker Desktop 不支持 GPU 直通"
     }
     en = @{
-        welcome_title = "Agent Workspace Deployment"
+        welcome_title = "Cranibox Deployment"
         step1_title = "Step 1/9: Select Language"
         lang_cn = "1) Chinese"
         lang_en = "2) English"

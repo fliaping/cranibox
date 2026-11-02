@@ -642,7 +642,7 @@ pub async fn browser(ctx: &Context) -> Value {
     let desired = env::var("AGENT_WORKSPACE_BROWSER_PROFILE_NAME")
         .ok()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "Agent Workspace (Managed)".into());
+        .unwrap_or_else(|| "Cranibox (Managed)".into());
     let local = json_file(profile.join("Local State"));
     let directory = text(&local["profile"]["last_used"]);
     let valid = directory == "Default"

@@ -72,7 +72,7 @@ echo "If inbound ports are closed, create an SSH tunnel from the client:"
 echo "ssh -N -L ${desktop_port:-3001}:127.0.0.1:${desktop_port:-3001} -L ${code_port:-8443}:127.0.0.1:${code_port:-8443} user@server"
 echo "First boot installs the remote foundation; follow progress with:"
 echo "docker logs -f agent-workspace"
-echo "Then open code-server; Agent Workspace Control Center starts the first-use guide."
+echo "Then open code-server; Cranibox Control Center starts the first-use guide."
 case "${selected_agent:-deepseek-harness}" in
   codex) echo "Then open a terminal in /config/Workspace and run: codex" ;;
   pi) echo "Then open a terminal in /config/Workspace and run: pi" ;;

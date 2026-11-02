@@ -24,8 +24,8 @@ LEGACY_PROFILE = pathlib.Path(
     os.environ.get("AGENT_WORKSPACE_BROWSER_LEGACY_PROFILE", str(CONFIG_ROOT / ".config/chromium"))
 )
 PROFILE_NAME = os.environ.get(
-    "AGENT_WORKSPACE_BROWSER_PROFILE_NAME", "Agent Workspace (Managed)"
-).strip() or "Agent Workspace (Managed)"
+    "AGENT_WORKSPACE_BROWSER_PROFILE_NAME", "Cranibox (Managed)"
+).strip() or "Cranibox (Managed)"
 try:
     DEBUG_PORT = int(os.environ.get("AGENT_WORKSPACE_BROWSER_PORT", "9222"))
 except ValueError:

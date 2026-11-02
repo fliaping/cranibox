@@ -24,7 +24,7 @@ fi
 
 INTERFACE_LOCALE="${LC_ALL:-${LANG:-en}}"
 if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
-  APP_TITLE="Agent Workspace 软件包安装器"
+  APP_TITLE="Cranibox 软件包安装器"
   QUESTION_TEXT="将这个软件包安装到持久化应用环境吗？"
   TRUST_WARNING="应用和依赖将保存在 /config，容器重建后保留。首次安装需要下载 Ubuntu 环境。识别到 Electron 应用后，会默认关闭该应用的 Chromium 沙箱并使用软件渲染以兼容 PRoot，可在应用配置中覆盖。请只安装可信软件包；应用可以访问你的文件。"
   INSTALL_LABEL="安装"
@@ -48,7 +48,7 @@ if [[ "${INTERFACE_LOCALE,,}" == zh* ]]; then
   FAILED_LABEL="安装失败"
   ERROR_LABEL="错误"
 else
-  APP_TITLE="Agent Workspace Software Installer"
+  APP_TITLE="Cranibox Software Installer"
   QUESTION_TEXT="Install this package in the persistent application environment?"
   TRUST_WARNING="Applications and dependencies stay under /config across container rebuilds. First use downloads Ubuntu. Detected Electron apps default to a disabled Chromium sandbox and software rendering for PRoot compatibility; per-app settings can override this. Install only trusted packages; applications can access your files."
   INSTALL_LABEL="Install"

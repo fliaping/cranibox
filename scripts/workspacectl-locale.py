@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persist the Agent Workspace UI locale and restart code-server safely."""
+"""Persist the Cranibox UI locale and restart code-server safely."""
 
 from __future__ import annotations
 

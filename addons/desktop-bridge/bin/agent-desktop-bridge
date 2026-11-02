@@ -338,7 +338,7 @@ def client_action(action: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent Workspace desktop Computer Use bridge")
+    parser = argparse.ArgumentParser(description="Cranibox desktop Computer Use bridge")
     parser.add_argument("command", nargs="?", default="status", choices=("serve", "status", "screenshot", "pause", "resume")); parser.add_argument("--output"); args = parser.parse_args()
     if args.command == "serve": serve(); return 0
     if args.command == "status":

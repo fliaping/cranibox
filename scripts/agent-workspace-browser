@@ -9,7 +9,7 @@ if [[ -r "$timezone_file" ]]; then
 fi
 profile_root="${AGENT_WORKSPACE_BROWSER_PROFILE:-$config_root/.config/agent-browser}"
 legacy_profile="${AGENT_WORKSPACE_BROWSER_LEGACY_PROFILE:-$config_root/.config/chromium}"
-profile_name="${AGENT_WORKSPACE_BROWSER_PROFILE_NAME:-Agent Workspace (Managed)}"
+profile_name="${AGENT_WORKSPACE_BROWSER_PROFILE_NAME:-Cranibox (Managed)}"
 debug_port="${AGENT_WORKSPACE_BROWSER_PORT:-9222}"
 browser_bin="${AGENT_WORKSPACE_BROWSER_BIN:-/usr/bin/chromium}"
 log_root="$config_root/.local/log"
@@ -75,7 +75,7 @@ migrate_legacy_profile() {
     echo "The existing Chromium must be closed once before its profile can be migrated." >&2
     echo "Close Chromium in the desktop, then open it again." >&2
     if command -v notify-send >/dev/null 2>&1; then
-      notify-send "Agent Workspace Browser" \
+      notify-send "Cranibox Browser" \
         "Close the existing Chromium once, then reopen it to enable managed Agent control." || true
     fi
     return 1

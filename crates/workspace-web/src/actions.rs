@@ -336,7 +336,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             operation(state, session, "Check routing", &["proxy", "check"], 60).await?;
         }
         "updateSource" => {
-            operation(state, session, "Update Agent Workspace", &["update"], 900).await?;
+            operation(state, session, "Update Cranibox", &["update"], 900).await?;
         }
         "updateSkills" => {
             operation(
@@ -381,7 +381,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             if let Some(source) = input(
                 state,
                 session,
-                "Agent Workspace: Install global Skill",
+                "Cranibox: Install global Skill",
                 "Enter owner/repository, a Git URL, or a local Skill package path.",
                 TextKind::Source,
                 "",
@@ -402,7 +402,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             let Some(name) = input(
                 state,
                 session,
-                "Agent Workspace: Route name",
+                "Cranibox: Route name",
                 "Short route label, for example api or dashboard.",
                 TextKind::Name,
                 "",
@@ -414,7 +414,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             let Some(target) = input(
                 state,
                 session,
-                "Agent Workspace: Route target",
+                "Cranibox: Route target",
                 "Upstream host:port reachable from this container.",
                 TextKind::Target,
                 "",
@@ -463,7 +463,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             let Some(domain) = input(
                 state,
                 session,
-                "Agent Workspace: Custom domain",
+                "Cranibox: Custom domain",
                 "Enter a domain pointing to this workspace.",
                 TextKind::Domain,
                 current,
@@ -548,7 +548,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             let Some(name) = input(
                 state,
                 session,
-                "Agent Workspace: MCP server name",
+                "Cranibox: MCP server name",
                 "Use one stable name across all selected Agents.",
                 TextKind::Name,
                 "",
@@ -557,15 +557,15 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             else {
                 return Ok(());
             };
-            let Some(transport)=pick(state,session,"Agent Workspace: MCP transport",vec![json!({"label":"Streamable HTTP","id":"http","description":"A remote HTTP(S) MCP endpoint"}),json!({"label":"STDIO command","id":"stdio","description":"A local executable and arguments"})],false).await?else{return Ok(())};
+            let Some(transport)=pick(state,session,"Cranibox: MCP transport",vec![json!({"label":"Streamable HTTP","id":"http","description":"A remote HTTP(S) MCP endpoint"}),json!({"label":"STDIO command","id":"stdio","description":"A local executable and arguments"})],false).await?else{return Ok(())};
             let transport = transport["id"].as_str().unwrap();
             let Some(value) = input(
                 state,
                 session,
                 if transport == "http" {
-                    "Agent Workspace: MCP URL"
+                    "Cranibox: MCP URL"
                 } else {
-                    "Agent Workspace: MCP command"
+                    "Cranibox: MCP command"
                 },
                 "Enter the MCP endpoint or command.",
                 if transport == "http" {
@@ -587,7 +587,7 @@ pub async fn execute(state: &State, session: &SessionRef, body: Value) -> Result
             let Some(selected) = pick(
                 state,
                 session,
-                "Agent Workspace: Make MCP available to",
+                "Cranibox: Make MCP available to",
                 items,
                 true,
             )

@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Workspace desktop Computer Use bridge
+Description=Cranibox desktop Computer Use bridge
 
 [Service]
 Environment=HOME=/config

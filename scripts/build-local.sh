@@ -28,7 +28,7 @@ REGISTRY_CN="registry.cn-hangzhou.aliyuncs.com/fliaping/agent-workspace"
 REGISTRY_EN="xuping/agent-workspace"
 
 echo "========================================"
-echo "  Agent Workspace 本地构建"
+echo "  Cranibox 本地构建"
 echo "========================================"
 echo ""
 

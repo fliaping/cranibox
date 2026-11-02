@@ -1,5 +1,5 @@
 #!/bin/bash
-# Agent Workspace 本地构建脚本
+# Cranibox 本地构建脚本
 
 set -eo pipefail
 
@@ -12,7 +12,7 @@ IMAGE_TAG="ubuntu-${DESKTOP}"
 EXPORT_FILE="agent-workspace-${DESKTOP}.tar"
 
 echo "======================================"
-echo "  Agent Workspace 构建脚本"
+echo "  Cranibox 构建脚本"
 echo "  桌面: ${DESKTOP} (lxqt/xfce/kde)"
 echo "======================================"
 echo ""

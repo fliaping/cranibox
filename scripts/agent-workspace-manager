@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Application-layer manager for Agent Workspace.
+"""Application-layer manager for Cranibox.
 
 The image provides stable runtime dependencies. This manager installs and
 updates application capabilities under /config, so proxy/code-server/agent
@@ -780,7 +780,7 @@ class WorkspaceManager:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=APP_NAME,
-        description="Install and update Agent Workspace application capabilities under /config.",
+        description="Install and update Cranibox application capabilities under /config.",
     )
     sub = parser.add_subparsers(dest="command")
 

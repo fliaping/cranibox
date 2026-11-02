@@ -6,7 +6,7 @@ const { execFile } = require('child_process');
 
 const VIEW_ID = 'agentWorkspace.quickView';
 const PANEL_TYPE = 'agentWorkspace.controlCenter';
-const OUTPUT = vscode.window.createOutputChannel('Agent Workspace');
+const OUTPUT = vscode.window.createOutputChannel('Cranibox');
 const ONBOARDING_MARKER = path.join(process.env.AGENT_WORKSPACE_CONFIG_ROOT || '/config', '.local/state/agent-workspace/onboarding-v1.complete');
 const SNAPSHOT_CACHE_KEY = 'agentWorkspace.cachedSnapshot.v1';
 const VALID_NAME = /^[A-Za-z0-9_@][A-Za-z0-9_.@-]*$/;
@@ -49,7 +49,7 @@ function strings() {
   if (!zh) {
     return {
       overview: 'Overview', agents: 'Agents', resources: 'MCP & Skills', services: 'Services', browser: 'Browser', desktop: 'Desktop', network: 'Network', diagnostics: 'Diagnostics',
-      title: 'Agent Workspace', subtitle: 'One place to understand and operate your remote Agent environment.',
+      title: 'Cranibox', subtitle: 'One place to understand and operate your remote Agent environment.',
       ready: 'Workspace ready', attention: 'Needs attention', refreshing: 'Refreshing', refresh: 'Refresh',
       openDesktop: 'Open desktop', openTerminal: 'Open terminal', openWorkspace: 'Open workspace',
       quickStart: 'Quick start', environment: 'Environment', installedAgents: 'Ready Agents', runningServices: 'Running services',
@@ -62,10 +62,10 @@ function strings() {
       access: 'Access', networkHelp: 'Choose public custom-domain access, private Tailnet access, or an SSH tunnel.', listeningPorts: 'Listening ports', proxyRoutes: 'Custom-domain routes', installProxy: 'Configure custom domain',
       addRoute: 'Add route', checkProxy: 'Check routing', remove: 'Remove', open: 'Open', noRoutes: 'No named routes configured.',
       command: 'Process', address: 'Address', doctor: 'Environment checks', revision: 'Application revision',
-      onboardingTitle: 'Welcome to Agent Workspace', onboardingSubtitle: 'Your environment is running. Take a minute to learn the important entry points.',
+      onboardingTitle: 'Welcome to Cranibox', onboardingSubtitle: 'Your environment is running. Take a minute to learn the important entry points.',
       stepWelcome: 'Welcome', stepAgent: 'Agent', stepWorkspace: 'Workspace', stepDesktop: 'Desktop', stepOptional: 'Finish',
       back: 'Back', next: 'Continue', finish: 'Finish setup', skip: 'Skip guide',
-      welcomeBody: 'The foundation is installed automatically. Control Center will stay available from the Agent Workspace icon.',
+      welcomeBody: 'The foundation is installed automatically. Control Center will stay available from the Cranibox icon.',
       agentBody: 'Start with one working Agent. Sign in from a terminal, then let it help with the rest of the environment.',
       workspaceBody: 'Projects and Agent context live in the durable workspace directory.',
       accessBody: 'Selkies provides the complete graphical workspace and opens inside code-server or in its own browser tab.',
@@ -128,7 +128,7 @@ function strings() {
   }
   return {
     overview: '总览', agents: 'Agents', resources: 'MCP 与 Skills', services: '服务', browser: '浏览器', desktop: '桌面', network: '网络', diagnostics: '诊断',
-    title: 'Agent Workspace', subtitle: '在一个地方了解和管理你的远程 Agent 环境。',
+    title: 'Cranibox', subtitle: '在一个地方了解和管理你的远程 Agent 环境。',
     ready: '工作区已就绪', attention: '需要处理', refreshing: '正在刷新', refresh: '刷新',
     openDesktop: '打开桌面', openTerminal: '打开终端', openWorkspace: '打开工作区',
     quickStart: '快速开始', environment: '环境', installedAgents: '可用 Agent', runningServices: '运行中服务',
@@ -141,10 +141,10 @@ function strings() {
     access: '访问方式', networkHelp: '按需选择公网自定义域名、私有 Tailnet 或 SSH 隧道。', listeningPorts: '监听端口', proxyRoutes: '自定义域名路由', installProxy: '配置自定义域名',
     addRoute: '添加路由', checkProxy: '检查路由', remove: '删除', open: '打开', noRoutes: '尚未配置命名路由。',
     command: '进程', address: '地址', doctor: '环境检查', revision: '应用版本',
-    onboardingTitle: '欢迎使用 Agent Workspace', onboardingSubtitle: '环境已经运行，用一分钟了解最重要的入口。',
+    onboardingTitle: '欢迎使用 Cranibox', onboardingSubtitle: '环境已经运行，用一分钟了解最重要的入口。',
     stepWelcome: '欢迎', stepAgent: 'Agent', stepWorkspace: '工作区', stepDesktop: '桌面', stepOptional: '完成',
     back: '上一步', next: '继续', finish: '完成向导', skip: '跳过向导',
-    welcomeBody: '基础能力会自动安装。以后随时可以从左侧 Agent Workspace 图标回到控制中心。',
+    welcomeBody: '基础能力会自动安装。以后随时可以从左侧 Cranibox 图标回到控制中心。',
     agentBody: '先保证一个 Agent 可用。在终端完成登录后，就可以让它继续配置其他环境能力。',
     workspaceBody: '项目与 Agent 上下文都放在持久化工作区目录中，容器重建后仍会保留。',
     accessBody: 'Selkies 提供完整图形工作区，可以在 code-server 内打开，也可以使用独立浏览器窗口。',
@@ -234,9 +234,9 @@ class ControlCenter {
     this.forceWelcome = false;
     this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 45);
     this.statusBar.command = 'agentWorkspace.openControlCenter';
-    this.statusBar.name = 'Agent Workspace';
-    this.statusBar.text = '$(loading~spin) Agent Workspace';
-    this.statusBar.tooltip = 'Open Agent Workspace Control Center';
+    this.statusBar.name = 'Cranibox';
+    this.statusBar.text = '$(loading~spin) Cranibox';
+    this.statusBar.tooltip = 'Open Cranibox Control Center';
     this.statusBar.show();
     context.subscriptions.push(this.statusBar, OUTPUT);
     if (this.snapshot) this.updateStatusBar();
@@ -279,10 +279,10 @@ class ControlCenter {
       })
       .catch((error) => {
         OUTPUT.appendLine(`Refresh failed: ${error.message}`);
-        this.statusBar.text = '$(warning) Agent Workspace';
+        this.statusBar.text = '$(warning) Cranibox';
         this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this.broadcast({ type: 'error', message: error.message });
-        if (showError) vscode.window.showErrorMessage(`Agent Workspace: ${error.message}`);
+        if (showError) vscode.window.showErrorMessage(`Cranibox: ${error.message}`);
         return undefined;
       })
       .finally(() => {
@@ -293,13 +293,13 @@ class ControlCenter {
 
   updateStatusBar() {
     const healthy = isSnapshotHealthy(this.snapshot);
-    this.statusBar.text = healthy ? '$(check) Agent Workspace' : '$(warning) Agent Workspace';
+    this.statusBar.text = healthy ? '$(check) Cranibox' : '$(warning) Cranibox';
     this.statusBar.backgroundColor = healthy
       ? undefined
       : new vscode.ThemeColor('statusBarItem.warningBackground');
     this.statusBar.tooltip = healthy
-      ? 'Agent Workspace is ready — open Control Center'
-      : 'Agent Workspace needs attention — open Control Center';
+      ? 'Cranibox is ready — open Control Center'
+      : 'Cranibox needs attention — open Control Center';
   }
 
   broadcast(message) {
@@ -333,7 +333,7 @@ class ControlCenter {
     }
     const panel = vscode.window.createWebviewPanel(
       PANEL_TYPE,
-      'Agent Workspace',
+      'Cranibox',
       vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -368,7 +368,7 @@ class ControlCenter {
 
   terminal(command = '') {
     const terminal = vscode.window.createTerminal({
-      name: 'Agent Workspace',
+      name: 'Cranibox',
       cwd: '/config/Workspace',
       env: { HOME: '/config' }
     });
@@ -387,7 +387,7 @@ class ControlCenter {
     if (result.stdout.trim()) OUTPUT.appendLine(result.stdout.trim());
     if (result.stderr.trim()) OUTPUT.appendLine(result.stderr.trim());
     if (!result.ok) {
-      vscode.window.showErrorMessage(`${title} failed. See Agent Workspace output.`);
+      vscode.window.showErrorMessage(`${title} failed. See Cranibox output.`);
       return false;
     }
     vscode.window.showInformationMessage(`${title} complete.`);
@@ -446,7 +446,7 @@ class ControlCenter {
     if (result.stderr.trim()) OUTPUT.appendLine(result.stderr.trim());
     if (!result.ok) {
       OUTPUT.show(true);
-      vscode.window.showErrorMessage(`${copy.switchLanguage} failed. See Agent Workspace output.`);
+      vscode.window.showErrorMessage(`${copy.switchLanguage} failed. See Cranibox output.`);
       return;
     }
     vscode.window.showInformationMessage(copy.languageRestarting);
@@ -604,7 +604,7 @@ class ControlCenter {
           OUTPUT.show(true);
           break;
         case 'updateSource':
-          await this.operation('Update Agent Workspace', ['update']);
+          await this.operation('Update Cranibox', ['update']);
           break;
         case 'settings':
           await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:agent-workspace.control-center');
@@ -612,13 +612,13 @@ class ControlCenter {
       }
     } catch (error) {
       OUTPUT.appendLine(`Action failed: ${error.stack || error.message}`);
-      vscode.window.showErrorMessage(`Agent Workspace: ${error.message}`);
+      vscode.window.showErrorMessage(`Cranibox: ${error.message}`);
     }
   }
 
   async addSkill() {
     const source = await vscode.window.showInputBox({
-      title: 'Agent Workspace: Install global Skill',
+      title: 'Cranibox: Install global Skill',
       prompt: 'Enter owner/repository, a Git URL, or a local Skill package path.',
       placeHolder: 'owner/agent-skills',
       validateInput: (value) => value.trim() && !value.trim().startsWith('-') ? undefined : 'Enter a valid Skill source.'
@@ -641,7 +641,7 @@ class ControlCenter {
 
   async addMcp() {
     const name = await vscode.window.showInputBox({
-      title: 'Agent Workspace: MCP server name',
+      title: 'Cranibox: MCP server name',
       prompt: 'Use one stable name across all selected Agents.',
       validateInput: (value) => VALID_NAME.test(value) ? undefined : 'Use letters, numbers, dot, underscore, @ or dash.'
     });
@@ -651,11 +651,11 @@ class ControlCenter {
         { label: 'Streamable HTTP', id: 'http', description: 'A remote http:// or https:// MCP endpoint.' },
         { label: 'STDIO command', id: 'stdio', description: 'A local command such as npx -y package-name.' }
       ],
-      { title: 'Agent Workspace: MCP transport' }
+      { title: 'Cranibox: MCP transport' }
     );
     if (!transport) return;
     const value = await vscode.window.showInputBox({
-      title: transport.id === 'http' ? 'Agent Workspace: MCP URL' : 'Agent Workspace: MCP command',
+      title: transport.id === 'http' ? 'Cranibox: MCP URL' : 'Cranibox: MCP command',
       prompt: transport.id === 'http'
         ? 'Secrets stay in the Agent OAuth flow or environment; do not place tokens in the URL.'
         : 'Enter the executable and arguments. Environment secrets are inherited by the Agent.',
@@ -674,7 +674,7 @@ class ControlCenter {
       return;
     }
     const selected = await vscode.window.showQuickPick(available, {
-      title: 'Agent Workspace: Make MCP available to',
+      title: 'Cranibox: Make MCP available to',
       canPickMany: true,
       placeHolder: 'Choose one or more installed Agents'
     });
@@ -701,13 +701,13 @@ class ControlCenter {
 
   async addRoute() {
     const name = await vscode.window.showInputBox({
-      title: 'Agent Workspace: Route name',
+      title: 'Cranibox: Route name',
       prompt: 'Short route label, for example api or dashboard.',
       validateInput: (value) => VALID_NAME.test(value) ? undefined : 'Use letters, numbers, dot, underscore, @ or dash.'
     });
     if (!name) return;
     const target = await vscode.window.showInputBox({
-      title: 'Agent Workspace: Route target',
+      title: 'Cranibox: Route target',
       prompt: 'Upstream host:port reachable from this container.',
       placeHolder: '127.0.0.1:3000',
       validateInput: (value) => /^[^:\s]+:\d{1,5}$/.test(value) ? undefined : 'Use host:port.'
@@ -720,7 +720,7 @@ class ControlCenter {
     const copy = strings();
     const current = this.snapshot && this.snapshot.network && this.snapshot.network.root_domain;
     const domain = await vscode.window.showInputBox({
-      title: `Agent Workspace: ${copy.customDomain}`,
+      title: `Cranibox: ${copy.customDomain}`,
       prompt: copy.domainHelp,
       value: current || '',
       placeHolder: 'workspace.example.com',
@@ -784,7 +784,7 @@ function controlCenterHtml(webview, forceWelcome) {
   return `<!doctype html>
 <html lang="${vscode.env.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${webview.standalone ? "'self'" : ''}; script-src 'nonce-${scriptNonce}'; ${webview.standalone ? "connect-src 'self';" : ''}">
-${webview.standalone ? '<title>Agent Workspace</title>' : ''}
+${webview.standalone ? '<title>Cranibox</title>' : ''}
 <style>
   :root{--aw-accent:#8b7cf6;--aw-cyan:#45c9c2;--aw-good:#55c98f;--aw-warn:#e5ac58;--aw-bad:#ed6b75;--aw-radius:14px;--aw-border:color-mix(in srgb,var(--vscode-foreground) 13%,transparent);--aw-soft:color-mix(in srgb,var(--vscode-editor-background) 78%,var(--aw-accent) 22%)}
   *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--vscode-editor-background);color:var(--vscode-foreground);font:13px/1.5 var(--vscode-font-family)}button,input{font:inherit}.app{min-height:100vh;background:radial-gradient(circle at 82% -5%,color-mix(in srgb,var(--aw-accent) 16%,transparent),transparent 32%),radial-gradient(circle at 8% 100%,color-mix(in srgb,var(--aw-cyan) 10%,transparent),transparent 30%)}
@@ -867,7 +867,7 @@ function desktopPage(){
     '<section class="card span-12"><div class="section-title"><h3>'+copy.desktopAccess+'</h3></div><div class="list"><div class="list-row">'+dot(desktop.running?'ready':'optional')+'<div class="list-main"><strong>'+copy.desktopPath+'</strong><small>'+esc(desktop.code_server_path)+'</small></div><button class="button ghost small" data-action="openDesktop">'+copy.open+'</button></div><div class="list-row">'+dot(desktop.running?'ready':'optional')+'<div class="list-main"><strong>HTTPS</strong><small>'+esc(desktop.local_url)+'</small></div></div></div><div class="code">ssh -N -L 3001:127.0.0.1:3001 user@server</div><button class="button ghost small" style="margin-top:9px" data-action="copyDesktopTunnel">'+copy.copyDesktopTunnel+'</button></section></div>';
 }
 function browserPage(){
-  const browser=data.browser||{installed:false,supported:false,state:'unsupported',running:false,remote_debugging:false,mcp_agents:[],mcp_configured:false,version:'',profile:'/config/.config/agent-browser',profile_name:'Agent Workspace (Managed)',desired_profile_name:'Agent Workspace (Managed)',profile_name_applied:false,legacy_profile:'/config/.config/chromium',debug_port:9222,managed_default:false,profile_exists:false,migration_pending:false};
+  const browser=data.browser||{installed:false,supported:false,state:'unsupported',running:false,remote_debugging:false,mcp_agents:[],mcp_configured:false,version:'',profile:'/config/.config/agent-browser',profile_name:'Cranibox (Managed)',desired_profile_name:'Cranibox (Managed)',profile_name_applied:false,legacy_profile:'/config/.config/chromium',debug_port:9222,managed_default:false,profile_exists:false,migration_pending:false};
   const installedAgents=data.agents.filter(agent=>agent.installed);
   const browserStatus=browser.state==='ready'?copy.ready:browser.state==='needs-setup'?copy.browserNeedsSetup:browser.state==='needs-restart'?copy.browserNeedsApproval:browser.state==='not-running'?copy.browserNotRunning:copy.browserUnsupported;
   const browserTone=browser.state==='ready'?'ready':browser.state==='needs-restart'?'needs-attention':'optional';

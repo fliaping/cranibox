@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stable JSON inspection backend for Agent Workspace Control Center."""
+"""Stable JSON inspection backend for Cranibox Control Center."""
 
 from __future__ import annotations
 
@@ -624,7 +624,7 @@ def global_mcp() -> dict[str, Any]:
 
 
 def user_service_process(name: str) -> tuple[bool, int]:
-    """Read the state maintained by Agent Workspace's systemctl --user shim."""
+    """Read the state maintained by Cranibox's systemctl --user shim."""
     pid_file = CONFIG_ROOT / ".local/run/user-systemd" / f"{name}.pid"
     try:
         pid = int(pid_file.read_text(encoding="utf-8").strip())
@@ -932,8 +932,8 @@ def browser_control_state() -> dict[str, Any]:
         )
     )
     profile_name = os.environ.get(
-        "AGENT_WORKSPACE_BROWSER_PROFILE_NAME", "Agent Workspace (Managed)"
-    ).strip() or "Agent Workspace (Managed)"
+        "AGENT_WORKSPACE_BROWSER_PROFILE_NAME", "Cranibox (Managed)"
+    ).strip() or "Cranibox (Managed)"
     profile_directory = "Default"
     current_profile_name = ""
     try:

@@ -13,7 +13,7 @@ use clap::Parser;
 use common::*;
 use std::{env, path::PathBuf};
 
-const HELP: &str = "Agent Workspace control plane (Rust)
+const HELP: &str = "Cranibox control plane (Rust)
 Usage: workspacectl <command> [arguments]
 
 Inspect: info | status | agents | skills | mcp | locale | services | ports | routes | doctor

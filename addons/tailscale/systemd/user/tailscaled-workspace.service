@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Workspace Tailscale userspace network
+Description=Cranibox Tailscale userspace network
 
 [Service]
 Environment=HOME=/config

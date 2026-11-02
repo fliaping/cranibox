@@ -271,6 +271,6 @@ module.exports = { createServer };
 if (require.main === module) {
   const server = createServer();
   server.listen(server.workspaceConfig.port, '127.0.0.1', () => {
-    console.log(`Agent Workspace Web: http://127.0.0.1:${server.workspaceConfig.port}`);
+    console.log(`Cranibox Web: http://127.0.0.1:${server.workspaceConfig.port}`);
   });
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Switch the graphical desktop of an Agent Workspace container on and off.
+"""Switch the graphical desktop of a Cranibox workspace container on and off.
 
 The Selkies web page (nginx) always stays up. What gets stopped is the heavy
 part: the compositor / X server, the desktop session and its apps (including

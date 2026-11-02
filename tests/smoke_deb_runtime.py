@@ -34,7 +34,7 @@ def build(directory, version):
             directory.chmod(0o755)
     (tree / 'DEBIAN/control').write_text(
         f'Package: {NAME}\nVersion: {version}\nArchitecture: all\n'
-        'Maintainer: Agent Workspace Tests <noreply@example.invalid>\n'
+        'Maintainer: Cranibox Tests <noreply@example.invalid>\n'
         'Depends: x11-utils\nDescription: Persistent package installation smoke test\n')
     postinst = tree / 'DEBIAN/postinst'
     postinst.write_text(f'#!/bin/sh\nset -e\nprintf "%s" "{version}" > {MARKER}\n')

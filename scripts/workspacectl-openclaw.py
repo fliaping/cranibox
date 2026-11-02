@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update OpenClaw through Agent Workspace's lightweight service manager."""
+"""Update OpenClaw through Cranibox's lightweight service manager."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 {
   "name": "control-center",
-  "displayName": "Agent Workspace Control Center",
+  "displayName": "Cranibox Control Center",
   "description": "Unified onboarding and management for Agents, managed browser access, global MCP servers and Skills, services, networking, desktop access, and diagnostics.",
   "version": "0.4.1",
   "publisher": "agent-workspace",
@@ -13,7 +13,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "Control Center operates container-level Agent Workspace commands and does not execute workspace project files."
+      "description": "Control Center operates container-level Cranibox commands and does not execute workspace project files."
     },
     "virtualWorkspaces": {
       "supported": true
@@ -38,7 +38,7 @@
       "activitybar": [
         {
           "id": "agentWorkspace",
-          "title": "Agent Workspace",
+          "title": "Cranibox",
           "icon": "resources/agent-workspace.svg"
         }
       ]
@@ -55,17 +55,17 @@
     "commands": [
       {
         "command": "agentWorkspace.openControlCenter",
-        "title": "Agent Workspace: Open Control Center",
+        "title": "Cranibox: Open Control Center",
         "icon": "$(dashboard)"
       },
       {
         "command": "agentWorkspace.refresh",
-        "title": "Agent Workspace: Refresh",
+        "title": "Cranibox: Refresh",
         "icon": "$(refresh)"
       },
       {
         "command": "agentWorkspace.showWelcome",
-        "title": "Agent Workspace: Show Getting Started"
+        "title": "Cranibox: Show Getting Started"
       }
     ],
     "menus": {
@@ -91,7 +91,7 @@
       ]
     },
     "configuration": {
-      "title": "Agent Workspace",
+      "title": "Cranibox",
       "properties": {
         "agentWorkspace.workspacectlPath": {
           "type": "string",

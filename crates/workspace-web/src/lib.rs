@@ -10,10 +10,7 @@ use clap::Parser;
 use std::{net::IpAddr, path::PathBuf};
 
 #[derive(Parser)]
-#[command(
-    version,
-    about = "Agent Workspace browser control center (native Rust)"
-)]
+#[command(version, about = "Cranibox browser control center (native Rust)")]
 struct Args {
     #[arg(long, env = "AGENT_WORKSPACE_CONFIG_ROOT", default_value = "/config")]
     config_root: PathBuf,
@@ -88,10 +85,7 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
         state.local.as_ref().expect("local node").config_path(),
         listener.local_addr()?,
     )?;
-    println!(
-        "Agent Workspace Web (Rust): http://{}",
-        listener.local_addr()?
-    );
+    println!("Cranibox Web (Rust): http://{}", listener.local_addr()?);
     let cleanup_state = state.clone();
     let cleanup = tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));

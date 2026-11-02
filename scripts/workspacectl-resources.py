@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safe mutation backend for global Agent Workspace MCP and Skill resources."""
+"""Safe mutation backend for global Cranibox MCP and Skill resources."""
 
 from __future__ import annotations
 
@@ -207,7 +207,7 @@ def render_deepseek_patch(servers: dict[str, dict[str, object]]) -> None:
         return
 
     lines = [
-        "# Managed by Agent Workspace. User profile patches remain separate.",
+        "# Managed by Cranibox. User profile patches remain separate.",
         "- insert:",
     ]
     for name in sorted(servers):
@@ -351,7 +351,7 @@ def mcp_command(args: argparse.Namespace) -> int:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description="Manage global Agent Workspace MCP and Skill resources")
+    root = argparse.ArgumentParser(description="Manage global Cranibox MCP and Skill resources")
     groups = root.add_subparsers(dest="group", required=True)
 
     skill = groups.add_parser("skill")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agent Workspace - Setup Wizard (Textual TUI)
+Cranibox - Setup Wizard (Textual TUI)
 
 Interactive TUI for selecting and installing agents inside the container.
 Supports --non-interactive mode for automated installations.
@@ -32,10 +32,10 @@ LANG = _detect_lang()
 
 _TEXTS: dict[str, dict[str, str]] = {
     "en": {
-        "app_title":           "Agent Workspace",
+        "app_title":           "Cranibox",
         "app_subtitle":        "Setup Wizard",
         # Screen 1
-        "select_title":        "Agent Workspace - Setup Wizard",
+        "select_title":        "Cranibox - Setup Wizard",
         "select_hint":         "Select agents to install:",
         "select_keys":         "(1-8=toggle  a=all  ↑↓=move)",
         "key_next":            "Next",
@@ -1205,7 +1205,7 @@ def run_tui(agents_preselect: list[str], china_mirror: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Agent Workspace Setup Wizard",
+        description="Cranibox Setup Wizard",
     )
     parser.add_argument(
         "--non-interactive",

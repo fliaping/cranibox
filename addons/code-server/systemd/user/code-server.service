@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Workspace code-server
+Description=Cranibox code-server
 
 [Service]
 Environment=HOME=/config

@@ -390,7 +390,7 @@ async function discoverSystemd(scope, includeStates) {
     });
   }
 
-  // Agent Workspace's lightweight systemctl --user shim does not implement
+  // Cranibox's lightweight systemctl --user shim does not implement
   // list-units. Keep that portable fallback bounded instead of probing every
   // unit serially.
   return mapLimit(units, 8, async ({ unit, state }) => {

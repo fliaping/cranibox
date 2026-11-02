@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Agent Workspace 一键部署脚本
+# Cranibox 一键部署脚本
 # 基于 LinuxServer webtop (Selkies)
 # 支持多语言: 中文 / English
 # 使用方法: curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/install.sh | sudo bash
@@ -35,7 +35,7 @@ prompt_read() {
 # 多语言文本字典
 
 # 中文文本
-TEXT_cn_welcome_title="Agent Workspace 一键部署"
+TEXT_cn_welcome_title="Cranibox 一键部署"
 TEXT_cn_step1_title="步骤 1/9: 选择语言"
 TEXT_cn_lang_cn="1) 中文 (Chinese)"
 TEXT_cn_lang_en="2) English (英文)"
@@ -151,7 +151,7 @@ TEXT_cn_ssh_port="SSH 端口"
 TEXT_cn_ssh_password_prompt="设置 SSH 密码（留空则不启用 SSH）"
 
 # 英文文本
-TEXT_en_welcome_title="Agent Workspace Deployment"
+TEXT_en_welcome_title="Cranibox Deployment"
 TEXT_en_step1_title="Step 1/9: Select Language"
 TEXT_en_lang_cn="1) 中文 (Chinese)"
 TEXT_en_lang_en="2) English"

@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent Workspace custom-domain Caddy router
+Description=Cranibox custom-domain Caddy router
 
 [Service]
 Environment=HOME=/config

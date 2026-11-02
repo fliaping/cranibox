@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safe network configuration mutations for Agent Workspace."""
+"""Safe network configuration mutations for Cranibox."""
 
 from __future__ import annotations
 

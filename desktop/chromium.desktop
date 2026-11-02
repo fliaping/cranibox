@@ -2,7 +2,7 @@
 Version=1.0
 Name=Chromium
 GenericName=Web Browser
-Comment=Agent Workspace managed browser
+Comment=Cranibox managed browser
 Exec=/config/bin/agent-workspace-browser %U
 Terminal=false
 Type=Application

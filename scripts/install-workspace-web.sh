@@ -47,7 +47,7 @@ if ! $ensure || [[ ! -e "$units/agent-workspace-web.service" ]]; then
   unit_tmp="$(mktemp "$units/.agent-workspace-web.XXXXXX")"
   cat > "$unit_tmp" <<EOF
 [Unit]
-Description=Agent Workspace Web Control Center (Rust)
+Description=Cranibox Web Control Center (Rust)
 
 [Service]
 Type=simple

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP stdio adapter for Agent Workspace desktop Computer Use."""
+"""MCP stdio adapter for Cranibox desktop Computer Use."""
 
 from __future__ import annotations
 
