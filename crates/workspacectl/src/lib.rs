@@ -226,8 +226,15 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
                 .first()
                 .is_some_and(|value| ["on", "off", "power"].contains(&value.as_str())) =>
         {
-            ensure!(rest.len() == 1, "Usage: workspacectl desktop on|off|power [--json]");
-            let action = if rest[0] == "power" { "status" } else { rest[0].as_str() };
+            ensure!(
+                rest.len() == 1,
+                "Usage: workspacectl desktop on|off|power [--json]"
+            );
+            let action = if rest[0] == "power" {
+                "status"
+            } else {
+                rest[0].as_str()
+            };
             let mut command = vec!["cranibox-desktop", action];
             if json_output {
                 command.push("--json");
