@@ -8,6 +8,7 @@ import socket
 import tempfile
 import time
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.request
 
@@ -152,6 +153,20 @@ class DesktopPowerTests(unittest.TestCase):
                  "0 13 1600 4096 100 100 1 1000 1000 1000 1000 0 0 0 0 0\n"   # still attached
                  "0 14 1600 4096 100 100 0 0 0 0 0 0 0 0 0 0\n")               # another user
         self.assertEqual(module.stale_shared_memory(table, 1000, lambda pid: pid == 200), [11])
+
+    def test_stale_shared_memory_is_removed_as_its_owner(self):
+        # Root in a container lacks CAP_IPC_OWNER, so ipcrm has to run as abc.
+        module = load_script()
+        table = (" key shmid perms size cpid lpid nattch uid gid cuid cgid atime dtime ctime rss swap\n"
+                 "0 11 777 4096 999999999 1 0 1000 1000 1000 1000 0 0 0 0 0\n"
+                 "0 12 777 4096 999999999 1 0 1000 1000 1000 1000 0 0 0 0 0\n")
+        calls = []
+        module.abc_user_id = lambda: 1000
+        with mock.patch.object(module.pathlib.Path, "read_text", lambda self: table), \
+                mock.patch.object(module.subprocess, "run",
+                                  lambda command, **kwargs: calls.append((command, kwargs.get("user")))):
+            module.free_shared_memory()
+        self.assertEqual(calls, [(["ipcrm", "-m", "11", "-m", "12"], 1000)])
 
     def test_selkies_port_answers_while_off(self):
         api_port, selkies_port = free_port(), free_port()

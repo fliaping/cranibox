@@ -314,8 +314,16 @@ def free_shared_memory() -> None:
         table = pathlib.Path("/proc/sysvipc/shm").read_text()
     except OSError:
         return
-    for shmid in stale_shared_memory(table, abc_user_id(), lambda pid: os.path.exists(f"/proc/{pid}")):
-        subprocess.run(["ipcrm", "-m", str(shmid)], check=False, capture_output=True, timeout=5)
+    uid = abc_user_id()
+    stale = stale_shared_memory(table, uid, lambda pid: os.path.exists(f"/proc/{pid}"))
+    if not stale:
+        return
+    # Root in a container has no CAP_IPC_OWNER: remove them as their owner.
+    command = ["ipcrm"] + [arg for shmid in stale for arg in ("-m", str(shmid))]
+    try:
+        subprocess.run(command, check=False, capture_output=True, timeout=5, user=uid)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 # ---------------------------------------------------------------- state
