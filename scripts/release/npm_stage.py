@@ -30,7 +30,9 @@ def stage_json(action, value):
         if action == "list" and isinstance(error, dict) and error.get("code") == "E404":
             return []
         reason = ""
-        if isinstance(error, dict) and error.get("code"):
+        if 'Unknown command: "stage"' in result.stdout + result.stderr:
+            reason = ": this npm has no `npm stage`; run `npm install -g npm@latest` (needs npm >= 11.15)"
+        elif isinstance(error, dict) and error.get("code"):
             reason = f": {error['code']} {error.get('summary', '')}".rstrip()
             if error["code"] == "E401":
                 reason += " Run `npm login` and try again"
