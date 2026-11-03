@@ -837,3 +837,45 @@ fn the_log_filters_by_result_risk_kind_and_text() {
     assert_eq!(rest.entries.len(), 2);
     assert_eq!(rest.next_before, None);
 }
+
+#[test]
+fn a_refusal_records_what_was_refused() {
+    let (_root, store) = fixture();
+    let operation = super::operations::describe(
+        "POST",
+        "/nodes/{node}/exec",
+        &Default::default(),
+        &serde_json::json!({"program":"rm","args":["-rf","/tmp/x"]}),
+    )
+    .unwrap();
+    let detail = super::operations::detail(
+        &operation.kind,
+        &Default::default(),
+        &serde_json::json!({"program":"rm","args":["-rf","/tmp/x"]}),
+    );
+    store
+        .change(NODE, [(Capability::Exec, Mode::Off)].into())
+        .unwrap();
+    assert!(matches!(
+        store.authorize_op(
+            NODE,
+            Capability::Exec,
+            "one",
+            Some(&operation),
+            Pending {
+                detail: Some(&detail),
+                review: None,
+            },
+            now(),
+        ),
+        Err(Denied::Off { .. })
+    ));
+    let audit = store.audit(20, None, None, None).unwrap();
+    let refused = audit
+        .entries
+        .iter()
+        .find(|e| e.event == EventKind::Refused)
+        .unwrap();
+    assert_eq!(refused.operation.as_ref().unwrap().kind, "exec.run");
+    assert_eq!(refused.detail.as_ref().unwrap().argv, ["rm", "-rf", "/tmp/x"]);
+}

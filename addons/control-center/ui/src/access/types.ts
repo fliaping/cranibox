@@ -32,6 +32,9 @@ export type Approval = { id: string; from: string; capability: Capability; scope
 export type AccessView = { peers: { node: string; name: string; capabilities: Modes }[]; pending: AccessRequest[]; approvals: Approval[]; sessions: { id: string; from: string; name: string; capability: Capability; basis?: string }[] };
 export type AuditEntry = { index: number; at: number; event: string; from: string | null; name: string | null; capability: Capability | null; basis: string | null; result: string; prev?: string; operation?: Operation; status?: number; transport?: string; detail?: OperationDetail; review?: Review; remote?: RemoteRecord };
 export type AuditView = { entries: AuditEntry[]; verified: boolean; broken_index: number | null; next_before?: number | null };
+/** The modes a device has before anything is saved for it: messages only. */
+export const defaultModes = Object.fromEntries(capabilities.map(cap => [cap, cap === 'messages' ? 'allow' : 'off'])) as Modes;
+
 export const groups: { id: string; zh: string; en: string; caps: Capability[]; risk?: boolean; always?: boolean }[] = [
   { id: 'messages', zh: '消息与任务', en: 'Messages & tasks', caps: ['messages'] },
   { id: 'terminal', zh: '终端与命令', en: 'Terminal & commands', caps: ['terminals', 'exec', 'projects'], risk: true },
@@ -53,7 +56,8 @@ const operationNames: Record<string, [string, string]> = {
   'spaces.list': ['查看虚拟空间', 'List virtual spaces'], 'spaces.stop': ['停止虚拟空间', 'Stop a virtual space'], 'spaces.resume': ['启动虚拟空间', 'Start a virtual space'],
   'update.check': ['检查更新', 'Check for updates'], 'update.install': ['安装更新', 'Install an update'], 'update.rollback': ['回滚更新', 'Roll back an update'],
   'activity.read': ['读取活动', 'Read activity'], 'messages.send': ['发送消息', 'Send a message'], 'messages.read': ['读取消息', 'Read messages'], 'tasks.send': ['发送任务', 'Send a task'], 'tasks.read': ['查看任务', 'Check tasks'], 'agent_sessions.read': ['查看智能体会话', 'List agent sessions'],
-  'llm.use': ['使用模型', 'Use a model'],
+  'llm.use': ['使用模型', 'Use a model'], 'llm.health': ['检查模型服务', 'Check the model service'], 'llm.models': ['查看可用模型', 'List models'], 'llm.count_tokens': ['估算用量', 'Count tokens'],
+  'vault.pull': ['读取账号凭据', 'Read saved accounts'], 'vault.push': ['写入账号凭据', 'Save accounts'], 'vault.refresh_request': ['请求刷新账号凭据', 'Ask to refresh an account'], 'vault.lease': ['借用账号凭据', 'Borrow an account'],
 };
 export function operationName(kind: string, t: T) {
   const known = operationNames[kind];

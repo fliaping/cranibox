@@ -436,6 +436,46 @@ test('the log searches on the device and opens the full record of an operation',
   await page.keyboard.press('Escape'); await expect(drawer).toHaveCount(0);
 });
 
+test('this device lists what each paired device may do, with defaults for one not yet set', async ({ page }) => {
+  const state = await mockAccess(page), fresh = 'node-3c65abcdef0123456789abcdef012345';
+  // Paired, but not in the access view: nothing has been saved for it yet.
+  const saves: any[] = [];
+  await page.route('**/api/v1/app/devices', route => route.fulfill({ json: [
+    { node_id: 'host', name: 'Desk PC', badges: ['this'], online: true, kind: 'linux', caps: {} },
+    { node_id: remote, name: 'Design Mac', badges: [], online: true, kind: 'mac', caps: {} },
+    { node_id: fresh, name: 'Build box', badges: [], online: true, kind: 'linux', caps: {} },
+  ] }));
+  await page.route('**/api/v1/app/access/' + fresh, route => { saves.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+  await page.goto('/?lang=zh-cn#/app/device/host/access');
+  await expect(page.getByRole('heading', { name: '其他设备可以在本设备上…' })).toBeVisible();
+  await expect(page.locator('.cx-access-peer')).toHaveCount(1);
+  await expect(page.locator('.cx-access-peer > summary')).toContainText('Design Mac');
+  await expect(page.locator('.cx-access-peer').getByRole('region', { name: '模型与账号', exact: true })).toBeVisible();
+  await page.goto('/?lang=zh-cn#/app/device/' + fresh + '/access');
+  const messages = page.getByRole('region', { name: '消息与任务', exact: true });
+  await expect(messages.getByRole('button', { name: '允许', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
+  const models = page.getByRole('region', { name: '模型与账号', exact: true });
+  await expect(models.getByRole('button', { name: '关闭', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
+  await models.getByRole('button', { name: '询问', exact: true }).first().click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect.poll(() => saves.length).toBe(1);
+  expect(saves[0]).toMatchObject({ messages: 'allow', exec: 'off', llm: 'ask', vault: 'ask' });
+});
+test('a refused call says what was attempted and links to the setting that blocked it', async ({ page }) => {
+  await mockAccess(page);
+  const refused = { index: 4, at: 1800000000, event: 'refused', from: remote, name: 'Design Mac', capability: 'llm', result: 'off', operation: { kind: 'llm.use', risk: 'change', summary: 'claude-sonnet · POST /v1/messages' } };
+  await page.route('**/api/v1/app/access/audit**', route => route.fulfill({ json: { verified: true, broken_index: null, entries: [refused], next_before: null } }));
+  await page.goto('/?lang=zh-cn#/app/access-log');
+  const item = page.locator('.cx-access-log li').first();
+  await expect(item).toContainText('claude-sonnet · POST /v1/messages');
+  await item.getByRole('button', { name: '详情', exact: true }).click();
+  const drawer = page.getByRole('dialog');
+  await expect(drawer).toContainText('claude-sonnet · POST /v1/messages');
+  await drawer.getByRole('link', { name: '调整访问设置' }).click();
+  await expect(page).toHaveURL(new RegExp('#/app/device/' + remote + '/access$'));
+  await expect(page.getByRole('heading', { name: 'Design Mac 可以在本设备上…' })).toBeVisible();
+});
+
 const laptop = 'node-2b54abcdef0123456789abcdef012345';
 function waitingOn(id: string, once = false) {
   const now = Math.floor(Date.now() / 1000);

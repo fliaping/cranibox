@@ -6,41 +6,51 @@ import { Alert, capabilityName, Card, formatDeviceLabel, isThis, Pill } from '..
 import type { Device } from '../personal/api';
 import { accessWaits, subscribeAccessWaits, type AccessWait } from './request';
 import { RemoteBanner } from './Remote';
-import { capabilities, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, jevPresets, jevRanges, type JevThresholds, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState } from './types';
+import { capabilities, defaultModes, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, jevPresets, jevRanges, type JevThresholds, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState } from './types';
 import './access.css';
 
 function ModeControl({ label, value, disabled, change }: { label: string; value?: Mode; disabled: boolean; change: (mode: Mode) => void }) {
   const { t } = useApp();
   return <div className="cx-segment cx-access-modes" role="group" aria-label={label}>{(['off', 'ask', 'allow'] as const).map(mode => <button key={mode} aria-pressed={mode === value} disabled={disabled} onClick={() => change(mode)}>{mode === 'off' ? t('关闭', 'Off') : mode === 'ask' ? t('询问', 'Ask') : t('允许', 'Allow')}</button>)}</div>;
 }
-export function DeviceAccess({ device }: { device: Device }) {
-  const { t, api, access, accessError, refresh } = useApp(), { displayName } = useTerminalDevices();
-  const peer = access?.peers.find(peer => peer.node === device.node_id);
+/** What one paired device may do here. A device without saved settings shows the defaults
+ * (messages only), which saving turns into its own settings. */
+function PeerModes({ node }: { node: string }) {
+  const { t, api, access, accessError, refresh } = useApp();
+  const peer = access?.peers.find(peer => peer.node === node);
   const [draft, setDraft] = useState<Modes | null>(null), [saving, setSaving] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false);
-  useEffect(() => { setDraft(null); setSaved(false); setError(''); }, [device.node_id]);
-  const modes = draft || peer?.capabilities;
+  const modes = draft || peer?.capabilities || (access ? defaultModes : undefined);
   function change(caps: Capability[], mode: Mode) { setDraft(current => ({ ...(current || modes), ...Object.fromEntries(caps.map(cap => [cap, mode])) }) as Modes); setSaved(false); }
   async function save() {
     if (!draft) return;
     setSaving(true); setError('');
-    try { await api.call('PUT', '/access/' + encodeURIComponent(device.node_id), draft); await refresh(); setDraft(null); setSaved(true); }
+    try { await api.call('PUT', '/access/' + encodeURIComponent(node), draft); await refresh(); setDraft(null); setSaved(true); }
     catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
     finally { setSaving(false); }
   }
+  if (!modes) return <Alert action={<button className="cx-btn small" onClick={() => void refresh()}>{t('重试', 'Retry')}</button>}>{accessError || t('正在读取访问设置…', 'Loading access settings…')}</Alert>;
+  return <>
+    {groups.map(group => <section className="cx-access-group" key={group.id} aria-label={t(group.zh, group.en)}>
+      <div className="cx-between"><strong>{t(group.zh, group.en)}</strong><ModeControl label={t(group.zh, group.en)} value={group.caps.every(cap => modes[cap] === modes[group.caps[0]]) ? modes[group.caps[0]] : undefined} disabled={saving} change={mode => change(group.caps, mode)} /></div>
+      {!group.caps.every(cap => modes[cap] === modes[group.caps[0]]) && <small className="cx-muted">{t('已逐项设置', 'Custom modes')}</small>}
+      {group.risk && group.caps.some(cap => modes[cap] === 'allow') && <Alert tone="warn">{group.always ? t('即使选择允许，远程更新、模型与账号操作仍需逐次批准。', 'Remote updates, model and account access still require approval each time, even with Allow.') : t('允许后，对方无需询问即可使用这些功能。无本地界面的设备也一样，请谨慎选择。', 'Allow lets this device use these functions without asking, including on headless devices. Choose carefully.')}</Alert>}
+      <details><summary>{t('高级', 'Advanced')}</summary>{group.caps.map(cap => <div className="cx-between" key={cap}><span>{capabilityName(cap, t)}</span><ModeControl label={capabilityName(cap, t)} value={modes[cap]} disabled={saving} change={mode => change([cap], mode)} /></div>)}</details>
+    </section>)}
+    {error && <Alert>{error}</Alert>}
+    <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || saving} onClick={() => void save()}>{saving ? t('保存中…', 'Saving…') : t('保存', 'Save')}</button>{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
+  </>;
+}
+export function DeviceAccess({ device }: { device: Device }) {
+  const { t, access, accessError, refresh } = useApp(), { displayName } = useTerminalDevices();
+  const others = access?.peers || [];
   return <div className="cx-access-stack">
     <Card label={t('访问', 'Access')}>
-      <h2>{isThis(device) ? t('本设备的访问设置', 'Access to this device') : t(displayName(device.node_id) + ' 可以在本设备上…', displayName(device.node_id) + ' can use this device to…')}</h2>
+      <h2>{isThis(device) ? t('其他设备可以在本设备上…', 'Other devices can use this device to…') : t(displayName(device.node_id) + ' 可以在本设备上…', displayName(device.node_id) + ' can use this device to…')}</h2>
       <p className="cx-muted">{t('这些设置保存在本机。要使用对方的功能，请在对方设备上批准或调整访问设置。', 'These settings are stored here. To use another device, approve or change access on that device.')}</p>
-      {isThis(device) ? <p>{t('请打开其他已配对设备的「访问」分区，选择它们能在本机做什么。', 'Open a paired device’s Access tab to choose what it can do here.')}</p> : !modes ? <Alert action={<button className="cx-btn small" onClick={() => void refresh()}>{t('重试', 'Retry')}</button>}>{accessError || t('正在读取访问设置…', 'Loading access settings…')}</Alert> : <>
-        {groups.map(group => <section className="cx-access-group" key={group.id} aria-label={t(group.zh, group.en)}>
-          <div className="cx-between"><strong>{t(group.zh, group.en)}</strong><ModeControl label={t(group.zh, group.en)} value={group.caps.every(cap => modes[cap] === modes[group.caps[0]]) ? modes[group.caps[0]] : undefined} disabled={saving} change={mode => change(group.caps, mode)} /></div>
-          {!group.caps.every(cap => modes[cap] === modes[group.caps[0]]) && <small className="cx-muted">{t('已逐项设置', 'Custom modes')}</small>}
-          {group.risk && group.caps.some(cap => modes[cap] === 'allow') && <Alert tone="warn">{group.always ? t('即使选择允许，远程更新、模型与账号操作仍需逐次批准。', 'Remote updates, model and account access still require approval each time, even with Allow.') : t('允许后，对方无需询问即可使用这些功能。无本地界面的设备也一样，请谨慎选择。', 'Allow lets this device use these functions without asking, including on headless devices. Choose carefully.')}</Alert>}
-          <details><summary>{t('高级', 'Advanced')}</summary>{group.caps.map(cap => <div className="cx-between" key={cap}><span>{capabilityName(cap, t)}</span><ModeControl label={capabilityName(cap, t)} value={modes[cap]} disabled={saving} change={mode => change([cap], mode)} /></div>)}</details>
-        </section>)}
-        {error && <Alert>{error}</Alert>}
-        <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || saving} onClick={() => void save()}>{saving ? t('保存中…', 'Saving…') : t('保存', 'Save')}</button>{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
-      </>}
+      {!isThis(device) ? <PeerModes key={device.node_id} node={device.node_id} /> : !access ? <Alert action={<button className="cx-btn small" onClick={() => void refresh()}>{t('重试', 'Retry')}</button>}>{accessError || t('正在读取访问设置…', 'Loading access settings…')}</Alert> : !others.length ? <p className="cx-muted">{t('还没有其他已配对的设备。', 'No other paired devices yet.')}</p> : others.map(peer => <details className="cx-access-peer" key={peer.node} open={others.length <= 2}>
+        <summary><strong>{displayName(peer.node) || peer.name}</strong> <small className="cx-muted cx-mono">{peer.node}</small></summary>
+        <PeerModes node={peer.node} />
+      </details>)}
     </Card>
     {!isThis(device) && <Grants node={device.node_id} />}
     <AutoReview />
@@ -330,7 +340,7 @@ function EntryDetail({ entry, who, close }: { entry: AuditEntry; who: string; cl
         <div className="cx-access-row"><dt>{t('来自', 'From')}</dt><dd>{who}{entry.from && entry.from !== who && <small className="cx-muted cx-mono"> {entry.from}</small>}</dd></div>
         {entry.capability && <div className="cx-access-row"><dt>{t('能力', 'Capability')}</dt><dd>{capabilityName(entry.capability, t)}</dd></div>}
         {operation && <div className="cx-access-row"><dt>{t('风险', 'Risk')}</dt><dd><Pill tone={riskTone(operation.risk)}>{riskName(operation.risk, t)}</Pill>{operation.confirm && <> {t('每次都需确认', 'Always confirmed')}</>}</dd></div>}
-        <div className="cx-access-row"><dt>{t('结果', 'Result')}</dt><dd>{entry.event === 'operation' ? outcomeName(entry, t) : eventName(entry.event, t)}{entry.status ? ' · HTTP ' + entry.status : ''}</dd></div>
+        <div className="cx-access-row"><dt>{t('结果', 'Result')}</dt><dd>{entry.event === 'operation' ? outcomeName(entry, t) : eventName(entry.event, t)}{entry.event === 'refused' && <> · {refusalReason(entry.result, t)}{entry.from && <> · <Link to={'/app/device/' + encodeURIComponent(entry.from) + '/access'} onClick={close}>{t('调整访问设置', 'Change access')}</Link></>}</>}{entry.status ? ' · HTTP ' + entry.status : ''}</dd></div>
         {entry.basis && <div className="cx-access-row"><dt>{t('放行依据', 'Allowed by')}</dt><dd>{basisName(entry, t)}{entry.basis !== 'allow' && <small className="cx-muted cx-mono"> {entry.basis}</small>}</dd></div>}
         {entry.detail && <DetailRows detail={entry.detail} />}
         {entry.remote && <>

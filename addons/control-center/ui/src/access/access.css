@@ -2,6 +2,9 @@
 .cx-access-group { padding: 16px 0; border-bottom: 1px solid var(--border); }
 .cx-access-group:last-of-type { margin-bottom: 16px; }
 .cx-access-group details { margin-top: 10px; }
+.cx-access-peer { border-top: 1px solid var(--border); padding: 12px 0; }
+.cx-access-peer > summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cx-access-peer > summary small { overflow-wrap: anywhere; }
 .cx-access-group summary { cursor: pointer; color: var(--muted); }
 .cx-access-group details .cx-between { margin-top: 12px; }
 .cx-access-modes { display: flex; flex-shrink: 0; gap: 3px; }

@@ -125,16 +125,28 @@ pub fn describe(
         ["nodes", _, "agent-sessions", ..] => {
             ("agent_sessions.read".to_owned(), Read, String::new())
         }
-        ["nodes", _, "llm", ..] => ("llm.use".to_owned(), Change, String::new()),
+        // Model calls name the model and endpoint; prompts are never copied.
+        ["nodes", _, "llm", rest @ ..] => match rest {
+            ["health"] => ("llm.health".to_owned(), Read, String::new()),
+            ["v1", "models", ..] => ("llm.models".to_owned(), Read, String::new()),
+            ["v1", "messages", "count_tokens"] => {
+                ("llm.count_tokens".to_owned(), Read, text("model"))
+            }
+            _ => (
+                "llm.use".to_owned(),
+                Change,
+                join(&[text("model"), endpoint(method, rest)]),
+            ),
+        },
         ["nodes", _, "vault", rest @ ..] => (
             format!("vault.{}", word(rest.first().copied().unwrap_or("use"))),
             Danger,
-            String::new(),
+            endpoint(method, rest),
         ),
-        ["nodes", _, other, ..] => (
+        ["nodes", _, other, rest @ ..] => (
             format!("{}.{}", word(other), if get { "read" } else { "call" }),
             if get { Read } else { Change },
-            String::new(),
+            endpoint(method, &[&[*other], rest].concat()),
         ),
         _ => return None,
     };
@@ -161,6 +173,22 @@ fn word(value: &str) -> String {
     } else {
         word.replace('-', "_")
     }
+}
+/// `METHOD /a/b` from route segments, each reduced to safe characters, so a call the
+/// log has no wording for still says what it was.
+fn endpoint(method: &str, segments: &[&str]) -> String {
+    let path: Vec<_> = segments
+        .iter()
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            if s.starts_with('{') {
+                (*s).to_owned()
+            } else {
+                word(s)
+            }
+        })
+        .collect();
+    format!("{} /{}", word(method), path.join("/"))
 }
 fn join(parts: &[String]) -> String {
     parts
@@ -895,6 +923,23 @@ mod tests {
     use serde_json::json;
     fn op(method: &str, route: &str, body: Value) -> Operation {
         describe(method, route, &BTreeMap::new(), &body).unwrap()
+    }
+    #[test]
+    fn model_and_account_calls_say_what_they_do_without_the_prompt() {
+        let o = op(
+            "POST",
+            "/nodes/{node}/llm/v1/messages",
+            json!({"model":"claude-sonnet","messages":[{"role":"user","content":"secret plan"}]}),
+        );
+        assert_eq!(o.kind, "llm.use");
+        assert_eq!(o.summary, "claude-sonnet · POST /v1/messages");
+        assert_eq!(op("GET", "/nodes/{node}/llm/health", Value::Null).kind, "llm.health");
+        assert_eq!(op("GET", "/nodes/{node}/llm/v1/models", Value::Null).risk, Risk::Read);
+        let o = op("POST", "/nodes/{node}/vault/pull", Value::Null);
+        assert_eq!((o.kind.as_str(), o.summary.as_str()), ("vault.pull", "POST /pull"));
+        // A call without its own wording still names its method and path.
+        let o = op("POST", "/nodes/{node}/widgets/x-y", Value::Null);
+        assert_eq!(o.summary, "POST /widgets/x_y");
     }
     #[test]
     fn commands_are_summarised_without_secrets() {

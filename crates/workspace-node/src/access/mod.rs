@@ -460,28 +460,41 @@ impl Store {
                 basis: a.id.clone(),
             })
     }
+    /// Logs a refusal with the operation that was refused, so the person can see what
+    /// the other device tried to do. The same refusal is logged once per minute.
     fn refused(
         &self,
         state: &mut State,
         node: &str,
         capability: Capability,
         reason: &str,
+        refused: Refused<'_>,
         at: u64,
     ) -> Result<()> {
+        let kind = refused.operation.map_or("", |o| o.kind.as_str());
         if state
             .refusals
-            .insert(format!("{node}:{capability}:{reason}"), at / 60)
+            .insert(format!("{node}:{capability}:{kind}:{reason}"), at / 60)
             != Some(at / 60)
         {
-            self.event(
-                EventKind::Refused,
-                Some(node),
-                Some(capability),
-                None,
-                None,
-                reason,
+            self.append(AuditEvent {
+                index: 0,
                 at,
-            )?;
+                event: EventKind::Refused,
+                from: Some(node.to_owned()),
+                name: Some(self.name(node)),
+                capability: Some(capability),
+                session_key: None,
+                basis: None,
+                result: reason.into(),
+                prev: String::new(),
+                operation: refused.operation.cloned(),
+                status: None,
+                transport: None,
+                detail: refused.detail.cloned(),
+                review: None,
+                remote: None,
+            })?;
         }
         Ok(())
     }
@@ -536,7 +549,17 @@ impl Store {
                 return Ok(Ok(decision));
             }
             if state.policy.mode(node, capability) == Mode::Off {
-                self.refused(state, node, capability, "off", at)?;
+                self.refused(
+                    state,
+                    node,
+                    capability,
+                    "off",
+                    Refused {
+                        operation,
+                        detail: context.detail,
+                    },
+                    at,
+                )?;
                 let target_name = crate::device_info::local().name.clone();
                 let hint = format!(
                     "On {target_name}, open Devices, select {}, and allow {capability} on its Access tab.",
@@ -549,7 +572,17 @@ impl Store {
                 }));
             }
             if let Some(expires_at) = state.cooldown.get(node).copied() {
-                self.refused(state, node, capability, "cooldown", at)?;
+                self.refused(
+                    state,
+                    node,
+                    capability,
+                    "cooldown",
+                    Refused {
+                        operation,
+                        detail: context.detail,
+                    },
+                    at,
+                )?;
                 return Ok(Err(Denied::Cooldown {
                     capability,
                     expires_at,
@@ -561,7 +594,17 @@ impl Store {
                 .find(|r| r.from == node && r.state == RequestState::Pending)
                 .cloned()
             {
-                self.refused(state, node, capability, "approval_pending", at)?;
+                self.refused(
+                    state,
+                    node,
+                    capability,
+                    "approval_pending",
+                    Refused {
+                        operation,
+                        detail: context.detail,
+                    },
+                    at,
+                )?;
                 return Ok(Err(Denied::ApprovalRequired {
                     request_id: r.id.clone(),
                     capability: r.capability,
@@ -1102,6 +1145,11 @@ impl Store {
 pub struct Pending<'a> {
     pub detail: Option<&'a OperationDetail>,
     pub review: Option<&'a Review>,
+}
+#[derive(Clone, Copy)]
+struct Refused<'a> {
+    operation: Option<&'a Operation>,
+    detail: Option<&'a OperationDetail>,
 }
 pub struct OperationRecord<'a> {
     pub node: &'a str,
