@@ -933,10 +933,19 @@ mod tests {
         );
         assert_eq!(o.kind, "llm.use");
         assert_eq!(o.summary, "claude-sonnet · POST /v1/messages");
-        assert_eq!(op("GET", "/nodes/{node}/llm/health", Value::Null).kind, "llm.health");
-        assert_eq!(op("GET", "/nodes/{node}/llm/v1/models", Value::Null).risk, Risk::Read);
+        assert_eq!(
+            op("GET", "/nodes/{node}/llm/health", Value::Null).kind,
+            "llm.health"
+        );
+        assert_eq!(
+            op("GET", "/nodes/{node}/llm/v1/models", Value::Null).risk,
+            Risk::Read
+        );
         let o = op("POST", "/nodes/{node}/vault/pull", Value::Null);
-        assert_eq!((o.kind.as_str(), o.summary.as_str()), ("vault.pull", "POST /pull"));
+        assert_eq!(
+            (o.kind.as_str(), o.summary.as_str()),
+            ("vault.pull", "POST /pull")
+        );
         // A call without its own wording still names its method and path.
         let o = op("POST", "/nodes/{node}/widgets/x-y", Value::Null);
         assert_eq!(o.summary, "POST /widgets/x_y");

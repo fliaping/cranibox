@@ -877,5 +877,8 @@ fn a_refusal_records_what_was_refused() {
         .find(|e| e.event == EventKind::Refused)
         .unwrap();
     assert_eq!(refused.operation.as_ref().unwrap().kind, "exec.run");
-    assert_eq!(refused.detail.as_ref().unwrap().argv, ["rm", "-rf", "/tmp/x"]);
+    assert_eq!(
+        refused.detail.as_ref().unwrap().argv,
+        ["rm", "-rf", "/tmp/x"]
+    );
 }
