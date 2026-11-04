@@ -20,10 +20,9 @@ and `/run` can be replaced when the container is rebuilt.
   for asynchronous jobs. Explicitly choose the node; commands are not replayed
   after disconnection. The `workspace-runtime mcp` stdio server exposes the same
   operations to Agents with MCP support.
-  Copy files or whole folders with `workspacectl node push --node <id> <local>
-  <absolute-remote-path>` and `workspacectl node pull --node <id>
-  <absolute-remote-path> <local>` (add `--overwrite` to replace); never chunk
-  files through `node exec`.
+  Copy files or whole folders with `cranibox push --node <id> <local>
+  <absolute-remote-path>` and `cranibox pull --node <id> <absolute-remote-path>
+  <local>` (add `--overwrite` to replace); never chunk files through exec.
 - Use `workspacectl install ...` for optional Cranibox workspace capabilities.
 - Use `workspacectl network domain <domain>` for the managed Caddy domain;
   DNS, TLS, and gateway authentication remain deployment responsibilities.

@@ -3,7 +3,7 @@
 旧版 `workspace-runtime` WebSocket 网关、`runtime.json` 凭据、节点注册/设备组与
 `workspacectl runtime` 已移除。所有设备（包括 Docker 工作区）运行同一个 Cranibox 节点，
 彼此经 iroh 对等配对；Agent 通过 `cranibox nodes|exec|job|cancel|push|pull|mcp`（或容器内的
-`workspacectl nodes` / `workspacectl node exec|job|cancel|push|pull|mcp`）访问已配对与同一身份的设备。
+`workspacectl nodes` / `workspacectl node exec|job|cancel|mcp`）访问已配对与同一身份的设备。
 
 ## 传文件和文件夹
 

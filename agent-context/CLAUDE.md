@@ -18,10 +18,9 @@ and `/run` can be replaced when the container is rebuilt.
   to run commands with the remote client's account permissions. Use
   `workspacectl node job <job-id>` and `workspacectl node cancel <job-id>`
   for asynchronous jobs. Commands are not replayed after disconnection.
-  Copy files or whole folders with `workspacectl node push --node <id> <local>
-  <absolute-remote-path>` and `workspacectl node pull --node <id>
-  <absolute-remote-path> <local>` (add `--overwrite` to replace); never chunk
-  files through `node exec`.
+  Copy files or whole folders with `cranibox push --node <id> <local>
+  <absolute-remote-path>` and `cranibox pull --node <id> <absolute-remote-path>
+  <local>` (add `--overwrite` to replace); never chunk files through exec.
   The `workspace-runtime mcp` stdio server exposes the same operations.
 - Use `workspacectl install ...` for optional Cranibox workspace capabilities.
 - Use `workspacectl network domain <domain>` for the managed Caddy domain;
