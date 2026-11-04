@@ -49,7 +49,7 @@ export const groups: { id: string; zh: string; en: string; caps: Capability[]; r
 type T = (zh: string, en: string) => string;
 const operationNames: Record<string, [string, string]> = {
   'exec.run': ['运行命令', 'Run a command'], 'exec.finished': ['命令结束', 'Command finished'], 'exec.status': ['查看命令结果', 'Check a command'], 'exec.cancel': ['停止命令', 'Stop a command'],
-  'files.write': ['写入文件', 'Write a file'], 'files.read': ['读取文件', 'Read a file'],
+  'files.write': ['写入文件', 'Write a file'], 'files.read': ['读取文件', 'Read a file'], 'files.list': ['查看文件夹内容', 'List a folder'],
   'terminal.list': ['查看终端列表', 'List terminals'], 'terminal.create': ['新建终端', 'Open a terminal'], 'terminal.rename': ['重命名终端', 'Rename a terminal'], 'terminal.end': ['结束终端', 'End a terminal'], 'terminal.remove': ['删除终端', 'Remove a terminal'], 'terminal.attach': ['连接终端', 'Connect to a terminal'],
   'desktop.view': ['查看并控制屏幕', 'View and control the screen'],
   'projects.list': ['查看项目', 'List projects'], 'projects.sync': ['同步项目', 'Sync projects'], 'projects.copy_status': ['查看复制进度', 'Check a copy'], 'projects.export': ['导出项目文件', 'Export project files'], 'projects.import': ['导入项目文件', 'Import project files'], 'projects.transfer': ['传输项目', 'Transfer a project'], 'projects.bind': ['在项目中打开终端', 'Open a terminal in a project'],

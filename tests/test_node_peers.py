@@ -166,10 +166,21 @@ class PeerTests(unittest.TestCase):
             {'jsonrpc':'2.0','id':2,'method':'tools/list'},
             {'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'workspace_exec','arguments':{
                 'node':self.target,'program':sys.executable,'args':['-c','print("MCP_DIRECT")']}}}]
+        source = Path(self.temp.name) / 'mcp-source'
+        (source / 'sub').mkdir(parents=True)
+        (source / 'sub' / 'a.txt').write_text('via mcp\n')
+        sent, back = Path(self.temp.name) / 'mcp-sent', Path(self.temp.name) / 'mcp-back'
+        messages += [
+            {'jsonrpc':'2.0','id':4,'method':'tools/call','params':{'name':'workspace_push','arguments':{
+                'node':self.target,'local':str(source),'remote':str(sent)}}},
+            {'jsonrpc':'2.0','id':5,'method':'tools/call','params':{'name':'workspace_pull','arguments':{
+                'node':self.target,'remote':str(sent / 'sub' / 'a.txt'),'local':str(back)}}}]
         responses = self.cli(self.a, 'call', '--node', self.target, 'mcp', input=''.join(json.dumps(m) + '\n' for m in messages))
-        self.assertEqual(len(responses[1]['result']['tools']), 5)
+        self.assertEqual(len(responses[1]['result']['tools']), 7)
         job = json.loads(responses[2]['result']['content'][0]['text'])
         self.assertEqual(self.finished(job['id'])['stdout'], 'MCP_DIRECT\n')
+        self.assertEqual(json.loads(responses[3]['result']['content'][0]['text'])['files'], 1)
+        self.assertEqual(back.read_text(), 'via mcp\n')
         session = self.cli(self.a, 'call', '--node', self.target, 'sessions', 'create', '--name', 'Direct')['session']['id']
         ws = self.open(session)
         ws.command("export PEER_VALUE=kept; printf '%s%s\\n' READY _PTY")
@@ -206,6 +217,25 @@ class PeerTests(unittest.TestCase):
         run('pull', '--node', self.target, remote, back)
         self.assertEqual(back.read_bytes(), local.read_bytes())
         self.assertNotEqual(run('pull', '--node', self.target, remote + '-missing', folder / 'x', check=False).returncode, 0)
+        # A folder moves as its files, into folders created on the way; links stay behind.
+        tree = folder / 'tree'
+        (tree / 'src' / 'deep').mkdir(parents=True)
+        (tree / 'src' / 'deep' / 'main.rs').write_text('fn main() {}\n')
+        (tree / 'README.md').write_text('hello\n')
+        (tree / 'escape').symlink_to('/etc')
+        landed = folder / 'new' / 'nested' / 'tree'
+        pushed = json.loads(run('push', '--node', self.target, tree, landed).stdout)
+        self.assertEqual((pushed['files'], pushed['bytes']), (2, 19))
+        self.assertEqual(pushed['skipped'], [{'path': 'escape', 'reason': 'link'}])
+        self.assertEqual((landed / 'src' / 'deep' / 'main.rs').read_text(), 'fn main() {}\n')
+        self.assertFalse((landed / 'escape').exists())
+        self.assertNotEqual(run('push', '--node', self.target, tree, landed, check=False).returncode, 0)
+        (landed / 'empty').mkdir()
+        copy = folder / 'copy'
+        pulled = json.loads(run('pull', '--node', self.target, landed, copy).stdout)
+        self.assertEqual(pulled['files'], 2)
+        self.assertEqual((copy / 'README.md').read_text(), 'hello\n')
+        self.assertTrue((copy / 'empty').is_dir())
 
     def test_auth_scopes_target_binding_and_job_ownership(self):
         self.start()

@@ -343,6 +343,21 @@ async fn file_read(
         .map(Json)
         .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))
 }
+/// What `cranibox pull` of a path would copy: one file, or a folder's contents.
+async fn file_list(
+    State(app): State<App>,
+    Extension(caller): Extension<Caller>,
+    Path(node): Path<String>,
+    Json(request): Json<agent_workspace_runtime::peers::files::ListRequest>,
+) -> Result<Json<Value>, Failure> {
+    check_target(&app, &node)?;
+    check_permission(&caller, false)?;
+    tokio::task::spawn_blocking(move || agent_workspace_runtime::peers::files::list(request))
+        .await
+        .map_err(|_| failure(StatusCode::INTERNAL_SERVER_ERROR, "file transfer stopped"))?
+        .map(Json)
+        .map_err(|e| failure(StatusCode::CONFLICT, &format!("{e:#}")))
+}
 async fn execute(
     State(app): State<App>,
     Extension(caller): Extension<Caller>,
@@ -1022,6 +1037,7 @@ pub(crate) fn mesh_router(app: App, network_discovery: bool) -> Router {
             )),
         )
         .route("/nodes/{node}/files/read", post(file_read))
+        .route("/nodes/{node}/files/list", post(file_list))
         .route("/nodes/{node}/projects/export", post(copies::export))
         .route(
             "/nodes/{node}/projects/import",

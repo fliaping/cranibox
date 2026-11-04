@@ -30,7 +30,7 @@ Operate: service <status|start|stop|restart|enable|disable> <name>
          desktop on|off|power [--json]   (graphical desktop; off frees its memory)
          tailscale login|up|serve|autoconnect|logout | proxy init|add|remove|list|check|render|domain|rollback
          web install|start|stop|restart|status|url|configure
-Devices: nodes | node exec|job|cancel|mcp [arguments]   (paired and same-identity devices)
+Devices: nodes | node exec|job|cancel|push|pull|mcp [arguments]   (paired and same-identity devices)
          messages held | release <message-id> | reject <message-id>
          messages inbound <node-id> accept|hold|refuse
 ";
@@ -114,9 +114,10 @@ pub async fn run(mut args: Vec<String>) -> Result<i32> {
     }
     if args.first().is_some_and(|value| value == "node") {
         ensure!(
-            args.get(1)
-                .is_some_and(|value| ["exec", "job", "cancel", "mcp"].contains(&value.as_str())),
-            "Usage: workspacectl node exec|job|cancel|mcp [arguments]"
+            args.get(1).is_some_and(|value| {
+                ["exec", "job", "cancel", "push", "pull", "mcp"].contains(&value.as_str())
+            }),
+            "Usage: workspacectl node exec|job|cancel|push|pull|mcp [arguments]"
         );
         return node(&ctx, &args[1..]).await;
     }

@@ -14150,6 +14150,7 @@ var cc = [
 	"exec.cancel": ["停止命令", "Stop a command"],
 	"files.write": ["写入文件", "Write a file"],
 	"files.read": ["读取文件", "Read a file"],
+	"files.list": ["查看文件夹内容", "List a folder"],
 	"terminal.list": ["查看终端列表", "List terminals"],
 	"terminal.create": ["新建终端", "Open a terminal"],
 	"terminal.rename": ["重命名终端", "Rename a terminal"],

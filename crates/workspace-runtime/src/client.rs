@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+mod transfer;
+
 #[derive(Debug)]
 struct HttpError {
     status: u16,
@@ -916,6 +918,12 @@ pub fn print(value: Value) {
 
 fn tools() -> Value {
     let job = json!({"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false});
+    let transfer = json!({"type":"object","properties":{
+        "node":{"type":"string"},
+        "local":{"type":"string","description":"Path on this machine"},
+        "remote":{"type":"string","description":"Absolute path on the node"},
+        "overwrite":{"type":"boolean","default":false,"description":"Replace files that already exist"}},
+        "required":["node","local","remote"],"additionalProperties":false});
     json!([
         {"name":"workspace_nodes","description":"List enrolled Windows, macOS and Linux nodes with connection status.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
         {"name":"workspace_exec","description":"Start a command on a connected node and return a job ID. No implicit shell. Use workspace_job to poll output and completion. Commands run with the node client's OS account privileges.",
@@ -925,6 +933,10 @@ fn tools() -> Value {
             "timeout_secs":{"type":"integer","minimum":1,"maximum":3600,"default":60}},"required":["node","program"],"additionalProperties":false}},
         {"name":"workspace_job","description":"Read a job's current stdout/stderr, exit code and outcome. Output is bounded to 64 KiB; truncated indicates loss. Jobs are in memory and expire after ten minutes.","inputSchema":job},
         {"name":"workspace_cancel","description":"Cancel a running remote command and terminate its process tree. Poll workspace_job for confirmation.","inputSchema":job},
+        {"name":"workspace_push","description":"Copy a file or folder from this machine to a connected node. Chunked and verified by SHA-256; a file replaces nothing until it has fully arrived. A folder's files land under remote, which is created as needed; links and empty folders are skipped. Needs the node's command (exec) permission.",
+         "inputSchema":transfer},
+        {"name":"workspace_pull","description":"Copy a file or folder from a connected node to this machine, verified by SHA-256. Needs the node's command (exec) permission.",
+         "inputSchema":transfer},
         {"name":"workspace_projects","description":"Read or manage the authorized project catalog. Register records an existing absolute directory without copying files. Bind links an existing terminal UUID; unbind and forget keep files and shells. Direct connections require project permission, plus terminal permission for bind. A ProjectID may explicitly join working copies across nodes.",
          "inputSchema":{"type":"object","properties":{"command":{"type":"object","properties":{
             "operation":{"type":"string","enum":["list","register","bind","unbind","forget"]},
@@ -932,6 +944,39 @@ fn tools() -> Value {
             "project_id":{"type":["string","null"]},"replica_id":{"type":"string"},"terminal_id":{"type":"string"}},
             "required":["operation"],"additionalProperties":false}},"required":["command"],"additionalProperties":false}}
     ])
+}
+/// Arguments of `workspace_push` and `workspace_pull`.
+struct TransferArgs {
+    node: String,
+    local: std::path::PathBuf,
+    remote: String,
+    overwrite: bool,
+}
+impl TransferArgs {
+    fn parse(args: &Value) -> Result<Self> {
+        let text = |key: &str| {
+            args[key]
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| anyhow::anyhow!("{key} required"))
+        };
+        let node = text("node")?;
+        anyhow::ensure!(valid_node_id(&node), "invalid node ID");
+        Ok(Self {
+            local: text("local")?.into(),
+            remote: text("remote")?,
+            overwrite: args["overwrite"].as_bool().unwrap_or(false),
+            node,
+        })
+    }
+    async fn run(&self, api: &Api, push: bool) -> Result<Value> {
+        if push {
+            transfer::push(api, &self.node, &self.local, &self.remote, self.overwrite).await
+        } else {
+            transfer::pull(api, &self.node, &self.remote, &self.local, self.overwrite).await
+        }
+    }
 }
 async fn call(api: &Api, params: &Value) -> Result<Value> {
     let name = params["name"].as_str().unwrap_or_default();
@@ -966,6 +1011,10 @@ async fn call(api: &Api, params: &Value) -> Result<Value> {
                 .ok_or_else(|| anyhow::anyhow!("node required"))?;
             api.execute(&node, serde_json::from_value(Value::Object(args))?, true)
                 .await
+        }
+        "workspace_push" | "workspace_pull" => {
+            let request = TransferArgs::parse(&args)?;
+            request.run(api, name == "workspace_push").await
         }
         "workspace_job" | "workspace_cancel" => {
             let path = job_path(args["id"].as_str().unwrap_or_default())?;
@@ -1062,7 +1111,7 @@ impl Fleet {
         anyhow::ensure!(valid_node_id(node), "invalid node ID");
         self.api(node)?.post(path, body).await
     }
-    /// Copy a local file to `remote` (an absolute path) on `node`.
+    /// Copy a local file or folder to `remote` (an absolute path) on `node`.
     pub async fn push(
         &self,
         node: &str,
@@ -1070,58 +1119,10 @@ impl Fleet {
         remote: &str,
         overwrite: bool,
     ) -> Result<Value> {
-        use base64::Engine as _;
-        use std::io::Read as _;
         anyhow::ensure!(valid_node_id(node), "invalid node ID");
-        let api = self.api(node)?;
-        let size = std::fs::metadata(local)?.len();
-        anyhow::ensure!(
-            size <= crate::peers::files::MAX_FILE,
-            "File is larger than 4 GiB"
-        );
-        let sha256 = crate::peers::files::digest_file(local)?;
-        #[cfg(unix)]
-        let mode = {
-            use std::os::unix::fs::PermissionsExt;
-            Some(std::fs::metadata(local)?.permissions().mode() & 0o7777)
-        };
-        #[cfg(not(unix))]
-        let mode: Option<u32> = None;
-        let mut file = std::fs::File::open(local)?;
-        let mut offset = 0u64;
-        let path = format!("/api/v1/nodes/{node}/files/write");
-        loop {
-            let mut data = Vec::with_capacity(crate::peers::files::CHUNK);
-            (&mut file)
-                .take(crate::peers::files::CHUNK as u64)
-                .read_to_end(&mut data)?;
-            let request = crate::peers::files::WriteChunk {
-                path: remote.to_owned(),
-                offset,
-                data: base64::engine::general_purpose::STANDARD.encode(&data),
-                size,
-                sha256: sha256.clone(),
-                overwrite,
-                mode,
-            };
-            let answer = api
-                .request_bounded(
-                    reqwest::Method::POST,
-                    &path,
-                    Some(serde_json::to_value(request)?),
-                    crate::peers::files::MAX_WIRE,
-                )
-                .await?;
-            offset += data.len() as u64;
-            if answer["done"] == true {
-                return Ok(
-                    json!({"node": node, "path": answer["path"], "size": size, "sha256": sha256}),
-                );
-            }
-            anyhow::ensure!(!data.is_empty(), "The device stopped accepting the file");
-        }
+        transfer::push(&self.api(node)?, node, local, remote, overwrite).await
     }
-    /// Copy `remote` (an absolute path) on `node` to a local file.
+    /// Copy `remote` (an absolute path, file or folder) on `node` to `local`.
     pub async fn pull(
         &self,
         node: &str,
@@ -1129,67 +1130,8 @@ impl Fleet {
         local: &std::path::Path,
         overwrite: bool,
     ) -> Result<Value> {
-        use base64::Engine as _;
-        use sha2::Digest as _;
-        use std::io::Write as _;
         anyhow::ensure!(valid_node_id(node), "invalid node ID");
-        anyhow::ensure!(
-            overwrite || !local.exists(),
-            "{} already exists; pass --overwrite to replace it",
-            local.display()
-        );
-        let api = self.api(node)?;
-        let mut name = local
-            .file_name()
-            .context("Choose a file name")?
-            .to_os_string();
-        name.push(".cranibox-part");
-        let temporary = local.with_file_name(name);
-        let mut file = std::fs::File::create(&temporary)?;
-        let mut hasher = sha2::Sha256::new();
-        let mut offset = 0u64;
-        let path = format!("/api/v1/nodes/{node}/files/read");
-        let finished = loop {
-            let answer = api
-                .request_bounded(
-                    reqwest::Method::POST,
-                    &path,
-                    Some(json!({"path": remote, "offset": offset})),
-                    crate::peers::files::MAX_WIRE,
-                )
-                .await?;
-            let data = base64::engine::general_purpose::STANDARD
-                .decode(answer["data"].as_str().unwrap_or_default())
-                .context("Invalid chunk encoding")?;
-            hasher.update(&data);
-            file.write_all(&data)?;
-            offset += data.len() as u64;
-            if answer["eof"] == true {
-                break answer;
-            }
-            anyhow::ensure!(!data.is_empty(), "The device stopped sending the file");
-        };
-        file.sync_all()?;
-        drop(file);
-        let digest: String = hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        if finished["sha256"].as_str() != Some(digest.as_str()) {
-            let _ = std::fs::remove_file(&temporary);
-            anyhow::bail!("The received file does not match its SHA-256");
-        }
-        #[cfg(unix)]
-        if let Some(mode) = finished["mode"].as_u64() {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(
-                &temporary,
-                std::fs::Permissions::from_mode(mode as u32 & 0o7777),
-            )?;
-        }
-        std::fs::rename(&temporary, local)?;
-        Ok(json!({"node": node, "path": local, "size": offset, "sha256": digest}))
+        transfer::pull(&self.api(node)?, node, remote, local, overwrite).await
     }
     /// Read or cancel a job; `node` is needed for jobs started by another process.
     pub async fn job(&self, id: &str, node: Option<&str>, cancel: bool) -> Result<Value> {
@@ -1235,6 +1177,12 @@ impl Fleet {
                     name == "workspace_cancel",
                 )
                 .await
+            }
+            "workspace_push" | "workspace_pull" => {
+                let request = TransferArgs::parse(&args)?;
+                request
+                    .run(&self.api(&request.node)?, name == "workspace_push")
+                    .await
             }
             "workspace_projects" => {
                 let node = args["command"]["node"]

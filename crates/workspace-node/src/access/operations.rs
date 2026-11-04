@@ -46,6 +46,8 @@ pub fn describe(
             }
             ("files.read".to_owned(), Danger, text("path"))
         }
+        // Names and sizes only; each file it leads to is read (and checked) on its own.
+        ["nodes", _, "files", "list"] => ("files.list".to_owned(), Read, text("path")),
         ["nodes", _, "terminal", "sessions"] => match operation {
             "list" | "" => ("terminal.list".to_owned(), Read, String::new()),
             "create" => (
@@ -262,7 +264,7 @@ pub fn detail(kind: &str, query: &BTreeMap<String, String>, body: &Value) -> Ope
                 .unwrap_or_default();
             detail.timeout_secs = body["timeout_secs"].as_u64();
         }
-        "files.write" | "files.read" => {
+        "files.write" | "files.read" | "files.list" => {
             detail.paths = text("path").into_iter().collect();
             detail.bytes = body["size"].as_u64();
         }
@@ -1036,6 +1038,15 @@ mod tests {
                 &json!({"path":"/tmp/a","offset":4096})
             )
             .is_none()
+        );
+        let o = op(
+            "POST",
+            "/nodes/{node}/files/list",
+            json!({"path":"/srv/app"}),
+        );
+        assert_eq!(
+            (o.kind.as_str(), o.summary.as_str(), o.risk),
+            ("files.list", "/srv/app", Risk::Read)
         );
         let o = op(
             "POST",

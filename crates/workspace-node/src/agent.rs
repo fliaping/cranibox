@@ -53,23 +53,23 @@ pub enum Command {
         #[arg(required = true, trailing_var_arg = true)]
         command: Vec<String>,
     },
-    /// Copy a file to a paired or same-identity device (needs its exec grant).
+    /// Copy a file or folder to a paired or same-identity device (needs its exec grant).
     Push {
         #[arg(long)]
         node: String,
-        /// Local file.
+        /// Local file or folder.
         local: std::path::PathBuf,
-        /// Absolute destination path on the device.
+        /// Absolute destination path on the device; a folder's files land under it.
         remote: String,
-        /// Replace an existing file.
+        /// Replace files that already exist.
         #[arg(long)]
         overwrite: bool,
     },
-    /// Copy a file from a paired or same-identity device (needs its exec grant).
+    /// Copy a file or folder from a paired or same-identity device (needs its exec grant).
     Pull {
         #[arg(long)]
         node: String,
-        /// Absolute file path on the device.
+        /// Absolute path of a file or folder on the device.
         remote: String,
         /// Local destination.
         local: std::path::PathBuf,

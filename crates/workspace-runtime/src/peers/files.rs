@@ -1,8 +1,8 @@
-//! Whole-file transfer between devices: `cranibox push` / `cranibox pull`.
+//! File and folder transfer between devices: `cranibox push` / `cranibox pull`.
 //! Files move in sequential chunks; an upload lands beside its destination as
 //! `<path>.cranibox-part` and replaces it atomically only after its SHA-256
-//! matches. Access follows the `exec` grant, which can already write any file the
-//! target account can.
+//! matches. A folder moves as its files, listed by [`list`]. Access follows the
+//! `exec` grant, which can already read and write any file the target account can.
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,8 @@ pub const CHUNK: usize = 4 * 1024 * 1024;
 /// Request and response bound for the file routes.
 pub const MAX_WIRE: usize = 8 * 1024 * 1024;
 pub const MAX_FILE: u64 = 4 * 1024 * 1024 * 1024;
+/// Most entries one folder listing returns; a larger tree is refused, not cut short.
+pub const MAX_ENTRIES: usize = 100_000;
 const PART: &str = ".cranibox-part";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,12 +39,22 @@ pub struct WriteChunk {
     /// Unix permission bits for the finished file.
     #[serde(default)]
     pub mode: Option<u32>,
+    /// Create missing parent folders (folder uploads). Left out when false, so
+    /// single-file uploads still reach devices that predate it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub parents: bool,
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReadChunk {
     pub path: String,
     pub offset: u64,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListRequest {
+    /// Absolute path of a file or folder on the target device.
+    pub path: String,
 }
 
 fn destination(path: &str) -> Result<PathBuf> {
@@ -109,6 +121,10 @@ pub fn write(request: WriteChunk) -> Result<Value> {
     let temporary = part(&path);
     let mut file = if request.offset == 0 {
         let parent = path.parent().context("Use an absolute file path")?;
+        if request.parents {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Cannot create {}", parent.display()))?;
+        }
         ensure!(parent.is_dir(), "{} does not exist", parent.display());
         std::fs::File::create(&temporary)?
     } else {
@@ -140,6 +156,68 @@ pub fn write(request: WriteChunk) -> Result<Value> {
     }
     std::fs::rename(&temporary, &path)?;
     Ok(json!({"received": end, "done": true, "path": path}))
+}
+
+/// What a download of `path` would copy: one file, or a folder's files and
+/// subfolders relative to it ('/'-separated). Symbolic links and special files are
+/// skipped, never followed, so a listing cannot leave the folder.
+pub fn list(request: ListRequest) -> Result<Value> {
+    let root = destination(&request.path)?;
+    let metadata = std::fs::symlink_metadata(&root)
+        .with_context(|| format!("Cannot open {}", root.display()))?;
+    if metadata.is_file() {
+        return Ok(json!({"kind": "file", "size": metadata.len()}));
+    }
+    ensure!(
+        metadata.is_dir(),
+        "{} is not a file or folder",
+        root.display()
+    );
+    let (mut files, mut folders, mut skipped) = (Vec::new(), Vec::new(), Vec::new());
+    let mut total = 0u64;
+    let mut pending = vec![String::new()];
+    while let Some(relative) = pending.pop() {
+        let folder = if relative.is_empty() {
+            root.clone()
+        } else {
+            root.join(&relative)
+        };
+        let mut entries = std::fs::read_dir(&folder)
+            .with_context(|| format!("Cannot read {}", folder.display()))?
+            .collect::<std::io::Result<Vec<_>>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                skipped.push(json!({"path": format!("{relative}/{}", entry.file_name().to_string_lossy()).trim_start_matches('/'), "reason": "name"}));
+                continue;
+            };
+            let path = if relative.is_empty() {
+                name
+            } else {
+                format!("{relative}/{name}")
+            };
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
+                folders.push(json!(path));
+                pending.push(path);
+            } else if kind.is_file() {
+                let size = entry.metadata()?.len();
+                ensure!(size <= MAX_FILE, "{path} is larger than 4 GiB");
+                total += size;
+                files.push(json!({"path": path, "size": size}));
+            } else {
+                skipped.push(json!({"path": path, "reason": if kind.is_symlink() { "link" } else { "special" }}));
+            }
+            ensure!(
+                files.len() + folders.len() + skipped.len() <= MAX_ENTRIES,
+                "{} has more than {MAX_ENTRIES} entries; copy a smaller folder or an archive",
+                root.display()
+            );
+        }
+    }
+    Ok(
+        json!({"kind": "folder", "files": files, "folders": folders, "skipped": skipped, "bytes": total}),
+    )
 }
 
 /// Target side of a download chunk. The last chunk carries the whole file's SHA-256.
@@ -185,6 +263,7 @@ mod tests {
             sha256: sha.into(),
             overwrite: false,
             mode: Some(0o755),
+            parents: false,
         };
         let first = write(chunk(0, CHUNK, &sha)).unwrap();
         assert_eq!(first["done"], false);
@@ -232,5 +311,61 @@ mod tests {
             }
         }
         assert_eq!(copy, bytes);
+    }
+    #[test]
+    fn folder_uploads_create_parents_and_listings_stay_inside_the_folder() {
+        let root = tempfile::tempdir().unwrap();
+        let nested = root.path().join("a/b/c.txt");
+        let upload = |parents| WriteChunk {
+            path: nested.display().to_string(),
+            offset: 0,
+            data: STANDARD.encode(b"hi"),
+            size: 2,
+            sha256: hex(&sha2::Sha256::digest(b"hi")),
+            overwrite: false,
+            mode: None,
+            parents,
+        };
+        assert!(
+            write(upload(false)).is_err(),
+            "a missing folder needs parents"
+        );
+        assert_eq!(write(upload(true)).unwrap()["done"], true);
+        assert_eq!(std::fs::read(&nested).unwrap(), b"hi");
+        // Old devices reject unknown fields, so a plain upload must not send it.
+        let plain = serde_json::to_value(upload(false)).unwrap();
+        assert!(plain.get("parents").is_none());
+
+        std::fs::create_dir(root.path().join("empty")).unwrap();
+        std::fs::write(root.path().join("top.bin"), [0u8; 5]).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/etc", root.path().join("escape")).unwrap();
+        let listing = list(ListRequest {
+            path: root.path().display().to_string(),
+        })
+        .unwrap();
+        assert_eq!(listing["kind"], "folder");
+        assert_eq!(
+            listing["files"],
+            json!([{"path": "top.bin", "size": 5}, {"path": "a/b/c.txt", "size": 2}])
+        );
+        assert_eq!(listing["folders"], json!(["a", "empty", "a/b"]));
+        assert_eq!(listing["bytes"], 7);
+        #[cfg(unix)]
+        assert_eq!(
+            listing["skipped"],
+            json!([{"path": "escape", "reason": "link"}])
+        );
+        let file = list(ListRequest {
+            path: nested.display().to_string(),
+        })
+        .unwrap();
+        assert_eq!(file, json!({"kind": "file", "size": 2}));
+        assert!(
+            list(ListRequest {
+                path: "relative".into()
+            })
+            .is_err()
+        );
     }
 }
