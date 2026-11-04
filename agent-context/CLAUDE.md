@@ -13,15 +13,15 @@ and `/run` can be replaced when the container is rebuilt.
   `workspacectl logs ...` for persistent user services.
 - Use `workspacectl s6 ...` for image-provided s6 services.
 - Use `workspacectl ports` and `workspacectl routes` for network inspection.
-- If the Rust gateway is installed, use `workspacectl nodes --json` to discover
-  remote nodes, and `workspacectl node exec --node <id> -- <program> <args>`
-  to run commands with the remote client's account permissions. Use
-  `workspacectl node job <job-id>` and `workspacectl node cancel <job-id>`
-  for asynchronous jobs. Commands are not replayed after disconnection.
-  Copy files or whole folders with `cranibox push --node <id> <local>
-  <absolute-remote-path>` and `cranibox pull --node <id> <absolute-remote-path>
-  <local>` (add `--overwrite` to replace); never chunk files through exec.
-  The `workspace-runtime mcp` stdio server exposes the same operations.
+- Use `cranibox nodes` to discover your paired devices, and
+  `cranibox exec --node <id> -- <program> <args>` to run commands with the
+  remote account's permissions. Use `cranibox job <job-id>` and
+  `cranibox cancel <job-id>` for asynchronous jobs. Commands are not replayed
+  after disconnection. Copy files or whole folders with
+  `cranibox push --node <id> <local> <absolute-remote-path>` and
+  `cranibox pull --node <id> <absolute-remote-path> <local>` (add
+  `--overwrite` to replace); never chunk files through exec. The
+  `cranibox mcp` stdio server exposes the same operations.
 - Use `workspacectl install ...` for optional Cranibox workspace capabilities.
 - Use `workspacectl network domain <domain>` for the managed Caddy domain;
   DNS, TLS, and gateway authentication remain deployment responsibilities.

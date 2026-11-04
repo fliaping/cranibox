@@ -14,7 +14,7 @@ Mac 上现有的应用本来就是手动放行后运行的，所以它是“被�
 
 ## 方法
 
-通过 `workspacectl node exec` 在节点上运行，父进程就是 Cranibox 节点本身，与未来的更新进程一致。
+通过 `cranibox exec` 在节点上运行，父进程就是 Cranibox 节点本身，与未来的更新进程一致。
 测试程序是现场编译的无害小程序（Windows 用 .NET 编译为无签名 exe，Mac 用 `cc` 编译，链接器自动 ad-hoc 签名，
 与 Rust 在 arm64 上的产物一致），在专用临时目录里运行并在结束时清除。
 

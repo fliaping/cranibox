@@ -11,7 +11,7 @@ mod tailscale;
 use anyhow::{Result, bail, ensure};
 use clap::Parser;
 use common::*;
-use std::{env, path::PathBuf};
+use std::env;
 
 const HELP: &str = "Cranibox control plane (Rust)
 Usage: workspacectl <command> [arguments]
@@ -30,106 +30,10 @@ Operate: service <status|start|stop|restart|enable|disable> <name>
          desktop on|off|power [--json]   (graphical desktop; off frees its memory)
          tailscale login|up|serve|autoconnect|logout | proxy init|add|remove|list|check|render|domain|rollback
          web install|start|stop|restart|status|url|configure
-Devices: nodes | node exec|job|cancel|mcp [arguments]   (paired and same-identity devices)
-         messages held | release <message-id> | reject <message-id>
-         messages inbound <node-id> accept|hold|refuse
 ";
-
-fn node_binary(ctx: &Context) -> PathBuf {
-    env::var_os("CRANIBOX_NODE_BIN")
-        .map(PathBuf::from)
-        .filter(|path| executable(path))
-        .or_else(|| {
-            let path = ctx.root.join("bin/cranibox");
-            executable(&path).then_some(path)
-        })
-        .unwrap_or_else(|| PathBuf::from("cranibox"))
-}
-/// Owner approval queue for agent-to-agent messages held by inbound policy or the loop
-/// guard. Uses the same peer store as the Control Center (`/api/peers`).
-fn messages_args(ctx: &Context, args: &[String]) -> Result<Vec<String>> {
-    const USAGE: &str = "Usage: workspacectl messages held | release <message-id> | reject <message-id> | inbound <node-id> accept|hold|refuse";
-    let uuid = |value: &str| {
-        value.len() == 36
-            && value.char_indices().all(|(i, c)| {
-                if [8, 13, 18, 23].contains(&i) {
-                    c == '-'
-                } else {
-                    c.is_ascii_hexdigit()
-                }
-            })
-    };
-    let config = ctx.root.join(".config/cranibox/settings.json");
-    let mut command = vec![
-        "--config".to_owned(),
-        config.to_string_lossy().into_owned(),
-        "peer".to_owned(),
-    ];
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    match words.as_slice() {
-        ["held"] | ["list"] | [] => command.extend(["messages".into(), "held".into()]),
-        [action @ ("release" | "reject"), id] => {
-            ensure!(uuid(id), "invalid message ID; {USAGE}");
-            command.extend([
-                "messages".into(),
-                (*action).to_owned(),
-                "--message-id".into(),
-                (*id).to_owned(),
-            ]);
-        }
-        ["inbound", node, policy @ ("accept" | "hold" | "refuse")] => {
-            ensure!(
-                node.starts_with("node-") && node.len() <= 64,
-                "invalid node ID; {USAGE}"
-            );
-            command.extend([
-                "inbound".into(),
-                "--node".into(),
-                (*node).to_owned(),
-                "--policy".into(),
-                (*policy).to_owned(),
-            ]);
-        }
-        _ => bail!("{USAGE}"),
-    }
-    Ok(command)
-}
-/// Agent device commands run in the device node, over its own peers.
-async fn node(ctx: &Context, args: &[String]) -> Result<i32> {
-    let mut command = ctx.command(&node_binary(ctx).to_string_lossy());
-    command.args(args);
-    Ok(command.status().await?.code().unwrap_or(1))
-}
-async fn messages(ctx: &Context, args: &[String]) -> Result<i32> {
-    let arguments = messages_args(ctx, args)?;
-    let mut command = ctx.command(&node_binary(ctx).to_string_lossy());
-    command.args(arguments);
-    Ok(command.status().await?.code().unwrap_or(1))
-}
 
 pub async fn run(mut args: Vec<String>) -> Result<i32> {
     let ctx = Context::new()?;
-    if args.first().is_some_and(|value| value == "messages") {
-        return messages(&ctx, &args[1..]).await;
-    }
-    if args.first().is_some_and(|value| value == "node") {
-        ensure!(
-            args.get(1)
-                .is_some_and(|value| ["exec", "job", "cancel", "mcp"].contains(&value.as_str())),
-            "Usage: workspacectl node exec|job|cancel|mcp [arguments]"
-        );
-        return node(&ctx, &args[1..]).await;
-    }
-    if args.first().is_some_and(|value| value == "nodes") {
-        let mut after_separator = false;
-        args.retain(|value| {
-            if value == "--" {
-                after_separator = true;
-            }
-            after_separator || value != "--json"
-        });
-        return node(&ctx, &args).await;
-    }
     let json_output = args.iter().any(|value| value == "--json");
     args.retain(|value| value != "--json");
     let name =

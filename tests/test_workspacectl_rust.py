@@ -183,17 +183,6 @@ class ControlTests(unittest.TestCase):
         stat = Path(f"/proc/{pid}/stat")
         self.assertTrue(not stat.exists() or stat.read_text().split()[2] == "Z", "probe descendant survived timeout")
 
-    def test_device_arguments_and_exit_code_pass_through(self):
-        # Device commands run in the node, over its paired peers; the gateway is gone.
-        node = self.python("cranibox", "import json,sys\nprint(json.dumps(sys.argv[1:]))\nsys.exit(7)")
-        self.env["CRANIBOX_NODE_BIN"] = str(node)
-        self.assertNotEqual(self.cli("runtime", "status", ok=False).returncode, 0)
-        result = self.cli("node", "exec", "one", "--", "program", "--json", ok=False)
-        self.assertEqual(result.returncode, 7)
-        self.assertEqual(json.loads(result.stdout), ["exec", "one", "--", "program", "--json"])
-        result = self.cli("nodes", "--json", ok=False)
-        self.assertEqual(json.loads(result.stdout), ["nodes"])
-
     def test_skill_source_is_one_argument(self):
         args = self.root / "args.json"
         self.python("npx", f"import json,sys\nfrom pathlib import Path\nPath({str(args)!r}).write_text(json.dumps(sys.argv[1:]))")

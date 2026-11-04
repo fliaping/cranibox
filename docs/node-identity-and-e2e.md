@@ -141,7 +141,7 @@ cranibox peer verify --node 对端NodeID --code 1234-5678-9012
   - Metadata (target NodeID, sizes, timing) stays visible.
 - **Phase 3 inbound policy.** Each grant has `inbound`: `accept` (legacy default, signed bytes unchanged), `hold` (default for new grants; stored but hidden from Agents until the owner runs `peer messages release`), or `refuse` (403, not stored).
   - Approval commands are owner-only: MCP refuses them. A local process running as the same OS user is not distinguished.
-  - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), with `workspacectl messages held|release|reject`, or with `cranibox peer messages`.
+  - Owners decide in the Control Center (Device messages → “Awaiting approval”, with Release and Reject), or with `cranibox peer messages held|release|reject`.
   - Rate limit: 60 messages per sender per minute. Loop guard: more than 12 messages from one sender session within 10 minutes are held.
   - Agents receive text inside `<cranibox-message ... trust="untrusted">`, with closing tags escaped.
 - **Phase 4: running sessions.** No new state machine is added.

@@ -39,7 +39,6 @@ AGENT_WORKSPACE_CTL_BIN=/path/to/workspacectl bash scripts/install-workspacectl.
 
 workspacectl status --json
 workspacectl service restart demo
-workspacectl nodes --json
 ```
 
 安装位置默认 `/config/bin/workspacectl`；`/config/.local/bin/workspacectl` 链接到
