@@ -119,10 +119,10 @@ RSS 包含共享页，PSS 按比例分摊共享页，SwapPss 表示已换出的�
 
 ## 源码依据
 
-- [用户服务管理器](../scripts/user-systemctl.sh)
-- [用户服务启动集成](../services/systemctl-services/run)
-- [初始化](../services/init/run)与[自定义服务注册](../services/custom-services/run)
-- [XFCE 缩放监听](../scripts/watch-xfce-panel-scale.sh)
-- [桌面桥](../addons/desktop-bridge/bin/agent-desktop-bridge)
+- [用户服务管理器](https://github.com/fliaping/agent-workspace/blob/main/scripts/user-systemctl.sh)
+- [用户服务启动集成](https://github.com/fliaping/agent-workspace/blob/main/services/systemctl-services/run)
+- [初始化](https://github.com/fliaping/agent-workspace/blob/main/services/init/run)与[自定义服务注册](https://github.com/fliaping/agent-workspace/blob/main/services/custom-services/run)
+- [XFCE 缩放监听](https://github.com/fliaping/agent-workspace/blob/main/scripts/watch-xfce-panel-scale.sh)
+- [桌面桥](https://github.com/fliaping/agent-workspace/blob/main/addons/desktop-bridge/bin/agent-desktop-bridge)
 - [Web 后端](../addons/control-center/server.cjs)
 - [已完成的 Rust CTL 迁移](workspacectl-rust.md)

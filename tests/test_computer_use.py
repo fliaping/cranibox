@@ -16,12 +16,14 @@ import uuid
 import test_node_peers as peers
 from test_remote_desktops import DesktopServer
 from workspace_web_harness import CORE, NODE, Harness, free_port, sockets_allowed, until
+import agent_workspace_source as image
 
 PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6Bz8AAAAASUVORK5CYII='
-BRIDGE = Path(__file__).resolve().parents[1] / 'addons/desktop-bridge/bin/agent-desktop-bridge'
+BRIDGE = image.IMAGE / 'addons/desktop-bridge/bin/agent-desktop-bridge'
 
 
-@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed(), 'requires built node and real sockets')
+@unittest.skipUnless(os.name == 'posix' and NODE.exists() and sockets_allowed() and image.AVAILABLE,
+                     'requires built node, real sockets and the Agent Workspace repository')
 class ComputerUseTests(unittest.TestCase):
     cli, http, start = peers.PeerTests.cli, peers.PeerTests.http, peers.PeerTests.start
     close, stop = peers.PeerTests.close, peers.PeerTests.stop

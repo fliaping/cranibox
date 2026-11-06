@@ -61,7 +61,7 @@ def services(binary, count):
         try:
             for name in names:
                 (units / (name + '.service')).write_text('[Service]\nExecStart=/bin/sleep 120\nRestart=always\nRestartSec=.1\nTimeoutStopSec=.5\n')
-                subprocess.run(['bash', str(ROOT / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name], env=env,
+                subprocess.run(['bash', str(Path(os.environ.get('AGENT_WORKSPACE_SRC', ROOT.parent / 'agent-workspace')) / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name], env=env,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=10)
             legacy = {'supervision': aggregate(pids('.supervisor.pid')), 'business': aggregate(pids('.pid'))}
             report = json.loads(run('migrate', '--apply').stdout)

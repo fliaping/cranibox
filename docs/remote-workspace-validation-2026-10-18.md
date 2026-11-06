@@ -1216,7 +1216,7 @@ Web/Tauri 共用“检测已有服务”、结果核对与可编辑表单；保�
 
 清理后日常容器 running/healthy、非 privileged、无宿主 Docker socket；3080/3031 匿名 401、认证 200。日常 Web PID 538744、客户端 PID 767446、程序摘要和 NodeID 保持，无测试预览/MCP 进程或安装包残留。没有接管 KDE/Selkies 输入或剪贴板。
 
-私有证据 /config/validation-artifacts/image-release-20261019 保存构建与启动 JSON/日志、脚本/工作流快照、单元日志、actionlint.log、workflow-bash-syntax.json、final-health.json；不提交配置、密码、令牌、原始日志或辅助脚本。本轮不覆盖公开镜像拉取/发布、arm64 运行、Aliyun、新 GitHub 镜像工作流、浏览器桌面输入或完整空间生命周期。公开发布仍按[镜像发布说明](workspace-image-release.md)继续，不放宽协议保护。
+私有证据 /config/validation-artifacts/image-release-20261019 保存构建与启动 JSON/日志、脚本/工作流快照、单元日志、actionlint.log、workflow-bash-syntax.json、final-health.json；不提交配置、密码、令牌、原始日志或辅助脚本。本轮不覆盖公开镜像拉取/发布、arm64 运行、Aliyun、新 GitHub 镜像工作流、浏览器桌面输入或完整空间生命周期。公开发布仍按[镜像发布说明](https://github.com/fliaping/agent-workspace/blob/main/docs/workspace-image-release.md)继续，不放宽协议保护。
 
 ### 收尾提交与 CI
 

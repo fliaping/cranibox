@@ -11,6 +11,8 @@ import time
 import unittest
 import urllib.request
 
+import agent_workspace_source as image
+
 SOURCE = Path(__file__).resolve().parents[1]
 BINARIES = Path(os.environ.get('WORKSPACE_BUILTIN_BIN_DIR', SOURCE / 'target/debug'))
 NAMES = ('cranibox', 'workspacectl')
@@ -22,7 +24,7 @@ def free_port():
         return sock.getsockname()[1]
 
 
-@unittest.skipUnless(all((BINARIES / name).exists() for name in NAMES) and
+@unittest.skipUnless(image.AVAILABLE and all((BINARIES / name).exists() for name in NAMES) and
                      shutil.which('s6-svscan'), 'build native binaries and install s6 first')
 class BootstrapTests(unittest.TestCase):
     def setUp(self):
@@ -34,7 +36,7 @@ class BootstrapTests(unittest.TestCase):
         self.scripts.mkdir(parents=True)
         for name in ('bootstrap-workspace-core.sh',
                      'install-workspace-web.sh', 'install-workspacectl.sh', 'install-cranibox.sh', 'install-cranibox.py'):
-            shutil.copy2(SOURCE / 'scripts' / name, self.scripts / name)
+            shutil.copy2(image.IMAGE / 'scripts' / name, self.scripts / name)
         self.env = {k: v for k, v in os.environ.items()
                     if not k.startswith(('AGENT_WORKSPACE_', 'CARGO_', 'RUSTUP_'))}
         self.env.update(HOME=str(self.home), AGENT_WORKSPACE_CONFIG_ROOT=str(self.home),
