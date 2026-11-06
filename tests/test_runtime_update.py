@@ -187,7 +187,7 @@ class RuntimeUpdate(unittest.TestCase):
         s = self.status()
         self.assertEqual((s["runtime"]["version"], s["runtime"]["managed"]), (self.base, True))
 
-        self.registry.publish("1.1.1-dev.1", self.exe_bytes, tag="dev")
+        self.registry.publish("99.0.0-dev.1", self.exe_bytes, tag="dev")
         with self.log.open("wb") as log:
             self.launcher = subprocess.Popen(
                 [str(self.exe), "--config", str(self.cfg), "update", "launch"],
@@ -200,7 +200,7 @@ class RuntimeUpdate(unittest.TestCase):
         info = self.app_api("/api/v1/app/update?node=self&check=1")
         self.assertEqual((info["self"], info["version"], info["runtime"]["managed"]), (True, self.base, True))
         self.assertTrue(info["runtime"]["can_update"], info["runtime"]["reasons"])
-        self.assertEqual(info["available"]["dev"], "1.1.1-dev.1")
+        self.assertEqual(info["available"]["dev"], "99.0.0-dev.1")
         self.assertIsNone(info.get("available_error"))
 
         # A terminal session is owned by the terminal host, not by the runtime being replaced.
@@ -210,7 +210,7 @@ class RuntimeUpdate(unittest.TestCase):
         # Update through the dist-tag; the running node restarts into the new version.
         self.cranibox("update", "apply", "dev")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "done", 120, "the update to finish")
-        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("99.0.0-dev.1", "confirmed"))
         # Started by the launcher, outside the runtime that updates replace (and on Windows
         # outside the runtime's Job Object).
         record = self.tmp / "cfg" / "terminal-host.json"
@@ -224,8 +224,8 @@ class RuntimeUpdate(unittest.TestCase):
 
         if sys.platform == "darwin":
             # An unsigned program is refused before it is activated: the kernel would kill it.
-            self.registry.publish("1.1.2-dev.0", b"#!/bin/sh\nexit 1\n")
-            unsigned = self.cranibox("update", "apply", "1.1.2-dev.0", check=False)
+            self.registry.publish("99.0.1-dev.0", b"#!/bin/sh\nexit 1\n")
+            unsigned = self.cranibox("update", "apply", "99.0.1-dev.0", check=False)
             self.assertNotEqual(unsigned.returncode, 0)
             self.assertIn("signature", unsigned.stderr)
 
@@ -233,25 +233,25 @@ class RuntimeUpdate(unittest.TestCase):
         # On macOS that is a signed program that exits at once.
         bad = (b"MZ not a program" if WIN else Path("/usr/bin/false").read_bytes() if sys.platform == "darwin"
                else b"#!/bin/sh\nexit 1\n")
-        self.registry.publish("1.1.2-dev.1", bad, tag="dev")
-        self.cranibox("update", "apply", "1.1.2-dev.1")
+        self.registry.publish("99.0.1-dev.1", bad, tag="dev")
+        self.cranibox("update", "apply", "99.0.1-dev.1")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "rolled_back", 180, "the rollback")
-        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("99.0.0-dev.1", "confirmed"))
 
         # The failed version is not retried unless forced.
-        again = self.cranibox("update", "apply", "1.1.2-dev.1", check=False)
+        again = self.cranibox("update", "apply", "99.0.1-dev.1", check=False)
         self.assertNotEqual(again.returncode, 0)
         self.assertIn("failed", again.stderr)
 
         available = json.loads(self.cranibox("update", "check").stdout)["devices"][0]
-        self.assertEqual(available["available"]["dev"], "1.1.2-dev.1")
+        self.assertEqual(available["available"]["dev"], "99.0.1-dev.1")
         self.assertIsNone(available["available"]["latest"])
         self.assertIsNone(available["available"]["next"])
         self.assertIsNone(available["available_error"])
 
     def test_plain_start_is_managed_by_default(self):
         """No adopt, no launcher command: starting the program is enough for remote updates."""
-        self.registry.publish("1.1.1-dev.1", self.exe_bytes, tag="dev")
+        self.registry.publish("99.0.0-dev.1", self.exe_bytes, tag="dev")
         with self.log.open("wb") as log:
             self.launcher = subprocess.Popen(
                 [str(self.exe), "--config", str(self.cfg)],
@@ -262,7 +262,7 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual((s["runtime"]["version"], s["runtime"]["managed"]), (self.base, True))
         self.cranibox("update", "apply", "dev")
         s = self.wait_for(lambda s: s["status"] and s["status"]["phase"] == "done", 120, "the update to finish")
-        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("1.1.1-dev.1", "confirmed"))
+        self.assertEqual((s["runtime"]["version"], s["runtime"]["state"]), ("99.0.0-dev.1", "confirmed"))
         # The same process keeps supervising: one entry point for the service manager.
         self.assertIsNone(self.launcher.poll())
 
