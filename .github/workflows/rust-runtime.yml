@@ -281,6 +281,38 @@ jobs:
         timeout-minutes: 15
         run: |
           CRANIBOX_BIN="$(ls "$RUNNER_TEMP"/cli/cranibox-*)" python -m unittest tests.test_runtime_update -v
+  # The Agent Workspace image (fliaping/agent-workspace) downloads this build from
+  # the release: the node plus workspacectl, the service manager and the Web console.
+  workspace-runtime:
+    name: Workspace image runtime (linux ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: workspace-${{ matrix.arch }}
+      - name: Build the workspace runtime
+        run: |
+          cargo build --release --locked -p cranibox
+          mkdir -p "$RUNNER_TEMP/workspace"
+          cp target/release/cranibox "$RUNNER_TEMP/workspace/cranibox-workspace-linux-${{ matrix.arch }}"
+          "$RUNNER_TEMP/workspace/cranibox-workspace-linux-${{ matrix.arch }}" --version
+          "$RUNNER_TEMP/workspace/cranibox-workspace-linux-${{ matrix.arch }}" ctl --version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cranibox-workspace-linux-${{ matrix.arch }}
+          path: ${{ runner.temp }}/workspace/cranibox-workspace-linux-${{ matrix.arch }}
+          retention-days: 14
+          if-no-files-found: error
   native:
     env:
       AGENT_WORKSPACE_SRC: ${{ github.workspace }}/agent-workspace-src
@@ -482,7 +514,7 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, native, distribution-tests]
+    needs: [desktop, native, distribution-tests, workspace-runtime]
     runs-on: ubuntu-latest
     permissions:
       contents: write

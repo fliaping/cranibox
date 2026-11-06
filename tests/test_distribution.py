@@ -301,6 +301,10 @@ class DistributionTests(unittest.TestCase):
             directory.mkdir(parents=True)
             shutil.copyfile(self.assets / filename, directory / filename)
             (directory / filename).chmod(0o644)
+        workspace = ("cranibox-workspace-linux-x86_64", "cranibox-workspace-linux-arm64")
+        for filename in workspace:
+            (artifacts / filename).mkdir(parents=True)
+            shutil.copyfile(self.assets / names["linux"], artifacts / filename / filename)
         desktop = artifacts / "cranibox-desktop-macos-latest/bundle/dmg"
         desktop.mkdir(parents=True)
         shutil.copyfile(self.assets / "Cranibox installer.dmg", desktop / "Cranibox installer.dmg")
@@ -311,11 +315,14 @@ class DistributionTests(unittest.TestCase):
                 expected = set(names.values()) | {"LICENSE", "SHA256SUMS"}
                 expected.update(p.name for p in (ROOT / "docs/licenses").glob("*.txt"))
                 if installers:
-                    expected.add("Cranibox installer.dmg")
+                    expected.update({"Cranibox installer.dmg", *workspace})
                 self.assertEqual({p.name for p in verified_assets(output)}, expected)
                 for platform, filename in names.items():
                     self.assertEqual((output / filename).read_bytes(), (self.assets / filename).read_bytes())
                     if os.name != "nt" and platform != "windows":
+                        self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
+                for filename in workspace if installers else ():
+                    if os.name != "nt":
                         self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
                 builder.build(output, self.root / f"npm-{installers}", version="99.0.0-dev.42")
         (artifacts / "cranibox-cli-windows" / names["windows"]).unlink()
