@@ -1,3 +1,0 @@
-#!/command/with-contenv sh
-# Loopback control API behind the Selkies page: switches the desktop on/off.
-exec /usr/local/bin/cranibox-desktop serve

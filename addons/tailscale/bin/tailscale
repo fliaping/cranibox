@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-: "${TAILSCALE_HOME:=/config/opt/tailscale}"
-: "${TAILSCALE_SOCKET:=/config/.local/run/tailscale/tailscaled.sock}"
-
-exec "$TAILSCALE_HOME/libexec/tailscale" --socket="$TAILSCALE_SOCKET" "$@"

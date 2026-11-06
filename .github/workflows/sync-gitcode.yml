@@ -28,7 +28,7 @@ jobs:
 
       - name: Sync to GitCode
         env:
-          GITCODE_REPOSITORY: ${{ vars.CRANIBOX_GITCODE_REPOSITORY || 'fliaping0/agent-workspace' }}
+          GITCODE_REPOSITORY: ${{ vars.CRANIBOX_GITCODE_REPOSITORY || 'fliaping0/cranibox' }}
         run: |
           python -c 'import os, re; assert re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", os.environ["GITCODE_REPOSITORY"]), "Invalid GitCode repository"'
           git remote add gitcode "git@gitcode.com:$GITCODE_REPOSITORY.git"

@@ -1,0 +1,15 @@
+{
+  "name": "cranibox",
+  "description": "Cranibox: give your agents hands on every device you own",
+  "owner": {
+    "name": "fliaping",
+    "url": "https://github.com/fliaping"
+  },
+  "plugins": [
+    {
+      "name": "cranibox",
+      "source": "./plugins/cranibox",
+      "description": "Run commands, move files and use desktops and browsers on your other paired devices through the Cranibox MCP server, with per-device permissions"
+    }
+  ]
+}

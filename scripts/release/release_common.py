@@ -50,7 +50,8 @@ def version_for_tag(tag):
 
 def check_versions(tag, root=ROOT):
     version = version_for_tag(tag)
-    files = ["crates/cranibox/Cargo.toml", "apps/node-desktop/src-tauri/tauri.conf.json",
+    files = ["crates/cranibox/Cargo.toml", "apps/node-desktop/src-tauri/Cargo.toml",
+             "apps/node-desktop/src-tauri/tauri.conf.json",
              "apps/node-desktop/package.json", "npm/cli/package.json"]
     for name in files:
         text = (root / name).read_text()

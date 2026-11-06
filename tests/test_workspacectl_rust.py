@@ -16,6 +16,8 @@ import threading
 import time
 import unittest
 
+import agent_workspace_source as image
+
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(os.environ.get("WORKSPACE_CTL_BIN", ROOT / "target/debug/workspacectl"))
 
@@ -111,6 +113,7 @@ class ControlTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in value["agents"] if row["selected"]],
                          ["deepseek-harness"])
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_snapshot_matches_existing_json_contract(self):
         try:
             import yaml  # Only the legacy reference needs PyYAML.
@@ -123,7 +126,7 @@ class ControlTests(unittest.TestCase):
         self.python("chromium", "print('Chromium 140.0.7339.80')")
         native = self.payload("status")
         reference_program = "import runpy,sys,urllib.request,urllib.error\ndef unavailable(*args,**kwargs):\n    raise urllib.error.URLError('isolated reference')\nurllib.request.urlopen=unavailable\nmodule=runpy.run_path(sys.argv[1])\nsys.exit(module['main'](['status']))"
-        reference = subprocess.run([sys.executable, "-c", reference_program, str(ROOT / "scripts/workspacectl-json.py")],
+        reference = subprocess.run([sys.executable, "-c", reference_program, str(image.IMAGE / "scripts/workspacectl-json.py")],
                                    env=self.env, capture_output=True, text=True, timeout=20)
         self.assertEqual(reference.returncode, 0, reference.stderr)
         legacy = json.loads(reference.stdout)
@@ -357,13 +360,14 @@ class ControlTests(unittest.TestCase):
         self.cli("proxy", "render")
         self.assertFalse(marker.exists())
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_prebuilt_installer_replaces_launcher_with_native_binary(self):
         path = self.root / "bin/workspacectl"
         path.parent.mkdir()
-        path.symlink_to(ROOT / "scripts/workspacectl")
+        path.symlink_to(image.IMAGE / "scripts/workspacectl")
         # A Workspace image ships a built-in cranibox; keep this test about the plain installer.
         env = {**self.env, "PATH": "/usr/bin:/bin", "AGENT_WORKSPACE_CTL_BIN": str(BINARY), "AGENT_WORKSPACE_BUILTIN_DIR": str(self.root / "no-builtin")}
-        result = subprocess.run(["/bin/bash", str(ROOT / "scripts/install-workspacectl.sh")], env=env, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(["/bin/bash", str(image.IMAGE / "scripts/install-workspacectl.sh")], env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(path.is_symlink())
         self.assertEqual(path.read_bytes()[:4], b"\x7fELF")

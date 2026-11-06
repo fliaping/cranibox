@@ -1,6 +1,0 @@
-#!/usr/bin/with-contenv bash
-set -euo pipefail
-
-echo "[custom-services] Starting persistent custom service registrar..."
-/usr/local/bin/register-config-services.sh
-echo "[custom-services] Registration complete"

@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "${1:-}" == "--launch" && "${2:-}" == "WebBrowser" ]]; then
-  shift 2
-  exec /usr/local/bin/agent-workspace-browser "$@"
-fi
-
-exec /usr/bin/exo-open-real "$@"

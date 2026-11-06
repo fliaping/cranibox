@@ -9,6 +9,8 @@ import tempfile
 import time
 import unittest
 
+import agent_workspace_source as image
+
 SOURCE = Path(__file__).resolve().parents[1]
 BINARY = Path(os.environ.get('WORKSPACE_SERVICES_BIN', SOURCE / 'target/debug/workspace-services'))
 
@@ -184,9 +186,10 @@ class ServiceTests(unittest.TestCase):
         time.sleep(.4)
         self.assertEqual(self.command('is-active', 'demo', check=False).returncode, 3)
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_restart_migrates_legacy_supervisor(self):
         self.unit('/bin/sleep 60', 'always')
-        subprocess.run(['bash', str(SOURCE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
+        subprocess.run(['bash', str(image.IMAGE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
                        env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         old = int((self.state / 'demo.supervisor.pid').read_text())
         self.command('restart', 'demo')
@@ -198,12 +201,13 @@ class ServiceTests(unittest.TestCase):
             return not path.exists() or path.read_text().rsplit(') ', 1)[1].startswith('Z ')
         until(old_dead)
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_setsid_service_migration_tracks_real_process_and_releases_port(self):
         marker = self.home / 'listener.json'
         command = self.python('import json,os,socket,time\nfrom pathlib import Path\ns=socket.socket()\ns.bind(("127.0.0.1",0))\ns.listen()\nPath(' +
                               repr(str(marker)) + ').write_text(json.dumps({"pid":os.getpid(),"port":s.getsockname()[1]}))\ntime.sleep(60)\n')
         self.unit('/usr/bin/setsid ' + command.replace('"', ''), 'always')
-        subprocess.run(['bash', str(SOURCE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
+        subprocess.run(['bash', str(image.IMAGE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
                        env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         until(marker.exists)
         old = json.loads(marker.read_text())
@@ -230,11 +234,12 @@ class ServiceTests(unittest.TestCase):
         self.assertFalse(self.state.exists())
         self.assertFalse((self.home / '.local/run/workspace-services').exists())
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_batch_migration_preserves_enabled_flags(self):
         self.unit('/bin/sleep 60', 'always')
         (self.units / 'second.service').write_text((self.units / 'demo.service').read_text())
         for name in ['demo', 'second']:
-            subprocess.run(['bash', str(SOURCE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name],
+            subprocess.run(['bash', str(image.IMAGE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name],
                            env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         self.command('enable', 'demo')
         plan = json.loads(self.command('migration-plan').stdout)
@@ -250,6 +255,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(json.loads(self.command('migration-plan').stdout)['services'][0]['candidate'], False)
         self.assertEqual((self.state / 'migration.json').stat().st_mode & 0o777, 0o600)
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_failed_migration_rolls_back_and_leaves_remaining_services(self):
         marker = self.home / 'fail-native'
         script = self.home / 'conditional.sh'
@@ -258,12 +264,12 @@ class ServiceTests(unittest.TestCase):
         self.unit(str(script), 'always')
         (self.units / 'second.service').write_text('[Service]\nExecStart=/bin/sleep 60\nRestart=always\n')
         for name in ['demo', 'second']:
-            subprocess.run(['bash', str(SOURCE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name], env=self.env,
+            subprocess.run(['bash', str(image.IMAGE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', name], env=self.env,
                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         second_pid = (self.state / 'second.pid').read_text()
         marker.touch()
         rollback = self.home / 'rollback.sh'
-        rollback.write_text('#!/bin/sh\nrm -f "' + str(marker) + '"\nexec bash "' + str(SOURCE / 'scripts/user-systemctl-legacy.sh') + '" "$@"\n')
+        rollback.write_text('#!/bin/sh\nrm -f "' + str(marker) + '"\nexec bash "' + str(image.IMAGE / 'scripts/user-systemctl-legacy.sh') + '" "$@"\n')
         result = self.command('migrate', '--apply', '--rollback-manager=' + str(rollback), check=False)
         self.assertNotEqual(result.returncode, 0)
         report = json.loads(result.stdout)
@@ -281,9 +287,10 @@ class ServiceTests(unittest.TestCase):
             return not path.exists() or path.read_text().rsplit(') ', 1)[1].startswith('Z ')
         until(restored_stopped)
 
+    @unittest.skipUnless(image.AVAILABLE, image.REASON)
     def test_migration_preflight_leaves_legacy_service_running(self):
         self.unit('/bin/sleep 60', 'always')
-        subprocess.run(['bash', str(SOURCE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
+        subprocess.run(['bash', str(image.IMAGE / 'scripts/user-systemctl-legacy.sh'), '--user', 'start', 'demo'],
                        env=self.env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         old = (self.state / 'demo.pid').read_text()
         self.unit('/bin/sleep 60', 'always', extra='ExecStartPost=/bin/true\n')
