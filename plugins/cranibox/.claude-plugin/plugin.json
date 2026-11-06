@@ -1,0 +1,12 @@
+{
+  "name": "cranibox",
+  "description": "Run commands, move files and use desktops and browsers on your other paired devices through the Cranibox MCP server, with per-device permissions",
+  "author": {
+    "name": "fliaping",
+    "url": "https://github.com/fliaping"
+  },
+  "homepage": "https://github.com/fliaping/cranibox",
+  "repository": "https://github.com/fliaping/cranibox",
+  "license": "Apache-2.0",
+  "keywords": ["devices", "remote", "mcp", "p2p", "iroh", "computer-use", "windows", "macos", "linux"]
+}
