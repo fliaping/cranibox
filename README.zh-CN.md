@@ -56,6 +56,8 @@ claude mcp add cranibox -- cranibox mcp     # Claude Code
 codex mcp add cranibox -- cranibox mcp      # Codex
 ```
 
+更多 Agent（Cursor、Gemini CLI、OpenCode、Hermes）的配置见 [docs/agents.md](docs/agents.md)。
+
 Claude Code 还可以安装插件，里面包含 MCP 服务器和一个教 Agent 安全使用你设备的 Skill：
 
 ```

@@ -54,6 +54,8 @@ claude mcp add cranibox -- cranibox mcp     # Claude Code
 codex mcp add cranibox -- cranibox mcp      # Codex
 ```
 
+More agents (Cursor, Gemini CLI, OpenCode, Hermes): see [docs/agents.md](docs/agents.md).
+
 For Claude Code there is also a plugin with the MCP server and a skill that teaches the agent how to use your devices safely:
 
 ```
