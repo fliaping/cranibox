@@ -3,8 +3,8 @@
 节点运行时和桌面应用都通过 npm 分发和更新；GitHub Actions 负责构建，GitHub Release 保留安装包、
 独立 CLI 和许可证归档。
 
-当前状态（2026-11-02）：main 的每次构建经 npm Trusted Publishing 直接发布到 `dev` 通道，
-不需要令牌或人工审批；打 tag 的正式版与预发布仍先暂存，由维护者用 WebAuthn 审批后公开。
+当前状态（2026-11-06）：main 的每次构建和打 tag 的正式版 / 预发布都经 npm Trusted Publishing
+由 GitHub Actions 直接发布，不需要令牌或人工审批（`CRANIBOX_NPM_PUBLISH_MODE=direct`）。
 
 ## 安装与设备更新
 
@@ -44,6 +44,13 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 | macOS Apple Silicon | `cranibox-macos-arm64` | `@fliaping/cranibox-darwin-arm64` |
 | Linux x64 / glibc | `cranibox-linux-x86_64` | `@fliaping/cranibox-linux-x64-gnu` |
 | Windows x64 | `cranibox-windows-x86_64.exe` | `@fliaping/cranibox-win32-x64` |
+| Linux arm64 / glibc | `cranibox-linux-arm64` | 无，仅 GitHub Release |
+
+Linux 版同时包含 Agent Workspace 容器的控制台和服务管理（`ctl`、`service`、`serve --config-root`）。
+[Agent Workspace](https://github.com/fliaping/agent-workspace) 镜像直接下载对应架构的
+`cranibox-linux-<arch>` 并按 `SHA256SUMS` 校验。普通设备上 `serve` 仍是节点并自行管理更新；
+在容器内（有 `--config-root`、`AGENT_WORKSPACE_CONFIG_ROOT` 或 `/usr/local/lib/agent-workspace`）
+`serve` 是容器控制台，更新由镜像负责。
 
 桌面应用另有三个包，只在本机完整更新时下载，不是入口包的依赖：
 
@@ -57,7 +64,7 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 第三方许可证。入口包的 `optionalDependencies` 精确固定到相同版本；没有 postinstall，
 安装时不从 GitHub 下载。CLI 在桌面应用打包前复制保存，避免被应用的同名二进制覆盖。
 
-Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、Linux arm64 或 musl。
+Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、musl，Linux arm64 暂无 npm 包。
 打包时校验 ELF / Mach-O / PE 架构，并核对 `SHA256SUMS` 的文件清单与 SHA-256。
 Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下载完整附件后可运行
 `sha256sum --check SHA256SUMS`。现有桌面应用签名流程保持不变。

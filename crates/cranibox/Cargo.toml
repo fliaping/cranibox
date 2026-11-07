@@ -6,13 +6,16 @@ license = "Apache-2.0"
 rust-version = "1.89"
 
 [features]
-# The Docker workspace image adds the container console and service manager. Device builds (`--no-default-features`) are the node alone.
+# Linux builds carry the Agent Workspace container console and service manager. macOS and Windows builds (`--no-default-features`) are the node alone.
 default = ["workspace"]
 workspace = [
     "dep:agent-workspacectl",
     "dep:agent-workspace-services",
     "dep:agent-workspace-web",
 ]
+# Remote updates for a build that also carries the workspace console (the Linux
+# release); they stay off inside the Agent Workspace image.
+managed = []
 
 [dependencies]
 cranibox-node = { path = "../workspace-node" }
