@@ -1,6 +1,6 @@
 {
   "name": "@fliaping/cranibox",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Connect your devices to your agents with Cranibox",
   "license": "Apache-2.0",
   "bin": { "cranibox": "bin/cranibox.cjs" },
