@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Collect standalone CLI artifacts, licenses and optional installers (with the
-workspace image builds) with SHA256SUMS."""
+Linux arm64 command line) with SHA256SUMS."""
 import argparse
 from pathlib import Path
 import shutil
 
 from release_common import ROOT, PLATFORMS, sha256
 
-# The container build (the `workspace` feature: node plus workspacectl, service
-# manager and Web console) that the Agent Workspace image downloads.
-WORKSPACE = ("cranibox-workspace-linux-x86_64", "cranibox-workspace-linux-arm64")
+# Release-only command lines without an npm package. The Linux builds also serve
+# the Agent Workspace image, which downloads cranibox-linux-<arch>.
+RELEASE_ONLY = {"cranibox-cli-linux-arm64": "cranibox-linux-arm64"}
 
 
 def collect(artifacts, output, installers=False, root=ROOT):
@@ -23,7 +23,7 @@ def collect(artifacts, output, installers=False, root=ROOT):
     files += [(root / "LICENSE", False)]
     files += [(notice, False) for notice in sorted((root / "docs/licenses").glob("*.txt"))]
     if installers:
-        files += [(artifacts / name / name, True) for name in WORKSPACE]
+        files += [(artifacts / directory / name, True) for directory, name in RELEASE_ONLY.items()]
         for directory in sorted(artifacts.glob("cranibox-desktop-*")):
             files += [(file, False) for file in sorted(directory.rglob("*"))
                       if file.is_file() and file.suffix in (".dmg", ".exe", ".deb", ".AppImage")]
