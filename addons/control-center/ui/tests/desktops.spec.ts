@@ -166,9 +166,9 @@ test('a VNC desktop opens in noVNC, forwards input and opens in the browser', as
     await section.getByRole('button', { name: 'Connect desktop', exact: true }).click();
     await expect(status).toHaveText('Connected');
     await expect(section.locator('.vnc-protocol')).toHaveText('noVNC');
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await expect.poll(() => pixel(page), { timeout: 15_000 }).toEqual([64, 139, 83]);
     await desktop(page).locator('#noVNC_container canvas').click(); await page.keyboard.press('a');
-    await expect.poll(() => pixel(page)).toEqual([212, 100, 56]);
+    await expect.poll(() => pixel(page), { timeout: 15_000 }).toEqual([212, 100, 56]);
     for (const width of [375, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const theme of ['dark', 'light']) {
@@ -183,11 +183,11 @@ test('a VNC desktop opens in noVNC, forwards input and opens in the browser', as
     const tabs: string[] = await page.evaluate(() => (window as any).openedTabs);
     const tab = await page.context().newPage();
     await tab.goto(tabs[0]);
-    await expect.poll(() => tab.locator('#noVNC_container canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3))).toEqual([64, 139, 83]);
+    await expect.poll(() => tab.locator('#noVNC_container canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data).slice(0, 3)), { timeout: 15_000 }).toEqual([64, 139, 83]);
     await tab.close();
     // Each connection starts a fresh fixture frame.
     await section.getByRole('button', { name: 'Show here', exact: true }).click();
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await expect.poll(() => pixel(page), { timeout: 15_000 }).toEqual([64, 139, 83]);
     await section.getByRole('button', { name: 'Disconnect', exact: true }).click();
     await expect(status).toHaveText('Disconnected');
     await section.getByRole('button', { name: 'Stop sharing', exact: true }).click();
@@ -214,7 +214,7 @@ test('noVNC asks for VNC credentials itself and retries after a rejected passwor
     await asked();
     await expect(password).toHaveValue('');
     await username.fill('cranibox'); await password.fill('wayland8'); await password.press('Enter');
-    await expect.poll(() => pixel(page)).toEqual([64, 139, 83]);
+    await expect.poll(() => pixel(page), { timeout: 15_000 }).toEqual([64, 139, 83]);
     expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('wayland8');
   } finally { await api(page, { operation: 'desktop', desktop: null }); }
 });

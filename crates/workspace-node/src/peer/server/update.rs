@@ -172,6 +172,9 @@ mod tests {
 
     #[tokio::test]
     async fn mesh_check_keeps_status_on_registry_failure() {
+        if !crate::update::npm::tests::host_has_npm_package() {
+            return;
+        }
         let Ok(root) = std::env::var("CRANIBOX_MESH_CHECK_TEST_ROOT") else {
             use crate::update::npm::tests::{packument, serve_body};
             let root = tempfile::tempdir().unwrap();

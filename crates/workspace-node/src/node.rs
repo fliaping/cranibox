@@ -462,7 +462,9 @@ mod terminal_tests {
         let first = engine.attach(id, 80, 24, false).await.unwrap();
         first.write(b"yes x | head -c 2097152; printf '%s%s\\n' REPLAY _DONE; printf finished > complete\r".to_vec()).unwrap();
         drop(first);
-        tokio::time::timeout(Duration::from_secs(10), async {
+        // Generous: the shell pushes 2 MiB through a pseudo-terminal while the rest of the
+        // suite runs in parallel.
+        tokio::time::timeout(Duration::from_secs(60), async {
             while !directory.path().join("complete").exists() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
             }

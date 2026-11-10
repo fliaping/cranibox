@@ -163,6 +163,14 @@ impl Layout {
         let name = directory_name(v)?;
         let _lock = self.lock()?;
         ensure_directory(&self.version_dir(v))?;
+        // Case-insensitive file systems (macOS, Windows) also open `1.0.0-DEV` for an
+        // installed `1.0.0-dev`; only the exact directory name selects a runtime.
+        ensure!(
+            fs::read_dir(self.root.join("versions"))?
+                .filter_map(|entry| entry.ok())
+                .any(|entry| entry.file_name() == name.as_str()),
+            "version {name} is not installed"
+        );
         let old = self.pointer()?;
         if let Some(old) = &old {
             ensure!(old.current != name, "version is already current");
