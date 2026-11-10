@@ -40,6 +40,18 @@ pub(crate) async fn route(
     }
     match (method, path) {
         ("GET", "/access") => serde_json::to_value(store.view().map_err(invalid)?).map_err(invalid),
+        ("PUT", "/access/approvals") => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Change {
+                enabled: bool,
+            }
+            let change: Change = serde_json::from_value(body).map_err(invalid)?;
+            store
+                .set_approvals_enabled(change.enabled)
+                .map_err(invalid)?;
+            serde_json::to_value(store.view().map_err(invalid)?).map_err(invalid)
+        }
         ("GET", "/access/audit") => {
             let limit = query
                 .get("limit")

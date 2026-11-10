@@ -209,18 +209,23 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not empty"):
             builder.build(self.assets, output, self.tag)
 
-    def fake_apps(self, bundle_member=None):
-        apps = self.root / "apps"
-        apps.mkdir()
-        (apps / "cranibox-app-linux-x64-gnu.AppImage").write_bytes(b"\x7fELF app")
-        (apps / "cranibox-app-win32-x64-setup.exe").write_bytes(b"MZ setup")
+    def fake_apps(self, bundle_member=None, apps=None):
+        """The desktop CI artifacts, merged: installers and the macOS bundle archive."""
+        apps = apps or self.root / "apps"
+        for directory in ("appimage", "deb", "nsis", "dmg", "app"):
+            (apps / directory).mkdir(parents=True, exist_ok=True)
+        (apps / "appimage/Cranibox_99.0.0_amd64.AppImage").write_bytes(b"\x7fELF app")
+        (apps / "deb/Cranibox_99.0.0_amd64.deb").write_bytes(b"!<arch> deb")
+        (apps / "nsis/Cranibox_99.0.0_x64-setup.exe").write_bytes(b"MZ setup")
+        (apps / "dmg/Cranibox_99.0.0_aarch64.dmg").write_bytes(b"disk image")
         bundle = self.root / "bundle"
+        shutil.rmtree(bundle, ignore_errors=True)
         (bundle / "Cranibox.app/Contents/MacOS").mkdir(parents=True)
         (bundle / "Cranibox.app/Contents/Info.plist").write_text("<plist/>")
         program = bundle / "Cranibox.app/Contents/MacOS/cranibox"
         program.write_bytes(b"\xcf\xfa\xed\xfe")
         program.chmod(0o755)
-        with tarfile.open(apps / "cranibox-app-darwin-arm64.tar.gz", "w:gz") as archive:
+        with tarfile.open(apps / "app/Cranibox_99.0.0_aarch64.app.tar.gz", "w:gz") as archive:
             archive.add(bundle / "Cranibox.app", "Cranibox.app")
             if bundle_member:
                 archive.addfile(bundle_member)
@@ -248,9 +253,13 @@ class DistributionTests(unittest.TestCase):
         link.type, link.linkname = tarfile.SYMTYPE, "/etc/passwd"
         with self.assertRaisesRegex(ValueError, "only files and directories"):
             builder.build(self.assets, self.root / "linked", version="99.0.0-dev.42", apps=self.fake_apps(link))
-        (self.root / "apps/cranibox-app-win32-x64-setup.exe").unlink()
-        with self.assertRaisesRegex(ValueError, "Missing desktop app"):
+        (self.root / "apps/nsis/Cranibox_99.0.0_x64-setup.exe").unlink()
+        with self.assertRaisesRegex(ValueError, "Expected one desktop app .*found 0"):
             builder.build(self.assets, self.root / "missing", version="99.0.0-dev.42", apps=self.root / "apps")
+        for name in ("a", "b"):
+            (self.root / f"apps/nsis/Cranibox_{name}_x64-setup.exe").write_bytes(b"MZ setup")
+        with self.assertRaisesRegex(ValueError, "Expected one desktop app .*found 2"):
+            builder.build(self.assets, self.root / "twice", version="99.0.0-dev.42", apps=self.root / "apps")
 
     def test_dev_versions_sort_above_the_release_they_follow(self):
         self.assertEqual(dev_version("1.1.0", 7), "1.1.1-dev.7")
@@ -307,6 +316,9 @@ class DistributionTests(unittest.TestCase):
         desktop = artifacts / "cranibox-desktop-macos-latest/bundle/dmg"
         desktop.mkdir(parents=True)
         shutil.copyfile(self.assets / "Cranibox installer.dmg", desktop / "Cranibox installer.dmg")
+        self.fake_apps(apps=artifacts / "cranibox-desktop-all")
+        app_files = {"Cranibox_99.0.0_amd64.AppImage", "Cranibox_99.0.0_amd64.deb", "Cranibox_99.0.0_x64-setup.exe",
+                     "Cranibox_99.0.0_aarch64.dmg", "Cranibox_99.0.0_aarch64.app.tar.gz"}
         for installers in (False, True):
             with self.subTest(installers=installers):
                 output = self.root / f"collected-{installers}"
@@ -314,7 +326,7 @@ class DistributionTests(unittest.TestCase):
                 expected = set(names.values()) | {"LICENSE", "SHA256SUMS"}
                 expected.update(p.name for p in (ROOT / "docs/licenses").glob("*.txt"))
                 if installers:
-                    expected.update({"Cranibox installer.dmg", "cranibox-linux-arm64"})
+                    expected.update({"Cranibox installer.dmg", "cranibox-linux-arm64"} | app_files)
                 self.assertEqual({p.name for p in verified_assets(output)}, expected)
                 for platform, filename in names.items():
                     self.assertEqual((output / filename).read_bytes(), (self.assets / filename).read_bytes())
@@ -324,6 +336,10 @@ class DistributionTests(unittest.TestCase):
                     if os.name != "nt":
                         self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
                 builder.build(output, self.root / f"npm-{installers}", version="99.0.0-dev.42")
+        # A tagged release packages the desktop apps straight from its own assets.
+        plan = builder.build(self.root / "collected-True", self.root / "npm-apps", version="99.0.0-dev.42",
+                             apps=self.root / "collected-True")
+        self.assertEqual(plan[4:], [f"desktop-{target}" for target in builder.PLATFORMS])
         (artifacts / "cranibox-cli-windows" / names["windows"]).unlink()
         with self.assertRaisesRegex(ValueError, "Missing release asset.*cranibox-windows-x86_64.exe"):
             collector.collect(artifacts, self.root / "missing")

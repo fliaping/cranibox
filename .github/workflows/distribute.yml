@@ -78,7 +78,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           NPM_PACKAGE_NAME: ${{ vars.CRANIBOX_NPM_PACKAGE || '@fliaping/cranibox' }}
         run: |
-          python scripts/release/build-npm.py --tag "$RELEASE_TAG" --assets release-assets --output dist/npm --package-name "$NPM_PACKAGE_NAME"
+          python scripts/release/build-npm.py --tag "$RELEASE_TAG" --assets release-assets --output dist/npm --package-name "$NPM_PACKAGE_NAME" --apps release-assets
           python scripts/release/publish-npm.py --directory dist/npm --dry-run
       - uses: actions/upload-artifact@v4
         with:

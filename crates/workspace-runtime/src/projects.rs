@@ -2,7 +2,7 @@
 use crate::{config, protocol::valid_node_id};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 use uuid::Uuid;
 #[cfg(feature = "client")]
 pub mod copy;
@@ -134,13 +134,10 @@ impl Store {
         Ok(())
     }
     fn read(&self) -> Result<Catalog> {
-        match fs::File::open(&self.path) {
-            Ok(file) => {
-                ensure!(
-                    file.metadata()?.len() <= 1024 * 1024,
-                    "project catalog too large"
-                );
-                serde_json::from_reader(file).context("read project catalog")
+        match crate::config::read_bounded(&self.path, 1024 * 1024) {
+            Ok(bytes) => {
+                ensure!(bytes.len() <= 1024 * 1024, "project catalog too large");
+                serde_json::from_slice(&bytes).context("read project catalog")
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Catalog::default()),
             Err(error) => Err(error.into()),
@@ -335,6 +332,7 @@ fn path_key(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     fn register(node: Option<&str>, path: &str, project_id: Option<String>) -> Command {
         Command::Register {
             project_id,

@@ -691,6 +691,9 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn available_tags_absent_fallback_and_unreachable() {
+        if !host_has_npm_package() {
+            return;
+        }
         use crate::update::manager::Updater;
         let root = scratch();
         let full = serve_body(StatusCode::OK, serde_json::to_vec(&packument()).unwrap()).await;
@@ -1274,6 +1277,16 @@ pub(crate) mod tests {
         );
     }
 
+    /// Linux arm64 ships as a GitHub release binary only, without an npm package, so
+    /// tests that install this host's npm package cannot run there.
+    pub(crate) fn host_has_npm_package() -> bool {
+        let supported = platform_package("@fliaping/cranibox").is_ok();
+        if !supported {
+            eprintln!("skipped: no Cranibox npm package for this platform");
+        }
+        supported
+    }
+
     #[test]
     fn platform_mapping_matches_release_matrix() {
         for (os, arch, libc, suffix) in [
@@ -1286,15 +1299,19 @@ pub(crate) mod tests {
                 format!("@fliaping/cranibox-{suffix}")
             );
         }
-        let desktop = desktop_package("@fliaping/cranibox").unwrap();
-        assert!(
-            desktop.starts_with("@fliaping/cranibox-desktop-"),
-            "{desktop}"
-        );
-        assert_eq!(
-            &desktop["@fliaping/cranibox-desktop-".len()..],
-            &platform_package("@fliaping/cranibox").unwrap()["@fliaping/cranibox-".len()..]
-        );
+        if host_has_npm_package() {
+            let desktop = desktop_package("@fliaping/cranibox").unwrap();
+            assert!(
+                desktop.starts_with("@fliaping/cranibox-desktop-"),
+                "{desktop}"
+            );
+            assert_eq!(
+                &desktop["@fliaping/cranibox-desktop-".len()..],
+                &platform_package("@fliaping/cranibox").unwrap()["@fliaping/cranibox-".len()..]
+            );
+        } else {
+            assert!(desktop_package("@fliaping/cranibox").is_err());
+        }
         for (os, arch, libc) in [
             ("linux", "x86_64", "musl"),
             ("linux", "aarch64", "gnu"),

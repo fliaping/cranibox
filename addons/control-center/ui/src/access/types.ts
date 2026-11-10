@@ -29,7 +29,7 @@ export type RemoteView = { devices: RemoteDevice[]; approver: Approver };
 export type ReviewState = { settings: ReviewSettings; has_key: boolean };
 export type AccessRequest = { id: string; from: string; name: string; capability: Capability; created_at: number; expires_at: number; state: string; path: unknown; operation?: Operation; detail?: OperationDetail; review?: Review };
 export type Approval = { id: string; from: string; capability: Capability; scope?: 'session' | 'until'; expires_at: number | null; approved_at?: number };
-export type AccessView = { peers: { node: string; name: string; capabilities: Modes }[]; pending: AccessRequest[]; approvals: Approval[]; sessions: { id: string; from: string; name: string; capability: Capability; basis?: string }[] };
+export type AccessView = { approvals_disabled?: boolean; peers: { node: string; name: string; capabilities: Modes }[]; pending: AccessRequest[]; approvals: Approval[]; sessions: { id: string; from: string; name: string; capability: Capability; basis?: string }[] };
 export type AuditEntry = { index: number; at: number; event: string; from: string | null; name: string | null; capability: Capability | null; basis: string | null; result: string; prev?: string; operation?: Operation; status?: number; transport?: string; detail?: OperationDetail; review?: Review; remote?: RemoteRecord };
 export type AuditView = { entries: AuditEntry[]; verified: boolean; broken_index: number | null; next_before?: number | null };
 /** The modes a device has before anything is saved for it: messages only. */

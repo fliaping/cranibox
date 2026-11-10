@@ -72,3 +72,8 @@
 .cx-segment button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cx-access-jev { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
 .cx-access-jev input { max-width: 120px; }
+
+.cx-access-approval-control { margin-bottom: 1rem; }
+.cx-access-review-settings { border: 0; padding: 0; margin: 0; min-width: 0; }
+.cx-access-review-settings > legend { margin-bottom: .75rem; }
+.cx-access-review-settings:disabled { opacity: .6; }

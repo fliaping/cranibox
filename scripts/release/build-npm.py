@@ -10,12 +10,21 @@ import tarfile
 from release_common import ROOT, PLATFORMS, check_binary, check_versions, validate_version, verified_assets
 
 
-# The desktop app for each target, as the desktop CI job names it, and its place in the package.
+# The desktop app for each target: the installer file it ships as (in the desktop CI
+# artifacts and the GitHub release), and its place in the package.
 APPS = {
-    "darwin-arm64": ("cranibox-app-darwin-arm64.tar.gz", "Cranibox.app"),
-    "linux-x64-gnu": ("cranibox-app-linux-x64-gnu.AppImage", "Cranibox.AppImage"),
-    "win32-x64": ("cranibox-app-win32-x64-setup.exe", "cranibox-setup.exe"),
+    "darwin-arm64": ("*_aarch64.app.tar.gz", "Cranibox.app"),
+    "linux-x64-gnu": ("*_amd64.AppImage", "Cranibox.AppImage"),
+    "win32-x64": ("*_x64-setup.exe", "cranibox-setup.exe"),
 }
+
+
+def find_app(apps, pattern):
+    """The one file matching `pattern` anywhere under `apps`."""
+    found = sorted(path for path in Path(apps).rglob(pattern) if path.is_file())
+    if len(found) != 1:
+        raise ValueError(f"Expected one desktop app {pattern} in {apps}, found {len(found)}.")
+    return found[0]
 
 
 def unpack_bundle(archive, destination):
@@ -51,10 +60,7 @@ def build(assets, output, tag=None, package_name="@fliaping/cranibox", root=ROOT
             raise ValueError(f"Missing release asset: {filename}.")
         check_binary(files[filename], target)
     if apps is not None:
-        apps = Path(apps)
-        for filename, _ in APPS.values():
-            if not (apps / filename).is_file():
-                raise ValueError(f"Missing desktop app: {filename}.")
+        apps = {target: find_app(apps, pattern) for target, (pattern, _) in APPS.items()}
     output = Path(output)
     if output.exists() and any(output.iterdir()):
         raise ValueError(f"Output directory is not empty: {output}.")
@@ -106,11 +112,11 @@ def build(assets, output, tag=None, package_name="@fliaping/cranibox", root=ROOT
         directory = output / f"desktop-{target}"
         write_package(directory, manifest)
         (directory / "app").mkdir()
-        source, name = APPS[target]
+        source, name = apps[target], APPS[target][1]
         if name.endswith(".app"):
-            unpack_bundle(apps / source, directory / "app")
+            unpack_bundle(source, directory / "app")
         else:
-            shutil.copyfile(apps / source, directory / "app" / name)
+            shutil.copyfile(source, directory / "app" / name)
             (directory / "app" / name).chmod(0o755)
         plan.append(directory.name)
     (output / "publish-plan.json").write_text(json.dumps(plan, indent=2) + "\n")
@@ -124,7 +130,7 @@ def main():
     parser.add_argument("--tag")
     parser.add_argument("--version", help="Override all package versions without checking the tag/source versions.")
     parser.add_argument("--package-name", default="@fliaping/cranibox")
-    parser.add_argument("--apps", type=Path, help="Also package the desktop apps from this directory.")
+    parser.add_argument("--apps", type=Path, help="Also package the desktop apps found under this directory.")
     args = parser.parse_args()
     try:
         for package in build(args.assets, args.output, args.tag, args.package_name, version=args.version, apps=args.apps):

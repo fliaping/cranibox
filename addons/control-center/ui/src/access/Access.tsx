@@ -33,7 +33,7 @@ function PeerModes({ node }: { node: string }) {
     {groups.map(group => <section className="cx-access-group" key={group.id} aria-label={t(group.zh, group.en)}>
       <div className="cx-between"><strong>{t(group.zh, group.en)}</strong><ModeControl label={t(group.zh, group.en)} value={group.caps.every(cap => modes[cap] === modes[group.caps[0]]) ? modes[group.caps[0]] : undefined} disabled={saving} change={mode => change(group.caps, mode)} /></div>
       {!group.caps.every(cap => modes[cap] === modes[group.caps[0]]) && <small className="cx-muted">{t('已逐项设置', 'Custom modes')}</small>}
-      {group.risk && group.caps.some(cap => modes[cap] === 'allow') && <Alert tone="warn">{group.always ? t('即使选择允许，远程更新、模型与账号操作仍需逐次批准。', 'Remote updates, model and account access still require approval each time, even with Allow.') : t('允许后，对方无需询问即可使用这些功能。无本地界面的设备也一样，请谨慎选择。', 'Allow lets this device use these functions without asking, including on headless devices. Choose carefully.')}</Alert>}
+      {!access?.approvals_disabled && group.risk && group.caps.some(cap => modes[cap] === 'allow') && <Alert tone="warn">{group.always ? t('即使选择允许，远程更新、模型与账号操作仍需逐次批准。', 'Remote updates, model and account access still require approval each time, even with Allow.') : t('允许后，对方无需询问即可使用这些功能。无本地界面的设备也一样，请谨慎选择。', 'Allow lets this device use these functions without asking, including on headless devices. Choose carefully.')}</Alert>}
       <details><summary>{t('高级', 'Advanced')}</summary>{group.caps.map(cap => <div className="cx-between" key={cap}><span>{capabilityName(cap, t)}</span><ModeControl label={capabilityName(cap, t)} value={modes[cap]} disabled={saving} change={mode => change([cap], mode)} /></div>)}</details>
     </section>)}
     {error && <Alert>{error}</Alert>}
@@ -82,9 +82,10 @@ function Grants({ node }: { node: string }) {
     finally { setBusy(''); }
   }
   return <Card label={t('当前授权', 'Current approvals')}>
-    <div className="cx-between"><h2>{t('当前授权', 'Current approvals')}</h2>{allowed && <button className="cx-btn small" onClick={() => setAdding(true)}>{t('按时间授权…', 'Grant for a while…')}</button>}</div>
-    {!approvals.length && <p className="cx-muted">{t('没有临时授权。需要时对方会再次请求；你也可以按时间预先授权，期间不再逐条打扰你。', 'No temporary approvals. The device asks again when it needs one, or grant access for a while so it does not ask each time.')}</p>}
-    <p className="cx-muted cx-small">{t('临时授权只保存在内存里：本机重启后全部失效，对方需要时会重新请求批准。', 'Temporary approvals live in memory only: they all end when this device restarts, and the device asks again when it needs access.')}</p>
+    <div className="cx-between"><h2>{t('当前授权', 'Current approvals')}</h2>{allowed && !access?.approvals_disabled && <button className="cx-btn small" onClick={() => setAdding(true)}>{t('按时间授权…', 'Grant for a while…')}</button>}</div>
+    {access?.approvals_disabled && <Alert tone="warn">{t('本设备已关闭所有审批。已启用的能力直接执行；要阻止某项能力，请将它设为「关闭」。', 'All approvals are disabled on this device. Enabled capabilities run directly; set a capability to Off to block it.')}</Alert>}
+    {!access?.approvals_disabled && !approvals.length && <p className="cx-muted">{t('没有临时授权。需要时对方会再次请求；你也可以按时间预先授权，期间不再逐条打扰你。', 'No temporary approvals. The device asks again when it needs one, or grant access for a while so it does not ask each time.')}</p>}
+    {!access?.approvals_disabled && <p className="cx-muted cx-small">{t('临时授权只保存在内存里：本机重启后全部失效，对方需要时会重新请求批准。', 'Temporary approvals live in memory only: they all end when this device restarts, and the device asks again when it needs access.')}</p>}
     {!!approvals.length && <ul className="cx-access-grants">{approvals.map(approval => {
       const using = sessions.some(session => session.basis === approval.id);
       return <li key={approval.id} className="cx-between">
@@ -92,9 +93,9 @@ function Grants({ node }: { node: string }) {
         <button className="cx-btn small danger" disabled={busy === approval.id} onClick={() => void revoke(approval.id)}>{t('撤销', 'Revoke')}</button>
       </li>;
     })}</ul>}
-    {!!always.length && <p className="cx-muted">{t('始终允许：', 'Always allowed: ')}{always.map(cap => capabilityName(cap, t)).join('、')}{t('。要收回，请把它们改为「询问」或「关闭」。危险命令仍会每次询问。', '. To take these back, set them to Ask or Off. Dangerous commands still ask every time.')}</p>}
+    {!access?.approvals_disabled && !!always.length && <p className="cx-muted">{t('始终允许：', 'Always allowed: ')}{always.map(cap => capabilityName(cap, t)).join('、')}{t('。要收回，请把它们改为「询问」或「关闭」。危险命令仍会每次询问。', '. To take these back, set them to Ask or Off. Dangerous commands still ask every time.')}</p>}
     {error && <Alert>{error}</Alert>}
-    {adding && allowed && <GrantDialog node={node} modes={allowed.capabilities} close={() => setAdding(false)} />}
+    {adding && allowed && !access?.approvals_disabled && <GrantDialog node={node} modes={allowed.capabilities} close={() => setAdding(false)} />}
   </Card>;
 }
 function GrantDialog({ node, modes, close }: { node: string; modes: Modes; close: () => void }) {
@@ -132,9 +133,26 @@ function GrantDialog({ node, modes, close }: { node: string; modes: Modes; close
   </dialog>;
 }
 
+function ApprovalControl() {
+  const { t, api, access, refresh } = useApp();
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  async function change(disabled: boolean) {
+    setBusy(true); setError('');
+    try { await api.call('PUT', '/access/approvals', { enabled: !disabled }); await refresh(); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+    finally { setBusy(false); }
+  }
+  return <div className="cx-access-approval-control">
+    <label className="cx-check"><input type="checkbox" role="switch" checked={!!access?.approvals_disabled} disabled={!access || busy} onChange={event => void change(event.target.checked)} /> <strong>{t('关闭所有审批', 'Disable all approvals')}</strong></label>
+    <p className="cx-muted">{t('仅作用于本设备。开启后，已启用的能力（包括“询问”）直接执行，不再进行模型审核或危险操作确认；已关闭的能力仍然拒绝，操作继续记录。', 'Applies to this device. Enabled capabilities, including Ask, run without model review or dangerous-operation confirmation. Off capabilities stay blocked and operations are still logged.')}</p>
+    {access?.approvals_disabled && <Alert tone="warn">{t('所有审批已关闭。恢复审批会结束免审批会话，并继续使用原有权限和审核设置。', 'All approvals are disabled. Restoring approvals ends sessions started without approval and resumes the saved access and review settings.')}</Alert>}
+    {error && <Alert>{error}</Alert>}
+  </div>;
+}
+
 /** Which second opinion this device asks before a covered operation runs. */
 function AutoReview() {
-  const { t, api } = useApp();
+  const { t, api, access } = useApp();
   const [state, setState] = useState<ReviewState | null>(null), [draft, setDraft] = useState<{ backend: ReviewBackend; model: string; url: string; key: string; jev: JevThresholds } | null>(null);
   const [models, setModels] = useState<string[]>([]), [busy, setBusy] = useState(''), [error, setError] = useState(''), [result, setResult] = useState<{ ok: boolean; review?: Review; error?: string } | null>(null), [saved, setSaved] = useState(false);
   useEffect(() => {
@@ -166,6 +184,9 @@ function AutoReview() {
   }
   return <Card label={t('自动审核', 'Automatic review')}>
     <h2>{t('自动审核', 'Automatic review')}</h2>
+    <ApprovalControl />
+    <fieldset className="cx-access-review-settings" disabled={!!access?.approvals_disabled}>
+    <legend className="cx-muted">{t('审批开启时的审核方式', 'Review method when approvals are enabled')}</legend>
     <p className="cx-muted">{t('对方在已授权的范围内操作时，先让模型看一眼：正常的直接放行，可疑的再请你确认。模型只能多加一道确认，不能放行你没授权的操作；它不可用时，高风险操作改为询问你。', 'Before a covered operation runs, a model takes a look: routine ones go through, suspicious ones come to you. It can only add a confirmation, never allow what you have not; when it is unavailable, high-risk operations ask you.')}</p>
     <div className="cx-access-review-options" role="radiogroup" aria-label={t('审核方式', 'Review method')}>{options.map(([value, label, detail]) => <label key={value} className={'cx-access-option' + (current.backend === value ? ' active' : '')}><input type="radio" name="review-backend" checked={current.backend === value} onChange={() => edit({ backend: value })} /><span><strong>{label}</strong><small className="cx-muted">{detail}</small></span></label>)}</div>
     {current.backend === 'model' && <label className="cx-field">{t('模型', 'Model')}{models.length ? <select value={current.model} onChange={event => edit({ model: event.target.value })}><option value="">{t('请选择', 'Choose')}</option>{models.map(id => <option key={id} value={id}>{id}</option>)}</select> : <input value={current.model} placeholder="provider/model" onChange={event => edit({ model: event.target.value })} />}{!models.length && <small className="cx-muted">{t('本机还没有可用的模型，请先在「模型」里添加。', 'No models on this device yet; add one under Models first.')}</small>}</label>}
@@ -175,6 +196,7 @@ function AutoReview() {
     {error && <Alert>{error}</Alert>}
     {result && (result.ok && result.review ? <Alert tone="info">{t('测试成功：', 'Test passed: ')}{verdictName(result.review.verdict, t)} · {result.review.reason} · {result.review.latency_ms ?? 0} ms</Alert> : <Alert>{t('测试失败：', 'Test failed: ')}{result.error}</Alert>)}
     <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || !!busy || current.backend === 'jev' && jevBad(current.jev)} onClick={() => void save()}>{busy === 'save' ? t('保存中…', 'Saving…') : t('保存审核方式', 'Save review method')}</button>{state.settings.backend !== 'rules' && !draft && <button className="cx-btn" disabled={!!busy} onClick={() => void check()}>{busy === 'test' ? t('测试中…', 'Testing…') : t('测试', 'Test')}</button>}{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
+    </fieldset>
   </Card>;
 }
 
@@ -197,7 +219,7 @@ function JevScale({ value, change }: { value: JevThresholds; change: (value: Jev
   const invalid = value.ask_score > value.deny_score ? t('「请你确认」的风险分不能高于「直接拒绝」的。', 'The ask score cannot be above the refuse score.') : jevFields.some(([key]) => value[key] < jevRanges[key][0] || value[key] > jevRanges[key][1] || Number.isNaN(value[key])) ? t('有数值超出允许范围。', 'A value is outside its allowed range.') : '';
   return <fieldset className="cx-access-choices"><legend>{t('判断尺度', 'How strict')}</legend>
     <div className="cx-segment" role="group" aria-label={t('判断尺度', 'How strict')}>{(Object.keys(jevPresets) as (keyof typeof jevPresets)[]).map(name => <button type="button" key={name} aria-pressed={preset === name} onClick={() => change(jevPresets[name])}>{names[name]}</button>)}</div>
-    <small className="cx-muted">{preset ? hints[preset] : t('自定义尺度。', 'Custom values.')} {t('内置安全规则始终优先：危险操作无论选哪档都会请你确认。', 'Built-in safety rules always come first: dangerous operations ask you whatever you choose.')}</small>
+    <small className="cx-muted">{preset ? hints[preset] : t('自定义尺度。', 'Custom values.')} {t('审批开启时，危险操作无论选哪档都会请你确认。', 'When approvals are enabled, dangerous operations ask you whatever you choose.')}</small>
     <details><summary>{t('高级：调整具体数值', 'Advanced: adjust the numbers')}</summary>
       <div className="cx-access-jev">{jevFields.map(([key, zh, en]) => { const [min, max, step] = jevRanges[key]; return <label key={key} className="cx-field">{t(zh, en)}<input type="number" min={min} max={max} step={step} value={value[key]} onChange={event => change({ ...value, [key]: Number(event.target.value) })} /><small className="cx-muted">{t('范围 ', 'Range ') + min + '–' + max + t('，标准 ', ', standard ') + jevPresets.standard[key]}</small></label>; })}</div>
       <div className="cx-actions"><button type="button" className="cx-btn small" disabled={preset === 'standard'} onClick={() => change(jevPresets.standard)}>{t('恢复默认', 'Reset to default')}</button></div>
@@ -277,7 +299,7 @@ function LogEntry({ entry, who, open }: { entry: AuditEntry; who: string; open: 
     return <li className="cx-access-op-entry">
       <div className="cx-between"><span><strong>{who}</strong> · {operationName(operation.kind, t)}</span>{details}</div>
       {operation.summary && <code className="cx-access-op">{operation.summary}</code>}
-      <div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={ok ? 'good' : 'bad'}>{outcomeName(entry, t)}</Pill> <Pill tone={riskTone(operation.risk)}>{riskName(operation.risk, t)}</Pill>{entry.basis && entry.basis !== 'allow' && <> <Pill>{t('经你批准', 'You approved')}</Pill></>}{review && <> <Pill tone={review.fallback ? 'warn' : verdictTone(review.verdict)}>{review.fallback ? t('审核不可用', 'Review unavailable') : reviewSource(review.source, t) + '：' + verdictName(review.verdict, t)}</Pill></>}{!!repeats && <> <Pill>{t('另 ' + repeats + ' 次相同读取', repeats + ' more identical reads')}</Pill></>} · {time}</div>
+      <div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={ok ? 'good' : 'bad'}>{outcomeName(entry, t)}</Pill> <Pill tone={riskTone(operation.risk)}>{riskName(operation.risk, t)}</Pill>{entry.basis === 'approvals_disabled' && <> <Pill tone="warn">{t('审批已关闭', 'Approvals disabled')}</Pill></>}{entry.basis && entry.basis !== 'allow' && entry.basis !== 'approvals_disabled' && <> <Pill>{t('经你批准', 'You approved')}</Pill></>}{review && <> <Pill tone={review.fallback ? 'warn' : verdictTone(review.verdict)}>{review.fallback ? t('审核不可用', 'Review unavailable') : reviewSource(review.source, t) + '：' + verdictName(review.verdict, t)}</Pill></>}{!!repeats && <> <Pill>{t('另 ' + repeats + ' 次相同读取', repeats + ' more identical reads')}</Pill></>} · {time}</div>
       <small className="cx-muted cx-sr">#{entry.index} · {operation.kind} · {entry.status ?? ''} · {entry.transport === 'e2e' ? t('端到端加密', 'End-to-end encrypted') : entry.transport === 'job' ? t('本机记录', 'Recorded here') : t('旧版令牌', 'Legacy token')}</small>
     </li>;
   }
@@ -285,7 +307,7 @@ function LogEntry({ entry, who, open }: { entry: AuditEntry; who: string; open: 
   const reason = entry.event === 'refused' ? refusalReason(entry.result, t) : entry.event === 'remote_decision' ? remoteResult(entry.result, t) : '';
   const grant = entry.event === 'approved' && entry.result.includes(':') ? scopeName(entry.result.split(':')[1], t) : '';
   return <li>
-    <div className="cx-between"><span><strong>{who}</strong> · {entry.capability ? capabilityName(entry.capability, t) : revoked ? t('收回授权', 'Withdrew an approval') : entry.event === 'policy_changed' && entry.basis === 'review' ? t('自动审核', 'Automatic review') : '—'}{operation && <> · {operationName(operation.kind, t)}</>}</span>{details}</div>
+    <div className="cx-between"><span><strong>{who}</strong> · {entry.capability ? capabilityName(entry.capability, t) : revoked ? t('收回授权', 'Withdrew an approval') : entry.event === 'policy_changed' && entry.basis === 'approvals' ? t('审批开关', 'Approval switch') : entry.event === 'policy_changed' && entry.basis === 'review' ? t('自动审核', 'Automatic review') : '—'}{operation && <> · {operationName(operation.kind, t)}</>}</span>{details}</div>
     {operation?.summary && <code className="cx-access-op">{operation.summary}</code>}
     {entry.remote && entry.event !== 'refused' && <small className="cx-muted">{remoteName(entry, t)}</small>}
     <div style={{ fontVariantNumeric: 'tabular-nums' }}><Pill tone={revoked ? '' : entry.result === 'allow' || entry.event === 'approved' || entry.event === 'remote_decision' && entry.result.startsWith('approved') ? 'good' : entry.result === 'deny' || entry.event === 'denied' || entry.event === 'refused' ? 'bad' : ''}>{revoked ? t('已撤销', 'Revoked') : eventName(entry.event, t)}</Pill>{grant && <> {grant}</>}{entry.review && entry.event === 'request_created' && <> <Pill tone={verdictTone(entry.review.verdict)}>{entry.review.fallback ? t('审核不可用', 'Review unavailable') : verdictName(entry.review.verdict, t)}</Pill></>}{reason && <> {reason}</>} · {time}</div>

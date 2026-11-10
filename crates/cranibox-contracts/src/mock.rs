@@ -79,6 +79,16 @@ pub fn access_route(
     let mut requests = REQUESTS.lock().unwrap();
     match (method, path) {
         ("GET", "/access") => Ok(serde_json::json!(*view)),
+        ("PUT", "/access/approvals") => {
+            let enabled = body["enabled"]
+                .as_bool()
+                .ok_or_else(|| invalid("Expected enabled boolean"))?;
+            view.approvals_disabled = !enabled;
+            if !enabled {
+                view.pending.clear();
+            }
+            Ok(serde_json::json!(*view))
+        }
         ("GET", "/access/review") => {
             Ok(serde_json::json!({"settings": *REVIEW.lock().unwrap(), "has_key": false}))
         }

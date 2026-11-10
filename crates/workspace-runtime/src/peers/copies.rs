@@ -110,12 +110,11 @@ impl Store {
         Ok(())
     }
     fn read_copy(&self, id: &str) -> Result<Job> {
-        let file = fs::File::open(self.copy_path(id)?).context("copy record unavailable")?;
-        ensure!(
-            file.metadata()?.len() <= MAX_JOB as u64,
-            "copy record too large"
-        );
-        let mut job: Job = serde_json::from_reader(file)?;
+        let path = self.copy_path(id)?;
+        let bytes = crate::config::read_bounded(&path, MAX_JOB as u64)
+            .context("copy record unavailable")?;
+        ensure!(bytes.len() <= MAX_JOB, "copy record too large");
+        let mut job: Job = serde_json::from_slice(&bytes)?;
         ensure!(
             job.id == id && job.binding == self.copy_binding(&job.source, &job.target)?,
             "copy connections or credentials changed; prepare a new snapshot"
@@ -132,10 +131,10 @@ impl Store {
             )
         {
             let path = self.copy_path(id)?.with_extension("progress");
-            if let Ok(file) = fs::File::open(path)
-                && file.metadata()?.len() < 16384
+            if let Ok(bytes) = crate::config::read_bounded(path, 16383)
+                && bytes.len() < 16384
             {
-                job.progress = serde_json::from_reader(file).ok();
+                job.progress = serde_json::from_slice(&bytes).ok();
             }
         }
         Ok(job)

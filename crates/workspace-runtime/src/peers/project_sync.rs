@@ -12,7 +12,6 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
-    fs,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -157,16 +156,16 @@ pub(super) fn binding(owner: &str, node: &str, route: &Route) -> Result<String> 
     ))
 }
 fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Result<Option<T>> {
-    let file = match fs::File::open(path) {
-        Ok(file) => file,
+    let bytes = match crate::config::read_bounded(path, MAX_FILE) {
+        Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
     ensure!(
-        file.metadata()?.len() <= MAX_FILE,
+        bytes.len() <= MAX_FILE as usize,
         "catalog sync data is too large"
     );
-    Ok(Some(serde_json::from_reader(file).context(
+    Ok(Some(serde_json::from_slice(&bytes).context(
         "invalid catalog sync data; existing files were preserved",
     )?))
 }

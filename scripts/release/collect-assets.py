@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collect standalone CLI artifacts, licenses and optional installers (with the
-Linux arm64 command line) with SHA256SUMS."""
+Linux arm64 command line and the macOS app bundle that full updates install) with
+SHA256SUMS."""
 import argparse
 from pathlib import Path
 import shutil
@@ -26,7 +27,7 @@ def collect(artifacts, output, installers=False, root=ROOT):
         files += [(artifacts / directory / name, True) for directory, name in RELEASE_ONLY.items()]
         for directory in sorted(artifacts.glob("cranibox-desktop-*")):
             files += [(file, False) for file in sorted(directory.rglob("*"))
-                      if file.is_file() and file.suffix in (".dmg", ".exe", ".deb", ".AppImage")]
+                      if file.is_file() and file.name.endswith((".dmg", ".exe", ".deb", ".AppImage", ".app.tar.gz"))]
     names = set()
     for file, _ in files:
         if not file.is_file():

@@ -12,6 +12,15 @@ const failed = (status: UpdateStatus | null) => status?.phase === "failed" || (s
 /** Set while a new version runs but is not yet confirmed healthy; not a blocker to report. */
 const inProgress = (reason: string) => reason.includes("already in progress");
 const confirmed = (data: NodeUpdate, target: string | null) => !!target && data.runtime.version === target && data.runtime.state === "confirmed";
+/** A failed or rolled-back record stops being shown once the device runs another
+ *  confirmed version (for example after a manual installation) or a day has passed. */
+const stale = (data: NodeUpdate, status: UpdateStatus | null) => {
+  if (!status || !(status.phase === "failed" || status.phase === "rolled_back")) return false;
+  const version = data.runtime.version;
+  const moved = data.runtime.state === "confirmed" && !!version && version !== status.from && version !== status.to;
+  const old = !!status.updated_at && Date.now() / 1000 - status.updated_at > 24 * 3600;
+  return moved || old;
+};
 const message = (problem: unknown) => problem instanceof Error ? problem.message : String(problem);
 type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number; full: boolean };
 const isLauncherReason = (reason: string) => /not started by the cranibox launcher|cranibox update launch/i.test(reason);
@@ -53,11 +62,15 @@ function DeviceUpdates({ node }: { node: string }) {
       const value = await api.call<NodeUpdate>("GET", path + (check ? "&check=1" : ""), undefined, { background: !interactive });
       if (!alive.current) return;
       setCapabilityOff(false);
-      setData(value); setStatus(value.status); setTimedOut(false);
-      const last = value.status;
+      const last = stale(value, value.status) ? null : value.status;
+      setData(value); setStatus(last); setTimedOut(false);
       const finished = !!last && (last.phase === "done" || reverted(last)) && confirmed(value, last.to);
       setUpdated(finished);
-      if (last && !failed(last) && !finished) begin(last.id, last.to, last.phase, !!last.full);
+      // A manual installation can advance beyond the last updater transaction.
+      // A completed record is history once the current runtime is confirmed.
+      const completed = last?.phase === "done" && value.runtime.state === "confirmed";
+      if (last && !failed(last) && !finished && !completed) begin(last.id, last.to, last.phase, !!last.full);
+      else { setWatch(null); setRestarting(false); }
     } catch (problem) {
       if (!alive.current) return;
       const code = problem && typeof problem === "object" && "code" in problem ? String((problem as { code?: unknown }).code) : "";
@@ -108,6 +121,11 @@ function DeviceUpdates({ node }: { node: string }) {
             if (failed(last)) { setError(""); finish(); return; }
           }
           if (confirmed(value, target)) { setError(""); setUpdated(true); finish(); return; }
+          const from = current?.from || last?.from;
+          if (phase === "done" && value.runtime.state === "confirmed" && value.runtime.version && from && value.runtime.version !== from) {
+            // A separate manual installation superseded this completed transaction.
+            setError(""); setUpdated(false); finish(); return;
+          }
         } catch (problem) { pollError = message(problem); }
         if (stopped) return;
         const activating = phase === "activated" || phase === "done" || phase === "rolled_back";
@@ -121,15 +139,15 @@ function DeviceUpdates({ node }: { node: string }) {
     return () => { stopped = true; clearTimeout(timer); clearTimeout(deadline); };
   }, [api, node, path, watch]);
 
-  async function act(action: UpdateRequest["action"], spec?: string) {
+  async function act(action: UpdateRequest["action"], spec?: string, full = false) {
     setBusy(true); setError(""); setTimedOut(false); setUpdated(false);
     try {
       if (action === "apply") {
-        const body: UpdateRequest = { node, action, spec: spec || channel, ...(fullHere ? { full: true } : {}) };
+        const body: UpdateRequest = { node, action, spec: spec || channel, ...(full || fullHere ? { full: true } : {}) };
         const result = await api.call<UpdateAccepted>("POST", "/update", body);
         if (!alive.current) return;
         setStatus(null);
-        begin(result.id, spec || data?.available?.[channel] || null, "resolving", fullHere);
+        begin(result.id, spec || data?.available?.[channel] || null, "resolving", full || fullHere);
       } else if (action === "rollback") {
         const result = await api.call<UpdateStatus>("POST", "/update", { node, action } satisfies UpdateRequest);
         if (!alive.current) return;
@@ -158,6 +176,7 @@ function DeviceUpdates({ node }: { node: string }) {
   /** On this device, from inside its desktop app: the app is replaced too. */
   const fullHere = !!data?.self && inShell() && !!shell?.can_install;
   const newer = !!version && version !== data?.runtime.version;
+  const previousUpdate = status?.phase === "done" && !!data?.runtime.version && data.runtime.version !== status.to;
   const progress = status?.total && status.total > 0 ? Math.max(0, Math.min(100, status.downloaded / status.total * 100)) : undefined;
   return <Card label={t("更新", "Updates")} className="cx-update-panel cx-stack">
     <div className="cx-card-head"><span className="cx-card-icon"><Download size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("更新", "Updates")}</h3></div></div>
@@ -174,7 +193,7 @@ function DeviceUpdates({ node }: { node: string }) {
       </dl>
       {shell?.outdated && !(fullHere && newer) && <Alert tone="info">{t("桌面应用版本较旧，部分功能需要完整更新。", "The desktop app is older than this version; some features need a full update.")}{" "}
         {fullHere && data.runtime.version
-          ? <button className="cx-btn small" disabled={locked || !data.runtime.can_update} onClick={() => void act("apply", data.runtime.version!)}>{t("更新桌面应用", "Update the desktop app")}</button>
+          ? <button className="cx-btn small" disabled={locked || !data.runtime.can_update} onClick={() => void act("apply", data.runtime.version!, true)}>{t("完整更新", "Full update")}</button>
           : <span className="cx-muted">{!data.self ? t("请在那台设备上打开 Cranibox 完成更新。", "Open Cranibox on that device to finish the update.") : shell.reason}</span>}
       </Alert>}
       {!data.runtime.managed && <p className="cx-muted">{node === "self"
@@ -202,7 +221,7 @@ function DeviceUpdates({ node }: { node: string }) {
       </div>
     </>}
     {(status || watch || updated) && <div className="cx-stack" aria-live="polite">
-      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {status.from || "—"} → {status.to || status.spec}</span>}</div>
+      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {previousUpdate && t("上次更新：", "Previous update: ")}{status.from || "—"} → {status.to || status.spec}</span>}</div>
       {status?.phase === "downloading" && <progress className="cx-update-progress" aria-label={t("下载进度", "Download progress")} max={100} value={progress} />}
       {status?.warning && <Alert tone="warn">{status.warning}</Alert>}
       {failed(status) && <Alert>{status?.phase === "rolled_back" && <p>{t("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.")}</p>}{status?.error || (status?.phase === "failed" ? t("更新失败，请重试。", "The update failed. Please try again.") : "")}</Alert>}

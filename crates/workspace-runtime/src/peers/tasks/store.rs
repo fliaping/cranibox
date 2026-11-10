@@ -86,8 +86,8 @@ impl Store {
         Ok(())
     }
     pub(super) fn read(&self) -> Result<Ledger> {
-        let file = match fs::File::open(&self.path) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(&self.path, MAX_STORE) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Ledger {
                     owner: self.owner.clone(),
@@ -97,10 +97,10 @@ impl Store {
             Err(error) => return Err(error.into()),
         };
         ensure!(
-            file.metadata()?.len() <= MAX_STORE,
+            bytes.len() <= MAX_STORE as usize,
             "task ledger is too large"
         );
-        let ledger: Ledger = serde_json::from_reader(file)
+        let ledger: Ledger = serde_json::from_slice(&bytes)
             .context("read task ledger; existing data was preserved")?;
         ensure!(
             valid_node_id(&self.owner) && ledger.owner == self.owner,

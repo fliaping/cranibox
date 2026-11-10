@@ -1085,7 +1085,10 @@ mod tests {
 
     async fn rollback_updates(behavior: Behavior) {
         for actor in ROLES {
-            let fixture = Fixture::new();
+            let mut fixture = Fixture::new();
+            // The actor must keep its process: a heartbeat delayed by a busy test machine
+            // must not look like a dead actor and get it respawned.
+            fixture.fake.config.stale_after = Duration::from_secs(3);
             fixture.start().await;
             let target = actor.other();
             let version = fixture.install(target, "2.0.0");

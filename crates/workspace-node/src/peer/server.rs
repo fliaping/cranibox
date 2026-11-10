@@ -1127,14 +1127,15 @@ fn transport(
 }
 async fn monitor(app: App) {
     let mut interval = tokio::time::interval(Duration::from_millis(250));
+    let mut config_cache = None;
     loop {
         tokio::select! { _ = app.stop.cancelled() => break, _ = interval.tick() => {} }
-        let grants = Config::read(&app.path)
+        let grants = Config::read_cached(&app.path, &mut config_cache)
             .ok()
             .filter(|config| config.node_id == app.node);
         computer::prune(&app, grants.as_ref()).await;
         if let Ok(mut sessions) = app.sessions.lock() {
-            sessions.retain(|session| e2e::session_valid(&app, session));
+            sessions.retain(|session| e2e::session_valid(grants.as_ref(), session));
         }
         let jobs = app.jobs.lock().await;
         for job in jobs.values().filter(|job| job.finished.is_none()) {

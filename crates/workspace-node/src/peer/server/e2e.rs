@@ -69,16 +69,25 @@ fn current(
         .ok()
         .filter(|config| config.node_id == app.node)
         .and_then(|mut config| config.grants.remove(&caller.node_id))
-        .filter(|grant| {
-            config::matches(&grant.credential, credential)
-                && grant
-                    .peer
-                    .as_ref()
-                    .is_some_and(|peer| peer.identity.same_keys(caller))
-        })
+        .filter(|grant| grant_matches(grant, caller, credential))
 }
-pub(super) fn session_valid(app: &App, session: &e2e::ServerSession) -> bool {
-    current(app, &session.caller, &session.credential).is_some()
+fn grant_matches(
+    grant: &Grant,
+    caller: &agent_workspace_runtime::peers::identity::PublicIdentity,
+    credential: &str,
+) -> bool {
+    config::matches(&grant.credential, credential)
+        && grant
+            .peer
+            .as_ref()
+            .is_some_and(|peer| peer.identity.same_keys(caller))
+}
+/// Whether a session still matches its grant in `config`, this node's configuration
+/// as already read by the caller (`None` when it could not be read).
+pub(super) fn session_valid(config: Option<&Config>, session: &e2e::ServerSession) -> bool {
+    config
+        .and_then(|config| config.grants.get(&session.caller.node_id))
+        .is_some_and(|grant| grant_matches(grant, &session.caller, &session.credential))
 }
 
 pub(super) async fn handshake(

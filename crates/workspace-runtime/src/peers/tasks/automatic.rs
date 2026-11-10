@@ -52,8 +52,9 @@ struct Settings {
     policy: Option<Policy>,
 }
 fn read(path: &Path, owner: &str) -> Result<Settings> {
-    let file = match fs::File::open(path.with_file_name("task-worker.json")) {
-        Ok(file) => file,
+    let settings_path = path.with_file_name("task-worker.json");
+    let bytes = match crate::config::read_bounded(&settings_path, 64 * 1024) {
+        Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(Settings {
                 owner: owner.into(),
@@ -64,11 +65,11 @@ fn read(path: &Path, owner: &str) -> Result<Settings> {
         Err(error) => return Err(error.into()),
     };
     ensure!(
-        file.metadata()?.len() <= 64 * 1024,
+        bytes.len() <= 64 * 1024,
         "worker configuration is too large"
     );
-    let settings: Settings =
-        serde_json::from_reader(file).context("read worker policy; existing data was preserved")?;
+    let settings: Settings = serde_json::from_slice(&bytes)
+        .context("read worker policy; existing data was preserved")?;
     ensure!(
         settings.owner == owner,
         "worker policy belongs to another device"

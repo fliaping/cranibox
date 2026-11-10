@@ -16,6 +16,12 @@ pub struct Args {
 enum Command {
     /// List peers and their modes, pending requests, approvals and active sessions.
     List,
+    /// Enable or disable all approval prompts on this device. Off capabilities
+    /// and transport authentication remain enforced. Omit on/off to show status.
+    Approvals {
+        #[arg(value_parser = clap::builder::BoolishValueParser::new())]
+        enabled: Option<bool>,
+    },
     /// Change capabilities or groups (messages, terminal, screen, browser, update,
     /// spaces, activity, models). Multiple assignments are applied together.
     Set {
@@ -201,6 +207,15 @@ fn execute(store: &Store, command: Command) -> Result<(Value, bool)> {
     match command {
         Command::Remote { .. } => anyhow::bail!("remote commands run asynchronously"),
         Command::List => Ok((serde_json::to_value(store.view()?)?, false)),
+        Command::Approvals { enabled } => {
+            if let Some(enabled) = enabled {
+                store.set_approvals_enabled(enabled)?;
+            }
+            Ok((
+                json!({"approvals_enabled": !store.approvals_disabled()?}),
+                false,
+            ))
+        }
         Command::Set { node, changes } => {
             let node = resolve(store, &node)?;
             let mut modes = BTreeMap::new();
@@ -285,8 +300,23 @@ fn operation_line(operation: &Value) -> Option<String> {
     ))
 }
 fn human(value: &Value) -> String {
+    if let Some(enabled) = value["approvals_enabled"].as_bool() {
+        return if enabled {
+            "Approvals: on"
+        } else {
+            "Approvals: off (enabled capabilities run without confirmation)"
+        }
+        .into();
+    }
     if let Some(peers) = value["peers"].as_array() {
-        let mut output = String::from("Peers (what they may do on this device):\n");
+        let mut output = format!(
+            "Approvals: {}\nPeers (what they may do on this device):\n",
+            if value["approvals_disabled"] == true {
+                "off"
+            } else {
+                "on"
+            }
+        );
         for peer in peers {
             output.push_str(&format!(
                 "{} ({})\n",
@@ -397,6 +427,24 @@ mod tests {
     fn parse(args: &[&str]) -> Args {
         TestArgs::try_parse_from(args).unwrap().args
     }
+    #[test]
+    fn approval_switch_supports_status_off_and_on() {
+        let (_root, store) = super::super::tests::fixture();
+        for (argument, expected) in [
+            (None, true),
+            (Some("off"), false),
+            (None, false),
+            (Some("on"), true),
+        ] {
+            let mut argv = vec!["access", "approvals"];
+            argv.extend(argument);
+            let (value, failed) = execute(&store, parse(&argv).command).unwrap();
+            assert!(!failed);
+            assert_eq!(value["approvals_enabled"], expected);
+        }
+        assert!(TestArgs::try_parse_from(["access", "approvals", "maybe"]).is_err());
+    }
+
     #[test]
     fn parsing_validates_assignments_scopes_and_conflicts() {
         for duration in ["session", "30m", "8h"] {

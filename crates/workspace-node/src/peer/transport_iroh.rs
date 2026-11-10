@@ -9,7 +9,7 @@
 //! `auth` exist (CONTRACT-REQUEST in the PR), streams are spliced to a
 //! loopback `NetworkEndpoint` listener, so the existing bearer / Noise
 //! credentials still run inside the QUIC channel.
-use super::config::{Config, Endpoint, Grant, Inbound, Permissions, Pinned, Route};
+use super::config::{Config, ConfigStamp, Endpoint, Grant, Inbound, Permissions, Pinned, Route};
 use agent_workspace_runtime::{
     config as secrets,
     peers::{
@@ -156,11 +156,17 @@ struct Shared {
     adopt_learned: bool,
     forwards: tokio::sync::Mutex<HashMap<String, (Forward, Lease)>>,
     migrate_tried: Mutex<HashMap<String, Instant>>,
+    config_cache: Mutex<Option<(ConfigStamp, Config)>>,
 }
 
 impl Shared {
     /// Bind (or re-bind) the loopback forward of `node` and make it the route's first path.
-    async fn ensure_forward(&self, node: &str, entry: &mut LearnedPeer) -> Result<bool> {
+    async fn ensure_forward(
+        &self,
+        node: &str,
+        entry: &mut LearnedPeer,
+        config: &Config,
+    ) -> Result<bool> {
         let target = addr::endpoint_addr(&entry.addr)?;
         let mut forwards = self.forwards.lock().await;
         let mut changed = false;
@@ -183,10 +189,7 @@ impl Shared {
         let url = format!("http://127.0.0.1:{}", entry.port);
         let iroh_addr = entry.addr.clone();
         let lock = lock_path(&self.path, node)?;
-        let present = Config::read(&self.path)?
-            .routes
-            .get(node)
-            .is_some_and(|r| r.url == url);
+        let present = config.routes.get(node).is_some_and(|r| r.url == url);
         if !present {
             let path = self.path.clone();
             let node = node.to_owned();
@@ -233,7 +236,10 @@ impl Shared {
 
     /// One maintenance pass: allowlist, forwards, migration of existing routes.
     async fn maintain(&self, allow: &Allowlist) -> Result<()> {
-        let config = Config::read(&self.path)?;
+        let config = {
+            let mut cache = self.config_cache.lock().unwrap();
+            Config::read_cached(&self.path, &mut cache)?
+        };
         let mut ids = vec![self.node.id()];
         for grant in config.grants.values() {
             if let Some(id) = grant.peer.as_ref().and_then(|p| endpoint_of(&p.identity)) {
@@ -267,7 +273,7 @@ impl Shared {
                 continue;
             }
             let entry = learned.peers.get_mut(&node).expect("listed");
-            match self.ensure_forward(&node, entry).await {
+            match self.ensure_forward(&node, entry, &config).await {
                 Ok(changed) => dirty |= changed,
                 Err(error) => eprintln!("iroh forward for {node}: {error:#}"),
             }
@@ -741,6 +747,7 @@ impl Service {
             adopt_learned,
             forwards: Default::default(),
             migrate_tried: Default::default(),
+            config_cache: Default::default(),
         });
         live_transports()
             .lock()

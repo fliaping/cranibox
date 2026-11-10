@@ -592,3 +592,29 @@ async fn n0_relays_take_over_while_the_own_relay_is_down() {
     );
     node.close().await;
 }
+
+#[tokio::test]
+async fn cancelled_offline_dials_are_throttled_and_unpairing_clears_backoff() {
+    let allowed =
+        Allowlist::new([91, 92].map(|seed| iroh::SecretKey::from_bytes(&[seed; 32]).public()));
+    let (url, _relay) = start_relay(allowed).await;
+    let local = node(91, &url).await;
+    let offline = iroh::EndpointAddr::new(iroh::SecretKey::from_bytes(&[92; 32]).public())
+        .with_relay_url(url.parse().unwrap());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), local.peer_connection(&offline))
+            .await
+            .is_err()
+    );
+    let result = tokio::time::timeout(Duration::from_millis(100), local.peer_connection(&offline))
+        .await
+        .unwrap();
+    assert!(result.unwrap_err().to_string().contains("backoff"));
+    local.drop_peer(&offline.id).await;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), local.peer_connection(&offline))
+            .await
+            .is_err()
+    );
+    local.close().await;
+}

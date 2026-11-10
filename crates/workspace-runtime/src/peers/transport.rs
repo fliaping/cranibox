@@ -76,10 +76,13 @@ impl PeerTransport for DirectTransport {
             .api(peer)
             .map_err(|e| TransportError::Other(e.to_string()))?;
         if req.uri().path().contains("/llm/") {
-            return api
-                .model_request(req)
-                .await
-                .map_err(|e| TransportError::Other(format!("{e:#}")));
+            return match api.model_request(req).await {
+                Ok(response) => Ok(response),
+                Err(error) => match crate::client::access_refusal(&error) {
+                    Some((status, body)) => Ok(json_response(status, &body)),
+                    None => Err(TransportError::Other(format!("{error:#}"))),
+                },
+            };
         }
         let (parts, body) = req.into_parts();
         let path = parts

@@ -67,6 +67,9 @@ fn assert_api_error(result: Result<Value>, status: StatusCode, message: &str) {
 
 #[tokio::test]
 async fn owner_updates_and_rolls_back_over_noise() {
+    if !crate::update::npm::tests::host_has_npm_package() {
+        return;
+    }
     if let Some(root) = std::env::var_os(CHILD_ROOT) {
         exercise_nodes(FsPath::new(&root)).await;
         return;
