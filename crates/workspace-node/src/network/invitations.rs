@@ -107,12 +107,12 @@ impl Store {
                 entries: BTreeMap::new(),
             });
         }
-        let file = std::fs::File::open(&self.0)?;
+        let bytes = agent_workspace_runtime::config::read_bounded(&self.0, FILE_LIMIT)?;
         ensure!(
-            file.metadata()?.len() <= FILE_LIMIT,
+            bytes.len() <= FILE_LIMIT as usize,
             "Network invitation state is too large."
         );
-        let saved: Saved = serde_json::from_reader(file)
+        let saved: Saved = serde_json::from_slice(&bytes)
             .context("Invalid network-invitations.json; restore it before managing invitations.")?;
         ensure!(
             saved.version == 1 && saved.entries.len() <= LIMIT,
@@ -311,12 +311,12 @@ impl Enrollment {
         let _lock = secrets::lock_credentials(&path)?;
         let binding = digest(&serde_json::to_vec(&(endpoint.as_str(), token))?);
         if path.try_exists()? {
-            let file = std::fs::File::open(&path)?;
+            let bytes = agent_workspace_runtime::config::read_bounded(&path, 1024)?;
             ensure!(
-                file.metadata()?.len() <= 1024,
+                bytes.len() <= 1024,
                 "Network enrollment state is too large."
             );
-            let saved: Self = serde_json::from_reader(file).context(
+            let saved: Self = serde_json::from_slice(&bytes).context(
                 "Invalid network-enrollment.json; restore it before retrying enrollment.",
             )?;
             ensure!(

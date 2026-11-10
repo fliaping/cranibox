@@ -41,7 +41,10 @@ pub fn shell_info() -> Option<ShellInfo> {
         version,
         api,
         &super::product_version(),
-        install_support(),
+        std::env::var_os("CRANIBOX_SHELL_EXE")
+            .map(PathBuf::from)
+            .ok_or_else(|| "the desktop app must be updated once by hand".to_owned())
+            .and_then(|exe| install_support_for(&exe)),
     ))
 }
 
@@ -69,8 +72,12 @@ fn describe(
 /// Whether this installation can replace itself.
 pub fn install_support() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    install_support_for(&exe)
+}
+
+fn install_support_for(exe: &Path) -> Result<(), String> {
     if cfg!(target_os = "macos") {
-        let bundle = bundle_of(&exe).ok_or("the app is not running from Cranibox.app")?;
+        let bundle = bundle_of(exe).ok_or("the app is not running from Cranibox.app")?;
         let parent = bundle.parent().ok_or("the app bundle has no folder")?;
         tempfile::tempfile_in(parent)
             .map(drop)
@@ -81,7 +88,7 @@ pub fn install_support() -> Result<(), String> {
             .filter_map(std::env::var_os)
             .map(PathBuf::from)
             .collect::<Vec<_>>();
-        if under_any(&exe, &roots) {
+        if under_any(exe, &roots) {
             Err("installed for all users; run the new installer by hand".into())
         } else {
             Ok(())
@@ -355,6 +362,17 @@ mod tests {
             (package.can_install, package.reason.as_deref()),
             (false, Some("deb"))
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn managed_runtime_checks_the_shell_bundle_for_install_support() {
+        let root = tempfile::tempdir().unwrap();
+        let shell = root.path().join("Cranibox.app/Contents/MacOS/cranibox");
+        fs::create_dir_all(shell.parent().unwrap()).unwrap();
+        assert!(install_support_for(&shell).is_ok());
+        let runtime = root.path().join("runtime/versions/1.2.2/bin/cranibox");
+        assert!(install_support_for(&runtime).is_err());
     }
 
     #[test]

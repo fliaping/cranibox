@@ -8,9 +8,10 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+use std::fs;
 use std::{
     collections::BTreeMap,
-    fs,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -226,8 +227,8 @@ impl Store {
         }
     }
     fn read(&self) -> Result<Mailbox> {
-        let file = match fs::File::open(&self.path) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(&self.path, MAX_STORE) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Mailbox {
                     owner: self.owner.clone(),
@@ -237,10 +238,10 @@ impl Store {
             Err(error) => return Err(error.into()),
         };
         ensure!(
-            file.metadata()?.len() <= MAX_STORE,
+            bytes.len() <= MAX_STORE as usize,
             "device mailbox is too large"
         );
-        let mailbox: Mailbox = serde_json::from_reader(file)
+        let mailbox: Mailbox = serde_json::from_slice(&bytes)
             .context("read device mailbox; existing data was preserved")?;
         ensure!(
             mailbox.owner == self.owner && valid_node_id(&mailbox.owner),

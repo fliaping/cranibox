@@ -39,6 +39,10 @@ pub async fn start(
     );
     config.env = vec![
         (
+            "CRANIBOX_SHELL_EXE".into(),
+            std::env::current_exe()?.into_os_string(),
+        ),
+        (
             "CRANIBOX_SHELL_URL".into(),
             format!("http://{}", listener.local_addr()?).into(),
         ),

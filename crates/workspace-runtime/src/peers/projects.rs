@@ -144,16 +144,19 @@ impl Store {
     }
 
     fn read_project_snapshot(&self, node: &str, binding: &str) -> Result<Option<Snapshot>> {
-        let file = match fs::File::open(self.project_snapshot_path(node)?) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(
+            self.project_snapshot_path(node)?,
+            MAX_SNAPSHOT_BYTES,
+        ) {
+            Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e.into()),
         };
         ensure!(
-            file.metadata()?.len() <= MAX_SNAPSHOT_BYTES,
+            bytes.len() <= MAX_SNAPSHOT_BYTES as usize,
             "offline project catalog too large"
         );
-        let snapshot: Snapshot = serde_json::from_reader(file)?;
+        let snapshot: Snapshot = serde_json::from_slice(&bytes)?;
         ensure!(
             snapshot.version == 1
                 && snapshot.synced_at > 0

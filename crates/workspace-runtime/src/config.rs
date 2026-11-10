@@ -7,6 +7,27 @@ use std::{
 };
 use subtle::ConstantTimeEq;
 
+/// Bulk-read a small state file without allocating or reading beyond its limit.
+pub fn read_bounded(path: impl AsRef<Path>, limit: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let file = fs::File::open(path)?;
+    if file.metadata()?.len() > limit {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "state file too large",
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit.saturating_add(1)).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "state file too large",
+        ));
+    }
+    Ok(bytes)
+}
+
 pub fn matches(actual: &str, expected: &str) -> bool {
     actual.len() == expected.len() && bool::from(actual.as_bytes().ct_eq(expected.as_bytes()))
 }
@@ -148,5 +169,25 @@ mod identity_tests {
             0o600
         );
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
+}
+
+#[cfg(test)]
+mod bounded_read_tests {
+    #[test]
+    fn accepts_limit_and_rejects_oversize_before_parsing() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("state");
+        std::fs::write(&path, b"1234").unwrap();
+        assert_eq!(super::read_bounded(&path, 4).unwrap(), b"1234");
+        assert_eq!(
+            super::read_bounded(&path, 3).unwrap_err().kind(),
+            std::io::ErrorKind::InvalidData
+        );
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(
+            super::read_bounded(&path, 4).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
     }
 }

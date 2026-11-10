@@ -121,15 +121,15 @@ function DeviceUpdates({ node }: { node: string }) {
     return () => { stopped = true; clearTimeout(timer); clearTimeout(deadline); };
   }, [api, node, path, watch]);
 
-  async function act(action: UpdateRequest["action"], spec?: string) {
+  async function act(action: UpdateRequest["action"], spec?: string, full = false) {
     setBusy(true); setError(""); setTimedOut(false); setUpdated(false);
     try {
       if (action === "apply") {
-        const body: UpdateRequest = { node, action, spec: spec || channel, ...(fullHere ? { full: true } : {}) };
+        const body: UpdateRequest = { node, action, spec: spec || channel, ...(full || fullHere ? { full: true } : {}) };
         const result = await api.call<UpdateAccepted>("POST", "/update", body);
         if (!alive.current) return;
         setStatus(null);
-        begin(result.id, spec || data?.available?.[channel] || null, "resolving", fullHere);
+        begin(result.id, spec || data?.available?.[channel] || null, "resolving", full || fullHere);
       } else if (action === "rollback") {
         const result = await api.call<UpdateStatus>("POST", "/update", { node, action } satisfies UpdateRequest);
         if (!alive.current) return;
@@ -174,7 +174,7 @@ function DeviceUpdates({ node }: { node: string }) {
       </dl>
       {shell?.outdated && !(fullHere && newer) && <Alert tone="info">{t("桌面应用版本较旧，部分功能需要完整更新。", "The desktop app is older than this version; some features need a full update.")}{" "}
         {fullHere && data.runtime.version
-          ? <button className="cx-btn small" disabled={locked || !data.runtime.can_update} onClick={() => void act("apply", data.runtime.version!)}>{t("更新桌面应用", "Update the desktop app")}</button>
+          ? <button className="cx-btn small" disabled={locked || !data.runtime.can_update} onClick={() => void act("apply", data.runtime.version!, true)}>{t("完整更新", "Full update")}</button>
           : <span className="cx-muted">{!data.self ? t("请在那台设备上打开 Cranibox 完成更新。", "Open Cranibox on that device to finish the update.") : shell.reason}</span>}
       </Alert>}
       {!data.runtime.managed && <p className="cx-muted">{node === "self"

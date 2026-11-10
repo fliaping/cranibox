@@ -266,12 +266,12 @@ impl Manager {
         if !self.spec_path.try_exists()? {
             return Ok(None);
         }
-        let file = std::fs::File::open(&self.spec_path)?;
+        let bytes = crate::config::read_bounded(&self.spec_path, 4096)?;
         ensure!(
-            file.metadata()?.len() <= 4096,
+            bytes.len() <= 4096,
             "Managed browser configuration is too large."
         );
-        let spec: Spec = serde_json::from_reader(file)
+        let spec: Spec = serde_json::from_slice(&bytes)
             .context("Invalid browser-service.json; remove it to reset the managed browser.")?;
         ensure!(
             spec.version == 1,

@@ -262,12 +262,10 @@ impl Identity {
         Ok(())
     }
     pub fn load(path: &Path) -> Result<Self> {
-        let file = std::fs::File::open(path).context("read node identity")?;
-        ensure!(
-            file.metadata()?.len() <= 4096,
-            "node identity file too large"
-        );
-        let secret: Secret = serde_json::from_reader(file).context("invalid node identity file")?;
+        let bytes = crate::config::read_bounded(path, 4096).context("read node identity")?;
+        ensure!(bytes.len() <= 4096, "node identity file too large");
+        let secret: Secret =
+            serde_json::from_slice(&bytes).context("invalid node identity file")?;
         ensure!(secret.version == 1, "unsupported node identity file");
         ensure!(
             matches!(secret.minimum_config_version, 1 | 2),

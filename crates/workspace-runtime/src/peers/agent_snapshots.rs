@@ -47,16 +47,16 @@ impl Store {
     }
 
     fn read_agent_snapshot(&self, node: &str, binding: &str) -> Result<Option<Snapshot>> {
-        let file = match fs::File::open(self.agent_snapshot_path(node)?) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(self.agent_snapshot_path(node)?, MAX_BYTES) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error.into()),
         };
         ensure!(
-            file.metadata()?.len() <= MAX_BYTES,
+            bytes.len() <= MAX_BYTES as usize,
             "offline Agent directory too large"
         );
-        let snapshot: Snapshot = serde_json::from_reader(file)?;
+        let snapshot: Snapshot = serde_json::from_slice(&bytes)?;
         ensure!(
             snapshot.version == 1
                 && snapshot.synced_at > 0

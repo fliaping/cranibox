@@ -149,7 +149,7 @@ test('an outdated desktop app is updated in place here and explained for another
   await inDesktopApp(page);
   const panel = await open(page);
   await expect(panel).toContainText('The desktop app is older than this version');
-  await panel.getByRole('button', { name: 'Update the desktop app' }).click();
+  await panel.getByRole('button', { name: 'Full update' }).click();
   expect(model.commands).toEqual([{ node: 'self', action: 'apply', spec: '1.1.0', full: true }]);
 });
 
@@ -159,7 +159,7 @@ test('a desktop app that cannot update itself and a partial full update are repo
   model.data.status = { ...update('done'), full: true, warning: 'The desktop app was not updated: unknown operation' };
   const panel = await open(page, remote);
   await expect(panel).toContainText('Open Cranibox on that device to finish the update.');
-  await expect(panel.getByRole('button', { name: 'Update the desktop app' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Full update' })).toHaveCount(0);
   await expect(panel).toContainText('The desktop app was not updated: unknown operation');
 });
 

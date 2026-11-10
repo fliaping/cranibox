@@ -83,12 +83,13 @@ fn receiving_path(state: &Path, id: &str) -> Result<PathBuf> {
     record_path(state, "project-copy-stream-receipts", id)
 }
 fn load<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
-    let file = fs::File::open(path).context("transfer record unavailable")?;
+    let bytes = crate::config::read_bounded(path, (MAX_MANIFEST + 32768) as u64)
+        .context("transfer record unavailable")?;
     ensure!(
-        file.metadata()?.len() <= (MAX_MANIFEST + 32768) as u64,
+        bytes.len() <= MAX_MANIFEST + 32768,
         "transfer record too large"
     );
-    Ok(serde_json::from_reader(file)?)
+    Ok(serde_json::from_slice(&bytes)?)
 }
 fn save<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     let bytes = serde_json::to_vec(value)?;

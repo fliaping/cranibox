@@ -453,9 +453,9 @@ fn save(path: &Path, receipt: &Receipt) -> Result<()> {
 }
 pub fn status(state: &Path, id: &str, caller: &str, token: &str) -> Result<Receipt> {
     let path = receipt_path(state, id)?;
-    let file = fs::File::open(path).context("copy receipt unavailable")?;
-    ensure!(file.metadata()?.len() <= 16384, "copy receipt too large");
-    let receipt: Receipt = serde_json::from_reader(file)?;
+    let bytes = crate::config::read_bounded(path, 16384).context("copy receipt unavailable")?;
+    ensure!(bytes.len() <= 16384, "copy receipt too large");
+    let receipt: Receipt = serde_json::from_slice(&bytes)?;
     ensure!(
         receipt.caller == caller && config::matches(&receipt.credential, token),
         "copy receipt unavailable"

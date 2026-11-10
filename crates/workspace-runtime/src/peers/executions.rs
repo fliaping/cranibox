@@ -376,8 +376,8 @@ impl Store {
         })
     }
     fn read(&self) -> Result<Ledger> {
-        let file = match fs::File::open(&self.path) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(&self.path, 4 * 1024 * 1024) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Ledger {
                     owner: self.owner.clone(),
@@ -386,11 +386,8 @@ impl Store {
             }
             Err(error) => return Err(error.into()),
         };
-        ensure!(
-            file.metadata()?.len() <= 4 * 1024 * 1024,
-            "run ledger is too large"
-        );
-        let ledger: Ledger = serde_json::from_reader(file)
+        ensure!(bytes.len() <= 4 * 1024 * 1024, "run ledger is too large");
+        let ledger: Ledger = serde_json::from_slice(&bytes)
             .context("read run ledger; existing data was preserved")?;
         ensure!(
             ledger.owner == self.owner && ledger.records.len() <= CAPACITY,

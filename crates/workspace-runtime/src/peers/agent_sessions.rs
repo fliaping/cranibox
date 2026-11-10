@@ -4,9 +4,10 @@ use crate::{config, protocol::valid_node_id};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+#[cfg(test)]
+use std::fs;
 use std::{
     collections::BTreeMap,
-    fs,
     path::{Path, PathBuf},
 };
 use uuid::Uuid;
@@ -132,8 +133,8 @@ impl Registry {
         }
     }
     fn read(&self) -> Result<Ledger> {
-        let file = match fs::File::open(&self.path) {
-            Ok(file) => file,
+        let bytes = match crate::config::read_bounded(&self.path, MAX_BYTES) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Ledger {
                     owner: self.owner.clone(),
@@ -143,10 +144,10 @@ impl Registry {
             Err(error) => return Err(error.into()),
         };
         ensure!(
-            file.metadata()?.len() <= MAX_BYTES,
+            bytes.len() <= MAX_BYTES as usize,
             "Agent registry is too large"
         );
-        let ledger: Ledger = serde_json::from_reader(file)
+        let ledger: Ledger = serde_json::from_slice(&bytes)
             .context("read Agent registry; existing data was preserved")?;
         ensure!(
             ledger.owner == self.owner

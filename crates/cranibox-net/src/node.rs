@@ -1,6 +1,6 @@
 //! The node's iroh endpoint: identity reuse, relay order and connection pool.
 use crate::{ALPN_PAIR, ALPN_PEER_FWD, ALPN_PEER_HTTP, Lane, addr};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use cranibox_contracts::{config::IrohConfig, net::IrohAddr};
 use iroh::{
     Endpoint, EndpointAddr, EndpointId, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey,
@@ -71,10 +71,19 @@ pub(crate) struct Pooled {
     pub used: Instant,
 }
 
+#[derive(Clone, Copy)]
+struct FailedDial {
+    attempts: u8,
+    next: Instant,
+}
+const DIAL_RETRY_INITIAL: Duration = Duration::from_secs(1);
+const DIAL_RETRY_MAX: Duration = Duration::from_secs(60);
+
 #[derive(Clone)]
 pub struct IrohNode {
     endpoint: Endpoint,
     pub(crate) pool: Arc<Mutex<HashMap<(EndpointId, Lane), Pooled>>>,
+    failed: Arc<Mutex<HashMap<(EndpointId, Lane), FailedDial>>>,
     stop: CancellationToken,
     own_relays: Arc<std::sync::RwLock<Vec<RelayUrl>>>,
     n0_fallback: bool,
@@ -149,6 +158,7 @@ impl IrohNode {
         let node = Self {
             endpoint,
             pool: Arc::default(),
+            failed: Arc::default(),
             stop: CancellationToken::new(),
             own_relays: Arc::new(std::sync::RwLock::new(own_relays)),
             n0_fallback: options.n0_fallback,
@@ -325,23 +335,69 @@ impl IrohNode {
 
     /// A pooled connection to `addr` on `lane`.
     pub async fn lane_connection(&self, addr: &EndpointAddr, lane: Lane) -> Result<Connection> {
+        let key = (addr.id, lane);
         let mut pool = self.pool.lock().await;
-        if let Some(pooled) = pool.get_mut(&(addr.id, lane))
+        if let Some(pooled) = pool.get_mut(&key)
             && pooled.conn.close_reason().is_none()
         {
             pooled.used = Instant::now();
             return Ok(pooled.conn.clone());
         }
         drop(pool);
-        let conn = self.connect(addr, lane.alpn()).await?;
-        self.pool.lock().await.insert(
-            (addr.id, lane),
-            Pooled {
-                conn: conn.clone(),
-                used: Instant::now(),
-            },
-        );
-        Ok(conn)
+
+        // Background synchronization can revisit an offline peer every second.
+        // Suppress repeated dials with an exponential delay capped at one minute.
+        let delay = {
+            let mut failed = self.failed.lock().await;
+            let now = Instant::now();
+            if let Some(failure) = failed.get(&key)
+                && failure.next > now
+            {
+                return Err(anyhow!(
+                    "peer connection is in backoff; retry in {}s",
+                    failure.next.duration_since(now).as_secs().saturating_add(1)
+                ));
+            }
+            let attempts = failed
+                .get(&key)
+                .map_or(0, |entry| entry.attempts)
+                .saturating_add(1);
+            let delay = (DIAL_RETRY_INITIAL * (1u32 << attempts.saturating_sub(1).min(6)))
+                .min(DIAL_RETRY_MAX);
+            // Also bounds concurrent and cancelled dials. The reservation expires even
+            // when an outer timeout drops this future before the connect returns.
+            failed.insert(
+                key,
+                FailedDial {
+                    attempts,
+                    next: now + Duration::from_secs(15) + delay,
+                },
+            );
+            delay
+        };
+        match tokio::time::timeout(Duration::from_secs(15), self.connect(addr, lane.alpn()))
+            .await
+            .context("peer dial timed out")
+            .and_then(|result| result)
+        {
+            Ok(conn) => {
+                self.failed.lock().await.remove(&key);
+                self.pool.lock().await.insert(
+                    key,
+                    Pooled {
+                        conn: conn.clone(),
+                        used: Instant::now(),
+                    },
+                );
+                Ok(conn)
+            }
+            Err(error) => {
+                if let Some(failure) = self.failed.lock().await.get_mut(&key) {
+                    failure.next = Instant::now() + delay;
+                }
+                Err(error)
+            }
+        }
     }
 
     /// Path of the pooled connection to `id`, if one is open.
@@ -357,12 +413,14 @@ impl IrohNode {
     /// Close connections of peers that are no longer paired.
     pub async fn drop_peer(&self, id: &EndpointId) {
         let mut pool = self.pool.lock().await;
+        let mut failed = self.failed.lock().await;
         for lane in [Lane::Peer, Lane::Forward] {
             if let Some(pooled) = pool.remove(&(*id, lane)) {
                 pooled
                     .conn
                     .close(crate::close::NOT_ALLOWED.into(), b"unpaired");
             }
+            failed.remove(&(*id, lane));
         }
     }
 

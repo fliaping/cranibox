@@ -52,7 +52,7 @@ if (!u.preferences?.language) try {
 } catch {}
 document.documentElement.lang = u.language;
 //#endregion
-//#region node_modules/scheduler/cjs/scheduler.production.js
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/scheduler/cjs/scheduler.production.js
 var d = /* @__PURE__ */ o(((e) => {
 	function t(e, t) {
 		var n = e.length;
@@ -11131,10 +11131,10 @@ function _r({ children: e }) {
 	});
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs
 var vr = (e) => e?.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs
 function yr(e, t, n = []) {
 	if (t == null) throw Error("[lucide]: iconNode is required when icon name is used");
 	return {
@@ -11145,7 +11145,7 @@ function yr(e, t, n = []) {
 	};
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs
 var br = (e) => {
 	let t = "", n = !1;
 	for (let r of e) r === "-" || r === "_" || r <= " " ? n = t.length > 0 : (t.length === 0 ? t += r.toLowerCase() : t += n ? r.toUpperCase() : r, n = !1);
@@ -11165,7 +11165,7 @@ var br = (e) => {
 	"stroke-linejoin": "round"
 };
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs
 function wr(e) {
 	return e != null;
 }
@@ -11202,7 +11202,7 @@ function Tr(e, t = {}) {
 	];
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs
 function Er(e, t = {}) {
 	return Tr(e, {
 		...t,
@@ -11217,7 +11217,7 @@ function Er(e, t = {}) {
 	});
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs
 var Dr = (e) => {
 	for (let t in e) if (t.startsWith("aria-") || t === "role" || t === "title") return !0;
 	return !1;
@@ -11243,7 +11243,7 @@ var Dr = (e) => {
 	}, [...C.map(([e, t]) => (0, y.createElement)(e, t)), ...Array.isArray(c) ? c : [c]]);
 });
 //#endregion
-//#region node_modules/lucide-react/dist/esm/createLucideIcon.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/createLucideIcon.mjs
 function X(e, t = [], n = []) {
 	let r = typeof e == "string" ? yr(e, t, n) : e, i = (0, y.forwardRef)(({ className: e, ...t }, n) => (0, y.createElement)(Ar, {
 		ref: n,
@@ -11254,7 +11254,7 @@ function X(e, t = [], n = []) {
 	return r.name && (i.displayName = xr(r.name)), i;
 }
 //#endregion
-//#region node_modules/lucide-react/dist/esm/icons/activity.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/lucide-react/dist/esm/icons/activity.mjs
 var jr = {
 	name: "activity",
 	size: 24,
@@ -26485,7 +26485,7 @@ function Cd({ title: e, children: t, onCancel: n, className: r = "" }) {
 	});
 }
 //#endregion
-//#region node_modules/@xterm/xterm/lib/xterm.mjs
+//#region ../../../../../config/Workspace/cranibox/addons/control-center/ui/node_modules/@xterm/xterm/lib/xterm.mjs
 var wd = Object.defineProperty, Td = Object.getOwnPropertyDescriptor, Ed = (e, t) => {
 	for (var n in t) wd(e, n, {
 		get: t[n],
@@ -38038,18 +38038,18 @@ function cb({ node: e }) {
 		k,
 		l
 	]);
-	async function M(n, i) {
+	async function M(n, i, a = !1) {
 		f(!0), m(""), C(!1), x(!1);
 		try {
 			if (n === "apply") {
-				let a = {
+				let c = {
 					node: e,
 					action: n,
 					spec: i || s,
-					...L ? { full: !0 } : {}
-				}, c = await t.call("POST", "/update", a);
+					...a || L ? { full: !0 } : {}
+				}, l = await t.call("POST", "/update", c);
 				if (!O.current) return;
-				o(null), A(c.id, i || r?.available?.[s] || null, "resolving", L);
+				o(null), A(l.id, i || r?.available?.[s] || null, "resolving", a || L);
 			} else if (n === "rollback") {
 				let r = await t.call("POST", "/update", {
 					node: e,
@@ -38146,8 +38146,8 @@ function cb({ node: e }) {
 						L && r.runtime.version ? /* @__PURE__ */ (0, J.jsx)("button", {
 							className: "cx-btn small",
 							disabled: P || !r.runtime.can_update,
-							onClick: () => void M("apply", r.runtime.version),
-							children: n("更新桌面应用", "Update the desktop app")
+							onClick: () => void M("apply", r.runtime.version, !0),
+							children: n("完整更新", "Full update")
 						}) : /* @__PURE__ */ (0, J.jsx)("span", {
 							className: "cx-muted",
 							children: r.self ? I.reason : n("请在那台设备上打开 Cranibox 完成更新。", "Open Cranibox on that device to finish the update.")

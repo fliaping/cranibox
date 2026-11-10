@@ -168,12 +168,12 @@ impl Manager {
         if !self.spec_path.try_exists()? {
             return Ok(None);
         }
-        let file = std::fs::File::open(&self.spec_path)?;
+        let bytes = agent_workspace_runtime::config::read_bounded(&self.spec_path, 2048)?;
         ensure!(
-            file.metadata()?.len() <= 2048,
+            bytes.len() <= 2048,
             "Desktop service configuration is too large."
         );
-        let spec: Spec = serde_json::from_reader(file).context("Invalid desktop service configuration; restore desktop-service.json before enabling managed VNC.")?;
+        let spec: Spec = serde_json::from_slice(&bytes).context("Invalid desktop service configuration; restore desktop-service.json before enabling managed VNC.")?;
         spec.validate()?;
         Ok(Some(spec))
     }

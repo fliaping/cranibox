@@ -13,6 +13,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -373,6 +374,49 @@ pub struct Config {
 }
 /// Version 2: grants store digests and carry signatures by `identity`.
 pub const VERSION: u32 = 2;
+/// Cheap fingerprint used by high-frequency readers to avoid reparsing unchanged JSON.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConfigStamp {
+    config: FileStamp,
+    identity: Option<FileStamp>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FileStamp {
+    len: u64,
+    modified: SystemTime,
+    #[cfg(unix)]
+    identity: (u64, u64, i64, i64),
+}
+impl FileStamp {
+    fn read(path: &Path) -> std::io::Result<Self> {
+        let metadata = std::fs::metadata(path)?;
+        Ok(Self {
+            len: metadata.len(),
+            modified: metadata.modified()?,
+            #[cfg(unix)]
+            identity: {
+                use std::os::unix::fs::MetadataExt;
+                (
+                    metadata.dev(),
+                    metadata.ino(),
+                    metadata.ctime(),
+                    metadata.ctime_nsec(),
+                )
+            },
+        })
+    }
+}
+impl ConfigStamp {
+    fn read(path: &Path) -> Result<Self> {
+        let config = FileStamp::read(path).context("stat peer configuration")?;
+        let identity = match FileStamp::read(&identity::path_for(path)) {
+            Ok(stamp) => Some(stamp),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.into()),
+        };
+        Ok(Self { config, identity })
+    }
+}
 impl Config {
     pub fn new() -> Self {
         Self {
@@ -510,13 +554,11 @@ impl Config {
         Ok(())
     }
     pub fn read(path: &Path) -> Result<Self> {
-        let file = std::fs::File::open(path).context("read peer configuration")?;
-        ensure!(
-            file.metadata()?.len() <= 128 * 1024,
-            "peer configuration too large"
-        );
+        let bytes =
+            crate::config::read_bounded(path, 128 * 1024).context("read peer configuration")?;
+        ensure!(bytes.len() <= 128 * 1024, "peer configuration too large");
         let mut value: Self =
-            serde_json::from_reader(file).context("invalid peer configuration")?;
+            serde_json::from_slice(&bytes).context("invalid peer configuration")?;
         // Plaintext secrets from version 1 are replaced in memory before any use.
         for grant in value.grants.values_mut() {
             grant.migrate();
@@ -533,6 +575,29 @@ impl Config {
         }
         Ok(value)
     }
+    /// Reuse validated state only while both configuration and identity are unchanged.
+    /// Stat/read errors invalidate the cache so permission checks fail closed.
+    pub fn read_cached(path: &Path, cache: &mut Option<(ConfigStamp, Self)>) -> Result<Self> {
+        let stamp = match ConfigStamp::read(path) {
+            Ok(stamp) => stamp,
+            Err(error) => {
+                *cache = None;
+                return Err(error);
+            }
+        };
+        if let Some((previous, value)) = cache.as_ref()
+            && *previous == stamp
+        {
+            return Ok(value.clone());
+        }
+        *cache = None;
+        let value = Self::read(path)?;
+        if ConfigStamp::read(path)? == stamp {
+            *cache = Some((stamp, value.clone()));
+        }
+        Ok(value)
+    }
+
     /// The private identity file anchors this node's public key and migration floor.
     /// Reading a migrated configuration must never create or repair key material.
     fn local_identity(&self, path: &Path) -> Result<Identity> {
@@ -993,5 +1058,55 @@ mod tests {
         assert_eq!(saved_key["signing_seed"], key["signing_seed"]);
         assert_eq!(saved_key["noise_private"], key["noise_private"]);
         assert_eq!(saved_key["created_at"], key["created_at"]);
+    }
+    #[test]
+    fn cached_configuration_tracks_updates_and_fails_closed_on_key_loss() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        Config::update(&path, |_| Ok(())).unwrap();
+        let mut cache = None;
+        let first = Config::read_cached(&path, &mut cache).unwrap();
+        let stamp = cache.as_ref().unwrap().0;
+        assert_eq!(
+            Config::read_cached(&path, &mut cache).unwrap().node_id,
+            first.node_id
+        );
+        assert_eq!(cache.as_ref().unwrap().0, stamp);
+        Config::update(&path, |value| {
+            value.copy_root = Some(root.path().to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            Config::read_cached(&path, &mut cache)
+                .unwrap()
+                .copy_root
+                .as_deref(),
+            Some(root.path())
+        );
+        let key = identity::path_for(&path);
+        let bytes = std::fs::read(&key).unwrap();
+        std::fs::remove_file(&key).unwrap();
+        assert!(Config::read_cached(&path, &mut cache).is_err());
+        assert!(cache.is_none());
+        std::fs::write(&key, &bytes).unwrap();
+        assert!(Config::read_cached(&path, &mut cache).is_ok());
+        std::fs::write(&key, b"broken key").unwrap();
+        assert!(Config::read_cached(&path, &mut cache).is_err());
+        assert!(cache.is_none());
+    }
+    #[test]
+    fn cached_configuration_rejects_invalid_replacement_and_recovers() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("peers.json");
+        Config::update(&path, |_| Ok(())).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let mut cache = None;
+        Config::read_cached(&path, &mut cache).unwrap();
+        std::fs::write(&path, b"invalid").unwrap();
+        assert!(Config::read_cached(&path, &mut cache).is_err());
+        assert!(cache.is_none());
+        std::fs::write(&path, bytes).unwrap();
+        assert!(Config::read_cached(&path, &mut cache).is_ok());
     }
 }

@@ -8,7 +8,11 @@ use cranibox_contracts::{
     vault::AccountStore,
 };
 use futures_util::{StreamExt, stream};
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 /// A request is only replayed before any response byte has been exposed to its caller.
 pub struct RemoteRouter {
     pub node: String,
@@ -16,6 +20,9 @@ pub struct RemoteRouter {
     pub store: Arc<dyn AccountStore>,
     pub transport: Arc<dyn PeerTransport>,
     pub health: Arc<HealthBook>,
+    // Stop background requests after an explicit capability refusal. An owner-roster
+    // change, a successful user request, or a restart permits probing again.
+    denied_probes: Mutex<HashMap<String, Option<u64>>>,
 }
 impl RemoteRouter {
     pub fn new(
@@ -30,6 +37,7 @@ impl RemoteRouter {
             store,
             transport,
             health: Arc::default(),
+            denied_probes: Mutex::default(),
         }
     }
     pub fn candidates(&self, provider: &str) -> Vec<String> {
@@ -97,10 +105,41 @@ impl RemoteRouter {
         if !self.roster.is_owner_node(node) {
             return false;
         }
+        let epoch = self.roster.current().map(|roster| roster.epoch);
+        {
+            let mut denied = self.denied_probes.lock().expect("probe denials");
+            if denied.get(node) == Some(&epoch) {
+                return false;
+            }
+            denied.remove(node);
+        }
         let req = http::Request::get(routes::llm(node, routes::LLM_HEALTH))
             .body(BoxBody::empty())
             .expect("valid node path");
-        let ok = matches!(tokio::time::timeout(Duration::from_secs(5),self.transport.request(&node.to_owned(),req)).await,Ok(Ok(ref r)) if r.status().is_success());
+        let response = tokio::time::timeout(
+            Duration::from_secs(5),
+            self.transport.request(&node.to_owned(), req),
+        )
+        .await;
+        let ok = match response {
+            Ok(Ok(response)) if response.status().is_success() => true,
+            Ok(Ok(response)) if response.status() == http::StatusCode::FORBIDDEN => {
+                if tokio::time::timeout(
+                    Duration::from_secs(1),
+                    capability_off(response.into_body()),
+                )
+                .await
+                .unwrap_or(false)
+                {
+                    self.denied_probes
+                        .lock()
+                        .expect("probe denials")
+                        .insert(node.to_owned(), epoch);
+                }
+                false
+            }
+            _ => false,
+        };
         if ok {
             self.health.succeeded(node, crate::auth::now());
         } else {
@@ -214,6 +253,10 @@ impl RemoteRouter {
                 .await
             {
                 Ok(response) => {
+                    self.denied_probes
+                        .lock()
+                        .expect("probe denials")
+                        .remove(&candidate);
                     self.health.succeeded(&candidate, crate::auth::now());
                     return Ok(response);
                 }
@@ -268,4 +311,31 @@ impl Router for RemoteRouter {
     ) -> Result<UpstreamResponse, UpstreamError> {
         self.forward_operation(node, provider, request, true).await
     }
+}
+
+/// Only the machine-readable capability refusal stops polling, never approval or
+/// transient errors. Limit untrusted error responses before parsing them.
+async fn capability_off(body: BoxBody) -> bool {
+    let mut stream = body.into_stream();
+    let mut bytes = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let Ok(chunk) = chunk else {
+            return false;
+        };
+        if bytes.len() + chunk.len() > 8192 {
+            return false;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("error")
+                .and_then(|error| error.get("code"))
+                .or_else(|| value.get("code"))
+                .and_then(|code| code.as_str())
+                .map(str::to_owned)
+        })
+        .is_some_and(|code| code == "capability_off")
 }

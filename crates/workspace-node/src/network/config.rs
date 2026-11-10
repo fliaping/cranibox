@@ -124,12 +124,12 @@ impl Spec {
         if !path.try_exists()? {
             return Ok(Self::default());
         }
-        let file = std::fs::File::open(path)?;
+        let bytes = agent_workspace_runtime::config::read_bounded(path, 32 * 1024)?;
         ensure!(
-            file.metadata()?.len() <= 32 * 1024,
+            bytes.len() <= 32 * 1024,
             "Network configuration is too large."
         );
-        let value: Self = serde_json::from_reader(file)
+        let value: Self = serde_json::from_slice(&bytes)
             .context("Invalid networks.json; restore it before changing network settings.")?;
         value.validate()?;
         Ok(value)
