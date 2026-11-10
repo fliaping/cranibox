@@ -28,15 +28,20 @@ impl Service {
         let task = tokio::spawn(async move {
             let mut children = JoinSet::new();
             let mut active = HashSet::new();
+            // The ledger is only parsed again after it changed or a run ended.
+            let mut seen = None;
             let mut tick = tokio::time::interval(Duration::from_millis(300));
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 tokio::select! {
                     biased;
                     _ = stop.cancelled() => break,
-                    Some(result) = children.join_next(), if !children.is_empty() => { if let Ok(id)=result { active.remove(&id); } },
+                    Some(result) = children.join_next(), if !children.is_empty() => { seen = None; if let Ok(id)=result { active.remove(&id); } },
                     _ = tick.tick() => {
+                        let stamp = store.stamp();
+                        if stamp.is_some() && stamp == seen { continue; }
                         let Ok(records)=store.records() else { continue; };
+                        seen = stamp;
                         for record in records.into_iter().filter(|record| record.state == State::Queued) {
                             if !active.insert(record.id) { continue; }
                             let (store,registry,stop,path,owner)=(store.clone(),registry.clone(),stop.clone(),path.clone(),owner.clone());

@@ -11,8 +11,10 @@ use futures_util::{StreamExt, stream};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
+/// How long background probes leave a refusing node alone before asking again.
+const DENIED_PROBE_PAUSE: Duration = Duration::from_secs(600);
 /// A request is only replayed before any response byte has been exposed to its caller.
 pub struct RemoteRouter {
     pub node: String,
@@ -20,9 +22,10 @@ pub struct RemoteRouter {
     pub store: Arc<dyn AccountStore>,
     pub transport: Arc<dyn PeerTransport>,
     pub health: Arc<HealthBook>,
-    // Stop background requests after an explicit capability refusal. An owner-roster
-    // change, a successful user request, or a restart permits probing again.
-    denied_probes: Mutex<HashMap<String, Option<u64>>>,
+    // Pause background requests after an explicit capability refusal. Probing
+    // resumes after DENIED_PROBE_PAUSE, an owner-roster change, a successful user
+    // request, or a restart.
+    denied_probes: Mutex<HashMap<String, (Option<u64>, Instant)>>,
 }
 impl RemoteRouter {
     pub fn new(
@@ -108,7 +111,9 @@ impl RemoteRouter {
         let epoch = self.roster.current().map(|roster| roster.epoch);
         {
             let mut denied = self.denied_probes.lock().expect("probe denials");
-            if denied.get(node) == Some(&epoch) {
+            if denied.get(node).is_some_and(|(at_epoch, at)| {
+                *at_epoch == epoch && at.elapsed() < DENIED_PROBE_PAUSE
+            }) {
                 return false;
             }
             denied.remove(node);
@@ -134,7 +139,7 @@ impl RemoteRouter {
                     self.denied_probes
                         .lock()
                         .expect("probe denials")
-                        .insert(node.to_owned(), epoch);
+                        .insert(node.to_owned(), (epoch, Instant::now()));
                 }
                 false
             }

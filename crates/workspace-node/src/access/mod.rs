@@ -442,6 +442,11 @@ impl Store {
         if mode == Mode::Off {
             return None;
         }
+        if state.policy.approvals_disabled {
+            return Some(Decision {
+                basis: "approvals_disabled".into(),
+            });
+        }
         if mode == Mode::Allow && !capability.requires_approval() && !once {
             return Some(Decision {
                 basis: "allow".into(),
@@ -669,6 +674,63 @@ impl Store {
             Ok(state.policy.mode(node, capability) != Mode::Off)
         })
         .unwrap_or(false)
+    }
+    pub fn approvals_disabled(&self) -> Result<bool> {
+        self.transaction(now(), |state| Ok(state.policy.approvals_disabled))
+    }
+    /// Local-owner setting. Transport authentication and disabled capabilities
+    /// remain enforced by their existing checks.
+    pub fn set_approvals_enabled(&self, enabled: bool) -> Result<()> {
+        let at = now();
+        self.transaction(at, |state| {
+            if state.policy.approvals_disabled != enabled {
+                return Ok(());
+            }
+            self.event(
+                EventKind::PolicyChanged,
+                None,
+                None,
+                None,
+                Some("approvals"),
+                if enabled { "enabled" } else { "disabled" },
+                at,
+            )?;
+            state.policy.approvals_disabled = !enabled;
+            if !enabled {
+                for request in state
+                    .requests
+                    .values_mut()
+                    .filter(|r| r.state == RequestState::Pending)
+                {
+                    self.event(
+                        EventKind::Expired,
+                        Some(&request.from),
+                        Some(request.capability),
+                        Some(&request.session_key),
+                        Some(&request.id),
+                        "approvals_disabled",
+                        at,
+                    )?;
+                    request.state = RequestState::Expired;
+                }
+                state.challenges.clear();
+                state.cooldown.clear();
+            } else {
+                // A bypass session must not become a persistent grant after the
+                // owner restores approvals. Live guards observe these removals.
+                let ended: Vec<_> = state
+                    .sessions
+                    .values()
+                    .filter(|s| s.basis == "approvals_disabled")
+                    .cloned()
+                    .collect();
+                for session in ended {
+                    state.sessions.remove(&session.id);
+                    self.end(state, &session, at)?;
+                }
+            }
+            Ok(())
+        })
     }
     pub fn change(&self, node: &str, changes: BTreeMap<Capability, Mode>) -> Result<()> {
         ensure!(
@@ -975,6 +1037,7 @@ impl Store {
             }
             nodes.remove(&config.node_id);
             Ok(AccessView {
+                approvals_disabled: state.policy.approvals_disabled,
                 peers: nodes
                     .into_iter()
                     .map(|node| PeerPolicy {

@@ -308,6 +308,17 @@ test('a completed transaction superseded by a manual install stops active pollin
   await expect(panel.getByRole('alert')).toHaveCount(0);
 });
 
+test('an old failure is not shown after a manual installation or after a day', async ({ page }) => {
+  const model = await mock(page);
+  model.data.version = model.data.runtime.version = '1.2.2-dev.334';
+  model.data.status = { ...update('failed'), spec: 'dev', from: '1.1.1-dev.292', to: '1.1.1-dev.292',
+    error: 'version 1.1.1-dev.292 is not newer than 1.1.1-dev.292; use force to retry or downgrade' };
+  const panel = await open(page);
+  await expect(panel.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+  await expect(panel).not.toContainText('1.1.1-dev.292');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+});
+
 test('an in-progress update outside this panel is explained without a warning', async ({ page }) => {
   const model = await mock(page);
   Object.assign(model.data.runtime, { state: 'pending', can_update: false, reasons: ['an update is already in progress'] });

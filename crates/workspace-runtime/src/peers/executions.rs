@@ -426,6 +426,10 @@ impl Store {
         config::write_private(&self.path, &bytes, true)?;
         Ok(result)
     }
+    /// Fingerprint of the run ledger; `None` while it does not exist yet.
+    pub fn stamp(&self) -> Option<super::config::FileStamp> {
+        super::config::FileStamp::read(&self.path).ok()
+    }
     pub fn records(&self) -> Result<Vec<Record>> {
         Ok(self.read()?.records.into_values().collect())
     }

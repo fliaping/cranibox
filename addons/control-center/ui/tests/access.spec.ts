@@ -6,8 +6,8 @@ const modes = () => Object.fromEntries(caps.map(cap => [cap, 'ask']));
 const request = (id: string, capability = 'terminals') => ({ id, from: remote, name: 'Design Mac', capability, state: 'pending', created_at: Math.floor(Date.now() / 1000), expires_at: Math.floor(Date.now() / 1000) + 120, path: { text: 'UNTRUSTED REQUESTER TEXT' } });
 async function mockAccess(page: Page) {
   const state = {
-    access: { peers: [{ node: remote, name: 'Design Mac', capabilities: modes() }], pending: [] as any[], approvals: [] as any[], sessions: [] as any[] },
-    saved: [] as any[], decisions: [] as any[], revoked: [] as any[], auditQueries: [] as URLSearchParams[],
+    access: { approvals_disabled: false, peers: [{ node: remote, name: 'Design Mac', capabilities: modes() }], pending: [] as any[], approvals: [] as any[], sessions: [] as any[] },
+    approvalSaves: [] as any[], saved: [] as any[], decisions: [] as any[], revoked: [] as any[], auditQueries: [] as URLSearchParams[],
     tampered: false, approval: 'pending', blocked: '', actions: [] as any[], polls: [] as string[], tickets: [] as any[], terminalBlocked: false,
     updateBlocked: false, updates: [] as string[], shells: [] as any[],
     review: { settings: { backend: 'rules', model: null, url: null, timeout_ms: 4000 }, has_key: false } as any, reviewSaves: [] as any[], grants: [] as any[], reviewTests: 0,
@@ -29,6 +29,7 @@ async function mockAccess(page: Page) {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
     const body = ['PUT', 'POST'].includes(req.method()) ? req.postDataJSON() : {};
     if (path === '/api/v1/app/access') return route.fulfill({ json: state.access });
+    if (path === '/api/v1/app/access/approvals') { state.approvalSaves.push(body); state.access.approvals_disabled = !body.enabled; if (!body.enabled) state.access.pending = []; return route.fulfill({ json: state.access }); }
     if (path === '/api/v1/app/access/' + remote) {
       state.saved.push(body); state.access.peers[0].capabilities = body;
       return route.fulfill({ json: {} });
@@ -550,4 +551,40 @@ test('the log shows which device approved and how it was verified', async ({ pag
   await page.getByRole('button', { name: '详情', exact: true }).click();
   const drawer = page.getByRole('dialog');
   for (const text of ['审批设备', 'Work Laptop', '恢复口令', 'ra-123']) await expect(drawer).toContainText(text);
+});
+
+for (const [lang, width] of [['zh-cn', 375], ['en', 1280]] as const) {
+  test(`all approvals can be disabled and restored (${lang}, ${width})`, async ({ page }) => {
+    const state = await mockAccess(page);
+    state.review = { settings: { backend: 'jev', model: 'jev-latest' }, has_key: true };
+    await page.setViewportSize({ width, height: 900 });
+    await openDevice(page, 'access', lang);
+    const toggle = page.getByRole('switch', { name: lang === 'zh-cn' ? '关闭所有审批' : 'Disable all approvals' });
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+    expect(state.approvalSaves).toEqual([{ enabled: false }]);
+    await expect(page.getByRole('radio', { name: /Jev/ })).toBeDisabled();
+    expect(state.reviewSaves).toEqual([]);
+    await page.reload();
+    await expect(toggle).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator('.cx-access-approval-control').screenshot({ path: `test-results/approvals-disabled-${lang}-${width}.png` });
+    await toggle.click();
+    await expect(toggle).not.toBeChecked();
+    await expect(page.getByRole('radio', { name: /Jev/ })).toBeEnabled();
+    await expect(page.getByRole('radio', { name: /Jev/ })).toBeChecked();
+    expect(state.approvalSaves).toEqual([{ enabled: false }, { enabled: true }]);
+    expect(state.review.has_key).toBe(true);
+  });
+}
+
+test('a failed approval switch save keeps the actual setting visible', async ({ page }) => {
+  await mockAccess(page);
+  await page.route('**/api/v1/app/access/approvals', route => route.fulfill({ status: 500, json: { error: 'save_failed', message: 'Cannot save approval policy' } }));
+  await openDevice(page, 'access', 'en');
+  const toggle = page.getByRole('switch', { name: 'Disable all approvals' });
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.locator('.cx-access-approval-control').getByRole('alert')).toBeVisible();
 });

@@ -30,6 +30,169 @@ fn approve(store: &Store, id: &str, scope: DurationScope, at: u64) {
         .unwrap();
 }
 #[test]
+fn disabling_all_approvals_preserves_off_modes_and_survives_restart() {
+    let (_root, store) = fixture();
+    assert!(!store.view().unwrap().approvals_disabled);
+    let modes: BTreeMap<_, _> = Capability::ALL
+        .into_iter()
+        .map(|cap| {
+            (
+                cap,
+                if cap == Capability::Browser {
+                    Mode::Off
+                } else {
+                    Mode::Ask
+                },
+            )
+        })
+        .collect();
+    store.change(NODE, modes.clone()).unwrap();
+    let waiting = pending(&store, "waiting", now());
+    let settings = ReviewSettings {
+        backend: ReviewBackend::Jev,
+        ..Default::default()
+    };
+    store
+        .set_review(settings.clone(), Some("test-key"))
+        .unwrap();
+    store.set_approvals_enabled(false).unwrap();
+    assert!(store.view().unwrap().pending.is_empty());
+    assert_eq!(
+        store.request(&waiting, NODE).unwrap().unwrap().state,
+        RequestState::Expired
+    );
+    let operation = Operation {
+        kind: "exec.run".into(),
+        risk: Risk::Danger,
+        summary: "confirmed operation".into(),
+        confirm: true,
+    };
+    let review = Review {
+        source: "jev".into(),
+        verdict: Verdict::Deny,
+        risk: 99,
+        reason: "review denied".into(),
+        labels: vec!["injection".into()],
+        model: None,
+        fallback: false,
+        latency_ms: 0,
+    };
+    for cap in Capability::ALL {
+        let result = store.authorize_for(
+            NODE,
+            cap,
+            "new-operation",
+            Some(&operation),
+            Pending {
+                review: Some(&review),
+                ..Default::default()
+            },
+        );
+        if cap == Capability::Browser {
+            assert!(matches!(result, Err(Denied::Off { .. })));
+        } else {
+            assert_eq!(result.unwrap().basis, "approvals_disabled");
+        }
+    }
+    assert!(store.view().unwrap().pending.is_empty());
+    let reopened = Store::new(&store.peers);
+    reopened.initialize().unwrap();
+    assert!(reopened.approvals_disabled().unwrap());
+    assert_eq!(reopened.review_settings(), settings);
+    assert!(reopened.has_review_key());
+    assert_eq!(
+        reopened
+            .view()
+            .unwrap()
+            .peers
+            .iter()
+            .find(|p| p.node == NODE)
+            .unwrap()
+            .capabilities,
+        modes
+    );
+    let audit = reopened.audit(100, None, None, None).unwrap();
+    assert!(audit.verified);
+    assert!(
+        audit
+            .entries
+            .iter()
+            .any(|e| e.event == EventKind::PolicyChanged
+                && e.basis.as_deref() == Some("approvals")
+                && e.result == "disabled")
+    );
+}
+
+#[test]
+fn restoring_approvals_ends_bypass_sessions_and_restores_confirmation() {
+    let (_root, store) = fixture();
+    store
+        .change(
+            NODE,
+            [
+                (Capability::Exec, Mode::Allow),
+                (Capability::Terminals, Mode::Ask),
+                (Capability::Vault, Mode::Allow),
+            ]
+            .into(),
+        )
+        .unwrap();
+    store.set_approvals_enabled(false).unwrap();
+    let session = store
+        .start_for(NODE, Capability::Exec, "dangerous", true)
+        .unwrap();
+    assert!(session.valid());
+    let normal = store.start(NODE, Capability::Exec, "normal").unwrap();
+    store.set_approvals_enabled(true).unwrap();
+    assert!(!session.valid());
+    assert!(!normal.valid());
+    assert!(store.view().unwrap().sessions.is_empty());
+    assert_eq!(
+        store
+            .authorize(NODE, Capability::Exec, "normal-new")
+            .unwrap()
+            .basis,
+        "allow"
+    );
+    let operation = Operation {
+        kind: "exec.run".into(),
+        risk: Risk::Danger,
+        summary: "confirmed operation".into(),
+        confirm: true,
+    };
+    assert!(matches!(
+        store.authorize_for(
+            NODE,
+            Capability::Exec,
+            "dangerous-new",
+            Some(&operation),
+            Pending::default()
+        ),
+        Err(Denied::ApprovalRequired { .. })
+    ));
+    assert!(store.start(NODE, Capability::Terminals, "ask").is_err());
+    assert!(store.start(NODE, Capability::Vault, "vault").is_err());
+}
+
+#[tokio::test]
+async fn local_approval_switch_api_validates_input_and_preserves_defaults() {
+    let (_root, store) = fixture();
+    let route = |body| api::route(&store.peers, "PUT", "/access/approvals", "", body, None);
+    for invalid in [
+        serde_json::json!({}),
+        serde_json::json!({"enabled":"false"}),
+        serde_json::json!({"enabled":false,"extra":true}),
+    ] {
+        assert!(route(invalid).await.is_err());
+        assert!(!store.approvals_disabled().unwrap());
+    }
+    let disabled = route(serde_json::json!({"enabled":false})).await.unwrap();
+    assert_eq!(disabled["approvals_disabled"], true);
+    let enabled = route(serde_json::json!({"enabled":true})).await.unwrap();
+    assert_eq!(enabled["approvals_disabled"], false);
+}
+
+#[test]
 fn defaults_ask_cooldown_expiry_and_restart() {
     let (_root, store) = fixture();
     let at = now();

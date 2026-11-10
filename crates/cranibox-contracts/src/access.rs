@@ -95,6 +95,9 @@ pub fn defaults() -> BTreeMap<Capability, Mode> {
 #[serde(deny_unknown_fields)]
 pub struct AccessPolicy {
     pub peers: BTreeMap<String, BTreeMap<Capability, Mode>>,
+    /// Local owner opt-in: enabled capabilities run without any approval gate.
+    #[serde(default)]
+    pub approvals_disabled: bool,
 }
 impl AccessPolicy {
     pub fn mode(&self, node: &str, capability: Capability) -> Mode {
@@ -520,6 +523,8 @@ pub struct PeerPolicy {
 }
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AccessView {
+    #[serde(default)]
+    pub approvals_disabled: bool,
     pub peers: Vec<PeerPolicy>,
     pub pending: Vec<AccessRequest>,
     pub approvals: Vec<Approval>,

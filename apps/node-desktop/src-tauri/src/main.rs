@@ -176,6 +176,26 @@ fn update_autostart(app: &tauri::AppHandle, enabled: bool) -> anyhow::Result<()>
     }
     Ok(())
 }
+/// Start at login is on by default: turned on once at the first launch, so a
+/// later "off" in Settings is kept.
+fn default_autostart(app: &tauri::AppHandle) -> anyhow::Result<()> {
+    let settings = settings::default_path();
+    let marker = settings
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("autostart-default");
+    if marker.exists() {
+        return Ok(());
+    }
+    if !autostart_enabled(app)? {
+        update_autostart(app, true)?;
+    }
+    if let Some(parent) = marker.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&marker, b"1\n")?;
+    Ok(())
+}
 fn autostart_enabled(app: &tauri::AppHandle) -> anyhow::Result<bool> {
     #[cfg(target_os = "linux")]
     {
@@ -464,6 +484,9 @@ fn main() -> anyhow::Result<()> {
         })
         .setup(move |app| {
             approvals::setup(app.handle())?;
+            if let Err(error) = default_autostart(app.handle()) {
+                eprintln!("start at login: {error:#}");
+            }
             let open = MenuItem::with_id(app, "open", "打开 Cranibox / Open", true, None::<&str>)?;
             let held_item = MenuItem::with_id(
                 app,

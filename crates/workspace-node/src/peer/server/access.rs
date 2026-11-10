@@ -620,6 +620,9 @@ async fn review(
         return None;
     }
     let store = store(app);
+    if store.approvals_disabled().unwrap_or(false) {
+        return None;
+    }
     let settings = store.review_settings();
     if settings.backend == ReviewBackend::Rules {
         return None;

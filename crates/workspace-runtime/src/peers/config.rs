@@ -380,15 +380,17 @@ pub struct ConfigStamp {
     config: FileStamp,
     identity: Option<FileStamp>,
 }
+/// Cheap fingerprint of one file: size, modification time and (on Unix) inode and
+/// change time, so an atomic replacement is noticed even within one mtime tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct FileStamp {
+pub struct FileStamp {
     len: u64,
     modified: SystemTime,
     #[cfg(unix)]
     identity: (u64, u64, i64, i64),
 }
 impl FileStamp {
-    fn read(path: &Path) -> std::io::Result<Self> {
+    pub fn read(path: &Path) -> std::io::Result<Self> {
         let metadata = std::fs::metadata(path)?;
         Ok(Self {
             len: metadata.len(),

@@ -71,6 +71,8 @@ pub(crate) struct Pooled {
     pub used: Instant,
 }
 
+type DialGates = HashMap<(EndpointId, Lane), Arc<Mutex<()>>>;
+
 #[derive(Clone, Copy)]
 struct FailedDial {
     attempts: u8,
@@ -84,6 +86,8 @@ pub struct IrohNode {
     endpoint: Endpoint,
     pub(crate) pool: Arc<Mutex<HashMap<(EndpointId, Lane), Pooled>>>,
     failed: Arc<Mutex<HashMap<(EndpointId, Lane), FailedDial>>>,
+    /// One dial per peer and lane at a time; concurrent callers wait for it.
+    dialing: Arc<std::sync::Mutex<DialGates>>,
     stop: CancellationToken,
     own_relays: Arc<std::sync::RwLock<Vec<RelayUrl>>>,
     n0_fallback: bool,
@@ -159,6 +163,7 @@ impl IrohNode {
             endpoint,
             pool: Arc::default(),
             failed: Arc::default(),
+            dialing: Arc::default(),
             stop: CancellationToken::new(),
             own_relays: Arc::new(std::sync::RwLock::new(own_relays)),
             n0_fallback: options.n0_fallback,
@@ -336,6 +341,16 @@ impl IrohNode {
     /// A pooled connection to `addr` on `lane`.
     pub async fn lane_connection(&self, addr: &EndpointAddr, lane: Lane) -> Result<Connection> {
         let key = (addr.id, lane);
+        // Requests that arrive while a dial is in flight wait for it and then reuse
+        // its connection, instead of being refused by the backoff below.
+        let gate = self
+            .dialing
+            .lock()
+            .expect("dial gates")
+            .entry(key)
+            .or_default()
+            .clone();
+        let _dialing = gate.lock().await;
         let mut pool = self.pool.lock().await;
         if let Some(pooled) = pool.get_mut(&key)
             && pooled.conn.close_reason().is_none()

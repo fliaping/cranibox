@@ -1135,7 +1135,7 @@ async fn monitor(app: App) {
             .filter(|config| config.node_id == app.node);
         computer::prune(&app, grants.as_ref()).await;
         if let Ok(mut sessions) = app.sessions.lock() {
-            sessions.retain(|session| e2e::session_valid(&app, session));
+            sessions.retain(|session| e2e::session_valid(grants.as_ref(), session));
         }
         let jobs = app.jobs.lock().await;
         for job in jobs.values().filter(|job| job.finished.is_none()) {

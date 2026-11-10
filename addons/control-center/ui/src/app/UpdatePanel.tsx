@@ -12,6 +12,15 @@ const failed = (status: UpdateStatus | null) => status?.phase === "failed" || (s
 /** Set while a new version runs but is not yet confirmed healthy; not a blocker to report. */
 const inProgress = (reason: string) => reason.includes("already in progress");
 const confirmed = (data: NodeUpdate, target: string | null) => !!target && data.runtime.version === target && data.runtime.state === "confirmed";
+/** A failed or rolled-back record stops being shown once the device runs another
+ *  confirmed version (for example after a manual installation) or a day has passed. */
+const stale = (data: NodeUpdate, status: UpdateStatus | null) => {
+  if (!status || !(status.phase === "failed" || status.phase === "rolled_back")) return false;
+  const version = data.runtime.version;
+  const moved = data.runtime.state === "confirmed" && !!version && version !== status.from && version !== status.to;
+  const old = !!status.updated_at && Date.now() / 1000 - status.updated_at > 24 * 3600;
+  return moved || old;
+};
 const message = (problem: unknown) => problem instanceof Error ? problem.message : String(problem);
 type Watch = { id: string; target: string | null; phase: UpdatePhase; started: number; full: boolean };
 const isLauncherReason = (reason: string) => /not started by the cranibox launcher|cranibox update launch/i.test(reason);
@@ -53,8 +62,8 @@ function DeviceUpdates({ node }: { node: string }) {
       const value = await api.call<NodeUpdate>("GET", path + (check ? "&check=1" : ""), undefined, { background: !interactive });
       if (!alive.current) return;
       setCapabilityOff(false);
-      setData(value); setStatus(value.status); setTimedOut(false);
-      const last = value.status;
+      const last = stale(value, value.status) ? null : value.status;
+      setData(value); setStatus(last); setTimedOut(false);
       const finished = !!last && (last.phase === "done" || reverted(last)) && confirmed(value, last.to);
       setUpdated(finished);
       // A manual installation can advance beyond the last updater transaction.
