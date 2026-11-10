@@ -37967,7 +37967,9 @@ function cb({ node: e }) {
 			if (!O.current) return;
 			g(!1), i(r), o(r.status), C(!1);
 			let a = r.status, s = !!a && (a.phase === "done" || eb(a)) && rb(r, a.to);
-			x(s), a && !tb(a) && !s && A(a.id, a.to, a.phase, !!a.full);
+			x(s);
+			let c = a?.phase === "done" && r.runtime.state === "confirmed";
+			a && !tb(a) && !s && !c ? A(a.id, a.to, a.phase, !!a.full) : (u(null), v(!1));
 		} catch (e) {
 			if (!O.current) return;
 			let t = e && typeof e == "object" && "code" in e ? String(e.code) : "", r = ib(e);
@@ -38016,6 +38018,11 @@ function cb({ node: e }) {
 							}
 							if (rb(e, a)) {
 								m(""), x(!0), c();
+								return;
+							}
+							let d = u?.from || r?.from;
+							if (s === "done" && e.runtime.state === "confirmed" && e.runtime.version && d && e.runtime.version !== d) {
+								m(""), x(!1), c();
 								return;
 							}
 						} catch (e) {
@@ -38080,7 +38087,7 @@ function cb({ node: e }) {
 		done: n("已完成", "Done"),
 		failed: n("更新失败", "Update failed"),
 		rolled_back: n("已回滚", "Rolled back")
-	}, P = d || !!l || E, F = r?.available?.[s], I = r?.shell, L = !!r?.self && er() && !!I?.can_install, R = !!F && F !== r?.runtime.version, z = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
+	}, P = d || !!l || E, F = r?.available?.[s], I = r?.shell, L = !!r?.self && er() && !!I?.can_install, R = !!F && F !== r?.runtime.version, z = a?.phase === "done" && !!r?.runtime.version && r.runtime.version !== a.to, B = a?.total && a.total > 0 ? Math.max(0, Math.min(100, a.downloaded / a.total * 100)) : void 0;
 	return /* @__PURE__ */ (0, J.jsxs)(As, {
 		label: n("更新", "Updates"),
 		className: "cx-update-panel cx-stack",
@@ -38238,6 +38245,7 @@ function cb({ node: e }) {
 						className: "cx-muted cx-small",
 						children: [
 							" ",
+							z && n("上次更新：", "Previous update: "),
 							a.from || "—",
 							" → ",
 							a.to || a.spec
@@ -38247,7 +38255,7 @@ function cb({ node: e }) {
 						className: "cx-update-progress",
 						"aria-label": n("下载进度", "Download progress"),
 						max: 100,
-						value: z
+						value: B
 					}),
 					a?.warning && /* @__PURE__ */ (0, J.jsx)(Rs, {
 						tone: "warn",

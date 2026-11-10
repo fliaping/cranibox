@@ -57,7 +57,11 @@ function DeviceUpdates({ node }: { node: string }) {
       const last = value.status;
       const finished = !!last && (last.phase === "done" || reverted(last)) && confirmed(value, last.to);
       setUpdated(finished);
-      if (last && !failed(last) && !finished) begin(last.id, last.to, last.phase, !!last.full);
+      // A manual installation can advance beyond the last updater transaction.
+      // A completed record is history once the current runtime is confirmed.
+      const completed = last?.phase === "done" && value.runtime.state === "confirmed";
+      if (last && !failed(last) && !finished && !completed) begin(last.id, last.to, last.phase, !!last.full);
+      else { setWatch(null); setRestarting(false); }
     } catch (problem) {
       if (!alive.current) return;
       const code = problem && typeof problem === "object" && "code" in problem ? String((problem as { code?: unknown }).code) : "";
@@ -108,6 +112,11 @@ function DeviceUpdates({ node }: { node: string }) {
             if (failed(last)) { setError(""); finish(); return; }
           }
           if (confirmed(value, target)) { setError(""); setUpdated(true); finish(); return; }
+          const from = current?.from || last?.from;
+          if (phase === "done" && value.runtime.state === "confirmed" && value.runtime.version && from && value.runtime.version !== from) {
+            // A separate manual installation superseded this completed transaction.
+            setError(""); setUpdated(false); finish(); return;
+          }
         } catch (problem) { pollError = message(problem); }
         if (stopped) return;
         const activating = phase === "activated" || phase === "done" || phase === "rolled_back";
@@ -158,6 +167,7 @@ function DeviceUpdates({ node }: { node: string }) {
   /** On this device, from inside its desktop app: the app is replaced too. */
   const fullHere = !!data?.self && inShell() && !!shell?.can_install;
   const newer = !!version && version !== data?.runtime.version;
+  const previousUpdate = status?.phase === "done" && !!data?.runtime.version && data.runtime.version !== status.to;
   const progress = status?.total && status.total > 0 ? Math.max(0, Math.min(100, status.downloaded / status.total * 100)) : undefined;
   return <Card label={t("更新", "Updates")} className="cx-update-panel cx-stack">
     <div className="cx-card-head"><span className="cx-card-icon"><Download size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("更新", "Updates")}</h3></div></div>
@@ -202,7 +212,7 @@ function DeviceUpdates({ node }: { node: string }) {
       </div>
     </>}
     {(status || watch || updated) && <div className="cx-stack" aria-live="polite">
-      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {status.from || "—"} → {status.to || status.spec}</span>}</div>
+      <div><Pill tone={failed(status) ? "bad" : updated ? "good" : "info"}>{updated ? (reverted(status) ? t("已回滚", "Rolled back") : t("已更新", "Updated")) : reverted(status) ? t("正在回滚", "Rolling back") : phases[status?.phase || "resolving"]}</Pill>{status && <span className="cx-muted cx-small"> {previousUpdate && t("上次更新：", "Previous update: ")}{status.from || "—"} → {status.to || status.spec}</span>}</div>
       {status?.phase === "downloading" && <progress className="cx-update-progress" aria-label={t("下载进度", "Download progress")} max={100} value={progress} />}
       {status?.warning && <Alert tone="warn">{status.warning}</Alert>}
       {failed(status) && <Alert>{status?.phase === "rolled_back" && <p>{t("新版本没有通过健康检查，已自动恢复。", "The new version was not healthy and was restored automatically.")}</p>}{status?.error || (status?.phase === "failed" ? t("更新失败，请重试。", "The update failed. Please try again.") : "")}</Alert>}

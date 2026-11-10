@@ -269,6 +269,45 @@ test('a reopened panel shows a finished rollback as done', async ({ page }) => {
   await expect(panel.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
 });
 
+test('a manual DMG installation supersedes an older completed update without waiting for a restart', async ({ page }) => {
+  const model = await mock(page);
+  model.data.version = model.data.runtime.version = '1.2.2-dev.333';
+  Object.assign(model.data.runtime, { os: 'macos', arch: 'aarch64' });
+  model.data.shell = { version: '1.2.2-dev.333', api: 1, outdated: false, can_install: true, reason: null };
+  model.data.status = { ...update('done'), from: '1.1.1-dev.314.approvals-switch.20261104', to: '1.2.2-dev.330' };
+  await inDesktopApp(page);
+  const panel = await open(page);
+  await expect(panel).toContainText('Previous update: 1.1.1-dev.314.approvals-switch.20261104 → 1.2.2-dev.330');
+  await expect(panel.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Full update' })).toHaveCount(0);
+  await page.clock.runFor(302000);
+  await expect(panel).not.toContainText('Restarting…');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  expect(model.statusReads).toBe(0);
+  expect(model.commands).toEqual([]);
+  await panel.getByRole('button', { name: 'Check for updates' }).click();
+  await expect(panel.getByLabel('Update channel')).toBeEnabled();
+});
+
+test('a completed transaction superseded by a manual install stops active polling', async ({ page }) => {
+  const model = await mock(page);
+  model.data.status = update('activated');
+  const panel = await open(page);
+  await expect(panel).toContainText('Activated');
+  await page.clock.runFor(2000);
+  await expect(panel).toContainText('Restarting…');
+  model.data.status.phase = 'done';
+  model.data.version = model.data.runtime.version = '1.3.0';
+  await page.clock.runFor(2000);
+  await expect(panel).toContainText('Previous update: 1.1.0 → 1.2.0');
+  await expect(panel).not.toContainText('Restarting…');
+  await expect(panel.getByRole('button', { name: 'Check for updates' })).toBeEnabled();
+  const reads = model.statusReads;
+  await page.clock.runFor(302000);
+  expect(model.statusReads).toBe(reads);
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+});
+
 test('an in-progress update outside this panel is explained without a warning', async ({ page }) => {
   const model = await mock(page);
   Object.assign(model.data.runtime, { state: 'pending', can_update: false, reasons: ['an update is already in progress'] });
