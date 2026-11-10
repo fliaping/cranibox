@@ -332,9 +332,12 @@ async fn capability_off(body: BoxBody) -> bool {
         .and_then(|value| {
             value
                 .get("error")
-                .and_then(|error| error.get("code"))
-                .or_else(|| value.get("code"))
-                .and_then(|code| code.as_str())
+                .and_then(|error| {
+                    error
+                        .as_str()
+                        .or_else(|| error.get("code").and_then(|code| code.as_str()))
+                })
+                .or_else(|| value.get("code").and_then(|code| code.as_str()))
                 .map(str::to_owned)
         })
         .is_some_and(|code| code == "capability_off")

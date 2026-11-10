@@ -33,7 +33,7 @@ impl PeerTransport for Transport {
         Ok(http::Response::builder()
             .status(if denied { 403 } else { 200 })
             .body(BoxBody::full(if denied {
-                json!({"error":{"code":denial.unwrap()}}).to_string()
+                json!({"error":denial.unwrap(), "capability":"llm"}).to_string()
             } else {
                 "{\"input_tokens\":9}".to_owned()
             }))
