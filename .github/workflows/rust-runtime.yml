@@ -285,6 +285,9 @@ jobs:
         with:
           name: ${{ matrix.cli_artifact }}
           path: ${{ runner.temp }}/cli
+      - name: Restore CLI executable bit
+        if: runner.os != 'Windows'
+        run: chmod u+x "$RUNNER_TEMP"/cli/cranibox-*
       # The shipped program on each platform: adopt, update through npm, roll back,
       # and default management for a plain start (with a loopback registry).
       - name: Self-update with the real program
