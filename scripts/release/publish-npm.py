@@ -75,6 +75,18 @@ def publish(directory, dry_run=False, dist_tag=None, mode="direct"):
             stage_summary(outcomes, dry_run, package_name, completed)
 
 
+def check_packed(package, packed):
+    """Every prepared file must be in the archive: a `files` list in package.json that
+    leaves one out would publish an incomplete package (e.g. a desktop package without
+    its app)."""
+    prepared = {path.relative_to(package).as_posix() for path in package.rglob("*")
+                if path.is_file() and path.name != ".DS_Store"}  # npm always drops Finder files
+    missing = sorted(prepared - {file["path"] for file in packed["files"]})
+    if missing:
+        shown = ", ".join(missing[:5]) + (", ..." if len(missing) > 5 else "")
+        raise ValueError(f"{package.name}: npm pack left out {len(missing)} prepared files: {shown}.")
+
+
 def publish_packages(directory, plan, dry_run, dist_tag, mode, outcomes):
     npm = NPM
     for entry in plan:
@@ -89,6 +101,7 @@ def publish_packages(directory, plan, dry_run, dist_tag, mode, outcomes):
         packed = json.loads(result.stdout)
         if isinstance(packed, dict):  # npm 12 keys the result by package name
             packed = list(packed.values())
+        check_packed(package, packed[0])
         archive = directory / packed[0]["filename"]
         with archive.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha512").digest()

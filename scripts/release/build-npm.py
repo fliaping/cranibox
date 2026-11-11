@@ -105,8 +105,9 @@ def build(assets, output, tag=None, package_name="@fliaping/cranibox", root=ROOT
     for target, (filename, os_name, cpu) in PLATFORMS.items() if apps is not None else ():
         manifest = {key: value for key, value in template.items()
                     if key not in ("bin", "optionalDependencies", "craniboxPlatforms", "engines")}
+        # The command line template ships only bin/; this package ships the app instead.
         manifest.update(name=f"{package_name}-desktop-{target}", description=f"Cranibox desktop app for {target}",
-                        os=[os_name], cpu=[cpu])
+                        os=[os_name], cpu=[cpu], files=["app/", "LICENSE", "licenses/"])
         if os_name == "linux":
             manifest["libc"] = ["glibc"]
         directory = output / f"desktop-{target}"
