@@ -2,19 +2,38 @@
   "nodes": [
     {
       "id": "node-1f2e3d4c5b6a79880716253443526170",
-      "name": "MacBook Pro"
+      "name": "MacBook Pro",
+      "relation": "peer"
     },
     {
       "id": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
-      "name": "Home server"
+      "name": "Home server",
+      "relation": "peer"
     },
     {
       "id": "node-2c3d4e5f60718293a4b5c6d7e8f90a1b",
-      "name": "Studio"
+      "name": "Studio",
+      "relation": "peer"
     },
     {
       "id": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
-      "name": "Alex's laptop"
+      "name": "Alex's laptop",
+      "relation": "guest"
+    },
+    {
+      "id": "node-4e5f60718293a4b5c6d7e8f90a1b2c3d",
+      "name": "Build worker",
+      "relation": "controlled"
+    },
+    {
+      "id": "node-5f60718293a4b5c6d7e8f90a1b2c3d4e",
+      "name": "Lin's NAS",
+      "relation": "host"
+    },
+    {
+      "id": "node-60718293a4b5c6d7e8f90a1b2c3d4e5f",
+      "name": "CI runner",
+      "relation": "controlled"
     }
   ],
   "paths": [
@@ -62,6 +81,55 @@
       "via": "easytier",
       "rtt_ms": null,
       "at": 1799999985000
+    },
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-4e5f60718293a4b5c6d7e8f90a1b2c3d",
+      "kind": "direct",
+      "scope": "lan",
+      "via": "private",
+      "rtt_ms": 4,
+      "at": 1799999990000
+    },
+    {
+      "from": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "to": "node-60718293a4b5c6d7e8f90a1b2c3d4e5f",
+      "kind": "direct",
+      "scope": "lan",
+      "via": "private",
+      "rtt_ms": 2,
+      "at": 1799999960000
+    },
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-5f60718293a4b5c6d7e8f90a1b2c3d4e",
+      "kind": "relay",
+      "scope": "relay",
+      "via": "relay.n0.iroh.network",
+      "rtt_ms": 61,
+      "at": 1799999975000
+    }
+  ],
+  "uses": [
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-4e5f60718293a4b5c6d7e8f90a1b2c3d",
+      "kind": "control"
+    },
+    {
+      "from": "node-0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+      "to": "node-60718293a4b5c6d7e8f90a1b2c3d4e5f",
+      "kind": "control"
+    },
+    {
+      "from": "node-3d4e5f60718293a4b5c6d7e8f90a1b2c",
+      "to": "node-1f2e3d4c5b6a79880716253443526170",
+      "kind": "guest"
+    },
+    {
+      "from": "node-1f2e3d4c5b6a79880716253443526170",
+      "to": "node-5f60718293a4b5c6d7e8f90a1b2c3d4e",
+      "kind": "shared"
     }
   ]
 }

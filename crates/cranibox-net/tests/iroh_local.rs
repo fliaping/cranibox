@@ -533,6 +533,30 @@ async fn link_pairing_is_one_time_shows_the_same_code_and_commits_only_on_match(
     assert!(a_out.received.is_none());
     assert!(b_out.issued.is_none());
 
+    // A worker is the other way round: only the joiner issues, so the inviter controls
+    // it and the worker gets nothing on the inviter.
+    let worker = pairing_a.invite(PairPurpose::Worker, None).unwrap();
+    let worker_b = pairing_b.accept(&worker.link).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let worker_a = pairing_a
+        .flows()
+        .into_iter()
+        .find(|f| f.state == FlowState::Comparing)
+        .unwrap();
+    let (a, b) = tokio::join!(
+        pairing_a.confirm(&worker_a.flow_id, true),
+        pairing_b.confirm(&worker_b.flow_id, true)
+    );
+    assert_eq!(a.unwrap(), FlowState::Paired);
+    assert_eq!(b.unwrap(), FlowState::Paired);
+    let a_out = inviter_host.applied.lock().unwrap().pop().unwrap();
+    let b_out = joiner_host.applied.lock().unwrap().pop().unwrap();
+    assert!(b_out.issued.is_some());
+    assert_eq!(b_out.issued, a_out.received);
+    assert!(a_out.issued.is_none());
+    assert!(b_out.received.is_none());
+    assert_eq!(a_out.purpose, PairPurpose::Worker);
+
     // A forged secret is refused; an expired ticket never dials.
     let mut forged = second.ticket.clone();
     forged.secret = [0; 16];
@@ -617,4 +641,112 @@ async fn cancelled_offline_dials_are_throttled_and_unpairing_clears_backoff() {
             .is_err()
     );
     local.close().await;
+}
+
+/// A reaches B through C: the forward's streams are spliced by C, which refuses
+/// requesters and targets its policy does not allow; a refused hop falls back to the
+/// direct dial.
+#[tokio::test(flavor = "multi_thread")]
+async fn forwards_hop_through_another_device_only_where_allowed() {
+    use cranibox_net::{forward::Forward, hop};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let relay_allow = Allowlist::default();
+    let (relay_url, _relay) = start_relay(relay_allow.clone()).await;
+    let ids: Vec<EndpointId> = [21u8, 22, 23]
+        .iter()
+        .map(|seed| iroh::SecretKey::from_bytes(&[*seed; 32]).public())
+        .collect();
+    relay_allow.set(ids.clone());
+    let (a, b, c) = (
+        node(21, &relay_url).await,
+        node(22, &relay_url).await,
+        node(23, &relay_url).await,
+    );
+    // B: forwarded streams go to a TCP echo service.
+    let echo = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_addr = echo.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut tcp, _)) = echo.accept().await {
+            tokio::spawn(async move {
+                let (mut read, mut write) = tcp.split();
+                let _ = tokio::io::copy(&mut read, &mut write).await;
+            });
+        }
+    });
+    serve(
+        &b,
+        Allowlist::new([a.id(), c.id()]),
+        MeshTarget::Tcp(echo_addr),
+        None,
+    );
+    // C: forwards A (and only A) to B (and only B).
+    let b_addr = addr::endpoint_addr(&b.addr()).unwrap();
+    let (a_id, b_id) = (a.id(), b.id());
+    let allowed = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let gate = allowed.clone();
+    let policy: hop::Policy = Arc::new(move |requester: &EndpointId, target: &EndpointId| {
+        (gate.load(std::sync::atomic::Ordering::SeqCst) && *requester == a_id && *target == b_id)
+            .then(|| b_addr.clone())
+    });
+    let c_allow = Allowlist::new([a.id()]);
+    let c_node = c.clone();
+    let c_endpoint = c.endpoint().clone();
+    let slots = Arc::new(tokio::sync::Semaphore::new(8));
+    tokio::spawn(async move {
+        while let Some(incoming) = c_endpoint.accept().await {
+            let (allow, node, policy, slots) = (
+                c_allow.clone(),
+                c_node.clone(),
+                policy.clone(),
+                slots.clone(),
+            );
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                if conn.alpn() == cranibox_net::ALPN_PEER_HOP {
+                    let _ = hop::serve_connection(
+                        conn,
+                        &allow,
+                        node,
+                        policy,
+                        slots,
+                        CancellationToken::new(),
+                    )
+                    .await;
+                }
+            });
+        }
+    });
+
+    let c_addr = addr::endpoint_addr(&c.addr()).unwrap();
+    let forward = Forward::bind(a.clone(), 0, addr::endpoint_addr(&b.addr()).unwrap())
+        .await
+        .unwrap();
+    forward.set_via(Some(c_addr.clone()));
+    assert_eq!(forward.via(), Some(c_addr.clone()));
+    let roundtrip = |message: &'static [u8]| {
+        let address = forward.address;
+        async move {
+            let mut tcp = tokio::net::TcpStream::connect(address).await.unwrap();
+            tcp.write_all(message).await.unwrap();
+            let mut answer = vec![0; message.len()];
+            tokio::time::timeout(Duration::from_secs(30), tcp.read_exact(&mut answer))
+                .await
+                .unwrap()
+                .unwrap();
+            answer
+        }
+    };
+    assert_eq!(roundtrip(b"through C").await, b"through C");
+    assert!(
+        c.pool_path(&b.id()).await.is_some(),
+        "C dialed B to forward the stream"
+    );
+
+    // Refused by C's policy: the stream still arrives, directly.
+    allowed.store(false, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(roundtrip(b"directly").await, b"directly");
+
+    // A raw hop request for a target C does not allow is answered with a refusal.
+    let error = hop::open(&a, &c_addr, b.id()).await.unwrap_err();
+    assert!(format!("{error:#}").contains("refused"), "{error:#}");
 }

@@ -112,6 +112,36 @@ pub struct DeviceCaps {
     pub vault: bool,
 }
 
+/// How a paired device relates to this one, as remembered from the pairing.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Relation {
+    /// The owner's own device (same identity), or a mutual pairing: both may use each other.
+    #[default]
+    Peer,
+    /// This device controls it (worker, virtual space); it cannot use this device.
+    Controlled,
+    /// It controls this device; this device cannot use it.
+    Controller,
+    /// Someone else's device that may use this one; this device cannot use it.
+    Guest,
+    /// Someone else's device shared with this one; it cannot use this device.
+    Host,
+}
+impl Relation {
+    /// The relation as the other side of a pairing sees it.
+    pub fn from_pairing(purpose: crate::net::PairPurpose, inviter: bool) -> Self {
+        use crate::net::PairPurpose::*;
+        match (purpose, inviter) {
+            (OwnerDevice, _) => Self::Peer,
+            (Guest, true) => Self::Guest,
+            (Guest, false) => Self::Host,
+            (Worker, true) => Self::Controlled,
+            (Worker, false) => Self::Controller,
+        }
+    }
+}
+
 /// One entry of `GET /api/v1/app/devices`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Device {
@@ -121,8 +151,16 @@ pub struct Device {
     pub online: bool,
     pub path: PathKind,
     pub rtt_ms: Option<u32>,
+    /// `device:<node>` while reached through another of the owner's devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
     pub badges: Vec<Badge>,
+    /// Uses this device but cannot be used from it (a guest or a controller). Kept for
+    /// older clients; [`Device::relation`] says which.
     pub guest: bool,
+    /// How this device and the other relate. Arrows read "may use".
+    #[serde(default)]
+    pub relation: Relation,
     /// A member of this device's identity: shares model subscriptions and sees the
     /// same devices. A paired device that is not can be invited to join.
     #[serde(default)]
@@ -162,6 +200,9 @@ pub struct PairAccepted {
     pub flow_id: String,
     /// Pairing code shown on both devices, e.g. `1234-5678-9012`.
     pub sas: String,
+    /// The relationship the inviter offered, so the joiner sees what it agrees to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purpose: Option<crate::net::PairPurpose>,
 }
 /// `POST /api/v1/app/pair/{flow}/confirm`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

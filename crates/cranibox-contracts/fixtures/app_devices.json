@@ -10,6 +10,7 @@
       "this"
     ],
     "guest": false,
+    "relation": "peer",
     "caps": {
       "exec": true,
       "terminals": true,
@@ -36,6 +37,7 @@
       "hub"
     ],
     "guest": false,
+    "relation": "peer",
     "caps": {
       "exec": true,
       "terminals": true,
@@ -62,6 +64,7 @@
       "claude"
     ],
     "guest": false,
+    "relation": "peer",
     "caps": {
       "exec": true,
       "terminals": true,
@@ -86,8 +89,59 @@
     "rtt_ms": 3,
     "badges": [],
     "guest": true,
+    "relation": "guest",
     "caps": {
       "exec": false,
+      "terminals": false,
+      "projects": false,
+      "desktop": false,
+      "computer": false,
+      "browser": false,
+      "messages": true,
+      "activity": false,
+      "spaces": false,
+      "llm": false,
+      "vault": false
+    },
+    "same_identity": false
+  },
+  {
+    "node_id": "node-4e5f60718293a4b5c6d7e8f90a1b2c3d",
+    "name": "Build worker",
+    "kind": "server",
+    "online": true,
+    "path": "direct",
+    "rtt_ms": 4,
+    "badges": [],
+    "guest": false,
+    "relation": "controlled",
+    "caps": {
+      "exec": true,
+      "terminals": true,
+      "projects": true,
+      "desktop": false,
+      "computer": false,
+      "browser": false,
+      "messages": true,
+      "activity": false,
+      "spaces": false,
+      "llm": false,
+      "vault": false
+    },
+    "same_identity": false
+  },
+  {
+    "node_id": "node-5f60718293a4b5c6d7e8f90a1b2c3d4e",
+    "name": "Lin's NAS",
+    "kind": "server",
+    "online": true,
+    "path": "relay",
+    "rtt_ms": 61,
+    "badges": [],
+    "guest": false,
+    "relation": "host",
+    "caps": {
+      "exec": true,
       "terminals": false,
       "projects": false,
       "desktop": false,

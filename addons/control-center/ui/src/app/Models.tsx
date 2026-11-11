@@ -1,8 +1,9 @@
 import { Bot, MessagesSquare, Plus, Sparkles } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { agentNames, type SignIn } from "../personal/api";
+import { relationOf } from "./relations";
 import { useApp } from "./store";
-import { Card, Empty, formatDeviceLabel, Pill, Section, Sheet } from "./ui";
+import { Card, Empty, formatDeviceLabel, isThis, Pill, Section, Sheet } from "./ui";
 
 const agentStyle: Record<string, { code: string; bg: string; fg: string }> = {
   "deepseek-harness": { code: "DS", bg: "rgba(37, 99, 235, 0.12)", fg: "#2563eb" },
@@ -33,7 +34,7 @@ export function Models({ chatUrl, adding, setAdding }: { chatUrl: string; adding
   const { t, accounts, devices, thisDevice, agents, busy, run, api } = useApp();
   const [chat, setChat] = useState(false), [preset, setPreset] = useState<string | null>(null);
   const dsh = agents.find(agent => agent.id === "deepseek-harness");
-  const mine = devices.filter(device => !device.guest);
+  const mine = devices.filter(device => isThis(device) || relationOf(device) === "peer");
   const enable = (account: string, body: object) => run(() => api.call("POST", "/models/accounts/" + account + "/enable", body));
   return <>
     {dsh?.installed && <Section title={t("对话", "Conversation")} description={t("DeepSeek Harness 是默认 Agent，可以调用你所有设备上的能力。", "DeepSeek Harness is the default agent. It can use capabilities on all your devices.")}

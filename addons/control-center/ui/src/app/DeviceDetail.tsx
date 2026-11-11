@@ -11,6 +11,7 @@ import type { ProjectClient } from "../projects/ProjectsView";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { request, useWorkspace } from "../workspace";
 import { deviceCaps, devicePath } from "./Home";
+import { relationLabel, relationOf, relationSentence, relationTones } from "./relations";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
 import { UpdatePanel } from "./UpdatePanel";
@@ -20,7 +21,7 @@ const tabs = ["overview", "terminal", "desktop", "browser", "projects", "access"
 type Tab = (typeof tabs)[number];
 
 export function DeviceDetail() {
-  const { t, devices, loading } = useApp();
+  const { t, devices, loading, deviceName } = useApp();
   const params = useParams();
   const id = decodeURIComponent(params.id || ""), tab = (params.tab || "overview") as Tab;
   const device = devices.find(item => item.node_id === id);
@@ -34,9 +35,9 @@ export function DeviceDetail() {
       <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={26} /></span>
       <div className="cx-grow">
         {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
-        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t)}</> : t("离线", "Offline")}</div>
+        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : t("离线", "Offline")}</div>
       </div>
-      <div className="cx-actions">{local && <Pill tone="accent">{t("本机", "This device")}</Pill>}{device.guest && <Pill tone="info">{t("访客", "Guest")}</Pill>}</div>
+      <div className="cx-actions">{local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relationOf(device) !== "peer" && <Pill tone={relationTones[relationOf(device)]}>{relationLabel(relationOf(device), t)}</Pill>}</div>
     </div>
     <Tabs label={t("设备分区", "Device sections")} items={tabs.map(item => ({ to: devicePath(device, item === "overview" ? "" : item), label: labels[item] }))} />
     {tab === "overview" && <Overview device={device} />}
@@ -80,7 +81,7 @@ function Overview({ device }: { device: Device }) {
       <dl className="cx-facts">
         <div><dt>{t("系统版本", "OS")}</dt><dd>{device.os_version || "—"}</dd></div>
         <div><dt>{t("机型", "Model")}</dt><dd>{device.model || "—"}</dd></div>
-        <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : device.guest ? t("访客设备", "Guest device") : t("你的设备", "Your device")}</dd></div>
+        <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : relationOf(device) === "peer" ? t("你的设备", "Your device") : relationSentence(relationOf(device), device.name, t, relationOf(device) === "controlled" || relationOf(device) === "host" ? [t("这台设备", "This device")] : [])}</dd></div>
         <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{(() => { const s = shortNodeId(device.node_id); return <><span className="cx-id-pill">{s.display}</span>{s.full && <span className="cx-sr"> {s.full}</span>}</>; })()}</dd></div>
       </dl>
     </Card>
@@ -99,7 +100,7 @@ function Overview({ device }: { device: Device }) {
         </section>;
       })}
     </div>
-    {!local && !device.guest && device.same_identity === false && <OtherIdentity />}
+    {!local && relationOf(device) === "peer" && device.same_identity === false && <OtherIdentity />}
     {!local && <UpdatePanel node={device.node_id} />}
     {!local && <RemoveDevice device={device} />}
   </div>;
@@ -126,14 +127,15 @@ function RemoveDevice({ device }: { device: Device }) {
   });
   return <Card label={t("移除设备", "Remove device")} className="cx-detail-remove">
     <div className="cx-card-head"><span className="cx-card-icon muted"><Trash2 size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("移除设备", "Remove device")}</h3>
-      <p className="cx-muted cx-small">{device.guest ? t("撤销这台访客设备的全部访问，并从列表中删除。之后需要重新配对。", "Revoke every permission of this guest device and remove it from the list. It must pair again to come back.")
+      <p className="cx-muted cx-small">{relationOf(device) === "guest" ? t("撤销这台访客设备的全部访问，并从列表中删除。之后需要重新配对。", "Revoke every permission of this guest device and remove it from the list. It must pair again to come back.")
+        : relationOf(device) !== "peer" ? t("撤销两台设备之间的全部访问，并从列表中删除。之后需要重新配对。", "Revoke all access between the two devices and remove it from the list. It must pair again to come back.")
         : t("把它移出你的身份：其他设备不再信任它，它也会停止同步。适合不再使用、重装过或重复出现的设备。", "Take it out of your identity: your other devices stop trusting it and it stops syncing. Use this for a device you no longer use, reinstalled, or that shows up twice.")}</p></div></div>
     {!confirming ? <div className="cx-actions"><button className="cx-btn danger" disabled={busy} onClick={() => setConfirming(true)}>{t("移除…", "Remove…")}</button></div>
       : <div className="cx-stack" style={{ marginTop: 8 }}>
-        {!device.guest && <Alert tone="warn">{t("设备丢失或被盗时，请改到「身份与安全」用恢复码移除。普通移除不会更换身份密钥，被盗设备仍持有旧密钥，可能重新加入。", "If the device was lost or stolen, remove it with your recovery code under Identity & security instead. A plain removal keeps the identity key, which a stolen device still holds and could use to rejoin.")}</Alert>}
+        {relationOf(device) === "peer" && <Alert tone="warn">{t("设备丢失或被盗时，请改到「身份与安全」用恢复码移除。普通移除不会更换身份密钥，被盗设备仍持有旧密钥，可能重新加入。", "If the device was lost or stolen, remove it with your recovery code under Identity & security instead. A plain removal keeps the identity key, which a stolen device still holds and could use to rejoin.")}</Alert>}
         <div className="cx-actions">
           <button className="cx-btn" onClick={() => setConfirming(false)}>{t("取消", "Cancel")}</button>
-          {!device.guest && <Link className="cx-btn" to="/app/identity">{t("用恢复码移除", "Remove with recovery code")}</Link>}
+          {relationOf(device) === "peer" && <Link className="cx-btn" to="/app/identity">{t("用恢复码移除", "Remove with recovery code")}</Link>}
           <button className="cx-btn danger" disabled={busy} onClick={remove}>{t("确认移除 ", "Remove ") + device.name}</button>
         </div>
       </div>}

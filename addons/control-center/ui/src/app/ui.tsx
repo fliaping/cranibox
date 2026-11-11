@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
-import type { Approval, Device, Invite, Pill as StatusData } from "../personal/api";
+import type { Approval, Device, Invite, PairPurpose, Pill as StatusData } from "../personal/api";
+import { Direction, hopName, purposeInfo } from "./relations";
 
 export type Translate = (zh: string, en: string) => string;
 
@@ -118,10 +119,11 @@ export function DeviceIcon({ kind, size = 22 }: { kind: string; size?: number })
 }
 export function isThis(device: Device) { return device.badges.includes("this"); }
 /** One sentence about how this browser reaches the device. Never names a central server. */
-export function pathLabel(device: Device, t: Translate) {
+export function pathLabel(device: Device, t: Translate, deviceName?: (node: string) => string) {
   if (isThis(device)) return t("本机", "This device");
   if (!device.online) return t("离线", "Offline");
-  const path = device.path === "direct" ? t("直连", "Direct") : device.path === "relay" ? t("中继", "Relayed") : t("已连接", "Connected");
+  const through = deviceName && hopName(device.via, deviceName);
+  const path = through ? t("经 " + through, "Via " + through) : device.path === "direct" ? t("直连", "Direct") : device.path === "relay" ? t("中继", "Relayed") : t("已连接", "Connected");
   return path + (device.rtt_ms !== null && device.rtt_ms !== undefined ? " · " + device.rtt_ms + " ms" : "");
 }
 export function StatusButton({ status, t, onClick }: { status: StatusData | null; t: Translate; onClick: () => void }) {
@@ -157,6 +159,7 @@ export function QrPanel({ invite, t }: { invite: Invite; t: Translate }) {
     <small className="cx-muted">{t("15 分钟内有效，仅可使用一次。", "Valid for 15 minutes. Can be used once.")}</small>
   </div>;
 }
+const isPurpose = (value: string | undefined): value is PairPurpose => value === "owner_device" || value === "guest" || value === "worker";
 export function approvalTitle(card: Approval, t: Translate) {
   return ({
     pairing: t("核对新设备", "Verify a new device"),
@@ -176,7 +179,13 @@ export function ApprovalCard({ card, t, busy, deviceName, onDecide }: { card: Ap
       <div className="cx-grow"><h3>{approvalTitle(card, t)}</h3><small className="cx-muted">{source}</small></div>
       <Pill tone={card.risk === "high" ? "warn" : ""}>{card.risk === "high" ? t("高风险", "High risk") : t("待确认", "Pending")}</Pill>
     </div>
-    {Object.entries(card.title_args).map(([key, value]) => <p className="cx-untrusted" key={key}>{key === "command" ? <code>{value}</code> : key === "code" ? <strong>{value}</strong> : value}</p>)}
+    {Object.entries(card.title_args).filter(([key]) => !(card.kind === "pairing" && key === "purpose")).map(([key, value]) => <p className="cx-untrusted" key={key}>{key === "command" ? <code>{value}</code> : key === "code" ? <strong>{value}</strong> : value}</p>)}
+    {card.kind === "pairing" && isPurpose(card.title_args.purpose) && (() => {
+      const info = purposeInfo(card.title_args.purpose, t);
+      return <section className={"cx-pair-meaning " + card.title_args.purpose} aria-label={t("配对后的关系", "After pairing")}>
+        <strong>{t("作为", "As ") + info.title}</strong><Direction from={info.from} to={info.to} both={info.both} /><p>{info.text}</p>
+      </section>;
+    })()}
     {card.detail && <p className="cx-untrusted">{card.detail}</p>}
     <div className="cx-between">
       <small className="cx-muted">{expired ? t("已过期，默认拒绝", "Expired. Denied by default.") : t("仅在你同意后继续。", "Continues only with your permission.")}</small>

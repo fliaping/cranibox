@@ -45,6 +45,7 @@
         "claude"
       ],
       "guest": false,
+      "relation": "peer",
       "caps": {
         "exec": true,
         "terminals": true,

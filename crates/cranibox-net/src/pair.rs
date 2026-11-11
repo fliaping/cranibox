@@ -609,7 +609,7 @@ impl Pending {
             return Ok(false);
         }
         // Phase 2: exchange credentials, then persist atomically.
-        let issues = self.side == Side::Inviter || self.purpose == PairPurpose::OwnerDevice;
+        let issues = self.purpose.issues(self.side == Side::Inviter);
         let issued = issues.then(credential);
         write_frame(
             send,
@@ -633,7 +633,7 @@ impl Pending {
         })
         .await
         .context("the other device did not finish pairing")??;
-        let expects = self.side == Side::Joiner || self.purpose == PairPurpose::OwnerDevice;
+        let expects = self.purpose.issues(self.side == Side::Joiner);
         ensure!(
             received.is_some() == expects
                 && received

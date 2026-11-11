@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
+import { hopName } from "./relations";
 import { useApp } from "./store";
 import { Alert, formatDeviceLabel } from "./ui";
 
 type Scope = "lan" | "internet" | "relay" | "overlay";
 type Measurement = { from: string; to: string; kind: string; scope?: Scope | null; via?: string | null; rtt_ms: number | null; at: number };
-type Paths = { nodes: { id: string; name: string }[]; paths: Measurement[] };
+type Paths = { nodes: { id: string; name: string; relation?: string }[]; paths: Measurement[] };
 const glyphs = { lan: "⌂", internet: "↗", relay: "⇄", overlay: "◇", unknown: "?" };
 const band = (ms: number | null | undefined) => ms == null ? "unknown" : ms < 30 ? "fast" : ms < 100 ? "good" : ms < 250 ? "slow" : "high";
 
 export function NetworkPaths() {
-  const { api, devices, t } = useApp();
+  const { api, devices, t, deviceName } = useApp();
   const [data, setData] = useState<Paths | null>(null), [error, setError] = useState(""), [now, setNow] = useState(Date.now);
   useEffect(() => {
     let active = true, pending = false;
@@ -41,7 +42,8 @@ export function NetworkPaths() {
     const minutes = Math.floor(ageMs / 60_000), hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
     const age = !path ? t("尚未测量", "Not measured") : days ? t(days + " 天前", days + " d ago") : hours ? t(hours + " 小时前", hours + " h ago") : minutes ? t(minutes + " 分钟前", minutes + " min ago") : t("刚刚", "Just now");
     const latency = path?.rtt_ms == null ? t("延迟未知", "Unknown latency") : path.rtt_ms + " ms";
-    const route = labels[scope] + (path?.via ? " " + path.via : "");
+    const through = hopName(path?.via, deviceName);
+    const route = through ? t("经 " + through + " 转发", "Through " + through) : labels[scope] + (path?.via ? " " + path.via : "");
     const stale = !!path && ageMs > 600_000;
     const details = [route, latency, age, ...(stale ? [t("已过期", "Stale")] : [])].join(" · ");
     const title = from.name + " → " + to.name + " · " + details;

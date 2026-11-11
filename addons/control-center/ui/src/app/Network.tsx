@@ -36,6 +36,26 @@ export function IdentityCard({ compact = false }: { compact?: boolean }) {
     </> : <p className="cx-muted cx-small" role={error ? undefined : "status"}>{error || t("正在读取身份…", "Loading identity…")}</p>}
   </Card>;
 }
+type Routing = { use_devices: boolean; forward_for_devices: boolean };
+/** Your devices as routers: go through another own device when that is clearly faster than the relay. */
+function DeviceRouting() {
+  const { api, t } = useApp();
+  const [routing, setRouting] = useState<Routing | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  useEffect(() => { void api.call<Routing>("GET", "/network/routing").then(setRouting, problem => setError(problem instanceof Error ? problem.message : String(problem))); }, [api]);
+  async function save(change: Partial<Routing>) {
+    setBusy(true); setError("");
+    try { setRouting(await api.call<Routing>("PUT", "/network/routing", change)); } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
+  }
+  return <section className="cx-settings-group" aria-label={t("经设备转发", "Routing through devices")}>
+    <h2>{t("经设备转发", "Routing through devices")}</h2>
+    <p className="cx-muted cx-small">{t("某台设备只能经中继绕远路、而你的另一台设备能直连它时，改走那台设备，通常更快。只在你自己的设备之间转发；转发的设备只看到加密数据。直连恢复后自动切回。", "When a device is reachable only through a distant relay but another of your devices reaches it directly, go through that device instead; it is usually faster. Only your own devices forward, and they see only encrypted data. Switches back once a direct path returns.")}</p>
+    {error && <Alert>{error}</Alert>}
+    {routing && <>
+      <Switch label={t("经我的其他设备转发（更快时）", "Go through my other devices when faster")} detail={t("仅在明显快于中继时使用。", "Used only when clearly faster than the relay.")} checked={routing.use_devices} disabled={busy} onChange={use_devices => void save({ use_devices })} />
+      <Switch label={t("允许我的其他设备经这台设备转发", "Let my other devices go through this one")} detail={t("会占用这台设备的一些带宽。", "Uses some of this device's bandwidth.")} checked={routing.forward_for_devices} disabled={busy} onChange={forward_for_devices => void save({ forward_for_devices })} />
+    </>}
+  </section>;
+}
 type IrohStatus = { lan: boolean; relays: string[]; n0_fallback: boolean; learned_relays: string[]; this_relay: { enabled: boolean; public_url: string | null } };
 /** One labelled row of a settings group: what it is on the left, its state or control on the right. */
 function Row({ title, detail, children }: { title: string; detail?: ReactNode; children?: ReactNode }) {
@@ -83,6 +103,7 @@ export function NetworkPage() {
       {status && <Switch label={t("局域网发现", "Local network discovery")} detail={t("在同一局域网内直接找到已配对的设备，不经互联网。", "Find paired devices on the same local network without going through the internet.")} checked={status.lan} disabled={busy} onChange={lan => void save({ lan })} />}
     </section>
     <NetworkPaths />
+    <DeviceRouting />
     {status && <section className="cx-settings-group" aria-label={t("中继", "Relays")}>
       <h2>{t("中继", "Relays")}</h2>
       <Row title={t("使用的中继", "Relays in use")} detail={inUse.length ? <span className="cx-mono">{inUse.join(" · ")}</span> : t("没有自己的中继，使用公共中继。", "No relay of your own; public relays are used.")}>

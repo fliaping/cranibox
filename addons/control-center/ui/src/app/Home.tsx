@@ -1,7 +1,9 @@
 import { Bell, ChevronRight, Globe, Lock, Monitor, Network, Plus, Sparkles, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { Device } from "../personal/api";
+import type { Device, Relation } from "../personal/api";
+import { DeviceGraph } from "./DeviceGraph";
+import { relationLabel, relationOf, relationTones } from "./relations";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { useApp } from "./store";
 import { approvalTitle, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, formatDeviceLabel, isThis, pathLabel, Pill, Section } from "./ui";
@@ -12,7 +14,8 @@ export function devicePath(device: Device, tab = "") {
   return "/app/device/" + encodeURIComponent(device.node_id) + (tab ? "/" + tab : "");
 }
 export function DeviceCard({ device }: { device: Device }) {
-  const { t } = useApp();
+  const { t, deviceName } = useApp();
+  const relation = relationOf(device);
   const navigate = useNavigate(), { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
   const local = isThis(device), reachable = local || device.online;
   const info = formatDeviceLabel(device.name, device.node_id, t);
@@ -21,9 +24,9 @@ export function DeviceCard({ device }: { device: Device }) {
       <span className="cx-card-icon"><DeviceIcon kind={device.kind} /></span>
       <div className="cx-grow">
         <Link className="cx-device-name" to={devicePath(device)}><h3>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h3>{info.shortId && <span className="cx-id-pill">{info.shortId}</span>}</Link>
-        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t)}</> : t("离线", "Offline")}</div>
+        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : t("离线", "Offline")}</div>
       </div>
-      {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : device.guest ? <Pill tone="info">{t("访客", "Guest")}</Pill> : null}
+      {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relation !== "peer" ? <Pill tone={relationTones[relation]}>{relationLabel(relation, t)}</Pill> : null}
     </div>
     <div className="cx-cap-badges" aria-label={t("能力", "Capabilities")}>
       {deviceCaps.map(cap => { const Icon = capabilityIcons[cap]; const on = device.caps[cap] !== false; return <span key={cap} className={"cx-cap " + (on ? "on" : "off")} title={on ? undefined : t("未授权", "Not allowed")}><Icon aria-hidden="true" />{capabilityName(cap, t)}</span>; })}
@@ -39,8 +42,15 @@ export function DeviceCard({ device }: { device: Device }) {
 /** Every paired device as a card: status, path, capabilities and quick actions. */
 export function Devices() {
   const { t, devices, setPairing } = useApp();
-  const mine = devices.filter(device => !device.guest).sort((a, b) => Number(isThis(b)) - Number(isThis(a)) || Number(b.online) - Number(a.online));
-  const guests = devices.filter(device => device.guest);
+  const order = (a: Device, b: Device) => Number(isThis(b)) - Number(isThis(a)) || Number(b.online) - Number(a.online);
+  const of = (relation: Relation) => devices.filter(device => (isThis(device) ? "peer" : relationOf(device)) === relation).sort(order);
+  const mine = of("peer");
+  const groups: [Relation, string, string][] = [
+    ["controlled", t("受控设备", "Controlled devices"), t("你可以在这些设备上执行任务；它们不能访问你的设备。", "You can run tasks on these devices. They cannot reach yours.")],
+    ["host", t("共享给我的设备", "Shared with me"), t("别人允许你使用的设备；它们不能访问你的设备。", "Devices others let you use. They cannot reach yours.")],
+    ["guest", t("访客设备", "Guest devices"), t("访客只能使用你逐项允许的功能。", "Guests can use only what you allow, one capability at a time.")],
+    ["controller", t("控制这台设备的设备", "Devices that control this one"), t("它们可以在这台设备上执行任务；这台设备不能访问它们。", "They can run tasks on this device. This device cannot reach them.")],
+  ];
   const online = devices.filter(device => !isThis(device) && device.online);
   return <>
     <div className="cx-page-head"><div><h1>{t("设备与网络", "Devices & network")}</h1><p>{t("你的每台设备，以及它们现在怎么连在一起。设备之间优先对等直连，打洞失败时经中继转发；两种路径都端到端加密。", "Every device you own, and how they are connected right now. Devices connect directly when they can and fall back to a relay; both paths are end-to-end encrypted.")}</p></div>
@@ -51,6 +61,7 @@ export function Devices() {
       <Pill tone={online.some(device => device.path === "relay") ? "warn" : ""}>{t("中继 ", "Relayed ") + online.filter(device => device.path === "relay").length}</Pill>
       <Pill>{t("离线 ", "Offline ") + devices.filter(device => !isThis(device) && !device.online).length}</Pill>
     </div>
+    <DeviceGraph />
     <Section title={t("我的设备", "My devices")} description={t("点击设备查看终端、桌面、浏览器、项目与授权。", "Open a device for its terminal, desktop, browser, projects and access.")}
 >
       <div className="cx-device-grid">
@@ -58,9 +69,9 @@ export function Devices() {
         <button className="cx-add-device" onClick={() => setPairing(true)}><Plus size={26} aria-hidden="true" />{t("添加设备", "Add device")}<small className="cx-muted">{t("扫码、粘贴邀请链接或服务器地址", "Scan a QR code, or paste a link or server address")}</small></button>
       </div>
     </Section>
-    {guests.length > 0 && <Section title={t("访客设备", "Guest devices")} description={t("访客只能使用你逐项允许的功能。", "Guests can use only what you allow, one capability at a time.")}>
-      <div className="cx-device-grid">{guests.map(device => <DeviceCard key={device.node_id} device={device} />)}</div>
-    </Section>}
+    {groups.map(([relation, title, description]) => { const list = of(relation); return list.length > 0 && <Section key={relation} title={title} description={description}>
+      <div className="cx-device-grid">{list.map(device => <DeviceCard key={device.node_id} device={device} />)}</div>
+    </Section>; })}
     {!mine.length && <Empty icon={Network} title={t("还没有设备", "No devices yet")}>{t("本机节点正在启动，或尚未加入设备网络。", "This node is starting or has not joined a device network yet.")}</Empty>}
   </>;
 }
@@ -68,7 +79,7 @@ export function Devices() {
 export function Home() {
   const { t, devices, approvals, status, setPairing, deviceName } = useApp();
   const navigate = useNavigate(), { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
-  const mine = devices.filter(device => !device.guest);
+  const mine = devices.filter(device => isThis(device) || relationOf(device) === "peer");
   const reachable = devices.filter(device => isThis(device) || device.online).sort((a, b) => Number(isThis(b)) - Number(isThis(a)));
   const [target, setTarget] = useState("");
   const selected = reachable.find(device => device.node_id === target) || reachable[0];
@@ -104,7 +115,7 @@ export function Home() {
         <div className="cx-between"><h3>{t("设备", "Devices")}</h3><Link className="cx-btn small ghost" to="/app/devices">{t("全部", "All")}<ChevronRight size={14} aria-hidden="true" /></Link></div>
         <div className="cx-list" style={{ marginTop: 12 }}>{devices.slice().sort((a, b) => Number(isThis(b)) - Number(isThis(a)) || Number(b.online) - Number(a.online)).slice(0, 6).map(device => <Link key={device.node_id} className="cx-list-row" to={devicePath(device)}>
           <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={18} /></span>
-          {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <div className="cx-grow"><div className="cx-row" style={{ gap: 6 }}><strong>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</strong>{info.shortId && <span className="cx-id-pill">{info.shortId}</span>}</div><small>{pathLabel(device, t)}</small></div>; })()}
+          {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <div className="cx-grow"><div className="cx-row" style={{ gap: 6 }}><strong>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</strong>{info.shortId && <span className="cx-id-pill">{info.shortId}</span>}</div><small>{pathLabel(device, t, deviceName)}</small></div>; })()}
           <span className={"cx-dot " + (isThis(device) || device.online ? "online" : "")} aria-hidden="true" />
         </Link>)}</div>
       </Card>

@@ -310,6 +310,7 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
     if owner {
         answer["paths"] =
             serde_json::to_value(crate::app::paths::load(&app.path)).unwrap_or_default();
+        answer["relations"] = crate::app::relations::answer(&app.path, &app.node);
     }
     Json(answer)
 }
