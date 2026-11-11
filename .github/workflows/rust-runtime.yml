@@ -13,6 +13,13 @@ on:
 permissions:
   contents: read
 
+# Branch/dev builds use a fast optimized profile. Release tags retain thin LTO and
+# one codegen unit. These variables affect only `cargo build --release`.
+env:
+  CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/v') && 'thin' || 'off' }}
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '16' }}
+  CARGO_PROFILE_RELEASE_OPT_LEVEL: ${{ startsWith(github.ref, 'refs/tags/v') && '3' || '2' }}
+
 jobs:
   distribution-tests:
     name: Distribution tooling and npm launcher
@@ -49,6 +56,58 @@ jobs:
         run: |
           useradd --create-home cranibox-test
           runuser -u cranibox-test -- env "PATH=$PATH" CRANIBOX_TEST_REAL_WAYLAND=1 python3 -m unittest discover -s tests -p test_desktop_real_wayland.py -v
+  cli:
+    name: command line (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: cranibox-cli-linux
+            output: cranibox-linux-x86_64
+            features: managed
+          - os: windows-latest
+            artifact: cranibox-cli-windows
+            output: cranibox-windows-x86_64.exe
+            features: none
+          - os: macos-latest
+            artifact: cranibox-cli-macos
+            output: cranibox-macos-arm64
+            features: none
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli-${{ matrix.os }}
+      - name: Build standalone CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.features }}" = managed ]; then
+            cargo build --release --locked -p cranibox --features managed
+          else
+            cargo build --release --locked -p cranibox --no-default-features
+          fi
+          mkdir -p "$RUNNER_TEMP/cli"
+          if [ "${{ runner.os }}" = Windows ]; then
+            cp target/release/cranibox.exe "$RUNNER_TEMP/cli/${{ matrix.output }}"
+          else
+            cp target/release/cranibox "$RUNNER_TEMP/cli/${{ matrix.output }}"
+          fi
+          "$RUNNER_TEMP/cli/${{ matrix.output }}" --version
+          if [ "${{ matrix.features }}" = managed ]; then
+            "$RUNNER_TEMP/cli/${{ matrix.output }}" ctl --version
+            grep -q -- --listen <("$RUNNER_TEMP/cli/${{ matrix.output }}" serve --help)
+            grep -q -- --port <("$RUNNER_TEMP/cli/${{ matrix.output }}" serve --config-root "$RUNNER_TEMP" --help)
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/cli/${{ matrix.output }}
+          retention-days: 14
+          if-no-files-found: error
   desktop:
     name: node desktop (${{ matrix.os }})
     strategy:
@@ -57,10 +116,13 @@ jobs:
         include:
           - os: ubuntu-latest
             bundles: deb,appimage
+            cli_artifact: cranibox-cli-linux
           - os: windows-latest
             bundles: nsis
+            cli_artifact: cranibox-cli-windows
           - os: macos-latest
             bundles: dmg
+            cli_artifact: cranibox-cli-macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -117,36 +179,8 @@ jobs:
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security find-identity -v -p codesigning "$keychain"
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-      # npm ships the standalone node on every platform. Build and copy it first:
-      # the app bundle renames its own binary to target/release/cranibox[.exe].
-      # Linux keeps the workspace console: the same program runs in the Agent Workspace image.
-      - name: Build the Linux command line
-        if: runner.os == 'Linux'
-        run: |
-          cargo build --release --locked -p cranibox --features managed
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-linux-x86_64"
-          "$RUNNER_TEMP/cli/cranibox-linux-x86_64" --version
-          "$RUNNER_TEMP/cli/cranibox-linux-x86_64" ctl --version
-          # On a device `serve` is the node; with --config-root it is the container console.
-          grep -q -- --listen <("$RUNNER_TEMP/cli/cranibox-linux-x86_64" serve --help)
-          grep -q -- --port <("$RUNNER_TEMP/cli/cranibox-linux-x86_64" serve --config-root "$RUNNER_TEMP" --help)
-      - name: Build the macOS command line
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          cargo build --release --locked -p cranibox --no-default-features
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-macos-arm64"
-          "$RUNNER_TEMP/cli/cranibox-macos-arm64" --version
-      - name: Build the Windows command line
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          cargo build --release --locked -p cranibox --no-default-features
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox.exe "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe"
-          "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe" --version
+      # The standalone CLI is built by the parallel `cli` job and downloaded below
+      # for the self-update integration test.
       # The app reports the version it is published as: dev builds keep the last release's
       # source version, so stamp the npm version (see publish-dev).
       - name: Stamp the published version
@@ -247,28 +281,10 @@ jobs:
             target/release/bundle/**/*.app.tar.gz
           retention-days: 14
           if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        if: runner.os == 'Linux'
+      - uses: actions/download-artifact@v8
         with:
-          name: cranibox-cli-linux
-          path: ${{ runner.temp }}/cli/cranibox-linux-x86_64
-          retention-days: 14
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        if: runner.os == 'macOS'
-        with:
-          name: cranibox-cli-macos
-          path: ${{ runner.temp }}/cli/cranibox-macos-arm64
-          retention-days: 14
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        if: runner.os == 'Windows'
-        with:
-          name: cranibox-cli-windows
-          path: ${{ runner.temp }}/cli/cranibox-windows-x86_64.exe
-          retention-days: 14
-          if-no-files-found: error
-      # Last, so the binaries above are uploaded for inspection even when it fails.
+          name: ${{ matrix.cli_artifact }}
+          path: ${{ runner.temp }}/cli
       # The shipped program on each platform: adopt, update through npm, roll back,
       # and default management for a plain start (with a loopback registry).
       - name: Self-update with the real program
@@ -493,9 +509,18 @@ jobs:
         if: runner.os == 'Linux'
       - run: python -m unittest discover -s tests -p test_workspacectl_rust.py -v
         if: runner.os == 'Linux'
-      # The container build (workspace feature) is measured here; only the Docker image ships it.
-      - run: cargo build --release --locked -p cranibox
+      # Reuse the parallel Linux CLI artifact for the resource measurement instead of
+      # compiling the same workspace-enabled release binary a second time.
+      - uses: actions/download-artifact@v8
         if: runner.os == 'Linux'
+        with:
+          name: cranibox-cli-linux
+          path: ${{ runner.temp }}/cli
+      - name: Stage the workspace CLI for resource measurement
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p target/release
+          install -m 0755 "$RUNNER_TEMP/cli/cranibox-linux-x86_64" target/release/cranibox
       - run: python scripts/measure-workspace-resources.py --report target/resource-baseline.json
         if: runner.os == 'Linux'
         env:
@@ -503,7 +528,7 @@ jobs:
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, native, distribution-tests, linux-arm64]
+    needs: [desktop, cli, native, distribution-tests, linux-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -544,7 +569,7 @@ jobs:
   publish-dev:
     name: Publish npm dev channel
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CRANIBOX_PUBLISH_NPM == 'true'
-    needs: [desktop, native, wayland, distribution-tests]
+    needs: [desktop, cli, native, wayland, distribution-tests]
     runs-on: ubuntu-latest
     environment: npm
     env:

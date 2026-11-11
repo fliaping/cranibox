@@ -32,6 +32,9 @@ xterm.js 负责显示和输入，本机命令在独立 herdr 后台引擎的 PTY
 ```bash
 npm ci --prefix addons/control-center/ui
 node scripts/build-control-center-ui.cjs
+# 开发迭代：增量、无 LTO 的快速优化构建
+cargo build --profile release-fast --locked -p cranibox
+# 发布或需要与正式产物一致时，使用完整 release 优化
 cargo build --release --locked -p cranibox
 # 设备构建，不启用服务端依赖
 cargo build --release --locked -p cranibox --no-default-features
