@@ -7,6 +7,15 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
+# Fast optimized builds for local iteration and the dev channel. Tagged releases keep
+# the slower, maximally optimized profile above.
+[profile.release-fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+opt-level = 2
+incremental = true
+
 # Keep signature and Noise primitives fast in debug and test builds.
 [profile.dev.package.curve25519-dalek]
 opt-level = 3

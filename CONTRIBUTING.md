@@ -25,6 +25,8 @@ You need a stable Rust toolchain with `rustfmt` and `clippy`, Python 3.12+ and N
 
 ```bash
 cargo build --locked                       # debug build of every crate
+# Fast optimized iteration (incremental, no LTO); use release for published binaries.
+cargo build --profile release-fast --locked -p cranibox
 cargo fmt --all --check                    # CI fails on formatting
 cargo clippy --workspace --locked --all-targets -- -D warnings
 cargo test --locked
