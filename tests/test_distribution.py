@@ -28,6 +28,12 @@ def load(name):
     return module
 
 
+def packed(directory, filename):
+    """What `npm pack --json` reports for a package that ships every file in it."""
+    files = [{"path": path.relative_to(directory).as_posix()} for path in Path(directory).rglob("*") if path.is_file()]
+    return json.dumps([{"filename": filename, "files": files}])
+
+
 builder = load("build-npm")
 collector = load("collect-assets")
 npm_publisher = load("publish-npm")
@@ -55,7 +61,8 @@ integrity = 'sha512-' + base64.b64encode(hashlib.sha512(payload).digest()).decod
 if args[0] == 'pack':
     filename = Path.cwd().name + '.tgz'
     (Path(args[args.index('--pack-destination') + 1]) / filename).write_bytes(payload)
-    print(json.dumps([{'filename': filename}]))
+    files = [{'path': path.relative_to(Path.cwd()).as_posix()} for path in Path.cwd().rglob('*') if path.is_file()]
+    print(json.dumps([{'filename': filename, 'files': files}]))
 elif args[:2] == ['stage', 'list']:
     if state.get('list_error'):
         print(json.dumps({'error': {'code': state['list_error']}}))
@@ -248,6 +255,23 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual((output / "desktop-win32-x64/app/cranibox-setup.exe").read_bytes(), b"MZ setup")
         self.assertIn("@fliaping/cranibox-desktop-win32-x64", stage_approver.package_names("@fliaping/cranibox"))
 
+    @unittest.skipUnless(shutil.which("npm"), "npm is not installed")
+    def test_desktop_packages_ship_their_app(self):
+        output = self.root / "npm"
+        builder.build(self.assets, output, version="99.0.0-dev.42", apps=self.fake_apps())
+        for target in builder.PLATFORMS:
+            package = output / f"desktop-{target}"
+            result = subprocess.run(["npm", "pack", "--dry-run", "--json", "--ignore-scripts"], cwd=package,
+                                    env=self.npm_environment(), text=True, capture_output=True, check=True)
+            report = json.loads(result.stdout)
+            report = (list(report.values()) if isinstance(report, dict) else report)[0]
+            self.assertTrue(any(file["path"].startswith("app/") for file in report["files"]), target)
+            npm_publisher.check_packed(package, report)
+        # A package whose files list leaves out prepared content is refused before publishing.
+        report["files"] = [file for file in report["files"] if not file["path"].startswith("app/")]
+        with self.assertRaisesRegex(ValueError, "left out"):
+            npm_publisher.check_packed(package, report)
+
     def test_desktop_app_bundles_reject_links_and_missing_apps(self):
         link = tarfile.TarInfo("Cranibox.app/Contents/link")
         link.type, link.linkname = tarfile.SYMTYPE, "/etc/passwd"
@@ -359,7 +383,7 @@ class DistributionTests(unittest.TestCase):
                     if command[1] == "pack":
                         name = Path(kwargs["cwd"]).name + ".tgz"
                         (output / name).write_bytes(b"packed data")
-                        return subprocess.CompletedProcess(command, 0, json.dumps([{"filename": name}]))
+                        return subprocess.CompletedProcess(command, 0, packed(kwargs["cwd"], name))
                     return subprocess.CompletedProcess(command, 0)
 
                 with patch.object(npm_publisher.subprocess, "run", side_effect=run), \
@@ -381,7 +405,7 @@ class DistributionTests(unittest.TestCase):
             commands.append(command)
             name = Path(kwargs["cwd"]).name + ".tgz"
             (output / name).write_bytes(b"deterministic packed data")
-            return subprocess.CompletedProcess(command, 0, json.dumps([{"filename": name}]))
+            return subprocess.CompletedProcess(command, 0, packed(kwargs["cwd"], name))
 
         integrity = "sha512-" + base64.b64encode(hashlib.sha512(b"deterministic packed data").digest()).decode()
         with patch.object(npm_publisher.subprocess, "run", side_effect=run), patch.object(npm_publisher, "existing_integrity", return_value=integrity):
