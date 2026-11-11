@@ -1,5 +1,5 @@
 //! The node's iroh endpoint: identity reuse, relay order and connection pool.
-use crate::{ALPN_PAIR, ALPN_PEER_FWD, ALPN_PEER_HTTP, Lane, addr};
+use crate::{ALPN_PAIR, ALPN_PEER_FWD, ALPN_PEER_HOP, ALPN_PEER_HTTP, Lane, addr};
 use anyhow::{Context, Result, anyhow, ensure};
 use cranibox_contracts::{config::IrohConfig, net::IrohAddr};
 use iroh::{
@@ -123,6 +123,7 @@ impl IrohNode {
             .alpns(vec![
                 ALPN_PEER_HTTP.to_vec(),
                 ALPN_PEER_FWD.to_vec(),
+                ALPN_PEER_HOP.to_vec(),
                 ALPN_PAIR.to_vec(),
             ]);
         if options.no_address_lookup {
@@ -429,7 +430,7 @@ impl IrohNode {
     pub async fn drop_peer(&self, id: &EndpointId) {
         let mut pool = self.pool.lock().await;
         let mut failed = self.failed.lock().await;
-        for lane in [Lane::Peer, Lane::Forward] {
+        for lane in [Lane::Peer, Lane::Forward, Lane::Hop] {
             if let Some(pooled) = pool.remove(&(*id, lane)) {
                 pooled
                     .conn

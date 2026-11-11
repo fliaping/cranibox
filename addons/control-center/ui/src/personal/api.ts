@@ -19,6 +19,10 @@ export type Pill = {
   models_available: number;
   approvals_pending: number;
 };
+/** peer: your devices, both ways. controlled: you control it. controller: it controls you.
+ * guest: it uses you. host: someone shared it with you. */
+export type Relation = "peer" | "controlled" | "controller" | "guest" | "host";
+export type PairPurpose = "owner_device" | "guest" | "worker";
 /** Every device is an equal peer: online or offline, a connection path and capabilities. */
 export type Device = {
   node_id: string;
@@ -27,9 +31,14 @@ export type Device = {
   online: boolean;
   path: "direct" | "relay" | "local" | "unknown" | string;
   rtt_ms: number | null;
+  /** "device:<node>" while reached through another of your devices. */
+  via?: string | null;
   /** "this" marks the local device, "claude" the device holding Claude credentials. */
   badges: string[];
+  /** Uses this device but cannot be used from it; see `relation`. */
   guest: boolean;
+  /** How this device and the other relate (arrows read "may use"). */
+  relation?: Relation;
   same_identity?: boolean;
   caps: Record<string, boolean>;
   /** e.g. "macOS 26.6". */
@@ -79,7 +88,7 @@ export type Account = {
 };
 export type Preset = { id: string; label: string; region: string[] };
 export type Invite = { link: string; qr_svg: string; expires_at: number };
-export type Accepted = { flow_id: string; sas: string };
+export type Accepted = { flow_id: string; sas: string; purpose?: PairPurpose | null };
 export type SignIn = {
   kind: string;
   flow_id: string;

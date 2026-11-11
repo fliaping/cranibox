@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Cranibox 设备网络图（设计原型）</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --line: #d9dee5; --text: #1d2430; --muted: #687385;
+    --peer: #2f6fed; --control: #0f9d76; --guest: #d9822b; --shared: #7a5af5; --offline: #a7b0bd;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
+  .page { width: 1440px; padding: 28px 32px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg span { padding: 4px 12px; color: var(--muted); }
+  .seg span.on { background: #eef3ff; color: var(--peer); font-weight: 600; }
+  .grow { flex: 1; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--muted); }
+  svg text { font-family: inherit; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 12px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .legend i { display: inline-block; width: 26px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .panel { padding: 18px; }
+  .panel h2 { font-size: 17px; margin: 0; }
+  .role { display: inline-block; margin: 6px 0 12px; padding: 2px 10px; border-radius: 999px; background: #e7f6f1; color: var(--control); font-weight: 600; font-size: 12px; }
+  .sentence { background: #f3f6f9; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  dl { margin: 0; display: grid; grid-template-columns: 96px 1fr; row-gap: 8px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .caps span { display: inline-block; margin: 0 6px 6px 0; padding: 2px 8px; border-radius: 6px; background: #eef1f5; font-size: 12px; }
+  .caps span.off { color: var(--offline); text-decoration: line-through; }
+  .btns { display: flex; gap: 8px; margin-top: 16px; }
+  .btn { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; background: #fff; }
+  .btn.danger { color: #c4342d; border-color: #f0c9c6; }
+  .section { margin-top: 26px; }
+  .section h3 { font-size: 16px; margin: 0 0 10px; }
+  .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .choice { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+  .choice.on { border: 2px solid var(--peer); padding: 13px 15px; }
+  .choice h4 { margin: 0 0 4px; font-size: 15px; }
+  .choice p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+  .mini { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; margin-top: 6px; }
+  .mini b { padding: 3px 8px; border-radius: 6px; background: #f1f4f8; font-weight: 600; }
+  .confirm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .confirm .choice { background: #fcfcfd; }
+  .warn { color: #a3541b; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>设备网络</h1>
+  <p class="sub">箭头 <b>A → B</b> 表示 <b>A 可以使用 B</b>：B 授权给 A，B 决定 A 能做什么。</p>
+  <div class="layout">
+    <div class="card">
+      <div class="toolbar">
+        <div class="seg"><span class="on">网络图</span><span>列表</span></div>
+        <span class="grow"></span>
+        <span class="chip">✓ 使用关系</span><span class="chip">✓ 连接路径</span><span class="chip">+ 添加设备</span>
+      </div>
+      <svg width="1040" height="620" viewBox="0 0 1040 620" role="img" aria-label="设备网络图">
+        <defs>
+          <marker id="a-control" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f9d76"/></marker>
+          <marker id="a-guest" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9822b"/></marker>
+          <marker id="a-shared" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7a5af5"/></marker>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.12"/></filter>
+        </defs>
+
+        <!-- Identity region -->
+        <rect x="300" y="110" width="430" height="400" rx="200" fill="#eef3ff" stroke="#c9d8fb" stroke-width="1.5"/>
+        <text x="515" y="140" text-anchor="middle" fill="#2f6fed" font-weight="600">我的身份 · 对等设备</text>
+
+        <!-- Peer connection paths -->
+        <g stroke="#7f9fdf" stroke-width="2" fill="none">
+          <line x1="430" y1="230" x2="600" y2="230"/>
+          <line x1="430" y1="230" x2="515" y2="420"/>
+          <line x1="600" y1="230" x2="515" y2="420"/>
+          <line x1="430" y1="230" x2="400" y2="350" stroke-dasharray="6 5"/>
+          <line x1="600" y1="230" x2="400" y2="350" stroke-dasharray="2 5"/>
+        </g>
+        <g font-size="11" fill="#5d78b8">
+          <text x="515" y="222" text-anchor="middle">直连 3 ms</text>
+          <text x="455" y="330" text-anchor="middle">直连 12 ms</text>
+          <text x="584" y="330" text-anchor="middle">直连 9 ms</text>
+          <text x="392" y="292" text-anchor="end">中继 48 ms</text>
+          <text x="520" y="300" text-anchor="middle">经 Mac mini 21 ms</text>
+        </g>
+
+        <!-- Control edges: controller → controlled -->
+        <path d="M640,230 C720,200 770,150 838,138" stroke="#0f9d76" stroke-width="2.5" fill="none" marker-end="url(#a-control)"/>
+        <path d="M555,420 C680,430 760,360 838,330" stroke="#0f9d76" stroke-width="2.5" fill="none" marker-end="url(#a-control)"/>
+        <path d="M555,425 C690,470 760,500 838,512" stroke="#0f9d76" stroke-width="2.5" fill="none" marker-end="url(#a-control)"/>
+        <g font-size="11" fill="#0f7f60">
+          <text x="742" y="178">控制</text><text x="742" y="410">控制</text><text x="742" y="488">托管</text>
+        </g>
+
+        <!-- Guest edge: guest → my device -->
+        <path d="M198,150 C280,160 340,190 392,222" stroke="#d9822b" stroke-width="2.5" fill="none" marker-end="url(#a-guest)"/>
+        <text x="262" y="150" font-size="11" fill="#b06a22">访问 · 消息</text>
+
+        <!-- Shared with me: my device → their device -->
+        <path d="M404,262 C380,380 280,460 200,488" stroke="#7a5af5" stroke-width="2.5" fill="none" marker-end="url(#a-shared)"/>
+        <text x="300" y="420" font-size="11" fill="#6447d6">使用 · 终端</text>
+
+        <!-- Nodes -->
+        <g font-size="13" text-anchor="middle">
+          <!-- Peers -->
+          <g filter="url(#shadow)"><circle cx="430" cy="230" r="34" fill="#fff" stroke="#2f6fed" stroke-width="3"/></g>
+          <text x="430" y="226">💻</text><text x="430" y="244" font-size="10" fill="#2f6fed" font-weight="600">本机</text>
+          <text x="430" y="284" font-weight="600">MacBook Pro</text>
+
+          <g filter="url(#shadow)"><circle cx="600" cy="230" r="34" fill="#fff" stroke="#2f6fed" stroke-width="2"/></g>
+          <text x="600" y="236">🖥️</text>
+          <text x="600" y="284" font-weight="600">Mac mini</text>
+
+          <g filter="url(#shadow)"><circle cx="515" cy="420" r="34" fill="#fff" stroke="#2f6fed" stroke-width="2"/></g>
+          <text x="515" y="426">🗄️</text>
+          <text x="515" y="474" font-weight="600">家里服务器</text>
+          <text x="515" y="490" font-size="11" fill="#687385">常驻节点</text>
+
+          <g><circle cx="400" cy="350" r="30" fill="#f7f8fa" stroke="#a7b0bd" stroke-width="2" stroke-dasharray="4 3"/></g>
+          <text x="400" y="356">📱</text>
+          <text x="400" y="398" fill="#687385">Android 手机 · 离线</text>
+
+          <!-- Controlled -->
+          <g filter="url(#shadow)"><rect x="840" y="104" width="150" height="68" rx="12" fill="#fff" stroke="#0f9d76" stroke-width="2"/></g>
+          <text x="915" y="132" font-weight="600">GPU Worker</text>
+          <text x="915" y="152" font-size="11" fill="#0f7f60">受控 · 由 Mac mini 控制</text>
+
+          <g filter="url(#shadow)"><rect x="840" y="296" width="150" height="68" rx="12" fill="#fff" stroke="#0f9d76" stroke-width="2"/></g>
+          <text x="915" y="324" font-weight="600">Build Worker</text>
+          <text x="915" y="344" font-size="11" fill="#0f7f60">受控 · 由 家里服务器 控制</text>
+
+          <g filter="url(#shadow)"><rect x="840" y="478" width="150" height="68" rx="12" fill="#fff" stroke="#0f9d76" stroke-width="2" stroke-dasharray="6 3"/></g>
+          <text x="915" y="506" font-weight="600">Ubuntu 虚拟空间</text>
+          <text x="915" y="526" font-size="11" fill="#0f7f60">受控 · 由 家里服务器 托管</text>
+
+          <!-- Guest -->
+          <g filter="url(#shadow)"><rect x="40" y="116" width="156" height="68" rx="12" fill="#fff" stroke="#d9822b" stroke-width="2"/></g>
+          <text x="118" y="144" font-weight="600">小王的 ThinkPad</text>
+          <text x="118" y="164" font-size="11" fill="#b06a22">访客 · 可使用 MacBook Pro</text>
+
+          <!-- Shared with me -->
+          <g filter="url(#shadow)"><rect x="40" y="456" width="156" height="68" rx="12" fill="#fff" stroke="#7a5af5" stroke-width="2"/></g>
+          <text x="118" y="484" font-weight="600">实验室服务器</text>
+          <text x="118" y="504" font-size="11" fill="#6447d6">共享给我 · 由 MacBook Pro 使用</text>
+        </g>
+
+        <!-- Selection ring -->
+        <rect x="834" y="290" width="162" height="80" rx="15" fill="none" stroke="#0f9d76" stroke-width="1.5" stroke-dasharray="3 3"/>
+      </svg>
+      <div class="legend">
+        <span><i style="border-color:#2f6fed"></i>对等设备（同一身份）</span>
+        <span><i style="border-color:#0f9d76"></i>控制：我的设备 → 受控设备</span>
+        <span><i style="border-color:#d9822b"></i>访客：别人的设备 → 我的设备</span>
+        <span><i style="border-color:#7a5af5"></i>共享给我：我的设备 → 别人的设备</span>
+        <span><i style="border-color:#7f9fdf"></i>直连</span>
+        <span><i style="border-color:#7f9fdf;border-top-style:dashed"></i>中继</span>
+        <span><i style="border-color:#7f9fdf;border-top-style:dotted"></i>经另一台设备转发</span>
+      </div>
+    </div>
+
+    <div class="card panel">
+      <h2>Build Worker</h2>
+      <span class="role">受控设备</span>
+      <div class="sentence">家里服务器 可以在它上面执行任务；它<b>不能</b>访问你的任何设备，也看不到你的设备名单。</div>
+      <dl>
+        <dt>被谁控制</dt><dd>家里服务器</dd>
+        <dt>控制者可用</dt><dd class="caps"><span>消息与任务</span><span>执行命令</span><span>终端</span><span>项目</span><span class="off">屏幕</span><span class="off">浏览器</span></dd>
+        <dt>它能用你的</dt><dd>无</dd>
+        <dt>模型订阅</dt><dd>不共享</dd>
+        <dt>连接</dt><dd>家里服务器 → 直连 6 ms</dd>
+        <dt>状态</dt><dd>在线 · Ubuntu 24.04 · x86_64</dd>
+      </dl>
+      <p class="sub" style="margin-top:14px">能力由 Build Worker 自己决定，在它那台设备上调整。</p>
+      <div class="btns"><span class="btn">打开终端</span><span class="btn">发送任务</span><span class="btn danger">解除控制</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>添加设备：这台设备和新设备是什么关系？</h3>
+    <div class="choices">
+      <div class="choice on"><h4>对等设备 · 我的另一台设备</h4><div class="mini"><b>这台</b>⇄<b>新设备</b></div>
+        <p>加入你的身份：共享设备名单和模型订阅。只用于你自己、信任的设备。</p></div>
+      <div class="choice"><h4>受控设备 · Worker</h4><div class="mini"><b>这台</b>→<b>新设备</b></div>
+        <p>这台设备可以在新设备上执行任务；新设备不能访问你的任何设备。适合不信任的执行节点。</p></div>
+      <div class="choice"><h4>访客 · 别人的设备</h4><div class="mini"><b>新设备</b>→<b>这台</b></div>
+        <p>新设备只能使用这台设备上你允许的功能；这台设备不能访问它。</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>新设备上核对时看到的说明（与邀请方相反的视角）</h3>
+    <div class="confirm">
+      <div class="choice"><h4>加入「MacBook Pro」所在的身份</h4><div class="mini"><b>MacBook Pro</b>⇄<b>这台</b></div>
+        <p>这台设备会成为对等设备，共享设备名单和模型订阅。只在两台都是你的设备时确认。</p></div>
+      <div class="choice"><h4>让「MacBook Pro」控制这台设备</h4><div class="mini"><b>MacBook Pro</b>→<b>这台</b></div>
+        <p class="warn">确认后，MacBook Pro 可以在这台设备上执行命令、打开终端、管理项目。这台设备不能访问 MacBook Pro。</p></div>
+      <div class="choice"><h4>成为「MacBook Pro」的访客</h4><div class="mini"><b>这台</b>→<b>MacBook Pro</b></div>
+        <p>这台设备可以使用 MacBook Pro 允许的功能；MacBook Pro 不能访问这台设备。</p></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

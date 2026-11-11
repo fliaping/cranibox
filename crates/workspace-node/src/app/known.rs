@@ -24,6 +24,10 @@ pub struct Known {
     /// `browser`, `exec`, `terminal`, …): granted to us and configured on that device.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub offers: BTreeMap<String, bool>,
+    /// The relationship chosen when the devices were paired. Kept here rather than in
+    /// `peers.json`, whose strict format older versions must still read after a rollback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation: Option<cranibox_contracts::app::Relation>,
 }
 impl Known {
     pub fn display(&self, node: &str) -> String {
