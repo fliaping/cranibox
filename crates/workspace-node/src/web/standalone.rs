@@ -143,6 +143,7 @@ async fn bind(listen: Option<SocketAddr>) -> Result<tokio::net::TcpListener> {
 #[derive(Clone, Default)]
 pub struct RelayFlags {
     pub relay: bool,
+    pub no_relay: bool,
     /// `https://` origin devices dial for the relay and pairing links.
     pub public_url: Option<String>,
     /// Separate public listener carrying only the relay and read-only identity; the
@@ -173,11 +174,7 @@ pub async fn run(
         signal.cancel();
     });
     // The node's iroh service reads the relay settings when it starts.
-    let embedded = super::relay::setup(
-        relay.relay,
-        false,
-        relay.public_url.as_deref().unwrap_or(""),
-    );
+    let (relay, embedded) = super::relay::configured(&peers, relay);
     if relay.listen.is_none()
         && let Some(host) = embedded
             .public_url()
@@ -216,28 +213,16 @@ pub async fn run(
             "Cranibox device interface on http://{address} (run `cranibox ui-url` for the sign-in link)"
         );
     }
-    if let Some(address) = relay.listen.filter(|_| embedded.enabled()) {
-        let public = match tokio::net::TcpListener::bind(address).await {
-            Ok(listener) => listener,
-            Err(e) => {
-                let _ = local.shutdown().await;
-                return Err(e).with_context(|| format!("relay listen on {address}"));
-            }
-        };
-        let router = public_router(
-            public_identity(&local, embedded.public_url()).await,
-            local.pair_requests.clone(),
-        );
-        let (relay, shutdown) = (embedded.clone(), stop.clone());
-        tokio::spawn(async move {
-            if let Err(error) = relay
-                .serve(public, router, async move { shutdown.cancelled().await })
-                .await
-            {
-                eprintln!("relay listener: {error}");
-            }
-        });
-        eprintln!("iroh relay listening on {address}");
+    if let Err(error) = start_relay_listener(
+        &local,
+        &embedded,
+        relay.listen,
+        stop.clone().cancelled_owned(),
+    )
+    .await
+    {
+        let _ = local.shutdown().await;
+        return Err(error);
     }
     embedded.spawn_self_check();
     // Remote update: let an activated version restart this process through the launcher, and
@@ -268,6 +253,32 @@ pub async fn run(
     let result = ui.await;
     let shutdown = local.shutdown().await;
     result.and(shutdown)
+}
+
+/// Start the relay/identity listener without exposing the control-center routes.
+pub async fn start_relay_listener(
+    local: &Arc<LocalNode>,
+    embedded: &super::relay::Embedded,
+    listen: Option<SocketAddr>,
+    stop: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<()> {
+    if let Some(address) = listen.filter(|_| embedded.enabled()) {
+        let public = tokio::net::TcpListener::bind(address)
+            .await
+            .with_context(|| format!("relay listen on {address}"))?;
+        let router = public_router(
+            public_identity(local, embedded.public_url()).await,
+            local.pair_requests.clone(),
+        );
+        let relay = embedded.clone();
+        tokio::spawn(async move {
+            if let Err(error) = relay.serve(public, router, stop).await {
+                eprintln!("relay listener: {error}");
+            }
+        });
+        eprintln!("iroh relay listening on {address}");
+    }
+    Ok(())
 }
 
 /// Native operations of a windowed shell (autostart, external links, window, quit).

@@ -591,17 +591,27 @@ fn main() -> anyhow::Result<()> {
                     return None;
                 }
                 let mut service = setup_state.service.lock().await;
-                let local = match cranibox_node::local::LocalNode::start(
-                    cranibox_node::peer::config::path_for(&path),
-                )
-                .await
-                {
+                let peers = cranibox_node::peer::config::path_for(&path);
+                let (relay_flags, embedded) =
+                    cranibox_node::web::relay::configured(&peers, Default::default());
+                let local = match cranibox_node::local::LocalNode::start(peers).await {
                     Ok(local) => Arc::new(local),
                     Err(error) => {
                         service.error = Some(format!("{error:#}"));
                         return None;
                     }
                 };
+                if let Err(error) = standalone::start_relay_listener(
+                    &local,
+                    &embedded,
+                    relay_flags.listen,
+                    setup_state.stop.clone().cancelled_owned(),
+                ).await {
+                    let _ = local.shutdown().await;
+                    service.error = Some(format!("Start relay: {error:#}"));
+                    return None;
+                }
+                embedded.spawn_self_check();
                 service.local = Some(local.clone());
                 // A fresh token per launch, shared with ui-url through a private runtime record.
                 let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {

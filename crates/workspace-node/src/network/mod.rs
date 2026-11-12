@@ -90,12 +90,24 @@ pub enum Command {
         node: String,
         token: String,
     },
+    /// This device's embedded relay; applied at the next start.
+    RelaySettings {
+        enabled: bool,
+        public_url: String,
+        listen: SocketAddr,
+    },
     /// Own relays, the public n0 fallback and LAN discovery; applied at the next start.
     IrohSettings {
         lan: bool,
         relays: Vec<String>,
         n0_fallback: bool,
     },
+}
+/// Read the complete network document so invalid state is never silently overwritten.
+pub(crate) fn relay_settings(
+    peers: &std::path::Path,
+) -> Result<Option<crate::web::relay::Settings>> {
+    Ok(Spec::read(&peers.with_file_name("networks.json"))?.relay)
 }
 enum Action {
     Manage(Command),
@@ -321,6 +333,30 @@ impl Manager {
         value["lan"] = json!(settings.lan);
         value["relays"] = json!(settings.relays);
         value["n0_fallback"] = json!(settings.n0_fallback);
+        let running = &value["this_relay"];
+        let enabled = running["enabled"].as_bool().unwrap_or(false);
+        let saved = self
+            .spec
+            .relay
+            .clone()
+            .unwrap_or_else(|| crate::web::relay::Settings {
+                enabled,
+                public_url: running["public_url"].as_str().unwrap_or_default().into(),
+                listen: running["listen"]
+                    .as_str()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_else(|| crate::web::relay::Settings::default().listen),
+            });
+        let restart_required = self.spec.relay.is_some()
+            && (saved.enabled != enabled
+                || (saved.enabled
+                    && (Some(saved.public_url.as_str()) != running["public_url"].as_str()
+                        || Some(saved.listen)
+                            != running["listen"]
+                                .as_str()
+                                .and_then(|value| value.parse().ok()))));
+        value["this_relay"]["settings"] = json!(saved);
+        value["this_relay"]["restart_required"] = json!(restart_required);
         value
     }
     async fn dispatch(&mut self, action: Action) -> Result<Value> {
@@ -546,6 +582,26 @@ impl Manager {
                 self.tailscale_discovery.reset();
                 self.tailscale_requested = Some(Instant::now());
                 self.next_poll = Instant::now();
+            }
+            Command::RelaySettings {
+                enabled,
+                public_url,
+                listen,
+            } => {
+                ensure!(
+                    self.state_valid,
+                    "Restore networks.json before changing relay settings."
+                );
+                let settings = crate::web::relay::Settings {
+                    enabled,
+                    public_url,
+                    listen,
+                }
+                .validated()?;
+                let mut saved = self.spec.clone();
+                saved.relay = Some(settings);
+                saved.write(&self.spec_path)?;
+                self.spec = saved;
             }
             Command::IrohSettings {
                 lan,

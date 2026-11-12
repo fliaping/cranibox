@@ -7,6 +7,7 @@ import { store, stored, useApp } from "./store";
 import { Alert, Card, isThis, PageHead, Pill, Switch } from "./ui";
 import { OtherNetworks, DirectRoutes } from "../pages/Nodes";
 import { NetworkPaths } from "./NetworkPaths";
+import { RelaySettings, type HostedRelayStatus } from "./RelaySettings";
 
 export function useIdentity() {
   const { api } = useApp();
@@ -56,7 +57,7 @@ function DeviceRouting() {
     </>}
   </section>;
 }
-type IrohStatus = { lan: boolean; relays: string[]; n0_fallback: boolean; learned_relays: string[]; this_relay: { enabled: boolean; public_url: string | null } };
+type IrohStatus = { lan: boolean; relays: string[]; n0_fallback: boolean; learned_relays: string[]; this_relay: HostedRelayStatus };
 /** One labelled row of a settings group: what it is on the left, its state or control on the right. */
 function Row({ title, detail, children }: { title: string; detail?: ReactNode; children?: ReactNode }) {
   return <div className="cx-setting-row"><div className="cx-grow"><strong>{title}</strong>{detail && <small className="cx-muted">{detail}</small>}</div>{children && <div className="cx-setting-control">{children}</div>}</div>;
@@ -90,7 +91,7 @@ export function NetworkPage() {
       setEditing(false);
     } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
   }
-  const inUse = status ? [...new Set([...(status.this_relay.public_url ? [status.this_relay.public_url] : []), ...status.relays, ...status.learned_relays])] : [];
+  const inUse = status ? [...new Set([...(status.this_relay.enabled && status.this_relay.public_url ? [status.this_relay.public_url] : []), ...status.relays, ...status.learned_relays])] : [];
   return <div className="cx-settings">
     <PageHead title={t("网络", "Network")} description={t("这台设备怎样连接你的其他设备：直连、中继与局域网发现。", "How this device reaches your other devices: direct paths, relays and local discovery.")} />
     {error && <Alert>{error}</Alert>}
@@ -116,11 +117,8 @@ export function NetworkPage() {
         <div className="cx-actions"><button className="cx-btn primary" disabled={busy} onClick={() => void save({ relays: relays.split("\n").map(value => value.trim()).filter(Boolean) })}>{t("保存", "Save")}</button></div>
       </div>}
       <Switch label={t("公共中继后备", "Public relay fallback")} detail={t("自己的中继不可用时，使用 n0 公共中继。", "Use the public n0 relays when your own are unavailable.")} checked={status.n0_fallback} disabled={busy} onChange={n0_fallback => void save({ n0_fallback })} />
-      <Row title={t("这台设备作为中继", "This device as a relay")} detail={status.this_relay.enabled ? (status.this_relay.public_url || t("运行中（未设置公网地址）", "Running (no public address)"))
-        : <details className="cx-inline-details"><summary>{t("未开启（查看自建命令）", "Off (view self-host command)")}</summary><small className="cx-muted">{t("在有公网 HTTPS 入口的机器上运行 ", "On a machine with a public HTTPS address, run ")}<code>cranibox serve --public-url https://…</code></small></details>}>
-        <Pill tone={status.this_relay.enabled ? "good" : ""}>{status.this_relay.enabled ? t("开启", "On") : t("关闭", "Off")}</Pill>
-      </Row>
     </section>}
+    {status && <RelaySettings status={status.this_relay} onSaved={this_relay => setStatus(current => current && { ...current, this_relay })} />}
     <Disclosure id="networks" title={t("其他网络（可选）", "Other networks (optional)")} detail={t("EasyTier、Tailscale", "EasyTier, Tailscale")}><OtherNetworks /></Disclosure>
     <Disclosure id="troubleshooting" title={t("排障", "Troubleshooting")} detail={t("直连路由、监听地址", "Direct routes, listener")}><DirectRoutes /></Disclosure>
   </div>;

@@ -54,6 +54,7 @@ pub struct HubOptions {
     pub relay: Option<Relay>,
     /// `--public-url`: own relay URL, ticket web links and the relay self-check.
     pub public_url: Option<String>,
+    pub listen: Option<std::net::SocketAddr>,
 }
 static HUB: OnceLock<Mutex<Option<HubOptions>>> = OnceLock::new();
 /// Called by `cranibox serve` before `LocalNode::start_with`.
@@ -70,7 +71,8 @@ pub(crate) fn relay_status(peers: &Path) -> Value {
         "learned_relays": Learned::read(peers).relays,
         "this_relay": {
             "enabled": hub.as_ref().is_some_and(|h| h.relay.is_some()),
-            "public_url": hub.and_then(|h| h.public_url),
+            "public_url": hub.as_ref().and_then(|h| h.public_url.clone()),
+            "listen": hub.and_then(|h| h.listen),
         },
     })
 }

@@ -102,6 +102,9 @@ pub(super) struct Spec {
     /// C5 iroh section (`cranibox_contracts::config::IROH_SECTION`), owned by WS1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iroh: Option<cranibox_contracts::config::IrohConfig>,
+    /// GUI configuration for this device's own relay, applied at node startup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relay: Option<crate::web::relay::Settings>,
 }
 impl Default for Spec {
     fn default() -> Self {
@@ -112,6 +115,7 @@ impl Default for Spec {
             tailscale_discovery_ports: Vec::new(),
             forwards: BTreeMap::new(),
             iroh: None,
+            relay: None,
         }
     }
 }
@@ -147,6 +151,9 @@ impl Spec {
             "Supply discovery ports or the legacy port field, not both."
         );
         validate_discovery_ports(&self.discovery_ports())?;
+        if let Some(relay) = &self.relay {
+            relay.clone().validated()?;
+        }
         let mut ports = std::collections::BTreeSet::new();
         for (node, port) in &self.forwards {
             ensure!(
@@ -241,6 +248,31 @@ mod tests {
         spec.write(&path).unwrap();
         assert_eq!(Spec::read(&path).unwrap().discovery_ports(), [1234]);
     }
+    #[test]
+    fn relay_settings_preserve_other_networks_and_invalid_writes_preserve_file() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("networks.json");
+        let mut spec = Spec::default();
+        spec.forwards.insert("saved-device".into(), 14000);
+        spec.tailscale_discovery_ports = vec![4321];
+        spec.iroh = Some(Default::default());
+        spec.relay = Some(crate::web::relay::Settings {
+            enabled: true,
+            public_url: "https://relay.example".into(),
+            ..Default::default()
+        });
+        spec.write(&path).unwrap();
+        let read = Spec::read(&path).unwrap();
+        assert_eq!(read.relay.as_ref().unwrap(), spec.relay.as_ref().unwrap());
+        assert_eq!(read.forwards["saved-device"], 14000);
+        assert_eq!(read.tailscale_discovery_ports, [4321]);
+        assert!(read.iroh.is_some());
+        let before = std::fs::read(&path).unwrap();
+        spec.relay.as_mut().unwrap().public_url = "http://relay.example".into();
+        assert!(spec.write(&path).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
     #[test]
     fn malformed_state_and_peer_credentials_are_rejected() {
         let mut spec = Spec {

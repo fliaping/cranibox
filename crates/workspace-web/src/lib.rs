@@ -62,7 +62,15 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
         .command
         .unwrap_or_else(|| args.config_root.join("bin/workspacectl"));
     let mut state = server::State::new(args.config_root.clone(), command, config.clone())?;
-    let embedded = relay::setup(args.relay, args.no_relay, &config.public_url);
+    let (relay_flags, embedded) = cranibox_node::web::relay::configured(
+        &args.config_root.join(".config/cranibox/peers.json"),
+        cranibox_node::web::standalone::RelayFlags {
+            relay: args.relay,
+            no_relay: args.no_relay,
+            public_url: Some(config.public_url.clone()),
+            listen: None,
+        },
+    );
     state.local = Some(std::sync::Arc::new(
         cranibox_node::local::LocalNode::start_with(
             args.config_root.join(".config/cranibox/peers.json"),
@@ -79,6 +87,20 @@ pub async fn run(mut arguments: Vec<String>) -> Result<()> {
     ));
     if std::env::var("CRANIBOX_APP_MOCK").as_deref() != Ok("1") {
         state.local.as_ref().expect("local node").models().await?;
+    }
+    let mut relay_closed = state.closing.subscribe();
+    if let Err(error) = cranibox_node::web::standalone::start_relay_listener(
+        state.local.as_ref().expect("local node"),
+        &embedded,
+        relay_flags.listen,
+        async move {
+            let _ = relay_closed.changed().await;
+        },
+    )
+    .await
+    {
+        state.shutdown().await;
+        return Err(error);
     }
     state.attach_node();
     let _endpoint = cranibox_node::web::endpoint::Registration::workspace(
