@@ -489,7 +489,7 @@ test('requests on my other devices are approved here with the recovery passphras
   await page.goto('/?lang=zh-cn#/app/devices');
   await expect(page.getByRole('status').filter({ hasText: '你的其他设备上有 2 个请求等你批准' })).toBeVisible();
   await page.getByRole('link', { name: '去处理', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '待处理的审批', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '其他设备上的请求', exact: true })).toBeVisible();
   await expect(page.getByText('连不上', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '查看并决定', exact: true }).first().click();
   const dialog = page.getByRole('dialog');

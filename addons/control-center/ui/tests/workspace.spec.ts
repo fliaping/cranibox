@@ -286,8 +286,8 @@ test('local and remote tabs keep their connections while switching nodes and nav
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('LOCAL_CONNECTED');
   await page.getByRole('tab', { name: 'Remote logs', exact: true }).click();
   await page.getByRole('button', { name: 'Minimize terminal window', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Devices & network' }).click();
-  await expect(page.locator('main h1')).toHaveText('Devices & network');
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Devices', exact: true }).click();
+  await expect(page.locator('main h1')).toHaveText('Devices');
   await page.getByRole('button', { name: 'Restore terminal window', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Remote logs', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(activePane(page).locator('.xterm-accessibility')).toContainText('REMOTE_CONNECTED');
@@ -391,7 +391,8 @@ test('mobile navigation traps keyboard focus and restores its trigger', async ({
   const navigation = page.getByRole('dialog', { name: 'Navigation' });
   await expect(navigation).toBeVisible();
   await expect(page.locator('.cx-main')).toHaveAttribute('inert');
-  await navigation.getByRole('link', { name: 'Settings' }).focus();
+  // Tab from the last control in the drawer wraps to the first.
+  await navigation.locator('a[href], button').last().focus();
   await page.keyboard.press('Tab');
   await expect(navigation.getByRole('link', { name: /Cranibox/ })).toBeFocused();
   await page.keyboard.press('Escape');

@@ -1,6 +1,6 @@
-import { Activity, ArrowLeft, Globe, Monitor, Plug, SquareTerminal, Trash2, Users } from "lucide-react";
+import { Globe, Monitor, Plug, SquareTerminal, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DeviceAccess } from "../access/Access";
 import { DesktopViewer } from "../desktop/DesktopViewer";
 import { BrowserTargetPanel } from "../devices/BrowserTargetPanel";
@@ -10,95 +10,92 @@ import { FederatedProjectsView } from "../projects/FederatedProjectsView";
 import type { ProjectClient } from "../projects/ProjectsView";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { request, useWorkspace } from "../workspace";
-import { deviceCaps, devicePath } from "./Home";
+import { deviceCaps, devicePath, since } from "./Home";
 import { relationLabel, relationOf, relationSentence, relationTones } from "./relations";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
 import { UpdatePanel } from "./UpdatePanel";
-import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, formatDeviceLabel, isThis, pathLabel, Pill, shortNodeId, Tabs, type Translate } from "./ui";
+import { Alert, capabilityIcons, capabilityName, Card, DeviceIcon, Empty, formatDeviceLabel, isThis, pathLabel, Pill, shortNodeId, Tabs } from "./ui";
 
-const tabs = ["overview", "terminal", "desktop", "browser", "projects", "access"] as const;
+/** The terminal opens in its own window from the header, so it needs no tab of its own. */
+const tabs = ["overview", "desktop", "browser", "projects", "access"] as const;
 type Tab = (typeof tabs)[number];
 
 export function DeviceDetail() {
   const { t, devices, loading, deviceName } = useApp();
   const params = useParams();
+  const { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
   const id = decodeURIComponent(params.id || ""), tab = (params.tab || "overview") as Tab;
   const device = devices.find(item => item.node_id === id);
   if (!tabs.includes(tab)) return <Navigate to={"/app/device/" + encodeURIComponent(id)} replace />;
   if (!device) return loading ? null : <Empty icon={Plug} title={t("找不到这台设备", "Device not found")} actions={<Link className="cx-btn" to="/app/devices">{t("全部设备", "All devices")}</Link>}>{t("它可能已被移除，或尚未与本机配对。", "It may have been removed, or it is not paired with this device yet.")}</Empty>;
   const local = isThis(device), reachable = local || device.online;
-  const labels: Record<Tab, string> = { overview: t("概览", "Overview"), terminal: t("终端", "Terminal"), desktop: t("桌面", "Desktop"), browser: t("浏览器", "Browser"), projects: t("项目与会话", "Projects & sessions"), access: t("访问", "Access") };
+  const labels: Record<Tab, string> = { overview: t("概览", "Overview"), desktop: t("桌面", "Desktop"), browser: t("浏览器", "Browser"), projects: t("项目与会话", "Projects & sessions"), access: t("权限", "Access") };
+  const terminals = device.caps.terminals !== false && reachable;
+  const seen = since(device.last_seen, t);
   return <>
-    <Link className="cx-btn ghost small" to="/app/devices"><ArrowLeft size={15} aria-hidden="true" />{t("全部设备", "All devices")}</Link>
     <div className="cx-device-head">
-      <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={26} /></span>
+      <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={24} /></span>
       <div className="cx-grow">
-        {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
-        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : t("离线", "Offline")}</div>
+        <div className="cx-device-title">
+          {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
+          {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relationOf(device) !== "peer" && <Pill tone={relationTones[relationOf(device)]}>{relationLabel(relationOf(device), t)}</Pill>}
+        </div>
+        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}</div>
       </div>
-      <div className="cx-actions">{local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relationOf(device) !== "peer" && <Pill tone={relationTones[relationOf(device)]}>{relationLabel(relationOf(device), t)}</Pill>}</div>
+      <div className="cx-actions">
+        <button className="cx-btn" disabled={!terminals} onClick={() => openTerminal({ node: terminalNode(device) })}>{t("已有会话", "Existing sessions")}</button>
+        <button className="cx-btn primary" disabled={!terminals} title={device.caps.terminals === false ? t("这台设备没有允许你打开终端。", "This device has not allowed you to open terminals.") : !reachable ? t("设备离线，恢复连接后即可打开终端。", "The device is offline. Open a terminal once it reconnects.") : undefined} onClick={() => openTerminal({ node: terminalNode(device), create: true })}><SquareTerminal size={16} aria-hidden="true" />{t("打开终端", "Open terminal")}</button>
+      </div>
     </div>
     <Tabs label={t("设备分区", "Device sections")} items={tabs.map(item => ({ to: devicePath(device, item === "overview" ? "" : item), label: labels[item] }))} />
     {tab === "overview" && <Overview device={device} />}
-    {tab === "terminal" && <TerminalTab device={device} />}
     {tab === "desktop" && <DesktopTab device={device} />}
     {tab === "browser" && <BrowserTab device={device} />}
     {tab === "projects" && <ProjectsTab device={device} />}
     {tab === "access" && <AccessTab device={device} />}
   </>;
 }
-function since(seconds: number | null | undefined, t: Translate) {
-  if (!seconds) return "—";
-  const age = Math.max(0, Math.round(Date.now() / 1000 - seconds));
-  if (age < 60) return t("刚刚", "just now");
-  if (age < 3600) return t(Math.round(age / 60) + " 分钟前", Math.round(age / 60) + " min ago");
-  if (age < 86400) return t(Math.round(age / 3600) + " 小时前", Math.round(age / 3600) + " h ago");
-  return new Date(seconds * 1000).toLocaleString();
-}
 function Overview({ device }: { device: Device }) {
   const { t } = useApp();
-  const navigate = useNavigate(), { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
+  const navigate = useNavigate();
   const local = isThis(device), reachable = local || device.online;
-  const open: Record<string, () => void> = {
-    terminals: () => openTerminal({ node: terminalNode(device), create: true }),
-    desktop: () => navigate(devicePath(device, "desktop")),
-    browser: () => navigate(devicePath(device, "browser")),
-    computer: () => navigate(devicePath(device, "access")),
-  };
-  return <div className="cx-detail-grid">
-    <Card label={t("连接", "Connection")} className="cx-detail-status">
-      <div className="cx-card-head"><span className={"cx-card-icon " + (reachable ? "" : "muted")}><Activity size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("连接", "Connection")}</h3></div>
-        <Pill tone={reachable ? "good" : ""}>{reachable ? t("在线", "Online") : t("离线", "Offline")}</Pill></div>
-      <dl className="cx-facts">
-        <div><dt>{t("连接路径", "Path")}</dt><dd>{local ? t("本机", "This device") : device.path === "direct" ? t("对等直连", "Direct peer connection") : device.path === "relay" ? t("经中继（端到端加密）", "Relayed (end-to-end encrypted)") : t("未知", "Unknown")}</dd></div>
-        <div><dt>{t("延迟", "Latency")}</dt><dd>{local ? "—" : device.rtt_ms != null ? device.rtt_ms + " ms" : "—"}</dd></div>
-        <div><dt>{t("最近在线", "Last seen")}</dt><dd>{reachable ? t("现在", "Now") : since(device.last_seen, t)}</dd></div>
-      </dl>
-    </Card>
-    <Card label={t("系统", "System")}>
-      <div className="cx-card-head"><span className="cx-card-icon"><DeviceIcon kind={device.kind} size={20} /></span><div className="cx-grow"><h3>{t("系统", "System")}</h3></div></div>
-      <dl className="cx-facts">
-        <div><dt>{t("系统版本", "OS")}</dt><dd>{device.os_version || "—"}</dd></div>
-        <div><dt>{t("机型", "Model")}</dt><dd>{device.model || "—"}</dd></div>
-        <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : relationOf(device) === "peer" ? t("你的设备", "Your device") : relationSentence(relationOf(device), device.name, t, relationOf(device) === "controlled" || relationOf(device) === "host" ? [t("这台设备", "This device")] : [])}</dd></div>
-        <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{(() => { const s = shortNodeId(device.node_id); return <><span className="cx-id-pill">{s.display}</span>{s.full && <span className="cx-sr"> {s.full}</span>}</>; })()}</dd></div>
-      </dl>
-    </Card>
-    <div className="cx-grouped-list" style={{ gridColumn: "1 / -1" }}>
-      {deviceCaps.map(cap => {
+  // The terminal is the header's primary action; these are what the device offers beyond it.
+  const rows: { cap: (typeof deviceCaps)[number]; detail: string; action: string; to: string }[] = [
+    { cap: "desktop", detail: local ? t("让其他设备查看和操作这块屏幕。", "Let your other devices see and control this screen.") : t("查看并操作它的屏幕。", "See and control its screen."), action: t("连接", "Connect"), to: devicePath(device, "desktop") },
+    { cap: "browser", detail: local ? t("让 Agent 使用这台设备上的浏览器。", "Let agents use the browser on this device.") : t("让 Agent 使用它已登录的浏览器。", "Let agents use its signed-in browser."), action: t("打开", "Open"), to: devicePath(device, "browser") },
+    { cap: "computer", detail: local ? t("让 Agent 看到屏幕并使用鼠标和键盘。", "Let agents see the screen and use the mouse and keyboard.") : t("Agent 可以看到它的屏幕并使用鼠标和键盘。", "Agents can see its screen and use the mouse and keyboard."), action: t("权限", "Access"), to: devicePath(device, "access") },
+  ];
+  return <div className="cx-stack loose">
+    <div className="cx-grouped-list" aria-label={t("能力", "Capabilities")}>
+      {rows.map(({ cap, detail, action, to }) => {
         const Icon = capabilityIcons[cap], on = device.caps[cap] !== false;
-        return <section key={cap} className="cx-grouped-row cx-cap-tile" aria-label={capabilityName(cap, t)}>
-          <div className="cx-row" style={{ gap: 12 }}>
-            <span className={"cx-card-icon " + (on ? "" : "muted")}><Icon size={18} aria-hidden="true" /></span>
-            <div><strong>{capabilityName(cap, t)}</strong><small className="cx-muted" style={{ display: "block" }}>{on ? t("可用", "Available") : t("未授权", "Not allowed")}</small></div>
-          </div>
-          <div className="cx-actions">
-            {local && cap !== "terminals" ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link>
-              : <button className="cx-btn small primary" disabled={!on || !reachable} onClick={open[cap]}>{cap === "computer" ? t("授权", "Access") : cap === "terminals" ? t("打开终端", "Open terminal") : t("打开", "Open")}</button>}
-          </div>
+        return <section key={cap} className="cx-grouped-row" aria-label={capabilityName(cap, t)}>
+          <span className={"cx-card-icon small " + (on ? "" : "muted")}><Icon size={17} aria-hidden="true" /></span>
+          <div className="cx-grow"><strong>{capabilityName(cap, t)}</strong><small className="cx-muted">{on || local ? detail : t("这台设备没有允许你使用。", "This device has not allowed you to use it.")}</small></div>
+          {local ? <Link className="cx-btn small" to="/app/this">{t("管理", "Manage")}</Link>
+            : <button className="cx-btn small" disabled={!on || !reachable} onClick={() => navigate(to, cap === "desktop" ? { state: { connect: true } } : undefined)}>{action}</button>}
         </section>;
       })}
+    </div>
+    <div className="cx-grid two">
+      <Card label={t("连接", "Connection")}>
+        <h3>{t("连接", "Connection")}</h3>
+        <dl className="cx-facts">
+          <div><dt>{t("连接路径", "Path")}</dt><dd>{local ? t("本机", "This device") : !reachable ? t("离线", "Offline") : device.path === "direct" ? t("对等直连", "Direct peer connection") : device.path === "relay" ? t("经中继（端到端加密）", "Relayed (end-to-end encrypted)") : t("未知", "Unknown")}</dd></div>
+          <div><dt>{t("延迟", "Latency")}</dt><dd>{local ? "—" : device.rtt_ms != null ? device.rtt_ms + " ms" : "—"}</dd></div>
+          <div><dt>{t("最近在线", "Last seen")}</dt><dd>{reachable ? t("现在", "Now") : since(device.last_seen, t) || "—"}</dd></div>
+        </dl>
+      </Card>
+      <Card label={t("系统", "System")}>
+        <h3>{t("系统", "System")}</h3>
+        <dl className="cx-facts">
+          {device.os_version && <div><dt>{t("系统版本", "OS")}</dt><dd>{device.os_version}</dd></div>}
+          {device.model && <div><dt>{t("机型", "Model")}</dt><dd>{device.model}</dd></div>}
+          <div><dt>{t("关系", "Relationship")}</dt><dd>{local ? t("你正在使用的设备", "The device you are using") : relationOf(device) === "peer" ? t("你的设备", "Your device") : relationSentence(relationOf(device), device.name, t, relationOf(device) === "controlled" || relationOf(device) === "host" ? [t("这台设备", "This device")] : [])}</dd></div>
+          <div><dt>{t("设备 ID", "Device ID")}</dt><dd className="cx-mono">{(() => { const s = shortNodeId(device.node_id); return <><span className="cx-id-pill">{s.display}</span>{s.full && <span className="cx-sr"> {s.full}</span>}</>; })()}</dd></div>
+        </dl>
+      </Card>
     </div>
     {!local && relationOf(device) === "peer" && device.same_identity === false && <OtherIdentity />}
     {!local && <UpdatePanel node={device.node_id} />}
@@ -141,30 +138,17 @@ function RemoveDevice({ device }: { device: Device }) {
       </div>}
   </Card>;
 }
-function TerminalTab({ device }: { device: Device }) {
-  const { t } = useApp();
-  const { openTerminal } = useTerminalWindow(), terminalNode = useTerminalNode();
-  const allowed = device.caps.terminals !== false, reachable = isThis(device) || device.online;
-  return <Card className="cx-stack">
-    <div className="cx-card-head"><span className="cx-card-icon"><SquareTerminal size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("持久终端", "Persistent terminal")}</h3>
-      <p className="cx-muted">{t("会话在设备上持续运行；关闭窗口只会断开连接，可以随时接回。", "Sessions keep running on the device. Closing the window only detaches, so you can reattach any time.")}</p></div></div>
-    {!allowed && <Alert tone="warn">{t("这台设备没有允许你打开终端。", "This device has not allowed you to open terminals.")}</Alert>}
-    {!reachable && <Alert tone="warn">{t("设备离线，恢复连接后即可打开终端。", "The device is offline. Open a terminal once it reconnects.")}</Alert>}
-    <div className="cx-actions">
-      <button className="cx-btn primary" disabled={!allowed || !reachable} onClick={() => openTerminal({ node: terminalNode(device), create: true })}><SquareTerminal size={16} aria-hidden="true" />{t("打开新终端", "Open new terminal")}</button>
-      <button className="cx-btn" disabled={!allowed || !reachable} onClick={() => openTerminal({ node: terminalNode(device) })}>{t("查看已有会话", "Show existing sessions")}</button>
-    </div>
-  </Card>;
-}
 function DesktopTab({ device }: { device: Device }) {
   const { t, locale, openExternal } = useApp();
-  const [open, setOpen] = useState(false);
+  // Arriving from a "Desktop" button already says what the person wants: connect right away.
+  const wanted = (useLocation().state as { connect?: boolean } | null)?.connect === true;
+  const [open, setOpen] = useState(wanted && !isThis(device) && device.online && device.caps.desktop !== false);
   if (isThis(device)) return <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("这就是你正在使用的设备", "This is the device you are using")}</h3>
     <p className="cx-muted">{t("要让其他设备查看这块屏幕，请在「能力与权限」中开启桌面共享。", "To let your other devices see this screen, turn on desktop sharing under Capabilities.")}</p></div></div>
     <div className="cx-actions"><Link className="cx-btn primary" to="/app/this">{t("管理桌面共享", "Manage desktop sharing")}</Link></div></Card>;
   const allowed = device.caps.desktop !== false;
   return <div className="cx-stack">
-    {!allowed && <Alert tone="warn">{t("这台设备还没开启桌面共享。在那台设备上打开「本机设置 → 能力与权限 → 远程桌面」并允许其他设备使用（macOS 还需在系统设置中打开「屏幕共享」）。", "This device does not share its desktop yet. On that device, open Settings → Capabilities → Remote desktop and allow your other devices (on macOS, also turn on Screen Sharing in System Settings).")}</Alert>}
+    {!allowed && <Alert tone="warn">{t("这台设备还没开启桌面共享。在那台设备上打开「设置 → 能力与权限 → 远程桌面」并允许其他设备使用（macOS 还需在系统设置中打开「屏幕共享」）。", "This device does not share its desktop yet. On that device, open Settings → Capabilities → Remote desktop and allow your other devices (on macOS, also turn on Screen Sharing in System Settings).")}</Alert>}
     {open ? <DesktopViewer target={{ node: device.node_id, local: false }} language={locale} openExternal={openExternal} />
       : <Card className="cx-stack"><div className="cx-card-head"><span className="cx-card-icon"><Monitor size={20} aria-hidden="true" /></span><div className="cx-grow"><h3>{t("远程桌面", "Remote desktop")}</h3>
         <p className="cx-muted">{t("画面经端到端加密的对等连接传输。需要对方设备已开启桌面共享。", "The screen streams over an end-to-end encrypted peer connection. The other device must have desktop sharing turned on.")}</p></div></div>

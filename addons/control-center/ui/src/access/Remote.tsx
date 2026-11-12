@@ -45,7 +45,7 @@ export function RemoteBanner() {
     <div className="cx-actions"><Link className="cx-btn small primary" to="/app/approvals">{t('去处理', 'Review')}</Link></div></div>;
 }
 
-/** 待处理的审批: what waits on your other devices, and whether they may decide for this one. */
+/** 其他设备上的请求: what waits on your other devices, and whether they may decide for this one. */
 export function RemoteApprovals() {
   const { t } = useApp(), { view, error, reload } = useRemote();
   const [open, setOpen] = useState<{ device: RemoteDevice; index: number } | null>(null), [done, setDone] = useState('');
@@ -55,8 +55,8 @@ export function RemoteApprovals() {
   const devices = view?.devices || [];
   const item = open && devices.find(device => device.node === open.device.node)?.requests[open.index];
   return <div className="cx-stack loose">
-    <Card label={t('待处理的审批', 'Pending approvals')}>
-      <div className="cx-between"><h2>{t('待处理的审批', 'Pending approvals')}</h2><button className="cx-btn small" onClick={() => void reload()}>{t('刷新', 'Refresh')}</button></div>
+    <Card label={t('其他设备上的请求', 'Waiting on your other devices')}>
+      <div className="cx-between"><h2>{t('其他设备上的请求', 'Waiting on your other devices')}</h2><button className="cx-btn small" onClick={() => void reload()}>{t('刷新', 'Refresh')}</button></div>
       <p className="cx-muted">{t('这里是你其他设备上等待批准的请求。在另一台设备上批准，需要输入你的 Cranibox ' + secret + '：它只在本机用来签名这一次决定，不会发送出去，也不会保存。', 'Requests waiting on your other devices. Approving from another device needs your Cranibox ' + secret + ': it is used on this device only to sign this one decision, and is never sent or saved.')}</p>
       {error && <Alert>{error}</Alert>}
       {!view && !error && <p className="cx-muted">{t('正在查看你的其他设备…', 'Checking your other devices…')}</p>}

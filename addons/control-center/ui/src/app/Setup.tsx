@@ -27,7 +27,7 @@ export function SetupGuide() {
   const labels: Record<Step, string> = { permissions: t("权限与能力", "Permissions"), identity: t("身份与恢复口令", "Identity"), devices: t("添加设备", "Add devices") };
   return <div className="cx-setup">
     <div className="cx-page-head"><div><h1>{t("设置 Cranibox", "Set up Cranibox")}</h1>
-      <p>{t("一次把这台设备需要的权限和设置都准备好。之后随时可以在「本机设置」里调整。", "Get everything this device needs ready in one go. You can change any of it later in Settings.")}{thisDevice ? " · " + formatDeviceLabel(thisDevice.name, thisDevice.node_id, t).label : ""}</p></div>
+      <p>{t("一次把这台设备需要的权限和设置都准备好。之后随时可以在「设置」里调整。", "Get everything this device needs ready in one go. You can change any of it later in Settings.")}{thisDevice ? " · " + formatDeviceLabel(thisDevice.name, thisDevice.node_id, t).label : ""}</p></div>
       <div className="cx-actions"><button className="cx-btn ghost" onClick={() => void finish()}>{t("跳过向导", "Skip setup")}</button></div></div>
     <ol className="cx-steps" aria-label={t("设置步骤", "Setup steps")}>
       {steps.map((item, index) => <li key={item} aria-current={item === step ? "step" : undefined} className={steps.indexOf(step) > index ? "done" : ""}>

@@ -49,7 +49,7 @@ export function Capabilities() {
   }
   if (state === "loading") return <Loading label={t("正在检测本机能力…", "Checking this device's capabilities…")} />;
   if (state === "unsupported") return <Empty icon={ShieldCheck} title={t("这个节点还不支持能力管理", "Capability management is not available on this node yet")}
-    actions={<><Link className="cx-btn" to="/desktop">{t("桌面共享设置", "Desktop sharing settings")}</Link><Link className="cx-btn" to="/nodes">{t("设备与网络", "Devices & network")}</Link></>}>
+    actions={<><Link className="cx-btn" to="/desktop">{t("桌面共享设置", "Desktop sharing settings")}</Link><Link className="cx-btn" to="/nodes">{t("网络", "Network")}</Link></>}>
     {t("更新 Cranibox 后，可以在这里统一安装、授权和共享终端、桌面、Computer Use 与浏览器。在此之前，请使用以下页面。", "After updating Cranibox you can install, authorize and share terminal, desktop, Computer Use and browser here. Until then, use these pages.")}</Empty>;
   if (state === "error" && !data) return <Alert action={<button className="cx-btn small" onClick={() => void load()}>{t("重试", "Retry")}</button>}>{error}</Alert>;
   const items = [...(data?.items || [])].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
