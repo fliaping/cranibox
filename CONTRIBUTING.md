@@ -46,6 +46,35 @@ A few tests drive Cranibox binaries with scripts from the workspace image. Check
 
 Run a node from source with `cargo run -p cranibox -- --help`. Use a separate config directory for experiments so you do not touch your real identity.
 
+## CI build times
+
+The server/desktop workflow targets a warm-cache wall time under 20 minutes. CLI
+and desktop packaging run independently; the CLI producer also runs the real
+self-update test before its job succeeds. Static/desktop checks and native Rust
+tests run in separate platform matrices. Linux integration tests run in four
+isolated jobs (`ui`, `projects`, `tasks`, `devices`), with each suite sequential
+inside its job so tests that spawn nodes do not compete on the same runner.
+All of these jobs, Wayland, and the resource measurement gate publication.
+
+Non-tag builds use no LTO, 16 codegen units, and optimization level 2. Version
+tags retain the full release profile. CI debug/test builds keep debug assertions
+but omit debug symbols to reduce linking and cache transfer time. Local debug
+builds keep their normal symbols. Integration jobs restore the native dependency
+cache without uploading another copy; writers retain dependency caches even
+when a later test fails. npm downloads are cached by lockfile.
+Superseded branch/PR runs are cancelled; main and tag publishing runs finish.
+
+To inspect the actual critical path, including runner setup and cache transfers:
+
+```bash
+gh run view <run-id> --json jobs
+```
+
+Cold caches, runner queues and external package downloads can exceed the target;
+measure a completed run before reporting that the target has been reached.
+The parallel jobs use standard GitHub-hosted runners and trade additional runner
+minutes for shorter elapsed time.
+
 ## Pull requests
 
 - Keep each pull request to one change, with tests where the behaviour can be tested.

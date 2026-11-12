@@ -2,6 +2,7 @@
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
+import platform
 import socket
 from pathlib import Path
 import sys
@@ -61,7 +62,11 @@ class DeviceNetworkTests(unittest.TestCase):
     def test_plan_and_invalid_requests_never_change_configuration(self):
         plan = self.network(operation='plan')
         self.assertEqual(plan['version'], '2.6.4')
-        self.assertEqual(plan['sha256'], '61b659eaedba658fa66fe47d17e1426cdd77e5d02fa15fed447bb4357c09dfd6')
+        checksums = {
+            'x86_64': '61b659eaedba658fa66fe47d17e1426cdd77e5d02fa15fed447bb4357c09dfd6',
+            'aarch64': 'f533ec25a7ea714e09f645615012200278058525795cc3bb690ff011aec1a70f',
+        }
+        self.assertEqual(plan['sha256'], checksums[platform.machine().lower()])
         self.assertFalse(plan['requires_admin'] or plan['system_routes'] or plan['system_dns'])
         self.assertTrue(plan['url'].startswith('https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/'))
         self.assertFalse(self.config.exists())
@@ -514,7 +519,6 @@ class DeviceNetworkTests(unittest.TestCase):
         self.assertIsNotNone(json.loads(self.config.read_text())['easytier'])
 
     def test_occupied_saved_port_never_receives_target_credentials(self):
-        self.h.stop(self.h.web)
         peers = self.config.with_name('peers.json')
         saved = json.loads(peers.read_text())
         credential = self.config.with_name('test-target.token')
@@ -523,6 +527,9 @@ class DeviceNetworkTests(unittest.TestCase):
             foreign.bind(('127.0.0.1', 0))
             foreign.listen()
             port = foreign.getsockname()[1]
+            # Allocate while the Web host is still listening so the OS cannot
+            # reuse its port for the foreign listener and break the restart.
+            self.h.stop(self.h.web)
             saved['routes']['offline-target'] = {'url': f'http://127.0.0.1:{port}', 'token_file': str(credential), 'allow_insecure': False}
             peers.write_text(json.dumps(saved))
             self.config.write_text(json.dumps({'version': 1, 'easytier': None, 'forwards': {'offline-target': port}}))
