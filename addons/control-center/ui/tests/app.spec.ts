@@ -22,24 +22,29 @@ test('one navigation: home shows peers, approvals and no hub wording', async ({ 
   await expect(page.locator('main h1')).toHaveText('Set up Cranibox');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: 'Skip setup' }).click();
-  await expect(page).toHaveURL(/#\/app\/home$/);
+  // Devices are the home of the app; the old home address still lands there.
+  await expect(page).toHaveURL(/#\/app\/devices$/);
   await page.reload();
-  await expect(page.locator('main h1')).toHaveText('Home');
-  await expect(page.getByRole('region', { name: 'Network summary' })).toContainText('devices online');
-  await expect(page.locator('.cx-brand small')).toHaveText('The agent workspace across your devices');
+  await expect(page.locator('main h1')).toHaveText('Devices');
+  await expect(page.locator('.cx-summary')).toContainText('other devices online');
   await expect(page).toHaveTitle(/Cranibox/);
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
-  for (const name of ['Home', 'Devices & network', 'Virtual spaces', 'Projects & sessions', 'Inbox', 'Agents & models', 'Settings']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
+  for (const name of ['Devices', 'Inbox', 'Projects & sessions', 'Virtual spaces', 'Agents & models', 'Settings']) await expect(nav.getByRole('link', { name: new RegExp('^' + name) })).toBeVisible();
+  await expect(nav.getByRole('link')).toHaveCount(6);
   await expect(page.locator('body')).not.toContainText(/\bHub\b|常驻节点|Advanced/);
-  await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
-  await nav.getByRole('link', { name: 'Devices & network' }).click();
   await expect(page.getByRole('region', { name: 'Network map' })).toHaveCount(0);
+  // A row offers only what the device lets you open, and says so when that is nothing.
   const server = page.getByRole('region', { name: 'Home server', exact: true });
   await expect(server).toContainText('Relayed · 38 ms');
-  await expect(server).toContainText('Computer Use');
-  await expect(page.getByRole('region', { name: 'Studio', exact: true })).toContainText('Offline');
-  await nav.getByRole('link', { name: 'Home' }).click();
-  await page.getByRole('link', { name: 'Review' }).click();
+  for (const name of ['Terminal', 'Desktop', 'Browser']) await expect(server.getByRole('button', { name, exact: true })).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'MacBook Pro', exact: true }).getByRole('link', { name: 'Sharing' })).toHaveAttribute('href', '#/app/this');
+  const studio = page.getByRole('region', { name: 'Studio', exact: true });
+  await expect(studio).toContainText('Offline');
+  await expect(studio.getByRole('button')).toHaveCount(0);
+  await page.goto('/#/app/home');
+  await expect(page).toHaveURL(/#\/app\/devices$/);
+  await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
+  await page.getByRole('link', { name: /Review/ }).click();
   await expect(page).toHaveURL(/#\/app\/inbox$/);
 });
 
@@ -49,8 +54,16 @@ test('device detail has overview, desktop, browser and access tabs', async ({ pa
   await expect(page).toHaveURL(/#\/app\/device\/node-0a1b[0-9a-f]+\/desktop$/);
   // The full node ID follows the name for assistive technology.
   await expect(page.locator('main h1')).toHaveText(/^Home server node-0a1b/);
-  await expect(page.getByRole('button', { name: 'Connect to desktop', exact: true })).toBeEnabled();
+  // The button already said what to open, so the desktop connects without a second click.
+  await expect(page.getByRole('button', { name: 'Connect to desktop', exact: true })).toHaveCount(0);
+  await expect(page.locator('.vnc-toolbar')).toBeVisible();
   const tabs = page.getByRole('navigation', { name: 'Device sections' });
+  await expect(tabs.getByRole('link')).toHaveText(['Overview', 'Desktop', 'Browser', 'Projects & sessions', 'Access']);
+  // Opened from its tab, the desktop waits to be asked.
+  await tabs.getByRole('link', { name: 'Overview', exact: true }).click();
+  await tabs.getByRole('link', { name: 'Desktop', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Connect to desktop', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeEnabled();
   await tabs.getByRole('link', { name: 'Browser', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Target browser', exact: true })).toBeVisible();
   await tabs.getByRole('link', { name: 'Overview', exact: true }).click();
@@ -316,15 +329,20 @@ test('settings switch theme and language for every page and fit 360px', async ({
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('combobox', { name: 'Language' }).selectOption('zh-cn');
   await expect(page.locator('main h1')).toHaveText('通用');
-  await page.goto('/#/app/home');
-  await expect(page.locator('main h1')).toHaveText('首页');
-  // The top bar switches back without opening settings.
-  await page.getByRole('button', { name: '切换到 English' }).click();
-  await expect(page.locator('main h1')).toHaveText('Home');
-  await page.getByRole('button', { name: 'Switch to 中文' }).click();
-  await expect(page.locator('main h1')).toHaveText('首页');
+  // Changing the language reloads the page; wait for the reloaded document.
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-cn');
+  await page.goto('/#/app/devices');
+  await expect(page.locator('main h1')).toHaveText('设备');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  // The navigation switches back without opening settings.
   await page.getByRole('button', { name: '打开导航' }).click();
-  await expect(page.getByRole('dialog', { name: '导航' }).getByRole('link', { name: '本机设置', exact: true })).toBeVisible();
+  await page.getByRole('dialog', { name: '导航' }).getByRole('button', { name: '切换到 English' }).click();
+  await expect(page.locator('main h1')).toHaveText('Devices');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('dialog', { name: 'Navigation' }).getByRole('button', { name: 'Switch to 中文' }).click();
+  await expect(page.locator('main h1')).toHaveText('设备');
+  await page.getByRole('button', { name: '打开导航' }).click();
+  await expect(page.getByRole('dialog', { name: '导航' }).getByRole('link', { name: '设置', exact: true })).toBeVisible();
   await page.evaluate(() => localStorage.removeItem('cranibox.language'));
 });
 
@@ -333,9 +351,11 @@ test('workspace consoles live under This device and old bookmarks keep working',
   await expect(page).toHaveURL(/#\/overview$/);
   await expect(page.getByRole('navigation', { name: 'Workspace' })).toContainText('Services');
   await page.goto('/#/app/devices');
-  await expect(page.locator('main h1')).toHaveText('Devices & network');
+  await expect(page.locator('main h1')).toHaveText('Devices');
   await page.goto('/#/nodes');
-  await expect(page.locator('main h1')).toHaveText('Network settings');
+  await expect(page.locator('main h1')).toHaveText('Network');
+  // Network settings sit with the other settings, not beside the device list.
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
   // Only network settings: devices, identity and pairing live on their own pages.
   for (const name of ['Connection', 'Relays']) await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Identity', exact: true })).toHaveCount(0);
@@ -419,3 +439,29 @@ for (const embedded of [true, false]) {
     await expect.poll(() => operations.filter(operation => operation === 'restart')).toEqual(['restart']);
   });
 }
+
+test('the command palette finds devices, pages and actions from the keyboard', async ({ page }) => {
+  await ready(page, '/app/models');
+  await page.keyboard.press('Control+k');
+  const palette = page.getByRole('dialog', { name: 'Search and jump' });
+  const search = palette.getByRole('combobox');
+  await expect(search).toBeFocused();
+  // Offline devices can be opened but offer no actions.
+  await search.fill('studio');
+  await expect(palette.getByRole('option')).toHaveText([/Studio.*Offline/]);
+  await search.fill('home server desktop');
+  await expect(palette.getByRole('option')).toHaveText(['Connect to the desktop of Home server']);
+  await search.fill('network');
+  await expect(palette.getByRole('option', { name: 'Settings › Network' })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Enter');
+  await expect(palette).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/nodes$/);
+  // The sidebar button opens the same palette, and Escape closes it.
+  await page.getByRole('button', { name: /Search or jump to/ }).click();
+  await expect(search).toBeFocused();
+  await search.fill('home server terminal');
+  await expect(palette.getByRole('option')).toHaveText(['Open a terminal on Home server']);
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/nodes$/);
+});

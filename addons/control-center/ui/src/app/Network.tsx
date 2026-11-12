@@ -92,7 +92,7 @@ export function NetworkPage() {
   }
   const inUse = status ? [...new Set([...(status.this_relay.public_url ? [status.this_relay.public_url] : []), ...status.relays, ...status.learned_relays])] : [];
   return <div className="cx-settings">
-    <PageHead title={t("网络设置", "Network settings")} description={t("这台设备怎样连接你的其他设备。设备列表在「设备」里，身份与恢复口令在「本机设置 → 身份与安全」。", "How this device reaches your other devices. Your devices are under Devices; identity and recovery under Settings → Identity & security.")} />
+    <PageHead title={t("网络", "Network")} description={t("这台设备怎样连接你的其他设备：直连、中继与局域网发现。", "How this device reaches your other devices: direct paths, relays and local discovery.")} />
     {error && <Alert>{error}</Alert>}
     {notice && <div className="cx-notice" role="status"><span>{notice}</span></div>}
     <section className="cx-settings-group" aria-label={t("连接", "Connection")}>

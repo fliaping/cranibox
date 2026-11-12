@@ -22,7 +22,7 @@
 
 <!-- 首屏演示：发布前把这张截图换成演示动图。 -->
 <p align="center">
-  <a href="images/screenshots/app/zh/home.png"><img src="images/screenshots/app/zh/home.png" width="860" alt="Cranibox 首页：你的设备、等你处理的事和常用操作"></a>
+  <a href="images/screenshots/app/zh/devices.png"><img src="images/screenshots/app/zh/devices.png" width="860" alt="Cranibox 首页：你的设备、等你处理的事和常用操作"></a>
 </p>
 
 ## 为什么
@@ -45,9 +45,9 @@ npm install -g @fliaping/cranibox@latest --registry=https://registry.npmmirror.c
 cranibox            # 运行本机节点；界面只监听 127.0.0.1:7377
 ```
 
-**2. 配对。** 在“网络”页点“添加设备”，在新设备上打开 `cranibox://` 链接或扫描二维码。无界面的服务器也可以填写地址加入，再在“待办”里批准。
+**2. 配对。** 在“设备”页点“添加设备”，在新设备上打开 `cranibox://` 链接或扫描二维码。无界面的服务器也可以填写地址加入，再在“待办”里批准。
 
-**3. 决定 Agent 能做什么。** 在每台设备的“本机设置 → 能力与权限”里，打开允许其他设备使用的能力，例如把“执行命令”设为“每次询问”。除消息与任务外，所有能力默认关闭。
+**3. 决定 Agent 能做什么。** 在每台设备的“设置 → 能力与权限”里，打开允许其他设备使用的能力，例如把“执行命令”设为“每次询问”。除消息与任务外，所有能力默认关闭。
 
 **4. 交给你的 Agent。** 桌面客户端可以一键把 Cranibox 写入已安装 Agent 的 MCP 配置，也可以手动添加：
 
@@ -118,7 +118,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 
 <table>
   <tr>
-    <td align="center" width="50%"><a href="images/screenshots/app/zh/devices.png"><img src="images/screenshots/app/zh/devices.png" width="420" alt="设备与网络"></a><br><sub>设备：每台设备的连接方式和能力</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/zh/palette.png"><img src="images/screenshots/app/zh/palette.png" width="420" alt="命令面板"></a><br><sub>命令面板：Ctrl/⌘ K 搜索并直达任何设备、页面和操作</sub></td>
     <td align="center" width="50%"><a href="images/screenshots/app/zh/device.png"><img src="images/screenshots/app/zh/device.png" width="420" alt="设备详情"></a><br><sub>设备详情：终端、桌面、浏览器、项目与访问授权</sub></td>
   </tr>
   <tr>
@@ -145,7 +145,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 
 ### 更新
 
-已安装的设备无需 Node.js：在“本机设置 → 通用 → 更新”里检查和安装，或执行 `cranibox update apply latest`（预发布用 `next`，main 开发构建用 `dev`）。同一身份的任意设备都能更新其他设备（`--node <NodeID>`）；新版本 20 秒内没有正常运行就自动回滚。见[节点远程更新](docs/node-remote-update.md)和[客户端分发](docs/distribution.md)。
+已安装的设备无需 Node.js：在“设置 → 通用 → 更新”里检查和安装，或执行 `cranibox update apply latest`（预发布用 `next`，main 开发构建用 `dev`）。同一身份的任意设备都能更新其他设备（`--node <NodeID>`）；新版本 20 秒内没有正常运行就自动回滚。见[节点远程更新](docs/node-remote-update.md)和[客户端分发](docs/distribution.md)。
 
 ### 服务器与 relay
 

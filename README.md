@@ -22,7 +22,7 @@
 
 <!-- Hero demo: replace this screenshot with the launch GIF. -->
 <p align="center">
-  <a href="images/screenshots/app/en/home.png"><img src="images/screenshots/app/en/home.png" width="860" alt="Cranibox home: your devices, what is waiting for you and common actions"></a>
+  <a href="images/screenshots/app/en/devices.png"><img src="images/screenshots/app/en/devices.png" width="860" alt="Cranibox home: your devices, what is waiting for you and common actions"></a>
 </p>
 
 ## Why
@@ -43,7 +43,7 @@ npm install -g @fliaping/cranibox@latest
 cranibox            # runs this device's node; the UI listens on 127.0.0.1:7377 only
 ```
 
-**2. Pair them.** On the Network page choose **Add device**, then open the `cranibox://` link or scan the QR code on the new device. A headless server can also be added by its address and approved in the Inbox.
+**2. Pair them.** On the Devices page choose **Add device**, then open the `cranibox://` link or scan the QR code on the new device. A headless server can also be added by its address and approved in the Inbox.
 
 **3. Allow what the agent may do.** On each device, under Settings → Capabilities, turn on what other devices may use, for example commands set to *ask every time*. Everything except messages and tasks starts off.
 
@@ -116,7 +116,7 @@ The desktop app and the CLI serve the same interface (preview mode with sample d
 
 <table>
   <tr>
-    <td align="center" width="50%"><a href="images/screenshots/app/en/devices.png"><img src="images/screenshots/app/en/devices.png" width="420" alt="Devices and network"></a><br><sub>Devices: how each one connects and what it offers</sub></td>
+    <td align="center" width="50%"><a href="images/screenshots/app/en/palette.png"><img src="images/screenshots/app/en/palette.png" width="420" alt="Command palette"></a><br><sub>Command palette: Ctrl/⌘ K finds and opens any device, page or action</sub></td>
     <td align="center" width="50%"><a href="images/screenshots/app/en/device.png"><img src="images/screenshots/app/en/device.png" width="420" alt="Device details"></a><br><sub>Device: terminal, desktop, browser, projects and access</sub></td>
   </tr>
   <tr>

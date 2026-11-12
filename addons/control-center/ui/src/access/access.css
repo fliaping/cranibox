@@ -12,10 +12,12 @@
 .cx-access-filters .cx-field { flex: 1; min-width: 0; }
 .cx-access-log { list-style: none; padding: 0; }
 .cx-access-log li { padding: 12px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
-.cx-access-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
+.cx-access-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 6px 8px 6px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .cx-access-banner small { display: block; margin-top: 4px; }
 .cx-access-surfaces { display: grid; gap: 8px; }
-.cx-main > .cx-access-surfaces { position: sticky; top: 60px; z-index: 14; background: var(--bg); flex-shrink: 0; padding: 8px 24px; max-height: 40vh; overflow: auto; }
+.cx-main > .cx-access-surfaces { position: sticky; top: 52px; z-index: 14; background: var(--bg); flex-shrink: 0; padding: 8px var(--space-8) 0; max-height: 40vh; overflow: auto; }
+.cx-main > .cx-access-surfaces > * { width: 100%; max-width: calc(1160px - 2 * var(--space-8)); margin-inline: auto; }
+.cx-main > .cx-access-surfaces .cx-alert { margin-bottom: 0; }
 .cx-main > .cx-access-surfaces:empty { padding: 0; }
 .terminal-window > .cx-access-surfaces { flex-shrink: 0; padding: 8px; max-height: 40vh; overflow: auto; }
 .terminal-window > .cx-access-surfaces:empty { padding: 0; }
