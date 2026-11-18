@@ -3,7 +3,9 @@
 .messages-identity > span { display: grid; gap: 5px; min-width: 0; font-size: 12px; color: var(--muted); }
 .messages-identity code, .messages-identity strong, .messages-identity time { color: var(--direct-text); font-size: 14px; overflow-wrap: anywhere; }
 .messages-identity code { user-select: all; }
-.messages-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.messages-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); grid-template-areas: "feed compose"; gap: 24px; align-items: start; }
+.messages-feed { grid-area: feed; }
+.messages-compose { grid-area: compose; }
 .messages-compose, .messages-feed { min-width: 0; }
 .messages-compose .direct-editor { margin-bottom: 16px !important; }
 .messages-guidance { display: flex; gap: 10px; color: var(--muted); font-size: 13px; line-height: 1.65; }
@@ -33,7 +35,7 @@
 .message-card .direct-actions { padding-top: 12px; border-top: 1px solid var(--border); }
 .message-card > .direct-note { margin-top: 12px; }
 .messages-notice { margin-bottom: 16px !important; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; font-size: 14px; }
-@media(max-width:1000px) { .messages-layout { grid-template-columns: 1fr; } .messages-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .7fr); gap: 20px; } }
+@media(max-width:1000px) { .messages-layout { grid-template-columns: 1fr; grid-template-areas: "feed" "compose"; } .messages-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .7fr); gap: 20px; } }
 @media(max-width:650px) { .messages-compose { display: block; } .messages-guidance { margin-bottom: 20px; } .message-card { padding: 16px; } .message-heading { flex-wrap: wrap; } .messages-identity { padding: 14px; } }
 .messages-held { margin-bottom: 20px; padding: 16px; border: 1px solid var(--danger, #e87888); border-radius: 12px; }
 .messages-held h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 15px; }

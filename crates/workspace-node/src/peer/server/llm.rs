@@ -197,6 +197,7 @@ async fn upgrade(
     Extension(access_key): Extension<super::access::AccessKey>,
     Extension(caller): Extension<Caller>,
     Path(params): Path<HashMap<String, String>>,
+    axum::extract::Query(query): axum::extract::Query<HashMap<String, String>>,
     secret: Option<Extension<crate::peer::secure_ws::StreamSecret>>,
     upgrade: axum::extract::ws::WebSocketUpgrade,
 ) -> Response {
@@ -204,27 +205,42 @@ async fn upgrade(
         return failure(StatusCode::FORBIDDEN, "encrypted stream required").into_response();
     };
     let node = params.get("node").cloned().unwrap_or_default();
-    if let Err(error) = authorize(&app, &caller, &node, true, false).await {
-        return error.into_response();
-    }
+    let service = match authorize(&app, &caller, &node, true, false).await {
+        Ok(service) => service,
+        Err(error) => return error.into_response(),
+    };
     let Ok(permit) = app.streams.clone().try_acquire_owned() else {
         return failure(StatusCode::TOO_MANY_REQUESTS, "model stream limit reached")
             .into_response();
     };
-    let access =
+    // A health probe was let through without an approval, so it has no session to
+    // start and may ask for nothing but the health route.
+    let health = query.get("probe").is_some_and(|p| p == "health");
+    if health {
+        service.heard(&caller.node);
+    }
+    let access = if health {
+        None
+    } else {
         match super::access::begin(&app, &caller, crate::access::Capability::Llm, &access_key) {
-            Ok(access) => access,
+            Ok(access) => Some(access),
             Err(error) => return error.into_response(),
-        };
+        }
+    };
     upgrade
         .max_message_size(33 * 1024 * 1024)
         .max_frame_size(33 * 1024 * 1024)
         .on_upgrade(move |raw| async move {
             let _permit = permit;
             let mut socket = crate::peer::secure_ws::SecureSocket::new(raw, Some(&secret));
-            tokio::select! {
-                _ = serve_stream(&mut socket, app, caller, node) => {},
-                _ = access.revoked() => {},
+            match access {
+                Some(access) => tokio::select! {
+                    _ = serve_stream(&mut socket, app, caller, node, false) => {},
+                    _ = access.revoked() => {},
+                },
+                None => {
+                    let _ = serve_stream(&mut socket, app, caller, node, true).await;
+                }
             }
         })
         .into_response()
@@ -234,6 +250,7 @@ async fn serve_stream(
     app: App,
     caller: Caller,
     node: String,
+    health: bool,
 ) -> anyhow::Result<()> {
     use axum::extract::ws::Message;
     use futures_util::StreamExt;
@@ -246,6 +263,7 @@ async fn serve_stream(
     };
     let input: Value = serde_json::from_str(text.as_str())?;
     let path = input["path"].as_str().unwrap_or_default();
+    anyhow::ensure!(!health || path == "/health", "health probe only");
     anyhow::ensure!(
         matches!(
             path,

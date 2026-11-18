@@ -1,3 +1,4 @@
+import { useNodeName } from '../app/store';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Cable, Database } from 'lucide-react';
 import type { DirectCatalog, DirectClient } from '../devices/DirectDevicesView';
@@ -16,6 +17,7 @@ export function FederatedProjectsView({ client: gateway, direct, devices, langua
   local?: { id: string; name: string; client: ProjectClient }; gatewayEnabled?: boolean;
 }) {
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
+  const nodeName = useNodeName();
   const [sources, setSources] = useState<Source[]>([]);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -118,14 +120,14 @@ export function FederatedProjectsView({ client: gateway, direct, devices, langua
   const gatewayFailed = sources.some(s => !s.id && s.error);
   const targets = [
     ...devices.map(device => ({ ...device, projects: gatewayEnabled && !gatewayFailed, online: gatewayEnabled && !gatewayFailed && device.online })),
-    ...sources.filter(s => s.id && s.id !== ':routes' && !s.error).map(s => ({ id: s.id === ':local' && local ? localTarget(local.id) : directTarget(s.id), name: s.id === ':local' && local ? local.name : s.id + t(' · 直连', ' · Direct'), online: !s.offline, projects: !s.offline, terminal_sessions: !s.offline && s.terminals === true, can_copy: !s.offline && s.exec === true })),
+    ...sources.filter(s => s.id && s.id !== ':routes' && !s.error).map(s => ({ id: s.id === ':local' && local ? localTarget(local.id) : directTarget(s.id), name: s.id === ':local' && local ? local.name : nodeName(s.id), online: !s.offline, projects: !s.offline, terminal_sessions: !s.offline && s.terminals === true, can_copy: !s.offline && s.exec === true })),
   ];
   const failed = sources.filter(s => s.error).length;
   const offline = sources.filter(s => s.offline).length;
   const sourceDetails = sources.length > 0 && <details className="projects-sources">
     <summary><Database size={16} aria-hidden="true" /><strong>{t('目录来源', 'Catalog sources')}</strong><span role="status" aria-atomic="true">{sources.length - failed - offline}/{sources.length} {t('已读取', 'available')}{offline > 0 && t(' · ', ' · ') + offline + t(' 个离线快照', ' offline snapshots')}{failed > 0 && t(' · 部分目录不可用', ' · Some catalogs unavailable')}</span></summary>
     <p className="projects-note">{t('汇总各节点授权的项目。离线快照只供查看，重连后刷新；已确认撤权的来源会被移除。读取失败不代表项目或会话已删除。', 'Projects are read from their owning nodes. Offline snapshots are read-only; refresh after reconnecting. Confirmed revocations remove the cached source. An unavailable catalog does not mean its projects or sessions were deleted.')}</p>
-    <ul>{sources.map(source => <li key={source.id}>{source.id ? <Cable size={16} aria-hidden="true" /> : <Database size={16} aria-hidden="true" />}<div><strong>{source.id === ':local' && local ? local.name : source.id === ':routes' ? t('直连配置', 'Direct configuration') : source.id || t('Workspace 目录', 'Workspace catalog')}</strong><small>{source.error || (source.offline ? t('离线快照 · 版本 ', 'Offline snapshot · revision ') : t('已读取 · 版本 ', 'Available · revision ')) + source.revision}</small>{source.offline && source.syncedAt && <small>{t('上次同步：', 'Last synced: ')}<time dateTime={new Date(source.syncedAt).toISOString()}>{new Date(source.syncedAt).toLocaleString()}</time></small>}{source.warning && <small>{t('本机无法保存离线目录。', 'Offline catalog could not be saved on this device.')}</small>}</div><time dateTime={new Date(source.checked).toISOString()}>{new Date(source.checked).toLocaleTimeString()}</time></li>)}</ul>
+    <ul>{sources.map(source => <li key={source.id}>{source.id ? <Cable size={16} aria-hidden="true" /> : <Database size={16} aria-hidden="true" />}<div><strong>{source.id === ':local' && local ? local.name : source.id === ':routes' ? t('设备连接', 'Device connections') : source.id ? nodeName(source.id) : t('Workspace 目录', 'Workspace catalog')}</strong><small>{source.error || (source.offline ? t('离线快照 · 版本 ', 'Offline snapshot · revision ') : t('已读取 · 版本 ', 'Available · revision ')) + source.revision}</small>{source.offline && source.syncedAt && <small>{t('上次同步：', 'Last synced: ')}<time dateTime={new Date(source.syncedAt).toISOString()}>{new Date(source.syncedAt).toLocaleString()}</time></small>}{source.warning && <small>{t('本机无法保存离线目录。', 'Offline catalog could not be saved on this device.')}</small>}</div><time dateTime={new Date(source.checked).toISOString()}>{new Date(source.checked).toLocaleTimeString()}</time></li>)}</ul>
   </details>;
   return <ProjectsView client={client} devices={targets} language={language} sources={<>{sourceDetails}<ProjectSync client={direct} owner={local?.id || devices[0]?.id} language={language} /></>} />;
 }

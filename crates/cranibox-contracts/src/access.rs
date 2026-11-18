@@ -410,6 +410,32 @@ pub struct ReviewSettings {
     /// Jev score thresholds; `None` is the standard set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jev: Option<JevThresholds>,
+    /// How readily a model or decision service sends an operation to a person; `None`
+    /// is medium. Jev has its own thresholds above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sensitivity: Option<Sensitivity>,
+}
+/// The risk at which an operation the reviewer would let through goes to a person
+/// anyway. It only ever adds a confirmation.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Sensitivity {
+    /// Ask only when the risk is clearly high.
+    Low,
+    #[default]
+    Medium,
+    /// Ask as soon as there is some risk.
+    High,
+}
+impl Sensitivity {
+    /// Risk score (0.0 to 1.0) at or above which a person is asked.
+    pub fn ask_at(self) -> f64 {
+        match self {
+            Self::Low => 0.7,
+            Self::Medium => 0.5,
+            Self::High => 0.3,
+        }
+    }
 }
 /// When Jev's answers make an operation go to a person (`ask`) or be refused (`deny`).
 /// Risk scores are on Jev's 0–3 scale; the others are probabilities from 0 to 1.

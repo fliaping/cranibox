@@ -1,3 +1,4 @@
+import { NodeName, useNodeName } from '../app/store';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Archive, CheckCheck, Inbox, MessageSquare, RefreshCw, Reply, Send, ShieldCheck, X } from 'lucide-react';
 import type { DirectCatalog, DirectClient } from '../devices/DirectDevicesView';
@@ -20,6 +21,7 @@ function identifier() {
 
 /** A local durable mailbox, shared by the browser and the node's native shell. */
 export function DeviceMessagesView({ client, language = 'en', onDevices }: { client: DirectClient; language?: string; onDevices?: () => void }) {
+  const nodeName = useNodeName();
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
   const [catalog, setCatalog] = useState<DirectCatalog>(), [mailbox, setMailbox] = useState<Mailbox>();
   const [readError, setReadError] = useState(''), [formError, setFormError] = useState(''), [notice, setNotice] = useState('');
@@ -83,10 +85,10 @@ export function DeviceMessagesView({ client, language = 'en', onDevices }: { cli
     <div className="direct-heading"><div><h2><MessageSquare size={22} aria-hidden="true" />{t('设备消息', 'Device messages')}</h2><p>{t('给另一台设备留言、回复和确认收件。消息保存在设备上，关闭页面后继续投递。', 'Send, reply and acknowledge across devices. Messages are saved on the device and delivery continues after closing this page.')}</p></div><div className="direct-actions"><button aria-pressed={paused} onClick={() => setPaused(value => !value)}>{paused ? t('恢复自动刷新', 'Resume updates') : t('暂停自动刷新', 'Pause updates')}</button><button disabled={reading || busy} onClick={() => void load()}><RefreshCw size={16} aria-hidden="true" />{t('刷新消息', 'Refresh messages')}</button></div></div>
     {readError && <p className="direct-error" role="alert">{readError}{mailbox && t(' · 显示上次读取的记录。', ' · Showing the last saved view.')}</p>}
     {!mailbox ? <p role="status">{readError ? t('无法读取本机消息。请检查设备服务，然后刷新重试。', 'Messages could not be read. Check the device service, then refresh to retry.') : t('正在读取本机消息…', 'Reading this device’s messages…')}</p> : <>
-      <div className="messages-identity"><span>{t('本机身份', 'This device')}<code>{mailbox.owner}</code></span><span>{t('存储占用', 'Stored records')}<strong>{mailbox.used} / {mailbox.capacity}</strong></span><span>{t('最近读取', 'Last read')}<time>{updated ? new Date(updated).toLocaleTimeString(language) : '—'}</time></span></div>
+      {mailbox.used >= mailbox.capacity * 0.8 && <p className="direct-note" role="status">{t('消息存储快满了（' + mailbox.used + ' / ' + mailbox.capacity + '）。', 'Message storage is nearly full (' + mailbox.used + ' / ' + mailbox.capacity + ').')}</p>}
       <div className="messages-layout"><div className="messages-compose"><form className="direct-editor" onSubmit={send} aria-label={t('撰写设备消息', 'Compose device message')}>
         <h3>{t('新消息', 'New message')}</h3>
-        <label>{t('目标设备', 'Target device')}<select required disabled={busy || !!reply} value={node} onChange={event => { setNode(event.target.value); setTargetSession(''); setTargetValid(true); }}><option value="">{t('选择已连接设备', 'Choose a connected device')}</option>{routes.map(route => <option key={route.node} value={route.node}>{route.node}</option>)}</select></label>
+        <label>{t('目标设备', 'Target device')}<select required disabled={busy || !!reply} value={node} onChange={event => { setNode(event.target.value); setTargetSession(''); setTargetValid(true); }}><option value="">{t('选择已连接设备', 'Choose a connected device')}</option>{routes.map(route => <option key={route.node} value={route.node}>{nodeName(route.node)}</option>)}</select></label>
         {!routes.length && <p className="direct-note">{t('先在设备网络中添加直连、EasyTier 或 Tailscale 连接。', 'First add a direct, EasyTier or Tailscale connection in Device network.')}</p>}
         {node && <AgentSessions key={node} client={client} node={node} language={language} paused={paused} selected={targetSession} onSelect={setTargetSession} onValidChange={setTargetValid} disabled={busy || !!replySession} purpose="message" />}
         {reply && <div className="messages-reply"><span>{t('回复消息', 'Replying to')}<code>{reply.id}</code></span><button type="button" disabled={busy} aria-label={t('取消回复', 'Cancel reply')} onClick={() => { setReply(undefined); setTargetSession(''); setTargetValid(true); field.current?.focus(); }}><X size={16} aria-hidden="true" /></button></div>}
@@ -101,7 +103,7 @@ export function DeviceMessagesView({ client, language = 'en', onDevices }: { cli
         {items.map(item => {
           const message = item.message, target = box === 'incoming' ? message.sender : message.recipient, canReply = routes.some(route => route.node === target);
           return <article className="message-card" key={message.id} aria-label={t('消息 ', 'Message ') + message.id}>
-            <div className="message-heading"><div><small>{box === 'incoming' ? t('来自', 'From') : t('发送至', 'To')}</small><strong>{target}</strong></div><span className={'message-status message-' + item.status}>{box === 'incoming' && item.status === 'received' ? t('待确认收件', 'Awaiting acknowledgement') : status(item.status)}</span></div>
+            <div className="message-heading"><div><small>{box === 'incoming' ? t('来自', 'From') : t('发送至', 'To')}</small><strong><NodeName id={target} /></strong></div><span className={'message-status message-' + item.status}>{box === 'incoming' && item.status === 'received' ? t('待确认收件', 'Awaiting acknowledgement') : status(item.status)}</span></div>
             {message.target_session && <p className="message-agent-address">{t('收件 Agent', 'Recipient Agent')}<code>{message.target_session}</code></p>}
             <p className="message-text">{message.text}</p>
             <details><summary>{t('消息详情与会话', 'Message and thread details')}</summary><dl>{[[t('消息 ID', 'Message ID'), message.id], [t('会话 ID', 'Thread ID'), message.thread], [t('回复于', 'In reply to'), message.in_reply_to || '—'], [t('发件 Agent', 'Sender Agent'), message.sender_session || '—'], [t('收件 Agent', 'Recipient Agent'), message.target_session || t('设备收件箱', 'Device inbox')], [t('发送时间', 'Sent'), new Date(message.created_at * 1000).toLocaleString(language)], [t('投递截止', 'Delivery deadline'), new Date(message.expires_at * 1000).toLocaleString(language)]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></details>

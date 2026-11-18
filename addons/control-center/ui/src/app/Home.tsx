@@ -29,6 +29,8 @@ function DeviceRow({ device }: { device: Device }) {
   // Only what this device lets you open: a row of greyed-out buttons says nothing useful.
   const terminals = device.caps.terminals !== false, desktop = device.caps.desktop !== false, browser = device.caps.browser !== false;
   const seen = since(device.last_seen, t);
+  // Seen moments ago yet not reachable: another device still talks to it, this one cannot.
+  const recent = !!device.last_seen && Date.now() / 1000 - device.last_seen < 120;
   return <section className={"cx-device " + (reachable ? "" : "offline")} aria-label={device.name}>
     <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={20} /></span>
     <div className="cx-grow">
@@ -38,7 +40,7 @@ function DeviceRow({ device }: { device: Device }) {
         {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relation !== "peer" ? <Pill tone={relationTones[relation]}>{relationLabel(relation, t)}</Pill> : null}
       </div>
       <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />
-        {local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}
+        {local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : recent ? t("这台设备连不上它", "Unreachable from this device") : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}
       </div>
     </div>
     {reachable && <div className="cx-quick">

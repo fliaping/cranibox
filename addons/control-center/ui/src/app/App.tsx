@@ -207,7 +207,7 @@ export function Shell({ chatUrl = "/proxy/3080/" }: { chatUrl?: string }) {
           <button className="cx-icon-btn small cx-lang" aria-label={t("切换到 English", "Switch to 中文")} title={t("语言", "Language")} onClick={() => setLocale(locale.startsWith("zh") ? "en" : "zh-cn")}><Languages size={15} aria-hidden="true" /></button>
           <button className="cx-icon-btn small" aria-label={dark ? t("切换浅色主题", "Switch to light theme") : t("切换深色主题", "Switch to dark theme")} title={t("主题", "Theme")} onClick={() => setTheme(dark ? "light" : "dark")}>{dark ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}</button>
         </div>
-        <StatusButton status={status} t={t} onClick={() => setStatusOpen(true)} detail={pathSummary(devices, t)} />
+        <StatusButton status={status?.state === "no_models" ? { ...status, state: devices.some(device => !isThis(device) && device.online) ? "connected" : "local" } : status} t={t} onClick={() => setStatusOpen(true)} detail={pathSummary(devices, t)} />
         {workspace.snapshot?.revision && <span className="cx-revision sidebar-revision cx-sr">{t("版本 ", "Revision ")}{workspace.snapshot.revision}</span>}
       </div>
     </aside>

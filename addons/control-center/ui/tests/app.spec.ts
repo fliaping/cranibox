@@ -215,7 +215,7 @@ test('capabilities page shows providers, permissions, sharing and reviews instal
   await expect.poll(() => calls.at(-1)).toBe('computer:install:{"plan_id":"plan-1"}');
   await expect(computer).toContainText('Running');
   const desktop = page.getByRole('region', { name: 'Remote desktop', exact: true });
-  await desktop.getByText('Available to my other devices').click();
+  await desktop.getByText('Share this capability').click();
   await expect.poll(() => calls.at(-1)).toBe('desktop:enable:{}');
   await expect(desktop).toContainText('Shared');
   await expect(page.getByRole('region', { name: 'Browser', exact: true })).toContainText('Profile locked');

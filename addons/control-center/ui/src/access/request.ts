@@ -19,6 +19,8 @@ export function signInAgain(response: Response) {
   const terminal = new URLSearchParams(location.search).get('window') === 'terminal';
   location.replace('/sign-in' + (terminal ? '?window=terminal' : ''));
 }
+/** Devices the app last saw offline: reads of them give up early instead of holding a page. */
+export const offlineNodes = new Set<string>();
 export type AccessFetchOptions = { signal?: AbortSignal; waiting?: (waiting: boolean) => void; timeoutMs?: number; background?: boolean };
 function targetOf(route: string, body?: BodyInit | null) {
   const url = new URL(route, location.href);

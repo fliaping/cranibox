@@ -1,5 +1,5 @@
 import { createContext,useCallback,useContext,useEffect,useRef,useState,type ReactNode } from 'react';
-import { accessFetch, signInAgain, type AccessFetchOptions } from './access/request';
+import { accessFetch, offlineNodes, signInAgain, type AccessFetchOptions } from './access/request';
 import type { PollState,Snapshot } from './types';
 import { useTerminalWindow } from './terminal/TerminalWindowContext';
 
@@ -8,12 +8,42 @@ export function nodeEdition() { return (config.edition || config.mode) === 'node
 export function languagePreference() { try { return localStorage.getItem('cranibox.language'); } catch { return null; } }
 export const zh = config.language.startsWith('zh');
 export const t = (cn: string, en: string) => config.language.startsWith('zh') ? cn : en;
-export class RequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
+export class RequestError extends Error { constructor(message: string, readonly status: number, readonly code = '', readonly raw = message) { super(message); } }
+// Only what pages load by themselves. A check the user clicks still asks out loud.
+const reads = new Set(['list', 'activity', 'held', 'registries', 'space_catalog', 'copy_list']);
+/** A page reading what a device shares is not the user asking for it: a device that
+ *  shares nothing answers inline, never with a banner that waits for a decision. */
+function passive(body: unknown) {
+  let command = body as { operation?: unknown; command?: unknown } | undefined;
+  while (command && typeof command.command === 'object' && command.command) command = command.command as typeof command;
+  return typeof command?.operation === 'string' && reads.has(command.operation);
+}
+/** Server and device errors in the words of the interface. */
+export function explain(message: string) {
+  if (/^(capability_off\b.*|(API 403: )?capability not granted by target node)$/i.test(message)) return t('那台设备没有向这台设备开放这项功能。在那台设备上打开 Cranibox：设备 › 这台设备 › 权限，选择「自动审核」或其他访问级别。', 'That device has not opened this to this device. On that device open Cranibox: Devices › this device › Permissions, and choose “Automatic review” or another access level.');
+  if (message === 'approval_cooldown') return t('刚才的请求被拒绝，请稍后再试', 'The last request was denied. Try again shortly');
+  if (message === 'timeout') return t('设备没有响应，可能已离线', 'The device did not answer. It may be offline');
+  return message;
+}
+// Reads of other devices can hang until an offline device times out. Browsers allow
+// six connections per host, so they queue here and leave room for everything else.
+let reading = 0;
+const queue: (() => void)[] = [];
+async function slot<T>(work: () => Promise<T>) {
+  if (reading >= 4) await new Promise<void>(resolve => queue.push(resolve));
+  reading++;
+  try { return await work(); } finally { reading--; queue.shift()?.(); }
+}
 export async function request(route: string, body: unknown, options?: AccessFetchOptions) {
-  const response = await accessFetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: JSON.stringify(body) }, { timeoutMs: 12000, ...options });
+  const background = options?.background ?? passive(body);
+  const send = () => accessFetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Workspace-CSRF': config.csrf }, body: JSON.stringify(body) }, { timeoutMs: background && offlineNodes.has(String((body as { node?: unknown })?.node || '')) ? 4000 : 12000, ...options, background });
+  let response: Response;
+  try { response = await (background && route === '/api/peers' && (body as { node?: unknown })?.node ? slot(send) : send()); }
+  catch (problem) { if (problem instanceof DOMException && problem.name === 'TimeoutError') throw new RequestError(explain('timeout'), 0); throw problem; }
   if (response.status === 401) throw new RequestError(t('会话已过期，请刷新页面。', 'Session expired. Reload this page.'), 401);
   const value = await response.json().catch(() => ({}));
-  if (!response.ok) throw new RequestError(value.error || value.message || String(response.status), response.status);
+  const raw = String(value.error || value.message || response.status);
+  if (!response.ok) throw new RequestError(explain(raw), response.status, String(value.error || ''), raw);
   return value;
 }
 export function safeUrl(value: string, base = config.workspaceUrl) {

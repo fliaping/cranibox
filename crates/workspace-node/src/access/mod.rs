@@ -123,6 +123,42 @@ impl Denied {
     }
 }
 
+/// What the owner's own devices start with: automatic review. Where a reviewer can see
+/// the operation (commands, files, projects, browser, spaces) it is allowed, so routine
+/// ones run and the built-in rules and the configured reviewer send risky ones to a
+/// person. An interactive terminal or the screen is a stream no reviewer can judge, so
+/// opening one asks; remote updates, models and accounts ask every time whatever the mode.
+/// The operation that only asks whether the model service answers.
+pub const HEALTH: &str = "llm.health";
+/// What a device does on its own, with nobody waiting for the answer: the liveness
+/// probe of the model service, the installed and available version shown on a device
+/// page, and the account sync between the owner's devices. They follow the capability
+/// being on, never a person's approval, even where every other use of it asks.
+///
+/// Account sync reaches this point only from a device of the owner's identity over the
+/// verified end-to-end channel: the owner compared codes on both devices to let it in,
+/// and that confirmation is the approval. Its records stay signed and encrypted.
+pub fn unattended(operation: Option<&Operation>) -> bool {
+    operation.is_some_and(|o| {
+        o.kind == HEALTH || o.kind == "update.check" || o.kind.starts_with("vault.")
+    })
+}
+fn owner_mode(capability: Capability) -> Mode {
+    use Capability::*;
+    match capability {
+        Messages | Activity | Exec | Projects | Browser | Spaces => Mode::Allow,
+        Terminals | Desktop | Computer | Update | Llm | Vault => Mode::Ask,
+    }
+}
+/// What an owner device that joins later starts with: the same, and its accounts sync
+/// from the start, which is what joining the identity means. Calling models through
+/// another device still asks when it happens.
+fn joined_mode(capability: Capability) -> Mode {
+    match capability {
+        Capability::Vault => Mode::Allow,
+        other => owner_mode(other),
+    }
+}
 /// The mode a grant implies: its capabilities allowed (remote updates are never part of a
 /// grant), everything else off.
 fn grant_mode(p: &Permissions, capability: Capability) -> Mode {
@@ -204,11 +240,7 @@ impl Store {
                 .into_iter()
                 .map(|c| {
                     let mode = if owner {
-                        if matches!(c, Capability::Messages | Capability::Activity) {
-                            Mode::Allow
-                        } else {
-                            Mode::Ask
-                        }
+                        owner_mode(c)
                     } else {
                         config
                             .grants
@@ -274,6 +306,42 @@ impl Store {
                 }
             }
             state.derived.insert(node.clone(), grant.credential.clone());
+        }
+        // An owner device that joined after this store was created has no modes of its
+        // own yet. It starts like the ones that were there from the beginning, instead
+        // of falling back to messages only. Saved modes are never touched.
+        let path = self.peers.with_file_name("models").join("roster.json");
+        if path.exists()
+            && let Ok(store) = agent_workspace_runtime::peers::roster::RosterStore::load(path)
+            && let Some(current) = store.current()
+        {
+            for member in &current.members {
+                let node = &member.node_id;
+                if *node == config.node_id || state.policy.peers.contains_key(node) {
+                    continue;
+                }
+                for capability in Capability::ALL {
+                    let mode = joined_mode(capability);
+                    if state.policy.mode(node, capability) != mode {
+                        self.event(
+                            EventKind::PolicyChanged,
+                            Some(node),
+                            Some(capability),
+                            None,
+                            None,
+                            &serde_json::to_string(&mode)?,
+                            at,
+                        )?;
+                    }
+                }
+                state.policy.peers.insert(
+                    node.clone(),
+                    Capability::ALL
+                        .into_iter()
+                        .map(|c| (c, joined_mode(c)))
+                        .collect(),
+                );
+            }
         }
         Ok(())
     }
@@ -574,6 +642,12 @@ impl Store {
                     capability,
                     target_name,
                     hint,
+                }));
+            }
+            // Never a person's decision. Using a model or installing an update still is.
+            if unattended(operation) {
+                return Ok(Ok(Decision {
+                    basis: "unattended".into(),
                 }));
             }
             if let Some(expires_at) = state.cooldown.get(node).copied() {

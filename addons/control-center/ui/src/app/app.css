@@ -388,3 +388,4 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border
 .cx-palette-item[aria-selected=true] { background: var(--accent-soft); color: var(--accent-text); }
 .cx-palette-item[aria-selected=true] > svg { color: inherit; }
 .cx-palette-empty { padding: var(--space-6); text-align: center; color: var(--muted); font-size: var(--text-sm); }
+.cx-section-title { font-size: 15px; margin: 24px 0 12px; }

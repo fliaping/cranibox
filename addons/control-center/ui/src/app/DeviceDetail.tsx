@@ -33,6 +33,8 @@ export function DeviceDetail() {
   const labels: Record<Tab, string> = { overview: t("概览", "Overview"), desktop: t("桌面", "Desktop"), browser: t("浏览器", "Browser"), projects: t("项目与会话", "Projects & sessions"), access: t("权限", "Access") };
   const terminals = device.caps.terminals !== false && reachable;
   const seen = since(device.last_seen, t);
+  // Seen moments ago yet not reachable: another device still talks to it, this one cannot.
+  const recent = !!device.last_seen && Date.now() / 1000 - device.last_seen < 120;
   return <>
     <div className="cx-device-head">
       <span className="cx-card-icon"><DeviceIcon kind={device.kind} size={24} /></span>
@@ -41,7 +43,7 @@ export function DeviceDetail() {
           {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
           {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relationOf(device) !== "peer" && <Pill tone={relationTones[relationOf(device)]}>{relationLabel(relationOf(device), t)}</Pill>}
         </div>
-        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}</div>
+        <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : recent ? t("这台设备连不上它", "Unreachable from this device") : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}</div>
       </div>
       <div className="cx-actions">
         <button className="cx-btn" disabled={!terminals} onClick={() => openTerminal({ node: terminalNode(device) })}>{t("已有会话", "Existing sessions")}</button>

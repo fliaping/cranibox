@@ -3,6 +3,7 @@ import type { Account, Agent, Api, Approval, Device, Model, Pill, Preset } from 
 import type { Translate } from "./ui";
 import type { Preferences } from "../types";
 import type { AccessView } from "../access/types";
+import { offlineNodes } from "../access/request";
 
 export function stored(key: string, fallback: string) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -37,6 +38,21 @@ export type AppState = {
 const Context = createContext<AppState | null>(null);
 export function useOptionalApp() {
   return useContext(Context);
+}
+/** A device's name wherever an identifier would otherwise be shown; unknown devices get a short id. */
+export function useNodeName() {
+  const app = useContext(Context);
+  return useCallback((node?: string | null) => {
+    if (!node) return "";
+    const known = app?.devices.find(device => device.node_id === node)?.name;
+    if (known && known !== node) return known;
+    const short = node.match(/^node-([0-9a-f]{6})[0-9a-f]{10,}$/i);
+    return short ? (document.documentElement.lang.startsWith("zh") ? "设备 #" : "Device #") + short[1].toLowerCase() : node;
+  }, [app?.devices]);
+}
+export function NodeName({ id }: { id?: string | null }) {
+  const name = useNodeName();
+  return id ? <span title={id}>{name(id)}</span> : null;
 }
 export function useApp() {
   const value = useContext(Context);
@@ -81,6 +97,7 @@ export function AppProvider({ api, language, openExternal, onLocale, children }:
     return () => clearInterval(timer);
   }, [refresh]);
   useEffect(() => api.subscribe?.(() => { void refresh(); }), [api, refresh]);
+  useEffect(() => { offlineNodes.clear(); for (const device of devices) if (!device.online && !device.badges.includes("this")) offlineNodes.add(device.node_id); }, [devices]);
   useEffect(() => {
     const apply = () => { document.documentElement.dataset.theme = resolvedTheme(theme); };
     apply();

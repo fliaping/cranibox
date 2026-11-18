@@ -351,6 +351,11 @@ impl Service {
                 cua::stop_daemon(&driver()?).await.map_err(failed)?;
             }
             (CapabilityId::Computer, Enable) => {
+                // One switch: sharing starts the driver instead of asking for it first.
+                let program = driver()?;
+                if !cua::daemon_running(&program).await {
+                    cua::start_daemon(&program).await.map_err(failed)?;
+                }
                 let ready = computer::bridge(
                     &computer::Provider::cua(),
                     json!({"action":"status"}),

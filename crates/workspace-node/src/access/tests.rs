@@ -476,10 +476,18 @@ fn migration_preserves_direct_decisions_and_roster_members() {
     for capability in Capability::ALL {
         assert_eq!(
             paired.capabilities[&capability],
-            if matches!(capability, Capability::Messages | Capability::Activity) {
-                Mode::Allow
-            } else {
+            if matches!(
+                capability,
+                Capability::Terminals
+                    | Capability::Desktop
+                    | Capability::Computer
+                    | Capability::Update
+                    | Capability::Llm
+                    | Capability::Vault
+            ) {
                 Mode::Ask
+            } else {
+                Mode::Allow
             }
         );
     }
@@ -492,6 +500,150 @@ fn migration_preserves_direct_decisions_and_roster_members() {
     store.initialize().unwrap();
     assert!(matches!(
         store.authorize(&other.public().node_id, Capability::Exec, "one"),
+        Err(Denied::Off { .. })
+    ));
+}
+
+#[test]
+fn own_devices_that_join_later_start_reviewed_and_saved_modes_stay() {
+    use agent_workspace_runtime::peers::roster::{OwnerKey, RosterStore};
+    use cranibox_contracts::roster::{Role, RosterMember};
+    // The store exists before any other device of the owner is known.
+    let (root, store) = fixture();
+    let peers = root.path().join("peers.json");
+    let owner = OwnerKey::load_or_create(&root.path().join("fixture-owner")).unwrap();
+    let own = Config::identity(&peers).unwrap();
+    let identity = |name: &str| {
+        let path = root.path().join(name);
+        Config::update(&path, |_| Ok(())).unwrap();
+        Config::identity(&path).unwrap()
+    };
+    let (first, second) = (identity("first-peers.json"), identity("second-peers.json"));
+    let member = |i: &agent_workspace_runtime::peers::identity::Identity| {
+        let p = i.public();
+        RosterMember {
+            node_id: p.node_id.clone(),
+            signing_key: p.signing_key.clone(),
+            x25519_pub: p.noise_key.clone(),
+            role: Role::Node,
+            priority: 0,
+            is_claude_node: false,
+            name: "Fixture".into(),
+            added_at: 0,
+            identity: None,
+        }
+    };
+    let roster_path = root.path().join("models/roster.json");
+    std::fs::create_dir_all(roster_path.parent().unwrap()).unwrap();
+    RosterStore::pin(&roster_path, &owner.public()).unwrap();
+    let roster = RosterStore::load(roster_path).unwrap();
+    roster
+        .issue(&owner, vec![member(&own), member(&first)])
+        .unwrap();
+    let first_id = first.public().node_id.clone();
+    let modes = |node: &str| {
+        let view = store.view().unwrap();
+        view.peers
+            .iter()
+            .find(|p| p.node == node)
+            .unwrap()
+            .capabilities
+            .clone()
+    };
+    assert_eq!(modes(&first_id)[&Capability::Terminals], Mode::Ask);
+    assert_eq!(modes(&first_id)[&Capability::Messages], Mode::Allow);
+    assert_eq!(modes(&first_id)[&Capability::Exec], Mode::Allow);
+    // Accounts sync from the start without a prompt; calling a model through this
+    // device asks when it happens.
+    assert_eq!(modes(&first_id)[&Capability::Llm], Mode::Ask);
+    assert_eq!(modes(&first_id)[&Capability::Vault], Mode::Allow);
+    let sync = Operation {
+        kind: "vault.pull".into(),
+        risk: Risk::Danger,
+        summary: String::new(),
+        confirm: false,
+    };
+    let synced = store.authorize_for(
+        &first_id,
+        Capability::Vault,
+        "sync",
+        Some(&sync),
+        Pending::default(),
+    );
+    assert_eq!(synced.unwrap().basis, "unattended");
+    store
+        .change(&first_id, [(Capability::Vault, Mode::Off)].into())
+        .unwrap();
+    assert!(matches!(
+        store.authorize_for(
+            &first_id,
+            Capability::Vault,
+            "sync",
+            Some(&sync),
+            Pending::default(),
+        ),
+        Err(Denied::Off { .. })
+    ));
+    store
+        .change(&first_id, [(Capability::Llm, Mode::Off)].into())
+        .unwrap();
+    let health = Operation {
+        kind: HEALTH.into(),
+        risk: Risk::Read,
+        summary: String::new(),
+        confirm: false,
+    };
+    let probe = |store: &Store| {
+        store.authorize_for(
+            &first_id,
+            Capability::Llm,
+            "probe",
+            Some(&health),
+            Pending::default(),
+        )
+    };
+    assert!(matches!(probe(&store), Err(Denied::Off { .. })));
+    store
+        .change(&first_id, [(Capability::Llm, Mode::Ask)].into())
+        .unwrap();
+    // A liveness probe never waits for a person; using a model still does.
+    assert_eq!(probe(&store).unwrap().basis, "unattended");
+    let check = Operation {
+        kind: "update.check".into(),
+        ..health.clone()
+    };
+    let checked = store.authorize_for(
+        &first_id,
+        Capability::Update,
+        "check",
+        Some(&check),
+        Pending::default(),
+    );
+    assert_eq!(checked.unwrap().basis, "unattended");
+    assert!(store.view().unwrap().pending.is_empty());
+    assert!(matches!(
+        store.authorize(&first_id, Capability::Llm, "use"),
+        Err(Denied::ApprovalRequired { .. })
+    ));
+    assert!(matches!(
+        store.authorize(&first_id, Capability::Terminals, "one"),
+        Err(Denied::ApprovalRequired { .. })
+    ));
+    // A choice the owner saved survives later roster changes.
+    store
+        .change(&first_id, [(Capability::Terminals, Mode::Off)].into())
+        .unwrap();
+    roster
+        .issue(&owner, vec![member(&own), member(&first), member(&second)])
+        .unwrap();
+    assert_eq!(modes(&first_id)[&Capability::Terminals], Mode::Off);
+    assert_eq!(
+        modes(&second.public().node_id)[&Capability::Desktop],
+        Mode::Ask
+    );
+    // A device outside the owner's identity still starts with messages only.
+    assert!(matches!(
+        store.authorize(NODE, Capability::Terminals, "two"),
         Err(Denied::Off { .. })
     ));
 }
