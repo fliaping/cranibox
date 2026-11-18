@@ -236,12 +236,27 @@ jobs:
           archive="target/release/bundle/app/$(basename "${dmg%.dmg}").app.tar.gz"
           tar -czf "$archive" -C "$mount" Cranibox.app
           ls -l "$archive"
+      # Linux ships two installers; separate artifacts let testers download only the one
+      # they need (the AppImage carries its own WebKitGTK and is most of the size).
       - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: cranibox-desktop-linux-deb
+          path: target/release/bundle/deb/*.deb
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
+        with:
+          name: cranibox-desktop-linux-appimage
+          path: target/release/bundle/appimage/*.AppImage
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: runner.os != 'Linux'
         with:
           name: cranibox-desktop-${{ matrix.os }}
           path: |
-            target/release/bundle/**/*.deb
-            target/release/bundle/**/*.AppImage
             target/release/bundle/**/*.exe
             target/release/bundle/**/*.dmg
             target/release/bundle/**/*.app.tar.gz
@@ -354,8 +369,15 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm ci --prefix addons/control-center/ui
         if: runner.os == 'Linux'
-      - run: node scripts/build-control-center-ui.cjs && git diff --exit-code -- addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css
+      - name: Checked-in control-center bundle matches its sources
         if: runner.os == 'Linux'
+        run: |
+          node scripts/build-control-center-ui.cjs
+          if ! git diff --stat --exit-code -- addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css; then
+            echo "::error::The generated control-center files differ from the commit. Run 'node scripts/build-control-center-ui.cjs' and commit addons/control-center/{web.js,web.css,index.*.html}."
+            git diff -- addons/control-center/web.js addons/control-center/web.css | head -60
+            exit 1
+          fi
       - run: npx --prefix addons/control-center/ui playwright install --with-deps chromium
         if: runner.os == 'Linux'
       - run: npm test --prefix addons/control-center/ui
