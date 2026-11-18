@@ -390,7 +390,7 @@ impl Shell for NativeShell {
                         cranibox_node::update::desktop::Relaunch::Restart => app.request_restart(),
                         cranibox_node::update::desktop::Relaunch::AfterExit(command) => {
                             if let Err(error) =
-                                cranibox_node::update::desktop::spawn_detached(command)
+                                cranibox_node::update::desktop::spawn_detached(*command)
                             {
                                 eprintln!("Install the desktop app: {error:#}");
                             }
