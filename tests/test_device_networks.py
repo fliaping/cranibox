@@ -12,7 +12,7 @@ import unittest
 import urllib.request
 from unittest.mock import patch
 
-from workspace_web_harness import Harness, CORE, NODE, WEB, sockets_allowed, until
+from workspace_web_harness import Harness, CORE, NODE, WEB, sockets_allowed, until, free_port
 
 
 @unittest.skipUnless(sys.platform == 'linux' and all(p.exists() for p in (CORE, NODE, WEB)) and sockets_allowed(), 'Linux Rust binaries and real sockets required')
@@ -50,7 +50,7 @@ class DeviceNetworkTests(unittest.TestCase):
             program.chmod(0o700)
 
     def test_network_api_requires_session_csrf_and_same_origin(self):
-        commands = [{'operation': 'status'}, {'operation': 'plan'}, {'operation': 'install'}, {'operation': 'easy_tier_stop'}, {'operation': 'tailscale_login'}, {'operation': 'tailscale_setup_plan'}, {'operation': 'tailscale_setup', 'plan_id': 'unreviewed'}, {'operation': 'tailscale_discovery', 'port': 1234}, {'operation': 'tailscale_discovery', 'ports': [1234, 4321]}, {'operation': 'tailscale_discover', 'address': '100.64.0.2', 'port': 1234}, {'operation': 'tailscale_connect', 'address': '100.64.0.2', 'port': 1234, 'node': 'remote', 'token': 'a' * 64}]
+        commands = [{'operation': 'relay_settings', 'enabled': True, 'public_url': 'https://relay.example', 'listen': '127.0.0.1:7378'}, {'operation': 'status'}, {'operation': 'plan'}, {'operation': 'install'}, {'operation': 'easy_tier_stop'}, {'operation': 'tailscale_login'}, {'operation': 'tailscale_setup_plan'}, {'operation': 'tailscale_setup', 'plan_id': 'unreviewed'}, {'operation': 'tailscale_discovery', 'port': 1234}, {'operation': 'tailscale_discovery', 'ports': [1234, 4321]}, {'operation': 'tailscale_discover', 'address': '100.64.0.2', 'port': 1234}, {'operation': 'tailscale_connect', 'address': '100.64.0.2', 'port': 1234, 'node': 'remote', 'token': 'a' * 64}]
         for command in commands:
             for headers in ({'Content-Type': 'application/json'}, {'Cookie': self.h.cookie, 'Content-Type': 'application/json'}, {**self.h.headers(), 'Origin': 'https://untrusted.example'}):
                 with self.subTest(command=command, headers=list(headers)):
@@ -58,6 +58,82 @@ class DeviceNetworkTests(unittest.TestCase):
                     self.assertIn(code, (401, 403))
         self.assertFalse(self.config.exists())
         self.assertFalse((self.config.parent / 'tools').exists())
+
+    def test_relay_settings_apply_on_restart_and_public_listener_has_no_management_api(self):
+        port = free_port()
+        desired = dict(enabled=True, public_url='https://relay.example', listen=f'127.0.0.1:{port}')
+        self.network(operation='iroh_settings', lan=False, relays=['https://other.example'], n0_fallback=False)
+        value = self.network(operation='relay_settings', **desired)['iroh']['this_relay']
+        self.assertFalse(value['enabled'])
+        self.assertTrue(value['restart_required'])
+        self.assertEqual(value['settings'], desired)
+        saved = self.config.read_bytes()
+        for address in ['http://relay.example', 'https://relay.example/path', 'https://relay.example/?key=value', 'https://user@relay.example']:
+            code, _ = self.h.post('/api/network', {'operation':'relay_settings', **desired, 'public_url':address})
+            self.assertEqual(code, 400)
+            self.assertEqual(self.config.read_bytes(), saved)
+        self.h.stop(self.h.web)
+        self.h.start_web()
+        self.h.login()
+        status = self.network(operation='status')['iroh']
+        self.assertEqual(status['relays'], ['https://other.example'])
+        self.assertFalse(status['n0_fallback'])
+        relay = status['this_relay']
+        self.assertTrue(relay['enabled'])
+        self.assertFalse(relay['restart_required'])
+        self.assertEqual(self.h.http('GET', '/ping', port=port)[0], 200)
+        identity = self.h.http('GET', '/.well-known/cranibox', port=port)[1]
+        self.assertEqual(identity['public_url'], desired['public_url'])
+        self.assertTrue(identity['relay'])
+        for path in ['/', '/api/network', '/api/peers', '/web.js']:
+            self.assertEqual(self.h.http('GET', path, port=port)[0], 404, path)
+        relay = self.network(operation='relay_settings', **{**desired, 'enabled':False})['iroh']['this_relay']
+        self.assertTrue(relay['enabled'])
+        self.assertTrue(relay['restart_required'])
+        self.h.stop(self.h.web)
+        self.h.start_web()
+        self.h.login()
+        relay = self.network(operation='status')['iroh']['this_relay']
+        self.assertFalse(relay['enabled'])
+        self.assertFalse(relay['restart_required'])
+        with socket.socket() as probe:
+            self.assertNotEqual(probe.connect_ex(('127.0.0.1', port)), 0)
+
+    def test_legacy_relay_does_not_claim_unsaved_gui_settings_need_a_restart(self):
+        self.h.stop(self.h.web)
+        self.h.start(NODE, '--config', self.config.with_name('settings.json'), 'serve', '--listen', f'127.0.0.1:{self.h.web_port}', '--relay', '--public-url', 'https://relay.example')
+        until(lambda: self.h.http('GET', '/healthz')[0] == 200)
+        token = self.config.with_name('ui.token').read_text().strip()
+        self.h.http('GET', '/?token=' + token)
+        headers = {name.lower(): value for name, value in self.h.last_headers.items()}
+        self.h.cookie = headers['set-cookie'].split(';')[0]
+        _, html = self.h.http('GET', '/')
+        self.h.csrf = json.loads(html.split('window.workspaceWeb=')[1].split(';</script>')[0])['csrf']
+        relay = self.network(operation='status')['iroh']['this_relay']
+        self.assertTrue(relay['enabled'])
+        self.assertFalse(relay['restart_required'])
+        self.assertFalse(self.config.exists())
+        relay = self.network(operation='relay_settings', **relay['settings'])['iroh']['this_relay']
+        self.assertTrue(relay['restart_required'])
+
+    def test_headless_node_reads_the_same_relay_settings(self):
+        port = free_port()
+        self.network(operation='relay_settings', enabled=True, public_url='https://relay.example', listen=f'127.0.0.1:{port}')
+        self.h.stop(self.h.web)
+        def start_node():
+            process = self.h.start(NODE, '--config', self.config.with_name('settings.json'), 'serve', '--listen', f'127.0.0.1:{self.h.web_port}')
+            until(lambda: self.h.http('GET', '/healthz')[0] == 200)
+            return process
+        node = start_node()
+        self.assertEqual(self.h.http('GET', '/ping', port=port)[0], 200)
+        self.assertEqual(self.h.http('GET', '/api/network', port=port)[0], 404)
+        self.h.stop(node)
+        saved = json.loads(self.config.read_text())
+        saved['relay']['enabled'] = False
+        self.config.write_text(json.dumps(saved))
+        start_node()
+        with socket.socket() as probe:
+            self.assertNotEqual(probe.connect_ex(('127.0.0.1', port)), 0)
 
     def test_plan_and_invalid_requests_never_change_configuration(self):
         plan = self.network(operation='plan')
@@ -498,9 +574,11 @@ class DeviceNetworkTests(unittest.TestCase):
         self.h.login()
         status = self.network(operation='status')
         self.assertEqual(status['easytier']['phase'], 'failed')
-        code, _ = self.h.post('/api/network', {'operation': 'easy_tier_stop'})
-        self.assertEqual(code, 400)
-        self.assertEqual(self.config.read_text(), 'corrupt state to preserve')
+        self.assertFalse(status['iroh']['this_relay']['enabled'])
+        for command in [{'operation': 'easy_tier_stop'}, {'operation': 'relay_settings', 'enabled': True, 'public_url': 'https://relay.example', 'listen': '127.0.0.1:7378'}]:
+            code, _ = self.h.post('/api/network', command)
+            self.assertEqual(code, 400)
+            self.assertEqual(self.config.read_text(), 'corrupt state to preserve')
 
     def test_headless_peer_restores_and_cleans_up_without_workspace(self):
         self.provision()

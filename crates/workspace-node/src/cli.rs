@@ -58,6 +58,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             allow_host.clone(),
             crate::web::standalone::RelayFlags {
                 relay: *relay,
+                no_relay: false,
                 public_url: public_url.clone(),
                 listen: *relay_listen,
             },

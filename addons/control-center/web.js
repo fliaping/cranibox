@@ -43672,8 +43672,139 @@ function oS() {
 	});
 }
 //#endregion
+//#region src/app/RelaySettings.tsx
+function sS({ status: e, onSaved: t }) {
+	let { t: n } = Yn(), [r, i] = (0, y.useState)({
+		enabled: e.enabled,
+		public_url: e.public_url || "",
+		listen: e.listen || "127.0.0.1:7378"
+	}), [a, o] = (0, y.useState)(!1), [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(!1);
+	(0, y.useEffect)(() => {
+		i(e.settings || {
+			enabled: e.enabled,
+			public_url: e.public_url || "",
+			listen: e.listen || "127.0.0.1:7378"
+		});
+	}, [e]);
+	async function d() {
+		o(!0), c(""), u(!1);
+		try {
+			let e = await xr("/api/network", {
+				operation: "relay_settings",
+				...r,
+				public_url: r.public_url.trim(),
+				listen: r.listen.trim()
+			});
+			if (!e.iroh?.this_relay) throw Error(n("未能读取保存后的中继配置，请重试。", "Could not read the saved relay configuration. Please retry."));
+			t(e.iroh.this_relay), u(!0);
+		} catch (e) {
+			c(e instanceof Error ? e.message : String(e));
+		} finally {
+			o(!1);
+		}
+	}
+	function f(e) {
+		i((t) => ({
+			...t,
+			...e
+		})), u(!1);
+	}
+	return /* @__PURE__ */ (0, J.jsxs)("section", {
+		className: "cx-settings-group",
+		"aria-label": n("这台设备作为中继", "This device as a relay"),
+		children: [
+			/* @__PURE__ */ (0, J.jsx)("h2", { children: n("这台设备作为中继", "This device as a relay") }),
+			/* @__PURE__ */ (0, J.jsxs)("div", {
+				className: "cx-setting-row",
+				children: [/* @__PURE__ */ (0, J.jsx)("p", {
+					className: "cx-grow cx-muted cx-small",
+					children: n("将这台设备的中继入口暴露到公网后，其他已配对设备就能通过它中继连接。连接始终端到端加密。", "Expose this device’s relay to the public internet so your paired devices can use it to relay connections. Connections remain end-to-end encrypted.")
+				}), /* @__PURE__ */ (0, J.jsx)(sc, {
+					tone: e.enabled ? "good" : "",
+					children: e.enabled ? n("正在运行", "Running") : n("未运行", "Not running")
+				})]
+			}),
+			/* @__PURE__ */ (0, J.jsxs)("form", {
+				className: "cx-setting-row cx-stack",
+				onSubmit: (e) => {
+					e.preventDefault(), d();
+				},
+				children: [
+					/* @__PURE__ */ (0, J.jsx)(hc, {
+						label: n("启用本机中继", "Enable this device’s relay"),
+						detail: n("保存后重启 Cranibox 生效。", "Save and restart Cranibox to apply."),
+						checked: r.enabled,
+						disabled: a,
+						onChange: (e) => f({ enabled: e })
+					}),
+					/* @__PURE__ */ (0, J.jsxs)("label", {
+						className: "cx-field",
+						children: [n("公网 HTTPS 地址", "Public HTTPS address"), /* @__PURE__ */ (0, J.jsx)("input", {
+							type: "url",
+							placeholder: "https://relay.example.com",
+							spellCheck: !1,
+							autoComplete: "off",
+							required: r.enabled,
+							value: r.public_url,
+							disabled: a,
+							onChange: (e) => f({ public_url: e.target.value })
+						})]
+					}),
+					/* @__PURE__ */ (0, J.jsx)("p", {
+						className: "cx-muted cx-small",
+						children: n("填写域名根地址。将该域名通过 HTTPS 反向代理或隧道转发到下面的中继监听地址，并开启 WebSocket 转发。", "Enter the domain’s root address. Forward it through an HTTPS reverse proxy or tunnel to the relay listener below, with WebSocket forwarding enabled.")
+					}),
+					/* @__PURE__ */ (0, J.jsxs)("label", {
+						className: "cx-field",
+						children: [n("中继监听地址与端口", "Relay listener address and port"), /* @__PURE__ */ (0, J.jsx)("input", {
+							type: "text",
+							placeholder: "127.0.0.1:7378",
+							spellCheck: !1,
+							autoComplete: "off",
+							required: !0,
+							value: r.listen,
+							disabled: a,
+							onChange: (e) => f({ listen: e.target.value })
+						})]
+					}),
+					/* @__PURE__ */ (0, J.jsx)("p", {
+						className: "cx-muted cx-small",
+						children: n("代理在本机时使用 127.0.0.1:7378；代理在其他设备时，可使用 0.0.0.0:7378。该端口只提供中继和配对入口，管理界面使用自己的地址。", "Use 127.0.0.1:7378 for a proxy on this device, or 0.0.0.0:7378 for a proxy on another device. This port serves relay and pairing requests; the management interface uses its own address.")
+					}),
+					/* @__PURE__ */ (0, J.jsx)("p", {
+						className: "cx-muted cx-small",
+						children: n("运行状态仅表示本机中继服务已启动；公网可用性取决于代理和网络配置。", "Running means the local relay service has started; public access depends on your proxy and network configuration.")
+					}),
+					e.enabled && e.public_url && /* @__PURE__ */ (0, J.jsxs)("p", {
+						className: "cx-muted cx-small",
+						children: [n("当前运行地址：", "Currently running at: "), /* @__PURE__ */ (0, J.jsx)("span", {
+							className: "cx-mono",
+							children: e.public_url
+						})]
+					}),
+					s && /* @__PURE__ */ (0, J.jsx)(mc, { children: s }),
+					(e.restart_required || l) && /* @__PURE__ */ (0, J.jsx)("p", {
+						className: "cx-notice",
+						role: "status",
+						children: e.restart_required ? n("配置已保存，重启 Cranibox 后生效。当前运行状态如上。", "Configuration saved. Restart Cranibox to apply. The current running state is shown above.") : n("中继配置已保存。", "Relay configuration saved.")
+					}),
+					/* @__PURE__ */ (0, J.jsx)("div", {
+						className: "cx-actions",
+						children: /* @__PURE__ */ (0, J.jsx)("button", {
+							className: "cx-btn primary",
+							type: "submit",
+							disabled: a,
+							children: a ? n("正在保存…", "Saving…") : n("保存中继配置", "Save relay configuration")
+						})
+					})
+				]
+			})
+		]
+	});
+}
+//#endregion
 //#region src/app/Network.tsx
-function sS() {
+function cS() {
 	let { api: e } = Yn(), [t, n] = (0, y.useState)(null), [r, i] = (0, y.useState)(""), a = () => e.call("GET", "/identity").then((e) => {
 		n(e), i("");
 	}, (e) => i(e instanceof Error ? e.message : String(e)));
@@ -43686,11 +43817,11 @@ function sS() {
 		reload: a
 	};
 }
-function cS(e) {
+function lS(e) {
 	return navigator.clipboard.writeText(e).then(() => !0, () => !1);
 }
-function lS({ compact: e = !1 }) {
-	let { t } = Yn(), { identity: n, error: r } = sS(), [i, a] = (0, y.useState)(!1);
+function uS({ compact: e = !1 }) {
+	let { t } = Yn(), { identity: n, error: r } = cS(), [i, a] = (0, y.useState)(!1);
 	return /* @__PURE__ */ (0, J.jsxs)(oc, {
 		label: t("身份", "Identity"),
 		children: [/* @__PURE__ */ (0, J.jsxs)("div", {
@@ -43716,7 +43847,7 @@ function lS({ compact: e = !1 }) {
 				children: n.code
 			}), /* @__PURE__ */ (0, J.jsxs)("button", {
 				className: "cx-btn small",
-				onClick: () => void cS(n.code).then(a),
+				onClick: () => void lS(n.code).then(a),
 				children: [/* @__PURE__ */ (0, J.jsx)(Vi, {
 					size: 14,
 					"aria-hidden": "true"
@@ -43745,7 +43876,7 @@ function lS({ compact: e = !1 }) {
 		})]
 	});
 }
-function uS() {
+function dS() {
 	let { api: e, t } = Yn(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1);
 	(0, y.useEffect)(() => {
 		e.call("GET", "/network/routing").then(r, (e) => a(e instanceof Error ? e.message : String(e)));
@@ -43786,7 +43917,7 @@ function uS() {
 		]
 	});
 }
-function dS({ title: e, detail: t, children: n }) {
+function fS({ title: e, detail: t, children: n }) {
 	return /* @__PURE__ */ (0, J.jsxs)("div", {
 		className: "cx-setting-row",
 		children: [/* @__PURE__ */ (0, J.jsxs)("div", {
@@ -43801,7 +43932,7 @@ function dS({ title: e, detail: t, children: n }) {
 		})]
 	});
 }
-function fS({ id: e, title: t, detail: n, children: r }) {
+function pS({ id: e, title: t, detail: n, children: r }) {
 	let i = "cranibox.network." + e, [a, o] = (0, y.useState)(() => Vn(i, "") === "1");
 	return /* @__PURE__ */ (0, J.jsxs)("details", {
 		className: "cx-settings-group cx-disclosure",
@@ -43816,7 +43947,7 @@ function fS({ id: e, title: t, detail: n, children: r }) {
 		})] }), a && r]
 	});
 }
-function pS() {
+function mS() {
 	let { t: e, devices: t } = Yn(), [n, r] = (0, y.useState)(null), [i, a] = (0, y.useState)(""), [o, s] = (0, y.useState)(!1), [c, l] = (0, y.useState)(!1), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)("");
 	(0, y.useEffect)(() => {
 		xr("/api/network", { operation: "status" }).then((e) => r(e.iroh || null), (e) => a(e instanceof Error ? e.message : String(e)));
@@ -43842,7 +43973,7 @@ function pS() {
 		}
 	}
 	let b = n ? [.../* @__PURE__ */ new Set([
-		...n.this_relay.public_url ? [n.this_relay.public_url] : [],
+		...n.this_relay.enabled && n.this_relay.public_url ? [n.this_relay.public_url] : [],
 		...n.relays,
 		...n.learned_relays
 	])] : [];
@@ -43864,7 +43995,7 @@ function pS() {
 				"aria-label": e("连接", "Connection"),
 				children: [
 					/* @__PURE__ */ (0, J.jsx)("h2", { children: e("连接", "Connection") }),
-					/* @__PURE__ */ (0, J.jsx)(dS, {
+					/* @__PURE__ */ (0, J.jsx)(fS, {
 						title: e("当前连接", "Right now"),
 						detail: e("优先直连，打洞失败时经中继转发；两种都端到端加密。", "Direct when possible, through a relay otherwise; both end-to-end encrypted."),
 						children: /* @__PURE__ */ (0, J.jsxs)("span", {
@@ -43892,13 +44023,13 @@ function pS() {
 				]
 			}),
 			/* @__PURE__ */ (0, J.jsx)(oS, {}),
-			/* @__PURE__ */ (0, J.jsx)(uS, {}),
+			/* @__PURE__ */ (0, J.jsx)(dS, {}),
 			n && /* @__PURE__ */ (0, J.jsxs)("section", {
 				className: "cx-settings-group",
 				"aria-label": e("中继", "Relays"),
 				children: [
 					/* @__PURE__ */ (0, J.jsx)("h2", { children: e("中继", "Relays") }),
-					/* @__PURE__ */ (0, J.jsx)(dS, {
+					/* @__PURE__ */ (0, J.jsx)(fS, {
 						title: e("使用的中继", "Relays in use"),
 						detail: b.length ? /* @__PURE__ */ (0, J.jsx)("span", {
 							className: "cx-mono",
@@ -43950,30 +44081,23 @@ function pS() {
 						checked: n.n0_fallback,
 						disabled: o,
 						onChange: (e) => void v({ n0_fallback: e })
-					}),
-					/* @__PURE__ */ (0, J.jsx)(dS, {
-						title: e("这台设备作为中继", "This device as a relay"),
-						detail: n.this_relay.enabled ? n.this_relay.public_url || e("运行中（未设置公网地址）", "Running (no public address)") : /* @__PURE__ */ (0, J.jsxs)("details", {
-							className: "cx-inline-details",
-							children: [/* @__PURE__ */ (0, J.jsx)("summary", { children: e("未开启（查看自建命令）", "Off (view self-host command)") }), /* @__PURE__ */ (0, J.jsxs)("small", {
-								className: "cx-muted",
-								children: [e("在有公网 HTTPS 入口的机器上运行 ", "On a machine with a public HTTPS address, run "), /* @__PURE__ */ (0, J.jsx)("code", { children: "cranibox serve --public-url https://…" })]
-							})]
-						}),
-						children: /* @__PURE__ */ (0, J.jsx)(sc, {
-							tone: n.this_relay.enabled ? "good" : "",
-							children: n.this_relay.enabled ? e("开启", "On") : e("关闭", "Off")
-						})
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, J.jsx)(fS, {
+			n && /* @__PURE__ */ (0, J.jsx)(sS, {
+				status: n.this_relay,
+				onSaved: (e) => r((t) => t && {
+					...t,
+					this_relay: e
+				})
+			}),
+			/* @__PURE__ */ (0, J.jsx)(pS, {
 				id: "networks",
 				title: e("其他网络（可选）", "Other networks (optional)"),
 				detail: e("EasyTier、Tailscale", "EasyTier, Tailscale"),
 				children: /* @__PURE__ */ (0, J.jsx)(nS, {})
 			}),
-			/* @__PURE__ */ (0, J.jsx)(fS, {
+			/* @__PURE__ */ (0, J.jsx)(pS, {
 				id: "troubleshooting",
 				title: e("排障", "Troubleshooting"),
 				detail: e("直连路由、监听地址", "Direct routes, listener"),
@@ -43984,8 +44108,8 @@ function pS() {
 }
 //#endregion
 //#region src/app/Identity.tsx
-function mS() {
-	let { t: e, api: t, devices: n } = Yn(), { identity: r, setIdentity: i } = sS(), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)([]), [l, u] = (0, y.useState)(!1), [d, f] = (0, y.useState)(""), [p, m] = (0, y.useState)("");
+function hS() {
+	let { t: e, api: t, devices: n } = Yn(), { identity: r, setIdentity: i } = cS(), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)([]), [l, u] = (0, y.useState)(!1), [d, f] = (0, y.useState)(""), [p, m] = (0, y.useState)("");
 	async function h(e) {
 		u(!0), f(""), m("");
 		try {
@@ -44000,7 +44124,7 @@ function mS() {
 	return /* @__PURE__ */ (0, J.jsxs)("div", {
 		className: "cx-stack loose",
 		children: [
-			/* @__PURE__ */ (0, J.jsx)(lS, {}),
+			/* @__PURE__ */ (0, J.jsx)(uS, {}),
 			/* @__PURE__ */ (0, J.jsxs)(oc, {
 				label: e("恢复口令", "Recovery passphrase"),
 				children: [/* @__PURE__ */ (0, J.jsxs)("div", {
@@ -44022,9 +44146,9 @@ function mS() {
 					className: "cx-muted",
 					style: { marginTop: 12 },
 					children: r.recovery_kind === "passphrase" ? e("已设置恢复口令。", "A recovery passphrase is set.") : e("已设置恢复码。", "A recovery code is set.")
-				}) : /* @__PURE__ */ (0, J.jsx)(_S, { onCreated: i })]
+				}) : /* @__PURE__ */ (0, J.jsx)(vS, { onCreated: i })]
 			}),
-			r?.recovery && /* @__PURE__ */ (0, J.jsx)(gS, {
+			r?.recovery && /* @__PURE__ */ (0, J.jsx)(_S, {
 				kind: r.recovery_kind === "code" ? "code" : "passphrase",
 				onRotated: i
 			}),
@@ -44108,12 +44232,12 @@ function mS() {
 		]
 	});
 }
-function hS(e, t, n) {
+function gS(e, t, n) {
 	let r = [...e.trim()].length, i = new Set(e.trim()).size;
 	return e ? r < 12 ? n("至少 12 个字符（可以是一句话）", "At least 12 characters (a sentence works)") : i < 5 ? n("太简单了，换一些不同的字符", "Too simple; mix more characters") : t && t.trim() !== e.trim() ? n("两次输入不一致", "The two entries differ") : "" : "";
 }
-function gS({ kind: e, onRotated: t }) {
-	let { t: n, api: r } = Yn(), [i, a] = (0, y.useState)(!1), [o, s] = (0, y.useState)("passphrase"), [c, l] = (0, y.useState)(""), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(""), [m, h] = (0, y.useState)(""), [g, _] = (0, y.useState)(!1), [v, b] = (0, y.useState)(""), [x, S] = (0, y.useState)(""), [C, w] = (0, y.useState)(!1), T = o === "passphrase" ? hS(u, f, n) : "", E = c.trim() && (o === "code" || !T && !!f);
+function _S({ kind: e, onRotated: t }) {
+	let { t: n, api: r } = Yn(), [i, a] = (0, y.useState)(!1), [o, s] = (0, y.useState)("passphrase"), [c, l] = (0, y.useState)(""), [u, d] = (0, y.useState)(""), [f, p] = (0, y.useState)(""), [m, h] = (0, y.useState)(""), [g, _] = (0, y.useState)(!1), [v, b] = (0, y.useState)(""), [x, S] = (0, y.useState)(""), [C, w] = (0, y.useState)(!1), T = o === "passphrase" ? gS(u, f, n) : "", E = c.trim() && (o === "code" || !T && !!f);
 	async function D() {
 		_(!0), b(""), S("");
 		try {
@@ -44172,7 +44296,7 @@ function gS({ kind: e, onRotated: t }) {
 						className: "cx-actions",
 						children: [/* @__PURE__ */ (0, J.jsxs)("button", {
 							className: "cx-btn",
-							onClick: () => void cS(m).then(w),
+							onClick: () => void lS(m).then(w),
 							children: [/* @__PURE__ */ (0, J.jsx)(Vi, {
 								size: 14,
 								"aria-hidden": "true"
@@ -44272,7 +44396,7 @@ function gS({ kind: e, onRotated: t }) {
 		]
 	});
 }
-function _S({ onCreated: e }) {
+function vS({ onCreated: e }) {
 	let { t, api: n } = Yn(), [r, i] = (0, y.useState)("passphrase"), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(!1), _ = [...a.trim()].length, v = new Set(a.trim()).size, b = a ? _ < 12 ? t("至少 12 个字符（可以是一句话）", "At least 12 characters (a sentence works)") : v < 5 ? t("太简单了，换一些不同的字符", "Too simple; mix more characters") : s && s.trim() !== a.trim() ? t("两次输入不一致", "The two entries differ") : "" : "", x = _ >= 20 && v >= 10 ? t("强", "Strong") : _ >= 14 ? t("中", "Fair") : t("弱", "Weak");
 	async function S(t) {
 		f(!0), m("");
@@ -44304,7 +44428,7 @@ function _S({ onCreated: e }) {
 				className: "cx-actions",
 				children: [/* @__PURE__ */ (0, J.jsxs)("button", {
 					className: "cx-btn",
-					onClick: () => void cS(l).then(g),
+					onClick: () => void lS(l).then(g),
 					children: [/* @__PURE__ */ (0, J.jsx)(Vi, {
 						size: 14,
 						"aria-hidden": "true"
@@ -44386,7 +44510,7 @@ function _S({ onCreated: e }) {
 		}), p && /* @__PURE__ */ (0, J.jsx)(mc, { children: p })]
 	});
 }
-function vS() {
+function yS() {
 	let { t: e } = Yn();
 	return rr() ? /* @__PURE__ */ (0, J.jsx)("div", {
 		className: "cx-stack loose",
@@ -44420,7 +44544,7 @@ function vS() {
 }
 //#endregion
 //#region src/app/Inbox.tsx
-function yS() {
+function bS() {
 	let { t: e, api: t, approvals: n, busy: r, run: i, deviceName: a } = Yn(), [o, s] = (0, y.useState)([]);
 	(0, y.useEffect)(() => {
 		let e = !0, n = () => t.call("GET", "/tasks").then((t) => {
@@ -44481,7 +44605,7 @@ function yS() {
 }
 //#endregion
 //#region src/app/Models.tsx
-var bS = {
+var xS = {
 	"deepseek-harness": {
 		code: "DS",
 		bg: "rgba(37, 99, 235, 0.12)",
@@ -44513,7 +44637,7 @@ var bS = {
 		fg: "#0891b2"
 	}
 };
-function xS() {
+function SS() {
 	let { t: e, agents: t, models: n, busy: r, run: i, api: a } = Yn(), o = n.filter((e) => e.availability.kind !== "unavailable");
 	return /* @__PURE__ */ (0, J.jsx)("div", {
 		className: "cx-list",
@@ -44521,7 +44645,7 @@ function xS() {
 			className: "cx-list-row pa-agent-row",
 			children: [
 				(() => {
-					let e = bS[t.id];
+					let e = xS[t.id];
 					return e ? /* @__PURE__ */ (0, J.jsx)("span", {
 						className: "cx-card-icon",
 						style: {
@@ -44584,7 +44708,7 @@ function xS() {
 		}, t.id))
 	});
 }
-function SS({ chatUrl: e, adding: t, setAdding: n }) {
+function CS({ chatUrl: e, adding: t, setAdding: n }) {
 	let { t: r, accounts: i, devices: a, thisDevice: o, agents: s, busy: c, run: l, api: u } = Yn(), [d, f] = (0, y.useState)(!1), [p, m] = (0, y.useState)(null), h = s.find((e) => e.id === "deepseek-harness"), g = a.filter((e) => Cc(e) || Zs(e) === "peer"), _ = (e, t) => l(() => u.call("POST", "/models/accounts/" + e + "/enable", t));
 	return /* @__PURE__ */ (0, J.jsxs)(J.Fragment, { children: [
 		h?.installed && /* @__PURE__ */ (0, J.jsx)(lc, {
@@ -44785,15 +44909,15 @@ function SS({ chatUrl: e, adding: t, setAdding: n }) {
 		}),
 		/* @__PURE__ */ (0, J.jsx)(lc, {
 			title: r("各 Agent 用哪个模型", "Models for your agents"),
-			children: /* @__PURE__ */ (0, J.jsx)(xS, {})
+			children: /* @__PURE__ */ (0, J.jsx)(SS, {})
 		}),
-		t && /* @__PURE__ */ (0, J.jsx)(CS, {
+		t && /* @__PURE__ */ (0, J.jsx)(wS, {
 			provider: p,
 			onClose: () => n(!1)
 		})
 	] });
 }
-function CS({ provider: e, onClose: t }) {
+function wS({ provider: e, onClose: t }) {
 	let { t: n, api: r, presets: i, refresh: a, openExternal: o, run: s, busy: c } = Yn(), [l, u] = (0, y.useState)("signin"), [d, f] = (0, y.useState)(e || "codex"), [p, m] = (0, y.useState)(""), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(""), [b, x] = (0, y.useState)(""), [S, C] = (0, y.useState)(""), [w, T] = (0, y.useState)(null), [E, D] = (0, y.useState)(""), [O, k] = (0, y.useState)(""), [A, j] = (0, y.useState)(!1), M = A || c;
 	async function N(e) {
 		e.preventDefault(), j(!0), k("");
@@ -44984,7 +45108,7 @@ function CS({ provider: e, onClose: t }) {
 }
 //#endregion
 //#region src/app/Pairing.tsx
-function wS({ onPaired: e }) {
+function TS({ onPaired: e }) {
 	let { api: t, t: n, refresh: r, setNotice: i } = Yn(), [a, o] = (0, y.useState)("owner_device"), [s, c] = (0, y.useState)(null), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(null), [p, m] = (0, y.useState)(!1), [h, g] = (0, y.useState)(""), [_, v] = (0, y.useState)(null);
 	(0, y.useEffect)(() => {
 		if (!_) return;
@@ -45197,22 +45321,22 @@ function wS({ onPaired: e }) {
 		})
 	] });
 }
-function TS() {
+function ES() {
 	let { t: e, pairing: t, setPairing: n } = Yn();
 	return t ? /* @__PURE__ */ (0, J.jsx)(gc, {
 		title: e("添加设备", "Add device"),
 		t: e,
 		onClose: () => n(!1),
-		children: /* @__PURE__ */ (0, J.jsx)(wS, { onPaired: () => n(!1) })
+		children: /* @__PURE__ */ (0, J.jsx)(TS, { onPaired: () => n(!1) })
 	}) : null;
 }
 //#endregion
 //#region src/app/Palette.tsx
-function ES(e, t) {
+function DS(e, t) {
 	let n = (e.label + " " + (e.hint || "") + " " + (e.words || "") + " " + e.group).toLowerCase();
 	return t.toLowerCase().split(/\s+/).filter(Boolean).every((e) => n.includes(e));
 }
-function DS({ commands: e, onClose: t, t: n }) {
+function OS({ commands: e, onClose: t, t: n }) {
 	let r = (0, y.useRef)(null), i = (0, y.useRef)(null), [a, o] = (0, y.useState)(""), [s, c] = (0, y.useState)(0), l = (0, y.useRef)(t);
 	l.current = t, (0, y.useEffect)(() => {
 		let e = r.current, t = document.activeElement;
@@ -45220,7 +45344,7 @@ function DS({ commands: e, onClose: t, t: n }) {
 			e?.close(), t?.isConnected && t.focus();
 		};
 	}, []);
-	let u = (0, y.useMemo)(() => e.filter((e) => ES(e, a)), [e, a]), d = Math.min(s, Math.max(0, u.length - 1));
+	let u = (0, y.useMemo)(() => e.filter((e) => DS(e, a)), [e, a]), d = Math.min(s, Math.max(0, u.length - 1));
 	(0, y.useEffect)(() => {
 		i.current?.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
 	}, [d, a]);
@@ -45316,12 +45440,12 @@ function DS({ commands: e, onClose: t, t: n }) {
 }
 //#endregion
 //#region src/app/Setup.tsx
-var OS = [
+var kS = [
 	"permissions",
 	"identity",
 	"devices"
 ];
-function kS() {
+function AS() {
 	let { t: e, api: t, setPairing: n, thisDevice: r } = Yn(), i = tt(), [a, o] = (0, y.useState)("permissions"), s = async (e = !1) => {
 		Hn("cranibox.onboarded", "1"), i("/app/home", { replace: !0 }), await Un(t, { onboarded: !0 }), e && n(!0);
 	}, c = {
@@ -45346,20 +45470,20 @@ function kS() {
 			/* @__PURE__ */ (0, J.jsx)("ol", {
 				className: "cx-steps",
 				"aria-label": e("设置步骤", "Setup steps"),
-				children: OS.map((e, t) => /* @__PURE__ */ (0, J.jsx)("li", {
+				children: kS.map((e, t) => /* @__PURE__ */ (0, J.jsx)("li", {
 					"aria-current": e === a ? "step" : void 0,
-					className: OS.indexOf(a) > t ? "done" : "",
+					className: kS.indexOf(a) > t ? "done" : "",
 					children: /* @__PURE__ */ (0, J.jsxs)("button", {
 						onClick: () => o(e),
-						children: [/* @__PURE__ */ (0, J.jsx)("span", { children: OS.indexOf(a) > t ? /* @__PURE__ */ (0, J.jsx)(_i, {
+						children: [/* @__PURE__ */ (0, J.jsx)("span", { children: kS.indexOf(a) > t ? /* @__PURE__ */ (0, J.jsx)(_i, {
 							size: 14,
 							"aria-hidden": "true"
 						}) : t + 1 }), c[e]]
 					})
 				}, e))
 			}),
-			a === "permissions" && /* @__PURE__ */ (0, J.jsx)(jS, { next: () => o("identity") }),
-			a === "identity" && /* @__PURE__ */ (0, J.jsx)(NS, {
+			a === "permissions" && /* @__PURE__ */ (0, J.jsx)(MS, { next: () => o("identity") }),
+			a === "identity" && /* @__PURE__ */ (0, J.jsx)(PS, {
 				back: () => o("permissions"),
 				next: () => o("devices")
 			}),
@@ -45408,7 +45532,7 @@ function kS() {
 		]
 	});
 }
-function AS(e, t, n, r, i) {
+function jS(e, t, n, r, i) {
 	let a = (t) => e?.items.find((e) => e.id === t), o = (e, t) => !!e?.actions.includes(t), s = [], c = a("computer");
 	if (c) {
 		let e = c.permissions.some((e) => e.state === "denied" || e.state === "unknown");
@@ -45456,7 +45580,7 @@ function AS(e, t, n, r, i) {
 		fix: () => r(!0)
 	}), s;
 }
-function jS({ next: e }) {
+function MS({ next: e }) {
 	let { t, api: n } = Yn(), [r, i] = (0, y.useState)(null), [a, o] = (0, y.useState)(null), [s, c] = (0, y.useState)(""), [l, u] = (0, y.useState)(""), [d, f] = (0, y.useState)(null), p = (0, y.useCallback)(async () => {
 		try {
 			i(await n.call("GET", "/capabilities"));
@@ -45475,7 +45599,7 @@ function jS({ next: e }) {
 		}, 4e3);
 		return () => clearInterval(e);
 	}, [p]);
-	let m = AS(r, a, (0, y.useCallback)(async (e, t) => {
+	let m = jS(r, a, (0, y.useCallback)(async (e, t) => {
 		await n.call("POST", "/capabilities/" + encodeURIComponent(e.id) + "/" + t, {});
 	}, [n]), (0, y.useCallback)(async (e) => {
 		o(await ir("autostart", { enabled: e }));
@@ -45583,7 +45707,7 @@ function jS({ next: e }) {
 							})
 						]
 					}),
-					/* @__PURE__ */ (0, J.jsx)(MS, {
+					/* @__PURE__ */ (0, J.jsx)(NS, {
 						state: e.state,
 						t,
 						children: e.id === "computer" && e.state === "manual" ? /* @__PURE__ */ (0, J.jsx)("button", {
@@ -45618,15 +45742,15 @@ function jS({ next: e }) {
 		]
 	});
 }
-function MS({ state: e, t, children: n }) {
+function NS({ state: e, t, children: n }) {
 	return e === "ready" ? /* @__PURE__ */ (0, J.jsx)(sc, {
 		tone: "good",
 		icon: _i,
 		children: t("已开启", "On")
 	}) : e === "unavailable" ? /* @__PURE__ */ (0, J.jsx)(sc, { children: t("不可用", "Unavailable") }) : /* @__PURE__ */ (0, J.jsx)(J.Fragment, { children: n });
 }
-function NS({ back: e, next: t }) {
-	let { t: n } = Yn(), { identity: r, setIdentity: i } = sS();
+function PS({ back: e, next: t }) {
+	let { t: n } = Yn(), { identity: r, setIdentity: i } = cS();
 	return /* @__PURE__ */ (0, J.jsxs)(oc, {
 		label: n("身份与恢复口令", "Identity"),
 		children: [
@@ -45660,7 +45784,7 @@ function NS({ back: e, next: t }) {
 					" ",
 					r.recovery_kind === "passphrase" ? n("已设置恢复口令。", "A recovery passphrase is set.") : n("已设置恢复码。", "A recovery code is set.")
 				]
-			}) : r && /* @__PURE__ */ (0, J.jsx)(_S, { onCreated: i }),
+			}) : r && /* @__PURE__ */ (0, J.jsx)(vS, { onCreated: i }),
 			/* @__PURE__ */ (0, J.jsxs)("div", {
 				className: "cx-actions",
 				style: { marginTop: 16 },
@@ -45679,7 +45803,7 @@ function NS({ back: e, next: t }) {
 }
 //#endregion
 //#region src/app/App.tsx
-var PS = [
+var FS = [
 	"/overview",
 	"/desktop",
 	"/network",
@@ -45690,7 +45814,7 @@ var PS = [
 	"/diagnostics",
 	"/history"
 ];
-function FS(e) {
+function IS(e) {
 	return [
 		{
 			path: "/app/devices",
@@ -45702,7 +45826,7 @@ function FS(e) {
 			path: "/app/setup",
 			section: "devices",
 			title: (e) => e("设置向导", "Setup guide"),
-			element: /* @__PURE__ */ (0, J.jsx)(kS, {})
+			element: /* @__PURE__ */ (0, J.jsx)(AS, {})
 		},
 		{
 			path: "/app/inbox",
@@ -45710,7 +45834,7 @@ function FS(e) {
 			title: (e) => e("审批", "Approvals"),
 			heading: !0,
 			description: (e) => e("配对、Agent 工具、屏幕控制：重要的事先经过你。", "Pairing, agent tools, screen control: important things come to you first."),
-			element: /* @__PURE__ */ (0, J.jsx)(yS, {})
+			element: /* @__PURE__ */ (0, J.jsx)(bS, {})
 		},
 		{
 			path: "/app/approvals",
@@ -45786,7 +45910,7 @@ function FS(e) {
 			path: "/nodes",
 			section: "settings",
 			title: (e) => e("网络", "Network"),
-			element: /* @__PURE__ */ (0, J.jsx)(pS, {})
+			element: /* @__PURE__ */ (0, J.jsx)(mS, {})
 		},
 		{
 			path: "/app/identity",
@@ -45794,7 +45918,7 @@ function FS(e) {
 			title: (e) => e("身份与安全", "Identity & security"),
 			heading: !0,
 			description: (e) => e("身份码、恢复码，以及移除丢失的设备。", "Identity code, recovery code, and removing a lost device."),
-			element: /* @__PURE__ */ (0, J.jsx)(mS, {})
+			element: /* @__PURE__ */ (0, J.jsx)(hS, {})
 		},
 		{
 			path: "/app/agent-access",
@@ -45802,7 +45926,7 @@ function FS(e) {
 			title: (e) => e("Agent 接入", "Agent access"),
 			heading: !0,
 			description: (e) => e("让 Codex、Claude Code 等 Agent 使用你的设备。", "Let Codex, Claude Code and other agents use your devices."),
-			element: /* @__PURE__ */ (0, J.jsx)(vS, {})
+			element: /* @__PURE__ */ (0, J.jsx)(yS, {})
 		},
 		{
 			path: "/overview",
@@ -45869,7 +45993,7 @@ function FS(e) {
 		}
 	];
 }
-var IS = [
+var LS = [
 	{
 		id: "devices",
 		to: "/app/devices",
@@ -45907,7 +46031,7 @@ var IS = [
 		label: (e) => e("设置", "Settings")
 	}
 ];
-function LS(e, t, n, r, i) {
+function RS(e, t, n, r, i) {
 	return e === "inbox" ? [
 		{
 			to: "/app/inbox",
@@ -45964,16 +46088,16 @@ function LS(e, t, n, r, i) {
 		}] : []
 	] : [];
 }
-function RS() {
+function zS() {
 	return window.workspaceWeb?.preferences?.onboarded === !1 && Vn("cranibox.onboarded", "") !== "1";
 }
-function zS(e, t) {
+function BS(e, t) {
 	let n = e.filter((e) => !e.badges.includes("this") && e.online);
 	if (!n.length) return t("暂无其他设备在线", "no other device online");
 	let r = n.filter((e) => e.path === "relay").length;
 	return r ? r === n.length ? t("经中继", "via relay") : t(`${n.length - r} 直连 · ${r} 中继`, `${n.length - r} direct · ${r} relayed`) : t("全部直连", "all direct");
 }
-function BS() {
+function VS() {
 	let e = Qe(), t = tt(), n = lr();
 	return (0, y.useEffect)(() => {
 		let r = new URLSearchParams(e.search);
@@ -45983,9 +46107,9 @@ function BS() {
 		}), t("/app/devices", { replace: !0 });
 	}, []), null;
 }
-var VS = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
-function HS({ chatUrl: e = "/proxy/3080/" }) {
-	let t = Yn(), { t: n, approvals: r, status: i, loading: a, error: o, notice: s, setNotice: c, refresh: l, thisDevice: u, theme: d, setTheme: f, locale: p, setLocale: m, devices: h, setPairing: g } = t, _ = Tr(), v = ul(), b = Qe(), x = tt(), { openTerminal: S } = lr(), C = Pc(), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), [O, k] = (0, y.useState)(!1), [A, j] = (0, y.useState)(!1), M = (0, y.useRef)(null), N = (0, y.useRef)(null), P = (0, y.useRef)(null), F = _.available === !0, I = FS(/* @__PURE__ */ (0, J.jsx)(SS, {
+var HS = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+function US({ chatUrl: e = "/proxy/3080/" }) {
+	let t = Yn(), { t: n, approvals: r, status: i, loading: a, error: o, notice: s, setNotice: c, refresh: l, thisDevice: u, theme: d, setTheme: f, locale: p, setLocale: m, devices: h, setPairing: g } = t, _ = Tr(), v = ul(), b = Qe(), x = tt(), { openTerminal: S } = lr(), C = Pc(), [w, T] = (0, y.useState)(!1), [E, D] = (0, y.useState)(!1), [O, k] = (0, y.useState)(!1), [A, j] = (0, y.useState)(!1), M = (0, y.useRef)(null), N = (0, y.useRef)(null), P = (0, y.useRef)(null), F = _.available === !0, I = IS(/* @__PURE__ */ (0, J.jsx)(CS, {
 		chatUrl: e,
 		adding: O,
 		setAdding: k
@@ -46067,7 +46191,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 			icon: Io,
 			run: () => g(!0)
 		});
-		for (let e of IS) {
+		for (let e of LS) {
 			o.push({
 				id: "section-" + e.id,
 				group: r,
@@ -46075,7 +46199,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 				icon: e.icon,
 				run: () => x(e.to)
 			});
-			for (let t of LS(e.id, n, F, 0, 0).slice(1)) o.push({
+			for (let t of RS(e.id, n, F, 0, 0).slice(1)) o.push({
 				id: "page-" + t.to,
 				group: r,
 				label: e.label(n) + " › " + t.label,
@@ -46110,7 +46234,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 		g,
 		f,
 		m
-	]), te = R ? [] : LS(B, n, F, r.length, V), ne = [
+	]), te = R ? [] : RS(B, n, F, r.length, V), ne = [
 		{
 			to: "/overview",
 			label: n("概览", "Overview")
@@ -46147,7 +46271,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 			to: "/history",
 			label: n("操作历史", "History")
 		}
-	], W = PS.includes(L), re = IS.find((e) => e.id === B), ie = (e) => {
+	], W = FS.includes(L), re = LS.find((e) => e.id === B), ie = (e) => {
 		T(!1), requestAnimationFrame(() => (e === "main" ? M.current : P.current)?.focus());
 	}, G = R ? t.deviceName(decodeURIComponent(L.split("/")[3] || "")) : z?.path === "/app/setup" ? z.title(n) : "";
 	function K(e) {
@@ -46223,14 +46347,14 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 							/* @__PURE__ */ (0, J.jsx)("span", { children: n("搜索或跳转…", "Search or jump to…") }),
 							/* @__PURE__ */ (0, J.jsx)("kbd", {
 								"aria-hidden": "true",
-								children: VS
+								children: HS
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, J.jsx)("nav", {
 						className: "cx-nav",
 						"aria-label": n("主导航", "Main navigation"),
-						children: IS.map((e) => /* @__PURE__ */ (0, J.jsxs)(gn, {
+						children: LS.map((e) => /* @__PURE__ */ (0, J.jsxs)(gn, {
 							to: e.to,
 							className: "cx-nav-link" + (e.id === "settings" ? " cx-nav-end" : ""),
 							onClick: () => {
@@ -46305,7 +46429,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 								} : i,
 								t: n,
 								onClick: () => D(!0),
-								detail: zS(h, n)
+								detail: BS(h, n)
 							}),
 							_.snapshot?.revision && /* @__PURE__ */ (0, J.jsxs)("span", {
 								className: "cx-revision sidebar-revision cx-sr",
@@ -46464,7 +46588,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 								/* @__PURE__ */ (0, J.jsx)(Et, {
 									path: "/app/home",
 									element: /* @__PURE__ */ (0, J.jsx)(Tt, {
-										to: RS() ? "/app/setup" : "/app/devices",
+										to: zS() ? "/app/setup" : "/app/devices",
 										replace: !0
 									})
 								}),
@@ -46478,7 +46602,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 								}),
 								/* @__PURE__ */ (0, J.jsx)(Et, {
 									path: "/terminal",
-									element: /* @__PURE__ */ (0, J.jsx)(BS, {})
+									element: /* @__PURE__ */ (0, J.jsx)(VS, {})
 								}),
 								/* @__PURE__ */ (0, J.jsx)(Et, {
 									path: "/app/advanced",
@@ -46501,8 +46625,8 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 			}),
 			/* @__PURE__ */ (0, J.jsx)(Db, { suspended: w }),
 			/* @__PURE__ */ (0, J.jsx)(gu, {}),
-			/* @__PURE__ */ (0, J.jsx)(TS, {}),
-			A && /* @__PURE__ */ (0, J.jsx)(DS, {
+			/* @__PURE__ */ (0, J.jsx)(ES, {}),
+			A && /* @__PURE__ */ (0, J.jsx)(OS, {
 				commands: ee,
 				t: n,
 				onClose: () => j(!1)
@@ -46512,7 +46636,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 				t: n,
 				onClose: () => D(!1),
 				children: [
-					/* @__PURE__ */ (0, J.jsx)("p", { children: i?.state === "local" ? n("暂时连不上你的其他设备。本机的一切照常可用，恢复连接后会自动同步。", "None of your other devices are reachable right now. Everything on this device keeps working and syncs once they reconnect.") : i?.state === "offline" ? n("本机节点暂时离线。", "This device's node is offline.") : n("设备之间端到端加密：", "End-to-end encrypted between your devices: ") + zS(h, n) + n("。", ".") }),
+					/* @__PURE__ */ (0, J.jsx)("p", { children: i?.state === "local" ? n("暂时连不上你的其他设备。本机的一切照常可用，恢复连接后会自动同步。", "None of your other devices are reachable right now. Everything on this device keeps working and syncs once they reconnect.") : i?.state === "offline" ? n("本机节点暂时离线。", "This device's node is offline.") : n("设备之间端到端加密：", "End-to-end encrypted between your devices: ") + BS(h, n) + n("。", ".") }),
 					/* @__PURE__ */ (0, J.jsxs)("p", { children: [
 						n("可用模型：", "Available models: "),
 						i?.models_available || 0,
@@ -46553,7 +46677,7 @@ function HS({ chatUrl: e = "/proxy/3080/" }) {
 }
 //#endregion
 //#region src/terminal/TerminalStandalone.tsx
-function US() {
+function WS() {
 	let { openTerminal: e } = lr();
 	return (0, y.useEffect)(() => {
 		let t = () => {
@@ -46578,7 +46702,7 @@ function US() {
 }
 //#endregion
 //#region src/terminal/WebTerminalEnvironment.tsx
-var WS = async (e, t) => {
+var GS = async (e, t) => {
 	let { signal: n, ...r } = e, { ticket: i } = await xr("/api/terminal/ticket", {
 		...r,
 		...nr(e.node)
@@ -46610,7 +46734,7 @@ var WS = async (e, t) => {
 		}
 	};
 };
-function GS({ children: e }) {
+function KS({ children: e }) {
 	let { snapshot: t, available: n, state: r } = Tr(), i = !!t || n === !1 || !!r.error, [a, o] = (0, y.useState)([]);
 	(0, y.useEffect)(() => {
 		let e = !0, t = 0, n = async () => {
@@ -46645,23 +46769,23 @@ function GS({ children: e }) {
 			localNode: t?.local_node?.id,
 			targets: c,
 			manage: s,
-			connect: WS
+			connect: GS
 		},
 		children: e
 	});
 }
 //#endregion
 //#region src/main.tsx
-var KS = Rc(window.workspaceWeb.csrf), qS = location.hash.slice(1);
-/^[a-z]+$/.test(qS) && history.replaceState(null, "", "#/" + qS);
-function JS() {
+var qS = Rc(window.workspaceWeb.csrf), JS = location.hash.slice(1);
+/^[a-z]+$/.test(JS) && history.replaceState(null, "", "#/" + JS);
+function YS() {
 	return /* @__PURE__ */ (0, J.jsxs)(Xn, {
-		api: KS,
+		api: qS,
 		language: window.workspaceWeb.language,
 		onLocale: () => location.reload(),
 		openExternal: rr() ? (e) => ir("open_external", { url: e }) : void 0,
-		children: [ar() ? /* @__PURE__ */ (0, J.jsx)(US, {}) : /* @__PURE__ */ (0, J.jsx)(HS, {}), /* @__PURE__ */ (0, J.jsx)(Ju, {})]
+		children: [ar() ? /* @__PURE__ */ (0, J.jsx)(WS, {}) : /* @__PURE__ */ (0, J.jsx)(US, {}), /* @__PURE__ */ (0, J.jsx)(Ju, {})]
 	});
 }
-(0, On.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, J.jsx)(hn, { children: /* @__PURE__ */ (0, J.jsx)(ur, { children: /* @__PURE__ */ (0, J.jsx)(Er, { children: /* @__PURE__ */ (0, J.jsx)(GS, { children: /* @__PURE__ */ (0, J.jsx)(JS, {}) }) }) }) }));
+(0, On.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, J.jsx)(hn, { children: /* @__PURE__ */ (0, J.jsx)(ur, { children: /* @__PURE__ */ (0, J.jsx)(Er, { children: /* @__PURE__ */ (0, J.jsx)(KS, { children: /* @__PURE__ */ (0, J.jsx)(YS, {}) }) }) }) }));
 //#endregion

@@ -149,3 +149,7 @@ When an own device is reachable only through a slow relay but another own device
 | `peer pair accept`：The other device did not answer | 邀请方离线，或双方都到不了链接里的 relay；检查 `peer pair status` 的 `relays` |
 | `pair status` 里 relay 为 `false` | 本设备未配对到该 Hub（relay 拒绝未配对的 EndpointId），或网络不通 |
 | 路径一直是 `relay` | 正常（例如只开 443）；允许 UDP 后会自动升级为 `direct` |
+
+## GUI 配置本机中继
+
+在控制中心“设备”的网络设置中打开“这台设备作为中继”，配置公网 HTTPS 根地址及独立监听地址（默认 `127.0.0.1:7378`），保存并重启 Cranibox。需要先通过 HTTPS 反向代理或隧道暴露该入口，且转发 WebSocket；GUI 会提示这个前提和待重启状态。独立中继端口不会提供管理界面。详细配置与启动优先级见 [设备网络](device-networks.md#本机作为中继)。
