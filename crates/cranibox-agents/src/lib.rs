@@ -73,18 +73,18 @@ fn dir(id: AgentId) -> &'static str {
         AgentId::Openclaw => ".openclaw",
     }
 }
+#[cfg(unix)]
 fn executable(path: &std::path::Path) -> bool {
-    if !path.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        path.metadata()
+    use std::os::unix::fs::PermissionsExt;
+    path.is_file()
+        && path
+            .metadata()
             .is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
-    }
-    #[cfg(not(unix))]
-    true
+}
+/// Windows has no executable bit: any file can be run.
+#[cfg(not(unix))]
+fn executable(path: &std::path::Path) -> bool {
+    path.is_file()
 }
 impl AgentAdapter for Adapter {
     fn id(&self) -> AgentId {

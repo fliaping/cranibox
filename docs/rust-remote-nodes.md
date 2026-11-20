@@ -22,4 +22,4 @@ cranibox push --node <device-id> build.zip 'C:\Users\me\build.zip' --overwrite
 - 推送文件夹、拉取文件夹需要对方也是这个版本或更新；单个文件对旧版本照常可用。
 
 - 组网、relay、局域网发现与身份：见 [iroh 设备组网](iroh-network.md)。
-- 旧网关登记的设备：在设备上安装新版 Cranibox，然后在「设备与网络」重新配对。
+- 旧网关登记的设备：在设备上安装新版 Cranibox，然后在「设备」页重新配对。

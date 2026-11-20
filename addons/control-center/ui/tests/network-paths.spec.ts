@@ -17,9 +17,9 @@ test('matrix keeps directional values, aliases, scopes, latency bands and stale 
   const section = page.getByRole('region', { name: 'Connections between devices' });
   const table = section.getByRole('table');
   await expect(table).toBeVisible();
-  await expect(table.getByRole('row')).toHaveCount(5);
-  await expect(table.locator('th[scope=col]')).toHaveCount(5);
-  await expect(table.locator('th[scope=row]')).toHaveCount(4);
+  await expect(table.getByRole('row')).toHaveCount(8);
+  await expect(table.locator('th[scope=col]')).toHaveCount(8);
+  await expect(table.locator('th[scope=row]')).toHaveCount(7);
   await expect(table.getByRole('rowheader', { name: 'My Mac' })).toBeVisible();
   const mac = table.getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'My Mac', exact: true }) });
   await expect(mac.locator('td').nth(0)).toBeEmpty();
@@ -54,12 +54,12 @@ test('narrow screens show groups and route details in Chinese', async ({ page })
   const section = page.getByRole('region', { name: '设备间连接' });
   await expect(section.locator('.cx-path-matrix')).toBeHidden();
   const groups = section.locator('.cx-path-list > section');
-  await expect(groups).toHaveCount(4);
+  await expect(groups).toHaveCount(7);
   await expect(groups.first().getByRole('heading')).toHaveText('从 MacBook Pro');
-  await expect(groups.first().getByRole('listitem')).toHaveCount(3);
+  await expect(groups.first().getByRole('listitem')).toHaveCount(6);
   await expect(groups.first().getByRole('listitem').first()).toContainText('中转 relay.n0.iroh.network · 48 ms · 2 分钟前');
   await expect(groups.first().locator('.cx-path-stale')).toHaveAttribute('title', /11 分钟前 · 已过期/);
-  await expect(groups.first().getByRole('listitem').last()).toContainText('easytier · 延迟未知');
+  await expect(groups.first().getByRole('listitem').filter({ hasText: "Alex's laptop" })).toContainText('easytier · 延迟未知');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -68,5 +68,18 @@ test('missing measurements and API errors stay explicit', async ({ page }) => {
   await page.goto('/#/nodes');
   const section = page.getByRole('region', { name: 'Connections between devices' });
   await expect(section.getByRole('alert')).toContainText('Paths temporarily unavailable');
-  await expect(section.getByRole('table').locator('[aria-label*="Not measured"]')).toHaveCount(12);
+  await expect(section.getByRole('table').locator('[aria-label*="Not measured"]')).toHaveCount(30);
+});
+
+test('a path through another of your devices names that device', async ({ page }) => {
+  await page.route('**/api/v1/app/network/paths', async route => {
+    const value = await (await route.fetch()).json();
+    const relay = value.paths.find((path: { kind: string }) => path.kind === 'relay');
+    relay.via = 'device:node-2c3d4e5f60718293a4b5c6d7e8f90a1b';
+    relay.rtt_ms = 21;
+    await route.fulfill({ json: value });
+  });
+  await page.goto('/#/nodes');
+  const section = page.getByRole('region', { name: 'Connections between devices' });
+  await expect(section.locator('[title*="Through Studio"]').first()).toHaveAttribute('title', /MacBook Pro → Home server · Through Studio · 21 ms/);
 });

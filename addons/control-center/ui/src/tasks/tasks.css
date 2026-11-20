@@ -13,10 +13,6 @@
 .task-decline textarea { width: 100%; padding: 12px; background: var(--direct-surface); border: 1px solid var(--border); color: var(--direct-text); border-radius: 8px; resize: vertical; }
 .device-tasks .direct-note { overflow-wrap: anywhere; }
 
-.device-tasks .messages-layout { grid-template-areas: "compose feed"; }
-.device-tasks .messages-compose { grid-area: compose; }
-.device-tasks .messages-feed { grid-area: feed; }
-@media(max-width:1000px) { .device-tasks .messages-layout { grid-template-areas: "feed" "compose"; } }
 
 .task-questions { margin: 16px 0; display: grid; gap: 16px; }
 .task-question { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--code-bg); }

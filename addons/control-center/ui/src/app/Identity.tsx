@@ -4,6 +4,7 @@ import type { Identity } from "../personal/api";
 import { copyText, IdentityCard, useIdentity } from "./Network";
 import { inShell } from "./shell";
 import { DesktopAppSettings } from "./DesktopAppSettings";
+import { relationOf } from "./relations";
 import { useApp } from "./store";
 import { Alert, Card, isThis } from "./ui";
 
@@ -17,7 +18,7 @@ export function IdentitySettings() {
     setBusy(true); setError(""); setDone("");
     try { await action(); } catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); } finally { setBusy(false); }
   }
-  const others = devices.filter(device => !isThis(device) && !device.guest);
+  const others = devices.filter(device => !isThis(device) && relationOf(device) === "peer");
   return <div className="cx-stack loose">
     <IdentityCard />
     <Card label={t("恢复口令", "Recovery passphrase")}>

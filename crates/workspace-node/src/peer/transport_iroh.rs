@@ -149,6 +149,53 @@ fn endpoint_of(identity: &PublicIdentity) -> Option<iroh::EndpointId> {
     addr::parse_id(&identity.signing_key).ok()
 }
 
+/// Node ids of the owner's devices (the roster), this one included.
+fn owner_nodes(peers: &Path) -> std::collections::HashSet<String> {
+    agent_workspace_runtime::peers::roster::RosterStore::load(
+        peers.with_file_name("models").join("roster.json"),
+    )
+    .ok()
+    .and_then(|store| {
+        use cranibox_contracts::roster::RosterView;
+        store.current()
+    })
+    .map(|roster| roster.members.into_iter().map(|m| m.node_id).collect())
+    .unwrap_or_default()
+}
+
+/// Hop policy: forward only between the owner's own devices, when allowed here.
+fn hop_target(
+    peers: &Path,
+    requester: &iroh::EndpointId,
+    target: &iroh::EndpointId,
+) -> Option<iroh::EndpointAddr> {
+    if !super::routing::Settings::load(peers).forward_for_devices {
+        return None;
+    }
+    let owners = owner_nodes(peers);
+    let config = Config::read(peers).ok()?;
+    let requester_key = addr::hex_id(requester);
+    let requester_node = config
+        .grants
+        .iter()
+        .find(|(_, grant)| {
+            grant
+                .peer
+                .as_ref()
+                .is_some_and(|p| p.identity.signing_key.eq_ignore_ascii_case(&requester_key))
+        })
+        .map(|(node, _)| node)?;
+    if !owners.contains(requester_node) {
+        return None;
+    }
+    Learned::read(peers)
+        .peers
+        .iter()
+        .filter(|(node, _)| owners.contains(*node) && *node != requester_node)
+        .filter_map(|(_, entry)| addr::endpoint_addr(&entry.addr).ok())
+        .find(|addr| addr.id == *target)
+}
+
 struct Shared {
     path: PathBuf,
     node: IrohNode,
@@ -157,6 +204,8 @@ struct Shared {
     forwards: tokio::sync::Mutex<HashMap<String, (Forward, Lease)>>,
     migrate_tried: Mutex<HashMap<String, Instant>>,
     config_cache: Mutex<Option<(ConfigStamp, Config)>>,
+    hops: Mutex<HashMap<String, (String, u32)>>,
+    direct_checked: Mutex<HashMap<String, Instant>>,
 }
 
 impl Shared {
@@ -226,6 +275,105 @@ impl Shared {
         Ok(changed)
     }
 
+    /// Pick, for each owner device, whether to go through another owner device
+    /// ([`super::routing::choose`]) and point its forward there.
+    async fn route(&self) {
+        let owners = owner_nodes(&self.path);
+        let settings = super::routing::Settings::load(&self.path);
+        let forwards: Vec<(String, iroh::EndpointAddr, Option<iroh::EndpointAddr>)> = self
+            .forwards
+            .lock()
+            .await
+            .iter()
+            .map(|(node, (forward, _))| (node.clone(), forward.target(), forward.via()))
+            .collect();
+        let mut direct = HashMap::new();
+        for (node, target, _) in &forwards {
+            direct.insert(node.clone(), self.node.pool_path(&target.id).await);
+        }
+        let rows = crate::app::paths::load(&self.path);
+        let now = crate::app::paths::now();
+        for (node, target, via) in &forwards {
+            let previous = self.hops.lock().unwrap().get(node).cloned();
+            let own = direct.get(node).cloned().flatten();
+            // Without a connection, try the direct path first; a hop is only for a
+            // device this one has been unable to reach for a while.
+            let checked = self.direct_checked.lock().unwrap().get(node).copied();
+            let waited = checked.is_some_and(|at| at.elapsed() >= Duration::from_secs(20));
+            let choice = if !settings.use_devices
+                || !owners.contains(node)
+                || (own.is_none() && previous.is_none() && !waited)
+            {
+                None
+            } else {
+                let candidates: Vec<_> = forwards
+                    .iter()
+                    .filter(|(other, _, _)| other != node && owners.contains(other))
+                    .map(|(other, _, _)| super::routing::Candidate {
+                        node: other.clone(),
+                        to_via: direct.get(other).cloned().flatten(),
+                        via_to_target: rows
+                            .get(other)
+                            .and_then(|row| row.get(node))
+                            .filter(|m| now.saturating_sub(m.at) < super::routing::FRESH_MS)
+                            .map(|m| m.path.clone()),
+                    })
+                    .collect();
+                super::routing::choose(
+                    own.as_ref(),
+                    &candidates,
+                    previous.as_ref().map(|(via, _)| via.as_str()),
+                )
+            };
+            // Keep (re)trying the direct path while it is missing or a hop is in use, so
+            // a hole punch or a recovered relay takes over again.
+            let direct_ok = own
+                .as_ref()
+                .is_some_and(|p| p.kind == cranibox_contracts::net::PathKind::Direct);
+            let due = checked.is_none_or(|at| at.elapsed() >= Duration::from_secs(60));
+            if owners.contains(node)
+                && settings.use_devices
+                && !direct_ok
+                && (own.is_none() || choice.is_some())
+                && due
+            {
+                self.direct_checked
+                    .lock()
+                    .unwrap()
+                    .insert(node.clone(), Instant::now());
+                let (iroh, target) = (self.node.clone(), target.clone());
+                tokio::spawn(async move {
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(20),
+                        iroh.lane_connection(&target, cranibox_net::Lane::Forward),
+                    )
+                    .await;
+                });
+            }
+            let hop_addr = choice.as_ref().and_then(|(through, _)| {
+                forwards
+                    .iter()
+                    .find(|(other, _, _)| other == through)
+                    .map(|(_, addr, _)| addr.clone())
+            });
+            if hop_addr != *via
+                && let Some((forward, _)) = self.forwards.lock().await.get(node)
+            {
+                forward.set_via(hop_addr);
+                match &choice {
+                    Some((through, cost)) => {
+                        eprintln!("iroh: reaching {node} through {through} (~{cost} ms)")
+                    }
+                    None => eprintln!("iroh: reaching {node} directly again"),
+                }
+            }
+            match choice {
+                Some(choice) => self.hops.lock().unwrap().insert(node.clone(), choice),
+                None => self.hops.lock().unwrap().remove(node),
+            };
+        }
+    }
+
     async fn drop_forward(&self, node: &str) {
         if let Some((forward, lease)) = self.forwards.lock().await.remove(node) {
             self.node.drop_peer(&forward.target().id).await;
@@ -278,6 +426,7 @@ impl Shared {
                 Err(error) => eprintln!("iroh forward for {node}: {error:#}"),
             }
         }
+        self.route().await;
         // Migration (opt-in, CRANIBOX_IROH_MIGRATE=1): a route with a pinned key whose
         // peer answers on iroh gets iroh first. Off by default because changing a
         // route changes its binding, which cancels queued messages and tasks to it.
@@ -376,6 +525,17 @@ impl PairHost for Host {
     }
     async fn apply(&self, outcome: Outcome) -> Result<()> {
         let path = self.shared.path.clone();
+        let relation = cranibox_contracts::app::Relation::from_pairing(
+            outcome.purpose,
+            outcome.side == Side::Inviter,
+        );
+        let remembered = (path.clone(), outcome.peer_node_id.clone());
+        tokio::task::spawn_blocking(move || {
+            crate::app::known::update(&remembered.0, &remembered.1, |known| {
+                known.relation = Some(relation)
+            })
+        })
+        .await??;
         ensure_peer(
             &self.shared,
             &self.allow,
@@ -570,11 +730,21 @@ async fn ensure_peer(
                         messages: true,
                         ..Permissions::default()
                     },
+                    // What running tasks on a worker needs; screens, browsers, updates and
+                    // models stay off until changed on the worker itself.
+                    PairPurpose::Worker => Permissions {
+                        messages: true,
+                        exec: true,
+                        terminals: true,
+                        projects: true,
+                        ..Permissions::default()
+                    },
                 };
                 let mut grant = Grant::issue(secret, permissions);
                 grant.peer = Some(pinned.clone());
                 grant.inbound = match purpose {
-                    PairPurpose::OwnerDevice => Inbound::Accept,
+                    // The controller's tasks are what the worker is for.
+                    PairPurpose::OwnerDevice | PairPurpose::Worker => Inbound::Accept,
                     PairPurpose::Guest => Inbound::Hold,
                 };
                 config.grants.insert(update_node.clone(), grant);
@@ -747,6 +917,8 @@ impl Service {
             adopt_learned,
             forwards: Default::default(),
             migrate_tried: Default::default(),
+            hops: Default::default(),
+            direct_checked: Default::default(),
             config_cache: Default::default(),
         });
         live_transports()
@@ -792,12 +964,19 @@ impl Service {
             }
         );
         let mut tasks = Vec::new();
+        let hop_path = path.clone();
+        let hop: cranibox_net::hop::Policy = Arc::new(
+            move |requester: &iroh::EndpointId, target: &iroh::EndpointId| {
+                hop_target(&hop_path, requester, target)
+            },
+        );
         tasks.push(tokio::spawn(accept(
             node.clone(),
             allow.clone(),
             target,
             forwarded,
             pairing,
+            hop,
             stop.clone(),
         )));
         let maintain_shared = shared.clone();
@@ -854,8 +1033,11 @@ async fn accept(
     target: MeshTarget,
     forwarded: MeshTarget,
     pairing: Pairing,
+    hop: cranibox_net::hop::Policy,
     stop: CancellationToken,
 ) {
+    // Streams this device forwards for the owner's other devices, all together.
+    let hop_slots = Arc::new(tokio::sync::Semaphore::new(256));
     let endpoint = node.endpoint().clone();
     loop {
         let incoming = tokio::select! {
@@ -868,6 +1050,7 @@ async fn accept(
         let forwarded = forwarded.clone();
         let pairing = pairing.clone();
         let stop = stop.clone();
+        let (iroh, hop, hop_slots) = (node.clone(), hop.clone(), hop_slots.clone());
         tokio::spawn(async move {
             let Ok(conn) = incoming.await else { return };
             let result = if conn.alpn() == cranibox_net::ALPN_PAIR {
@@ -876,6 +1059,8 @@ async fn accept(
                 mesh::serve_connection(conn, &allow, target, stop).await
             } else if conn.alpn() == cranibox_net::ALPN_PEER_FWD {
                 mesh::serve_connection(conn, &allow, forwarded, stop).await
+            } else if conn.alpn() == cranibox_net::ALPN_PEER_HOP {
+                cranibox_net::hop::serve_connection(conn, &allow, iroh, hop, hop_slots, stop).await
             } else {
                 Ok(())
             };
@@ -911,6 +1096,7 @@ impl Handle {
         Ok(PairAccepted {
             flow_id: flow.flow_id,
             sas: flow.sas,
+            purpose: Some(flow.purpose),
         })
     }
     /// `POST /api/v1/app/pair/{flow}/confirm` back end (C6).
@@ -930,6 +1116,9 @@ impl Handle {
             .await
             .get(node)
             .map(|(forward, _)| forward.target().id)?;
+        if let Some((via, cost)) = self.shared.hops.lock().unwrap().get(node).cloned() {
+            return Some(super::routing::hop_path(&via, cost));
+        }
         self.shared.node.pool_path(&id).await
     }
     pub async fn status(&self) -> Value {
@@ -1095,10 +1284,16 @@ pub(crate) mod control {
 #[derive(Debug, clap::Subcommand)]
 pub enum PairCommand {
     /// Create a one-time pairing link and QR code (15 minutes).
+    /// Without a flag: another device of yours (peers; shares devices and models).
     Invite {
-        /// Pair a colleague's device: messages only, never joins your devices.
-        #[arg(long)]
+        /// A guest: the new device may use this one (messages only until you allow
+        /// more); this device gets nothing on it.
+        #[arg(long, conflicts_with = "worker")]
         guest: bool,
+        /// A controlled worker: this device may run tasks, commands, terminals and
+        /// projects on the new device; the new device gets nothing on any of yours.
+        #[arg(long)]
+        worker: bool,
         /// Write the QR code SVG to this file.
         #[arg(long)]
         qr: Option<PathBuf>,
@@ -1120,9 +1315,11 @@ pub enum PairCommand {
 #[cfg(unix)]
 pub async fn run(peers: PathBuf, command: PairCommand) -> Result<()> {
     let value = match command {
-        PairCommand::Invite { guest, qr } => {
+        PairCommand::Invite { guest, worker, qr } => {
             let purpose = if guest {
                 PairPurpose::Guest
+            } else if worker {
+                PairPurpose::Worker
             } else {
                 PairPurpose::OwnerDevice
             };
@@ -1140,7 +1337,25 @@ pub async fn run(peers: PathBuf, command: PairCommand) -> Result<()> {
             value
         }
         PairCommand::Accept { link } => {
-            control::call(&peers, "POST", "/pair/accept", Some(json!({"link": link}))).await?
+            let mut value =
+                control::call(&peers, "POST", "/pair/accept", Some(json!({"link": link}))).await?;
+            // Say what confirming agrees to, from this (the joining) device's side.
+            let means = match value["purpose"].as_str() {
+                Some("owner_device") => {
+                    "Peers: this device joins the inviter's devices and shares devices and models."
+                }
+                Some("guest") => {
+                    "Guest: this device may use what the inviter allows; the inviter gets nothing here."
+                }
+                Some("worker") => {
+                    "Worker: the inviter may run tasks, commands, terminals and projects on this device; this device gets nothing on the inviter."
+                }
+                _ => "",
+            };
+            if !means.is_empty() {
+                value["means"] = json!(means);
+            }
+            value
         }
         PairCommand::Confirm { flow, reject } => {
             control::call(

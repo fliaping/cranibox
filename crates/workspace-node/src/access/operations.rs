@@ -130,6 +130,10 @@ pub fn describe(
         // Model calls name the model and endpoint; prompts are never copied.
         ["nodes", _, "llm", rest @ ..] => match rest {
             ["health"] => ("llm.health".to_owned(), Read, String::new()),
+            // The liveness probe between the owner's devices, on the stream transport.
+            ["stream"] if query.get("probe").is_some_and(|p| p == "health") => {
+                ("llm.health".to_owned(), Read, String::new())
+            }
             ["v1", "models", ..] => ("llm.models".to_owned(), Read, String::new()),
             ["v1", "messages", "count_tokens"] => {
                 ("llm.count_tokens".to_owned(), Read, text("model"))

@@ -2,6 +2,7 @@
 pub(crate) mod browser_proxy;
 pub mod config;
 pub(crate) mod hook;
+pub(crate) mod routing;
 pub(crate) mod secure_ws;
 mod server;
 pub mod transport_iroh;

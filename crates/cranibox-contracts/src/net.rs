@@ -245,8 +245,23 @@ pub struct IrohAddr {
 pub enum PairPurpose {
     /// Joins the owner's roster (all capabilities, including llm and vault).
     OwnerDevice,
-    /// Gets a grant only (default: messages). Never joins the roster.
+    /// The joiner may use the inviter: the inviter issues a grant (default: messages).
+    /// Never joins the roster; the inviter gets nothing on the joiner.
     Guest,
+    /// The inviter controls the joiner (an untrusted worker): the joiner issues a grant
+    /// for tasks, commands, terminals and projects. Never joins the roster; the joiner
+    /// gets nothing on the inviter or any other device.
+    Worker,
+}
+impl PairPurpose {
+    /// Whether the given side issues a grant to the other.
+    pub fn issues(self, inviter: bool) -> bool {
+        match self {
+            Self::OwnerDevice => true,
+            Self::Guest => inviter,
+            Self::Worker => !inviter,
+        }
+    }
 }
 
 /// Current ticket version.

@@ -14,6 +14,7 @@
 pub mod addr;
 pub mod allow;
 pub mod forward;
+pub mod hop;
 pub mod lan;
 pub mod mesh;
 pub mod node;
@@ -43,6 +44,10 @@ pub const ALPN_PAIR: &[u8] = b"cranibox/pair/1";
 // CONTRACT-REQUEST: add `ALPN_PEER_FWD` to cranibox_contracts::net (C2).
 pub const ALPN_PEER_FWD: &[u8] = b"cranibox/peer-fwd/1";
 
+/// ALPN of one-hop forwarding through another device ([`hop`]). Inner credentials are
+/// still required end to end; the forwarding device only splices streams.
+pub const ALPN_PEER_HOP: &[u8] = b"cranibox/peer-hop/1";
+
 /// Which ALPN a pooled connection speaks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Lane {
@@ -50,12 +55,15 @@ pub enum Lane {
     Peer,
     /// [`ALPN_PEER_FWD`]: loopback forwards; inner credentials still required.
     Forward,
+    /// [`ALPN_PEER_HOP`]: forwards relayed through this device to another one.
+    Hop,
 }
 impl Lane {
     pub fn alpn(self) -> &'static [u8] {
         match self {
             Lane::Peer => ALPN_PEER_HTTP,
             Lane::Forward => ALPN_PEER_FWD,
+            Lane::Hop => ALPN_PEER_HOP,
         }
     }
 }

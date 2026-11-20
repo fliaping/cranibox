@@ -5,6 +5,7 @@ import { notAvailable, type Capabilities as CapabilityList, type Capability, typ
 import { request } from "../workspace";
 import { ask } from "../confirm";
 import { useApp } from "./store";
+import { AccessLevels } from "../access/Access";
 import { inShell, shellCall } from "./shell";
 import { Alert, capabilityIcons, Card, Empty, Loading, localizeMessage, Pill, providerName, Sheet, Switch, type Translate } from "./ui";
 
@@ -49,13 +50,15 @@ export function Capabilities() {
   }
   if (state === "loading") return <Loading label={t("正在检测本机能力…", "Checking this device's capabilities…")} />;
   if (state === "unsupported") return <Empty icon={ShieldCheck} title={t("这个节点还不支持能力管理", "Capability management is not available on this node yet")}
-    actions={<><Link className="cx-btn" to="/desktop">{t("桌面共享设置", "Desktop sharing settings")}</Link><Link className="cx-btn" to="/nodes">{t("设备与网络", "Devices & network")}</Link></>}>
+    actions={<><Link className="cx-btn" to="/desktop">{t("桌面共享设置", "Desktop sharing settings")}</Link><Link className="cx-btn" to="/nodes">{t("网络", "Network")}</Link></>}>
     {t("更新 Cranibox 后，可以在这里统一安装、授权和共享终端、桌面、Computer Use 与浏览器。在此之前，请使用以下页面。", "After updating Cranibox you can install, authorize and share terminal, desktop, Computer Use and browser here. Until then, use these pages.")}</Empty>;
   if (state === "error" && !data) return <Alert action={<button className="cx-btn small" onClick={() => void load()}>{t("重试", "Retry")}</button>}>{error}</Alert>;
   const items = [...(data?.items || [])].sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
   return <>
+    <Card label={t("访问", "Access")}><h2>{t("谁可以使用这台设备", "Who may use this device")}</h2><p className="cx-muted cx-small">{t("每台设备一个级别；点设备名可以逐项设置。", "One level per device; open a device to set items one by one.")}</p><AccessLevels /></Card>
+    <h2 className="cx-section-title">{t("这台设备能提供什么", "What this device can provide")}</h2>
     <div className="cx-between" style={{ marginBottom: 16 }}>
-      <p className="cx-muted">{t("运行环境：", "Platform: ")}<strong>{platformName(data?.platform || "")}</strong>{t("。每项能力依次经过：提供者 → 系统权限 → 共享开关 → 对端授权（在设备详情的「授权」里）。", ". Each capability goes through provider → system permission → sharing → per-device access (on each device's Access tab).")}</p>
+      <p className="cx-muted">{t("运行环境：", "Platform: ")}<strong>{platformName(data?.platform || "")}</strong>{t("。一项能力要被其他设备用到，需要两件事：在下面共享它，并在上面给那台设备相应的访问级别。", ". For another device to use a capability, two things are needed: share it below, and give that device an access level above.")}</p>
       <button className="cx-btn" onClick={() => void load()}><RefreshCw size={15} aria-hidden="true" />{t("重新检测", "Check again")}</button>
     </div>
     {error && <Alert>{error}</Alert>}
@@ -118,9 +121,9 @@ function CapabilityCard({ item, pending, act }: { item: Capability; pending: str
       {item.provider.kind === "cua-embedded" && inShell() && <button className="cx-btn small" disabled={busy || restarting} onClick={() => setRestart(true)}><RefreshCw size={14} aria-hidden="true" />{t("重启 Cranibox", "Restart Cranibox")}</button>}
     </div>}
     <div className="cx-cap-section"><h4>{t("共享", "Sharing")}</h4>
-      <Switch label={t("允许我的其他设备使用", "Available to my other devices")} detail={item.sharing.enabled && item.sharing.address ? <span className="cx-mono">{item.sharing.address}</span> : undefined}
+      <Switch label={t("共享这项能力", "Share this capability")} detail={item.sharing.enabled && item.sharing.address ? <span className="cx-mono">{item.sharing.address}</span> : undefined}
         checked={item.sharing.enabled} disabled={busy || !(item.sharing.enabled ? has("disable") : has("enable"))} onChange={on => void act(item, on ? "enable" : "disable")} />
-      <p className="cx-muted cx-small">{t("每台设备能否使用，在该设备详情的「授权」中单独设置。", "Choose which devices may use it on each device's Access tab.")}</p></div>
+</div>
     {item.id === "computer" && <AgentComputers />}
     {item.error && <p className="cx-error" role="alert"><CircleAlert size={14} aria-hidden="true" /> {localizeMessage(item.error, t)}</p>}
     {restart && <Sheet t={t} title={t("重启 Cranibox？", "Restart Cranibox?")} onClose={() => { if (!restarting) setRestart(false); }}>

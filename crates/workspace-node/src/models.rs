@@ -197,7 +197,36 @@ pub struct Models {
     stop: CancellationToken,
     /// This device's vault X25519 key, for secrets shared with fellow roster members.
     vault_private: zeroize::Zeroizing<[u8; 32]>,
+    /// When each online device was last synced, and what this device held then.
+    synced: std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, [u8; 32])>>,
+    /// When each device is probed next and what the last probes found.
+    probes: std::sync::Mutex<std::collections::HashMap<String, Probe>>,
 }
+/// A device whose answer has not changed for a while is asked less often, so the cost of
+/// an idle device does not grow with every device the owner adds. Any change, and any
+/// probe received from a device believed offline, returns it to the short interval.
+#[derive(Clone, Copy)]
+struct Probe {
+    next: std::time::Instant,
+    /// Consecutive probes with the same outcome.
+    same: u32,
+    /// Whether it answered, and whether calls may be routed to it.
+    last: (bool, bool),
+}
+impl Probe {
+    fn interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(match (self.same, self.last.0) {
+            (..6, _) => 5,
+            (6..12, _) => 15,
+            (_, true) => 30,
+            (_, false) => 60,
+        })
+    }
+}
+/// With nothing new on this device, an online peer is synced this often. A device that
+/// comes online or a change made here is synced on the next tick; a change made on the
+/// peer arrives when the peer does the same.
+const QUIET_SYNC: std::time::Duration = std::time::Duration::from_secs(60);
 impl Models {
     pub async fn start(path: PathBuf, stop: CancellationToken) -> Result<Arc<Self>> {
         Self::start_on(path, stop, None).await
@@ -364,6 +393,8 @@ impl Models {
             owner_path,
             stop: stop.child_token(),
             vault_private: zeroize::Zeroizing::new(vault_private),
+            synced: Default::default(),
+            probes: Default::default(),
         });
         live_models()
             .lock()
@@ -392,15 +423,47 @@ impl Models {
             .into_iter()
             .filter(|m| m.node_id != self.vault.node())
             .collect();
-        let probes = stream::iter(peers.into_iter().map(|peer| async move {
-            let responds = self.router.probe(&peer.node_id).await;
-            (peer, responds)
+        let started = std::time::Instant::now();
+        let known = {
+            let mut probes = self.probes.lock().unwrap_or_else(|e| e.into_inner());
+            probes.retain(|node, _| peers.iter().any(|p| &p.node_id == node));
+            probes.clone()
+        };
+        let probes = stream::iter(peers.into_iter().map(|peer| {
+            let previous = known.get(&peer.node_id).copied();
+            async move {
+                // Half a second of slack: ticks arrive every five seconds, not exactly.
+                let due = previous
+                    .is_none_or(|p| p.next <= started + std::time::Duration::from_millis(500));
+                let probed = if due {
+                    Some(self.router.probe(&peer.node_id).await)
+                } else {
+                    None
+                };
+                (peer, previous, probed)
+            }
         }))
         .buffer_unordered(16)
         .collect::<Vec<_>>()
         .await;
         let mut online = Vec::new();
-        for (peer, responds) in probes {
+        for (peer, previous, probed) in probes {
+            let responds = probed.unwrap_or_else(|| previous.is_some_and(|p| p.last.0));
+            if let Some(responds) = probed {
+                let last = (responds, self.router.health.get(&peer.node_id).available());
+                let mut probe = Probe {
+                    next: started,
+                    same: previous
+                        .filter(|p| p.last == last)
+                        .map_or(0, |p| p.same.saturating_add(1)),
+                    last,
+                };
+                probe.next += probe.interval();
+                self.probes
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(peer.node_id.clone(), probe);
+            }
             if responds {
                 if self.router.health.get(&peer.node_id).available() {
                     reachable.insert(peer.node_id.clone());
@@ -420,17 +483,42 @@ impl Models {
                 .maintain_lease(&account.id, at, &reachable)
                 .await;
         }
-        stream::iter(online.into_iter().map(|node| async move {
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                let _ = self.exchange_roster(&node).await;
-                let _ = cranibox_llm::vault::sync::exchange(
+        // Exchanging everything with every device every five seconds is most of what
+        // an idle device does: skip it while neither side has anything new.
+        let held = self.held();
+        let due: Vec<_> = {
+            let mut synced = self.synced.lock().unwrap_or_else(|e| e.into_inner());
+            synced.retain(|node, _| online.contains(node));
+            online
+                .into_iter()
+                .filter(|node| {
+                    synced.get(node).is_none_or(|(at, then)| {
+                        held.is_none_or(|held| held != *then) || at.elapsed() >= QUIET_SYNC
+                    })
+                })
+                .collect()
+        };
+        stream::iter(due.into_iter().map(|node| async move {
+            let done = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                let roster = self.exchange_roster(&node).await.is_ok();
+                let vault = cranibox_llm::vault::sync::exchange(
                     &self.vault,
                     self.router.transport.as_ref(),
                     &node,
                 )
-                .await;
+                .await
+                .is_ok();
+                roster && vault
             })
-            .await;
+            .await
+            .unwrap_or(false);
+            // What this device holds after the exchange: what the peer sent is not news.
+            if done && let Some(held) = self.held() {
+                self.synced
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(node, (std::time::Instant::now(), held));
+            }
         }))
         .buffer_unordered(16)
         .collect::<Vec<_>>()
@@ -443,6 +531,27 @@ impl Models {
         if let Err(error) = self.exchange_roster(node).await {
             eprintln!("roster: could not tell {node} it was removed: {error:#}");
         }
+    }
+    /// A device believed offline just asked whether this one is up: probe it on the next
+    /// tick instead of when its long interval ends.
+    pub fn heard(&self, node: &str) {
+        let mut probes = self.probes.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(probe) = probes.get_mut(node)
+            && !probe.last.0
+        {
+            probe.next = std::time::Instant::now();
+            probe.same = 0;
+        }
+    }
+    /// A digest of everything this device would send in a sync. `None` when it cannot
+    /// be read, which always syncs.
+    fn held(&self) -> Option<[u8; 32]> {
+        use sha2::{Digest, Sha256};
+        let records = self.vault.pull(Default::default()).ok()?.records;
+        let mut digest = Sha256::new();
+        digest.update(serde_json::to_vec(&self.roster.current()).ok()?);
+        digest.update(serde_json::to_vec(&records).ok()?);
+        Some(digest.finalize().into())
     }
     async fn exchange_roster(&self, node: &str) -> Result<()> {
         use cranibox_contracts::net::{BoxBody, routes};

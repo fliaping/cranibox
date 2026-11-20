@@ -593,7 +593,17 @@ pub async fn review(
         Err(_) => Err(anyhow::anyhow!("timed out")),
     };
     let review = match answer {
-        Ok(answer) => recorded(reviewer.source(), answer, started.elapsed()),
+        Ok(mut answer) => {
+            // The owner's threshold: a risk the reviewer accepted may still be one the
+            // owner wants to see. Jev combines its own thresholds.
+            if settings.backend != ReviewBackend::Jev
+                && answer.verdict == Verdict::Allow
+                && answer.risk_score >= settings.sensitivity.unwrap_or_default().ask_at()
+            {
+                answer.verdict = Verdict::Ask;
+            }
+            recorded(reviewer.source(), answer, started.elapsed())
+        }
         Err(e) => fallback(source, &request.operation, &e, started.elapsed()),
     };
     let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -866,6 +876,37 @@ mod tests {
                 .await
                 .is_none()
         );
+    }
+    #[tokio::test]
+    async fn the_owners_threshold_sends_accepted_risk_to_a_person() {
+        use cranibox_contracts::access::Sensitivity;
+        let answer = |sensitivity, url: &str| {
+            let settings = ReviewSettings {
+                backend: ReviewBackend::Http,
+                url: Some(format!("https://decide.example/{url}")),
+                sensitivity,
+                ..Default::default()
+            };
+            let reviewer: Result<Option<Box<dyn Reviewer>>> = Ok(Some(Box::new(Fixed(
+                Ok(DecisionResponse {
+                    verdict: Verdict::Allow,
+                    risk_score: 0.4,
+                    reason: "moderate".into(),
+                    labels: vec![],
+                    model: None,
+                }),
+                Default::default(),
+            ))));
+            async move {
+                review(&settings, reviewer, &request("threshold"))
+                    .await
+                    .unwrap()
+                    .verdict
+            }
+        };
+        assert_eq!(answer(Some(Sensitivity::Low), "low").await, Verdict::Allow);
+        assert_eq!(answer(None, "medium").await, Verdict::Allow);
+        assert_eq!(answer(Some(Sensitivity::High), "high").await, Verdict::Ask);
     }
     #[tokio::test]
     async fn identical_requests_reuse_the_answer() {

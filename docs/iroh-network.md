@@ -19,6 +19,7 @@ Every device talks to other devices over iroh 1.3 (QUIC): hole punching first, r
 | `cranibox/peer-http/1` (C2) | 进程内调用方（`IrohTransport`，供 WS6/WS7）。服务端用 `Running::mesh_router()` 处理，注入 `Authenticated{transport: Iroh, e2e: true}` | iroh TLS 公钥 = grant 固定的 `signing_key`，且 `grant.usable()` |
 | `cranibox/peer-fwd/1` | 本机回环转发（CLI、MCP、网关等进程外客户端）：`127.0.0.1:<port>` 原样接到对端 | 仍需路由自己的 bearer / Noise 会话（同机其他用户不能借用本节点身份） |
 | `cranibox/pair/1` | 配对握手（持有一次性 secret 才能用） | 链接里的 16 字节 secret |
+| `cranibox/peer-hop/1` | 经另一台自己的设备转发 `peer-fwd` 流（见 §3.1） | 请求方与目标都必须是名册里的本人设备；转发方只看到端到端密文 |
 
 `peer-fwd` 与 `pair` 尚未写进契约，见 PR 里的 CONTRACT-REQUEST。
 
@@ -86,7 +87,7 @@ ingress:
 ## 3. 配对 / Pairing
 
 ```bash
-cranibox peer pair invite [--guest] [--qr invite.svg]   # 生成一次性链接 + 二维码（15 分钟，最多 16 张未用）
+cranibox peer pair invite [--guest|--worker] [--qr invite.svg]   # 生成一次性链接 + 二维码（15 分钟，最多 16 张未用）
 cranibox peer pair accept 'cranibox://pair/…'          # 另一台设备打开链接，显示配对码
 cranibox peer pair flows                                # 邀请方看到同一个配对码
 cranibox peer pair confirm <flow_id> [--reject]         # 两边都确认配对码一致
@@ -95,9 +96,26 @@ cranibox peer pair status                               # EndpointId、relay、�
 
 - 链接 `cranibox://pair/<base32>`，网页版 `https://<hub>/pair#<base32>`（Hub 才有），内容是 C2 `PairTicket`（邀请方 EndpointId、relay URL、16 字节一次性 secret、过期时间、用途）。
 - 两边显示的配对码（SAS）由双方身份派生（复用 #7/#13 的 `pairing_code`），双方都在各自设备确认后才交换凭据、保存授权。只有一方确认时仍等待；任一方拒绝或超时都不写入。CLI 确认命令会等待另一端，请在两台设备分别执行。
-- `OwnerDevice`（默认）：双方互相发 grant（全部能力，含 llm/vault），入站消息直接接受；`Guest`：只给对方 messages，入站消息待审。名册（roster）加入由 WS6 接手。
+- 用途决定谁给谁发 grant（箭头 A → B 表示 A 可以使用 B）：
+  - `OwnerDevice`（默认，「对等设备」）：双方互相发 grant（全部能力，含 llm/vault），入站消息直接接受，并加入名册（roster）。这台 ⇄ 新设备。
+  - `Worker`（`--worker`，「受控设备」）：只有加入方给邀请方发 grant（messages、exec、terminals、projects），邀请方控制它；它拿不到邀请方的任何凭据，也看不到设备名单。这台 → 新设备。适合不完全信任、只执行任务的节点。
+  - `Guest`（`--guest`，「访客」）：只有邀请方给加入方发 grant（messages），入站消息待审，其余能力在「访问」里逐项允许。新设备 → 这台。
+- 每台设备把配对得到的关系（peer / controlled / controller / guest / host）记在 `devices.json`，`peers.json` 不变（签名 grant 与 `deny_unknown_fields`，保证可回滚）。本人设备之间互相交换各自的非本人关系（`relations.json`，与路径记录一样有数量、大小和时钟偏差限制），控制中心「设备网络」图据此画出全部关系。
 - 确认后：grant 固定对方身份并标记已核对；route 指向本机回环转发 `http://127.0.0.1:<port>`（带 lease 锁），旧路径保留为备用；Hub 的 relay 记入 `iroh-peers.json` 并立刻开始使用。
 - 已有直连路由的对端（已固定公钥）：设置 `CRANIBOX_IROH_MIGRATE=1` 后，服务每 10 分钟探测一次，对端能用 iroh 时把 iroh 回环转发插到路由最前面。默认关闭：改路由会改变路由 binding，排队中的消息和任务会因此作废（重新配对则直接走 iroh）。
+
+### 3.1 设备即路由器 / Devices as routers
+
+某台本人设备只能经 relay 绕远路（或暂时连不上）、而另一台本人设备能直连它时，本机把到它的回环转发改走那台设备：A → C → B。
+
+- 只在名册里的本人设备之间转发；访客、受控设备和其他身份的设备既不转发也不被转发。转发方 C 只拼接两条 QUIC 流，内层仍是 A 与 B 的 Noise 端到端会话，C 看不到内容。
+- 只转发一跳：C 直连 B，不再经其他设备。每个请求方最多 64 条并发流，整台设备最多 256 条。
+- 选路（`peer/routing.rs`）：已有直连时永远直连；否则用「本机到 C 的直连 RTT + C 测得到 B 的直连 RTT（2 分钟内）+ 2 ms」估算，只有比 relay 至少快 10 ms 且不超过 relay 的 75% 时才切换；完全连不上时等 20 秒直连尝试后改用任一可用中转。已在用的中转除非另一台明显更好才换。
+- 使用中转期间每 60 秒重试一次直连，打洞成功即切回。单条流的中转失败时，该流回落到直连。
+- 设置在 `routing.json`（`use_devices`、`forward_for_devices`，默认都开），控制中心「网络设置 → 经设备转发」可分别关闭；App API `GET/PUT /api/v1/app/network/routing`，立即生效。
+- 路径显示为 `relay`，`via` 为 `device:<node>`，界面写作「经 Mac mini」。
+
+When an own device is reachable only through a slow relay but another own device reaches it directly, the loopback forward goes through that device (`cranibox/peer-hop/1`, one hop, owner devices only, end-to-end encrypted inside). A hop is used only when clearly faster than the relay; the direct path is retried every 60 s and wins as soon as it works.
 
 ## 4. 高级覆盖（不在 UI 中）/ Advanced overrides
 

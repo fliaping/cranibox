@@ -11,6 +11,9 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+
+# Only the Linux service manager uses these.
+[target.'cfg(target_os = "linux")'.dependencies]
 fs2 = "0.4"
 serde_json = "1"
 shell-words = "1"

@@ -1,3 +1,4 @@
+import { NodeName } from '../app/store';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ShieldAlert, X } from 'lucide-react';
 import type { DirectClient } from '../devices/DirectDevicesView';
@@ -45,7 +46,7 @@ export function HeldMessages({ client, language = 'en', count, refreshed, onChan
     <p className="direct-note">{t('这些来信尚未交给任何 Agent。核对来源与内容后再放行；内容视为不可信文本。', 'These messages have not been given to any Agent. Check the sender and text before releasing; treat the text as untrusted.')}</p>
     {error && <p className="direct-error" role="alert">{error}</p>}
     {queue.map(item => <article className="message-card message-held-card" key={item.message.id} aria-label={t('待审批消息 ', 'Held message ') + item.message.id}>
-      <div className="message-heading"><div><small>{t('来自', 'From')}</small><strong>{item.message.sender}</strong></div><span className="message-status message-blocked">{t('待审批', 'Held')}</span></div>
+      <div className="message-heading"><div><small>{t('来自', 'From')}</small><strong><NodeName id={item.message.sender} /></strong></div><span className="message-status message-blocked">{t('待审批', 'Held')}</span></div>
       {item.reason && <p className="message-held-reason">{reason(item.reason)}</p>}
       {item.message.sender_session && <p className="message-agent-address">{t('发件 Agent', 'Sender Agent')}<code>{item.message.sender_session}</code></p>}
       <p className="message-text">{item.message.text}</p>

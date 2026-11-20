@@ -49,6 +49,7 @@ pub async fn observe(
     if owner {
         let _ = super::known::merge_labels(peers, &answer["nodes"][0]["labels"]);
         let _ = merge(peers, &answer["paths"], &config.node_id);
+        let _ = super::relations::merge(peers, &answer["relations"], &config.node_id);
     }
     used_iroh
 }

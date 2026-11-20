@@ -16,6 +16,8 @@ use tokio_util::sync::CancellationToken;
 pub struct Forward {
     pub address: SocketAddr,
     target: watch::Sender<EndpointAddr>,
+    /// Another device to go through instead of dialing the target ([`crate::hop`]).
+    via: watch::Sender<Option<EndpointAddr>>,
     stop: CancellationToken,
 }
 impl Forward {
@@ -24,11 +26,13 @@ impl Forward {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await?;
         let address = listener.local_addr()?;
         let (tx, rx) = watch::channel(target);
+        let (via, via_rx) = watch::channel(None);
         let stop = CancellationToken::new();
-        tokio::spawn(serve(node, listener, rx, stop.clone()));
+        tokio::spawn(serve(node, listener, rx, via_rx, stop.clone()));
         Ok(Self {
             address,
             target: tx,
+            via,
             stop,
         })
     }
@@ -43,6 +47,18 @@ impl Forward {
     pub fn target(&self) -> EndpointAddr {
         self.target.borrow().clone()
     }
+    /// Go through `via` (another device) for new streams, or straight to the target.
+    /// Streams already open keep their path.
+    pub fn set_via(&self, via: Option<EndpointAddr>) {
+        self.via.send_if_modified(|current| {
+            let changed = *current != via;
+            *current = via;
+            changed
+        });
+    }
+    pub fn via(&self) -> Option<EndpointAddr> {
+        self.via.borrow().clone()
+    }
 }
 impl Drop for Forward {
     fn drop(&mut self) {
@@ -54,6 +70,7 @@ async fn serve(
     node: IrohNode,
     listener: TcpListener,
     target: watch::Receiver<EndpointAddr>,
+    via: watch::Receiver<Option<EndpointAddr>>,
     stop: CancellationToken,
 ) {
     let slots = std::sync::Arc::new(tokio::sync::Semaphore::new(64));
@@ -73,13 +90,27 @@ async fn serve(
         };
         let node = node.clone();
         let addr = target.borrow().clone();
+        let hop = via.borrow().clone();
         let stop = stop.clone();
         tokio::spawn(async move {
             let _permit = permit;
             let _ = tcp.set_nodelay(true);
             let result = async {
-                let conn = node.lane_connection(&addr, crate::Lane::Forward).await?;
-                let (send, recv) = conn.open_bi().await?;
+                let (send, recv) = match &hop {
+                    // A failed hop falls back to the direct dial for this stream.
+                    Some(via) => match crate::hop::open(&node, via, addr.id).await {
+                        Ok(streams) => streams,
+                        Err(error) => {
+                            tracing::debug!("hop via {} failed: {error:#}", via.id.fmt_short());
+                            let conn = node.lane_connection(&addr, crate::Lane::Forward).await?;
+                            conn.open_bi().await?
+                        }
+                    },
+                    None => {
+                        let conn = node.lane_connection(&addr, crate::Lane::Forward).await?;
+                        conn.open_bi().await?
+                    }
+                };
                 let mut quic = tokio::io::join(recv, send);
                 tokio::select! {
                     _ = stop.cancelled() => {}

@@ -390,7 +390,7 @@ impl Shell for NativeShell {
                         cranibox_node::update::desktop::Relaunch::Restart => app.request_restart(),
                         cranibox_node::update::desktop::Relaunch::AfterExit(command) => {
                             if let Err(error) =
-                                cranibox_node::update::desktop::spawn_detached(command)
+                                cranibox_node::update::desktop::spawn_detached(*command)
                             {
                                 eprintln!("Install the desktop app: {error:#}");
                             }
@@ -734,6 +734,13 @@ fn main() -> anyhow::Result<()> {
         })
         .build(tauri::generate_context!())?;
     app.run(move |app, event| {
+        // Clicking the Dock icon brings the window back, created again if it was closed;
+        // otherwise only the menu bar icon could open it.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            show(app);
+            return;
+        }
         if let tauri::RunEvent::ExitRequested { api, code, .. } = event
             && !state.quitting.load(Ordering::Relaxed)
         {

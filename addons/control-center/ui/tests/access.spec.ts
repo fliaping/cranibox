@@ -93,7 +93,15 @@ async function mockAccess(page: Page) {
   await page.routeWebSocket('**/api/terminal/ws?ticket=mock', socket => socket.send(JSON.stringify({ type: 'ready' })));
   return state;
 }
-async function openDevice(page: Page, tab = 'access', lang = 'en') { await page.goto('/?lang=' + lang + '#/app/device/' + remote + '/' + tab); }
+async function openDevice(page: Page, tab = 'access', lang = 'en') {
+  await page.goto('/?lang=' + lang + '#/app/device/' + remote + '/' + tab);
+  if (tab === 'access') await openSections(page);
+}
+// Item-by-item modes, automatic review and the log sit in collapsed sections.
+async function openSections(page: Page) {
+  await page.locator('details.cx-access-section').first().waitFor({ state: 'attached' });
+  await page.locator('details.cx-access-section').evaluateAll(sections => sections.forEach(section => { (section as HTMLDetailsElement).open = true; }));
+}
 async function refresh(page: Page) { await page.evaluate(() => (window as any).accessEvent()); }
 
 for (const lang of ['en', 'zh-cn']) for (const width of [375, 1280]) {
@@ -448,11 +456,12 @@ test('this device lists what each paired device may do, with defaults for one no
   ] }));
   await page.route('**/api/v1/app/access/' + fresh, route => { saves.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
   await page.goto('/?lang=zh-cn#/app/device/host/access');
-  await expect(page.getByRole('heading', { name: '其他设备可以在本设备上…' })).toBeVisible();
-  await expect(page.locator('.cx-access-peer')).toHaveCount(1);
-  await expect(page.locator('.cx-access-peer > summary')).toContainText('Design Mac');
-  await expect(page.locator('.cx-access-peer').getByRole('region', { name: '模型与账号', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '谁可以使用这台设备' })).toBeVisible();
+  await expect(page.locator('.cx-access-list > div')).toHaveCount(1);
+  await expect(page.locator('.cx-access-list')).toContainText('Design Mac');
+  await expect(page.locator('.cx-access-list').getByRole('combobox', { name: '访问级别' })).toBeVisible();
   await page.goto('/?lang=zh-cn#/app/device/' + fresh + '/access');
+  await openSections(page);
   const messages = page.getByRole('region', { name: '消息与任务', exact: true });
   await expect(messages.getByRole('button', { name: '允许', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
   const models = page.getByRole('region', { name: '模型与账号', exact: true });
@@ -489,7 +498,7 @@ test('requests on my other devices are approved here with the recovery passphras
   await page.goto('/?lang=zh-cn#/app/devices');
   await expect(page.getByRole('status').filter({ hasText: '你的其他设备上有 2 个请求等你批准' })).toBeVisible();
   await page.getByRole('link', { name: '去处理', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '待处理的审批', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '其他设备上的请求', exact: true })).toBeVisible();
   await expect(page.getByText('连不上', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '查看并决定', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
@@ -567,6 +576,7 @@ for (const [lang, width] of [['zh-cn', 375], ['en', 1280]] as const) {
     await expect(page.getByRole('radio', { name: /Jev/ })).toBeDisabled();
     expect(state.reviewSaves).toEqual([]);
     await page.reload();
+    await openSections(page);
     await expect(toggle).toBeChecked();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('.cx-access-approval-control').screenshot({ path: `test-results/approvals-disabled-${lang}-${width}.png` });

@@ -11,7 +11,12 @@ for (const asset of ['web.js', 'web.css']) {
   const source = path.join(output, 'ui/dist', asset), destination = path.join(output, asset);
   if (asset === 'web.js') {
     const notice = ['herdr-web-ui.txt'].map(name => fs.readFileSync(path.resolve(__dirname, '../docs/licenses', name), 'utf8')).join('\n\n').replace(/[ \t]+$/gm, '');
-    fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + fs.readFileSync(source, 'utf8'));
+    // The bundler names each module's source in a `//#region` comment, resolving
+    // symlinks first: a worktree whose node_modules links to another checkout gets
+    // `../../../../<checkout>/…/node_modules/x`. Name it as CI does, `node_modules/x`,
+    // so the checked-in file does not depend on where it was built.
+    const code = fs.readFileSync(source, 'utf8').replace(/^(\/\/#region )(?:\.\.\/)+\S*?\/(?=node_modules\/)/gm, '$1');
+    fs.writeFileSync(destination, '/*!\n' + notice + '\n*/\n' + code);
   } else fs.copyFileSync(source, destination);
 }
 // The tab icon is inlined: the page serves no other static files besides its bundle.

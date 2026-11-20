@@ -27,7 +27,8 @@
 | --- | --- |
 | cranibox-desktop-macos-latest | macOS DMG（Apple Silicon） |
 | cranibox-desktop-windows-latest | Windows NSIS 安装程序 |
-| cranibox-desktop-ubuntu-latest | Linux AppImage、deb |
+| cranibox-desktop-linux-deb | Linux deb 安装包（使用系统的 WebKitGTK，体积小） |
+| cranibox-desktop-linux-appimage | Linux AppImage（自带运行库，体积大，免安装） |
 | cranibox-cli-linux | Linux 命令行版 `cranibox`（x86-64），一个可执行文件 |
 
 Linux 的托盘依赖桌面环境支持 AppIndicator；无桌面的机器使用命令行版。

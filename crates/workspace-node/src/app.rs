@@ -3,6 +3,7 @@ mod capabilities;
 pub(crate) mod known;
 pub(crate) mod paths;
 pub mod preferences;
+pub(crate) mod relations;
 use crate::{local::LocalNode, models::Models};
 use agent_workspace_runtime::peers::{self, config::Config};
 use cranibox_contracts::{
@@ -155,13 +156,55 @@ impl Service {
             .find(|d| d.node_id == local.id)
             .map(|d| d.name.clone())
             .unwrap_or_else(|| crate::device_info::local().name.clone());
+        // Who may use whom: this device's relations and those its owner devices reported.
+        let mut roles: BTreeMap<String, Relation> = BTreeMap::new();
+        let mut uses: Vec<(String, String, &str)> = Vec::new();
+        let mut gossip_names: BTreeMap<String, String> = BTreeMap::new();
+        let mut relate = |observer: &str, node: &str, relation: Relation| {
+            let (from, to, kind) = match relation {
+                Relation::Peer => return,
+                Relation::Controlled => (observer, node, "control"),
+                Relation::Controller => (node, observer, "control"),
+                Relation::Guest => (node, observer, "guest"),
+                Relation::Host => (observer, node, "shared"),
+            };
+            uses.push((from.to_owned(), to.to_owned(), kind));
+        };
+        for device in devices.iter().filter(|d| d.node_id != local.id) {
+            roles.insert(device.node_id.clone(), device.relation);
+            relate(&local.id, &device.node_id, device.relation);
+        }
+        for (observer, report) in relations::load(local.config_path()) {
+            if !devices
+                .iter()
+                .any(|d| d.node_id == observer && d.relation == Relation::Peer)
+            {
+                continue;
+            }
+            for edge in report.edges {
+                if edge.node == local.id {
+                    continue;
+                }
+                roles.entry(edge.node.clone()).or_insert(edge.relation);
+                gossip_names.entry(edge.node.clone()).or_insert(edge.name);
+                relate(&observer, &edge.node, edge.relation);
+            }
+        }
         let mut nodes: BTreeMap<String, String> = devices
             .into_iter()
             .filter(|d| d.node_id != local.id)
             .take(63)
             .map(|d| (d.node_id, d.name))
             .collect();
+        for (node, name) in gossip_names {
+            if nodes.len() >= 127 {
+                break;
+            }
+            nodes.entry(node).or_insert(name);
+        }
         nodes.insert(local.id.clone(), own_name);
+        uses.sort();
+        uses.dedup();
         // Refresh live QUIC paths only when the successful probe used iroh; an
         // unrelated open connection must not hide the selected HTTP fallback.
         let reach = self.reach.lock().unwrap().clone();
@@ -196,9 +239,14 @@ impl Service {
                 entries.push(value);
             }
         }
-        Ok(
-            serde_json::json!({"nodes": nodes.into_iter().map(|(id,name)| serde_json::json!({"id":id,"name":name})).collect::<Vec<_>>(), "paths": entries}),
-        )
+        Ok(serde_json::json!({
+            "nodes": nodes.into_iter().map(|(id, name)| {
+                let relation = roles.get(&id).copied().unwrap_or_default();
+                serde_json::json!({"id": id, "name": name, "relation": relation})
+            }).collect::<Vec<_>>(),
+            "paths": entries,
+            "uses": uses.into_iter().map(|(from, to, kind)| serde_json::json!({"from": from, "to": to, "kind": kind})).collect::<Vec<_>>(),
+        }))
     }
     /// `POST /pair/server {url}`: pair through a server's public address or pairing link.
     pub async fn pair_server(&self, url: &str) -> Result<Value, AppError> {
@@ -622,6 +670,10 @@ impl AppApi for Service {
                     },
                     online,
                     path: path.as_ref().map_or(PathKind::Unknown, |p| p.kind),
+                    via: path
+                        .as_ref()
+                        .and_then(|p| p.via.clone())
+                        .filter(|via| via.starts_with("device:")),
                     rtt_ms: path.and_then(|p| p.rtt_ms).or_else(|| {
                         self.reach
                             .lock()
@@ -631,6 +683,7 @@ impl AppApi for Service {
                     }),
                     badges,
                     guest: false,
+                    relation: Relation::Peer,
                     same_identity: true,
                     caps,
                     os_version: if own {
@@ -652,12 +705,13 @@ impl AppApi for Service {
             }
         }
         let spaces = crate::spaces::Store::new(local.config_path().to_path_buf()).enrolled(&config);
-        for (node, grant) in config.grants {
+        for (node, grant) in config.grants.clone() {
             if devices.iter().any(|d| d.node_id == node) {
                 continue;
             }
-            // A guest pairing grants messages only; an owner device gets full access.
-            let guest = !(grant.permissions.exec && grant.permissions.terminals);
+            // Direction decides: it may use this device; with a route back, both ways.
+            let relation = relations::of(&config, known.get(&node), &node, false);
+            let guest = matches!(relation, Relation::Guest | Relation::Controller);
             // Field by field: the permissions' JSON omits `llm`/`vault` when off.
             let p = grant.permissions;
             let caps = DeviceCaps {
@@ -691,11 +745,13 @@ impl AppApi for Service {
                 node_id: node.clone(),
                 online,
                 path: path.as_ref().map_or(PathKind::Unknown, |p| p.kind),
+                via: None,
                 rtt_ms: path
                     .and_then(|p| p.rtt_ms)
                     .or_else(|| self.reach.lock().unwrap().get(&node).and_then(|r| r.rtt_ms)),
                 badges: vec![],
                 guest,
+                relation,
                 same_identity: false,
                 caps,
                 os_version: remembered.os_version,
@@ -744,9 +800,17 @@ impl AppApi for Service {
                 node_id: node.clone(),
                 online,
                 path,
+                via: None,
                 rtt_ms: self.reach.lock().unwrap().get(node).and_then(|r| r.rtt_ms),
                 badges: vec![],
                 guest: false,
+                // Only this device can use it: a worker or space it controls, or a
+                // device someone else shared with it.
+                relation: match (space, remembered.relation) {
+                    (Some(_), _) => Relation::Controlled,
+                    (None, Some(relation)) => relation,
+                    (None, None) => Relation::Host,
+                },
                 same_identity: false,
                 caps: DeviceCaps {
                     exec: offers("exec"),
@@ -874,6 +938,14 @@ impl AppApi for Service {
                     title_args: BTreeMap::from([
                         ("code".into(), flow.sas),
                         ("device".into(), flow.peer_node_id),
+                        // What confirming creates, so the card can say who may use whom.
+                        (
+                            "purpose".into(),
+                            serde_json::to_value(flow.purpose)
+                                .ok()
+                                .and_then(|v| v.as_str().map(str::to_owned))
+                                .unwrap_or_default(),
+                        ),
                     ]),
                     detail: None,
                     risk: Risk::Medium,
@@ -1236,6 +1308,35 @@ async fn route(
                 preferences::update(&peers, &body)
                     .map_err(|e| error(400, "invalid", format!("{e:#}")))?,
             ),
+            _ => Err(error(405, "invalid", "GET or PUT required")),
+        };
+    }
+    if path == "/network/routing" {
+        use crate::peer::routing::Settings;
+        let Some(service) = service.as_ref() else {
+            return match method {
+                "GET" => output(Settings::default()),
+                _ => Err(error(503, "unavailable", "Demo devices keep no settings")),
+            };
+        };
+        let peers = service.local()?.config_path().to_path_buf();
+        return match method {
+            "GET" => output(Settings::load(&peers)),
+            "PUT" => {
+                let mut settings = Settings::load(&peers);
+                for (key, slot) in [
+                    ("use_devices", &mut settings.use_devices),
+                    ("forward_for_devices", &mut settings.forward_for_devices),
+                ] {
+                    if let Some(value) = body.get(key) {
+                        *slot = value.as_bool().ok_or_else(|| {
+                            error(400, "invalid", format!("{key} must be true or false"))
+                        })?;
+                    }
+                }
+                settings.save(&peers).map_err(unavailable)?;
+                output(settings)
+            }
             _ => Err(error(405, "invalid", "GET or PUT required")),
         };
     }
@@ -1838,7 +1939,8 @@ mod grant_tests {
         let paths = route(None, "GET", "/network/paths", Value::Null)
             .await
             .unwrap();
-        assert_eq!(paths["nodes"].as_array().unwrap().len(), 4);
+        assert_eq!(paths["nodes"].as_array().unwrap().len(), 7);
+        assert_eq!(paths["uses"][0]["kind"], "control");
         assert_eq!(paths["paths"][0]["via"], "relay.n0.iroh.network");
         assert!(paths["paths"][0]["at"].as_u64().unwrap() <= super::paths::now());
         let list = route(None, "GET", "/capabilities", Value::Null)

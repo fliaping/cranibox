@@ -8,7 +8,8 @@
     "title_key": "approval.pairing",
     "title_args": {
       "code": "1234-5678-9012",
-      "device": "Alex's laptop"
+      "device": "Alex's laptop",
+      "purpose": "guest"
     },
     "detail": null,
     "risk": "medium",
