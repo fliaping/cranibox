@@ -9,7 +9,8 @@ import { useTerminalDevices } from '../app/targets';
 type Summary = { id: string; name: string; node: string; provider: string; phase: string };
 type Catalog = { owner: string; spaces: Summary[] };
 type Source = { node: string; name?: string; kind?: string; phase: 'loading' | 'ready' | 'denied' | 'error'; checked?: number; error?: string; catalog?: Catalog };
-const problem = (error: unknown) => error instanceof Error ? error.message : String(error);
+// This view words refusals itself, so it reads the device's own text when there is one.
+const problem = (error: unknown) => error instanceof Error ? (error as { raw?: string }).raw || error.message : String(error);
 const providers: Record<string, string> = { docker: 'Docker', colima: 'Colima', orbstack: 'OrbStack', wsl: 'WSL2 · Ubuntu' };
 
 /** Routes come from this device's configuration. A directory entry can never

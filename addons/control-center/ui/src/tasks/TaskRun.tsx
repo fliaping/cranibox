@@ -1,3 +1,4 @@
+import { NodeName } from '../app/store';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { CheckCheck, Play, RefreshCw, Square, Terminal } from 'lucide-react';
 import type { DirectClient } from '../devices/DirectDevicesView';
@@ -59,7 +60,7 @@ export function TaskRun({ client, id, dispatch, owner, hasRun, done, canStart, d
     <button className="task-run-toggle" type="button" aria-expanded={open} aria-controls={help + '-panel'} disabled={disabled} onClick={() => setOpen(value => !value)}><Terminal size={17} aria-hidden="true" />{hasRun || detail ? t('任务 Agent 与结果', 'Task Agent and result') : t('用 Agent 处理', 'Run with Agent')}</button>
     {open && <section id={help + '-panel'} aria-label={t('任务 Agent 执行', 'Task Agent execution')}>
       <ol className="task-run-steps" aria-label={t('任务执行步骤', 'Task execution steps')}><li aria-current={!detail ? 'step' : undefined}>1 · {t('检查并确认', 'Review')}</li><li aria-current={detail && (!state || active(state)) ? 'step' : undefined}>2 · {t('执行与查看', 'Run')}</li><li aria-current={detail && state && !active(state) ? 'step' : undefined}>3 · {t('核对并报告', 'Report')}</li></ol>
-      <p className="direct-note">{t('执行设备：', 'Executing device: ')}<code>{owner}</code></p>
+      <p className="direct-note">{t('执行设备：', 'Executing device: ')}<NodeName id={owner} /></p>
       {!detail && !review && <form onSubmit={event => { event.preventDefault(); void perform(async request => {
         const value = await call({ operation: 'prepare', options }) as Review;
         if (value?.owner !== owner || value?.task !== id || value?.dispatch !== dispatch || value?.launch?.cwd !== options.cwd || typeof value.digest !== 'string' || typeof value.available !== 'boolean') throw Error('Invalid task launch review.');

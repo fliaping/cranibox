@@ -72,6 +72,23 @@ impl LocalNode {
         if let Some(dir) = path.parent() {
             agent_workspace_runtime::peers::computer::cua::embedded::configure(dir);
         }
+        // Shared Computer Use is expected to answer after a restart or reboot, not only
+        // after someone opens the capabilities page and presses Start.
+        if config.computer.as_ref().is_some_and(|provider| {
+            provider.kind == agent_workspace_runtime::peers::computer::ProviderKind::Cua
+        }) {
+            tokio::spawn(async {
+                use agent_workspace_runtime::peers::computer::cua;
+                let Some(program) = cua::locate() else {
+                    return;
+                };
+                if !cua::daemon_running(&program).await
+                    && let Err(error) = cua::start_daemon(&program).await
+                {
+                    eprintln!("Computer Use did not start: {error:#}");
+                }
+            });
+        }
         let desktop_service = crate::desktop_service::Service::start(path.clone(), stop.clone());
         let browser_service = agent_workspace_runtime::peers::browser::manager::Service::start(
             path.clone(),

@@ -241,21 +241,17 @@ pub fn command_path(name: &str) -> String {
     String::new()
 }
 pub fn executable(path: &Path) -> bool {
-    let Ok(metadata) = fs::metadata(path) else {
-        return false;
-    };
-    if !metadata.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    {
-        true
-    }
+    fs::metadata(path).is_ok_and(|metadata| metadata.is_file() && executable_mode(&metadata))
+}
+#[cfg(unix)]
+fn executable_mode(metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    metadata.permissions().mode() & 0o111 != 0
+}
+/// Windows has no executable bit: any file can be run.
+#[cfg(not(unix))]
+fn executable_mode(_: &fs::Metadata) -> bool {
+    true
 }
 pub fn read(path: impl AsRef<Path>) -> String {
     fs::read_to_string(path).unwrap_or_default()

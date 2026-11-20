@@ -363,7 +363,7 @@ test('leaving the panel stops its polling', async ({ page }) => {
   const model = await mock(page); model.data.status = update('downloading');
   const panel = await open(page);
   await expect(panel).toContainText('Downloading…');
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Devices & network' }).click();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Devices', exact: true }).click();
   await expect(panel).toHaveCount(0);
   const reads = model.statusReads;
   await page.clock.runFor(6000);

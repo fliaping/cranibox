@@ -200,23 +200,21 @@ fn executable(program: &str) -> Option<PathBuf> {
                 .into_iter()
                 .map(|name| path.join(name))
                 .find(|candidate| {
-                    let Ok(metadata) = candidate.metadata() else {
-                        return false;
-                    };
-                    if !metadata.is_file() {
-                        return false;
-                    }
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        metadata.permissions().mode() & 0o111 != 0
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        true
-                    }
+                    candidate
+                        .metadata()
+                        .is_ok_and(|metadata| metadata.is_file() && executable_mode(&metadata))
                 })
         })
+}
+#[cfg(unix)]
+fn executable_mode(metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    metadata.permissions().mode() & 0o111 != 0
+}
+/// Windows has no executable bit: any file can be run.
+#[cfg(not(unix))]
+fn executable_mode(_: &std::fs::Metadata) -> bool {
+    true
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

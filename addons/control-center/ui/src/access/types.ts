@@ -12,7 +12,9 @@ export type Verdict = 'allow' | 'ask' | 'deny';
 export type Review = { source: string; verdict: Verdict; risk: number; reason: string; labels?: string[]; model?: string | null; fallback?: boolean; latency_ms?: number };
 export type ReviewBackend = 'rules' | 'model' | 'jev' | 'http';
 export type JevThresholds = { deny_score: number; ask_score: number; injection: number; exfiltration: number; out_of_scope: number; min_confidence: number };
-export type ReviewSettings = { backend: ReviewBackend; model?: string | null; url?: string | null; timeout_ms?: number | null; jev?: JevThresholds | null };
+/** How readily a model or decision service sends an operation to a person. */
+export type Sensitivity = 'low' | 'medium' | 'high';
+export type ReviewSettings = { backend: ReviewBackend; model?: string | null; url?: string | null; timeout_ms?: number | null; jev?: JevThresholds | null; sensitivity?: Sensitivity | null };
 /** Jev presets and allowed ranges; the same values the device enforces. */
 export const jevPresets: Record<'relaxed' | 'standard' | 'strict', JevThresholds> = {
   relaxed: { deny_score: 2.8, ask_score: 2.0, injection: 0.8, exfiltration: 0.75, out_of_scope: 0.85, min_confidence: 0.3 },

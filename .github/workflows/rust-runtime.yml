@@ -13,6 +13,22 @@ on:
 permissions:
   contents: read
 
+# Stop superseded branch/PR runs from occupying runners. Publishing runs finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')) }}
+
+# Branch and pull-request builds use a fast optimized profile. main (which publishes
+# the npm dev channel) and release tags keep thin LTO and one codegen unit.
+# Debug/test builds omit symbols without changing assertions.
+env:
+  # Keep debug assertions while avoiding large debug symbols and slow PDB/link/cache work.
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
+  CARGO_PROFILE_RELEASE_LTO: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && 'thin' || 'off' }}
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && '1' || '16' }}
+  CARGO_PROFILE_RELEASE_OPT_LEVEL: ${{ (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && '3' || '2' }}
+
 jobs:
   distribution-tests:
     name: Distribution tooling and npm launcher
@@ -28,27 +44,87 @@ jobs:
       - run: python -m unittest discover -s tests -p test_distribution.py -v
   wayland:
     name: Real Wayland desktop (Sway and wayvnc)
+    # ubuntu-latest now supplies wayvnc >= 0.8; no separate container is needed.
     runs-on: ubuntu-latest
-    # wayvnc in older runner repositories predates the managed provider's 0.8 minimum.
-    container: ubuntu:26.04
     steps:
-      - name: Install isolated desktop test dependencies
-        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config python3 sway swaybg wayvnc fonts-dejavu-core
       - uses: actions/checkout@v7
+      - name: Install isolated desktop test dependencies
+        run: sudo apt-get update -o APT::Update::Error-Mode=any && sudo apt-get install -y --no-install-recommends sway swaybg wayvnc fonts-dejavu-core
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: addons/control-center/ui/package-lock.json
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: wayland
+          shared-key: native
+          save-if: false
       - run: npm ci --prefix addons/control-center/ui
       - run: cargo build --locked --workspace
       - name: Verify real Wayland authentication, pixels, keyboard and independent node recovery
+        # Sway must run as the normal runner account, not root.
+        run: python3 -m unittest discover -s tests -p test_desktop_real_wayland.py -v
+        env:
+          CRANIBOX_TEST_REAL_WAYLAND: '1'
+  cli:
+    name: command line (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: cranibox-cli-linux
+            output: cranibox-linux-x86_64
+            features: managed
+          - os: windows-latest
+            artifact: cranibox-cli-windows
+            output: cranibox-windows-x86_64.exe
+            features: none
+          - os: macos-latest
+            artifact: cranibox-cli-macos
+            output: cranibox-macos-arm64
+            features: none
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli-${{ matrix.os }}
+          cache-on-failure: true
+      - name: Build standalone CLI
         shell: bash
         run: |
-          useradd --create-home cranibox-test
-          runuser -u cranibox-test -- env "PATH=$PATH" CRANIBOX_TEST_REAL_WAYLAND=1 python3 -m unittest discover -s tests -p test_desktop_real_wayland.py -v
+          set -euo pipefail
+          if [ "${{ matrix.features }}" = managed ]; then
+            cargo build --release --locked -p cranibox --features managed
+          else
+            cargo build --release --locked -p cranibox --no-default-features
+          fi
+          mkdir -p "$RUNNER_TEMP/cli"
+          if [ "${{ runner.os }}" = Windows ]; then
+            cp target/release/cranibox.exe "$RUNNER_TEMP/cli/${{ matrix.output }}"
+          else
+            cp target/release/cranibox "$RUNNER_TEMP/cli/${{ matrix.output }}"
+          fi
+          "$RUNNER_TEMP/cli/${{ matrix.output }}" --version
+          if [ "${{ matrix.features }}" = managed ]; then
+            "$RUNNER_TEMP/cli/${{ matrix.output }}" ctl --version
+            grep -q -- --listen <("$RUNNER_TEMP/cli/${{ matrix.output }}" serve --help)
+            grep -q -- --port <("$RUNNER_TEMP/cli/${{ matrix.output }}" serve --config-root "$RUNNER_TEMP" --help)
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/cli/${{ matrix.output }}
+          retention-days: 14
+          if-no-files-found: error
+      - name: Self-update with the real program
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          CRANIBOX_BIN="$RUNNER_TEMP/cli/${{ matrix.output }}" python -m unittest tests.test_runtime_update -v
   desktop:
     name: node desktop (${{ matrix.os }})
     strategy:
@@ -57,10 +133,13 @@ jobs:
         include:
           - os: ubuntu-latest
             bundles: deb,appimage
+            cli_artifact: cranibox-cli-linux
           - os: windows-latest
             bundles: nsis
+            cli_artifact: cranibox-cli-windows
           - os: macos-latest
             bundles: dmg
+            cli_artifact: cranibox-cli-macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -70,23 +149,16 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/node-desktop/package-lock.json
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: node-desktop
+          cache-on-failure: true
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config libglib2.0-bin python3
         if: runner.os == 'Linux'
       - run: npm ci --prefix apps/node-desktop
       - run: npm run build --prefix apps/node-desktop
-      - run: cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
-      - name: Verify Linux login launcher with spaces and reserved path characters
-        if: runner.os == 'Linux'
-        run: cargo test --locked -p cranibox-node-desktop --lib gio_launches -- --ignored --nocapture
-      - run: npx playwright install --with-deps chromium
-        working-directory: apps/node-desktop
-        if: runner.os == 'Linux'
-      - run: npm test
-        working-directory: apps/node-desktop
-        if: runner.os == 'Linux'
       # One stable signing identity keeps macOS privacy grants (Screen Recording,
       # Accessibility) across updates; ad-hoc signatures change with every build.
       # Without the secrets (e.g. forks) the app stays ad-hoc signed.
@@ -117,36 +189,8 @@ jobs:
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security find-identity -v -p codesigning "$keychain"
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-      # npm ships the standalone node on every platform. Build and copy it first:
-      # the app bundle renames its own binary to target/release/cranibox[.exe].
-      # Linux keeps the workspace console: the same program runs in the Agent Workspace image.
-      - name: Build the Linux command line
-        if: runner.os == 'Linux'
-        run: |
-          cargo build --release --locked -p cranibox --features managed
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-linux-x86_64"
-          "$RUNNER_TEMP/cli/cranibox-linux-x86_64" --version
-          "$RUNNER_TEMP/cli/cranibox-linux-x86_64" ctl --version
-          # On a device `serve` is the node; with --config-root it is the container console.
-          grep -q -- --listen <("$RUNNER_TEMP/cli/cranibox-linux-x86_64" serve --help)
-          grep -q -- --port <("$RUNNER_TEMP/cli/cranibox-linux-x86_64" serve --config-root "$RUNNER_TEMP" --help)
-      - name: Build the macOS command line
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          cargo build --release --locked -p cranibox --no-default-features
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-macos-arm64"
-          "$RUNNER_TEMP/cli/cranibox-macos-arm64" --version
-      - name: Build the Windows command line
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          cargo build --release --locked -p cranibox --no-default-features
-          mkdir -p "$RUNNER_TEMP/cli"
-          cp target/release/cranibox.exe "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe"
-          "$RUNNER_TEMP/cli/cranibox-windows-x86_64.exe" --version
+      # The standalone CLI is built by the parallel `cli` job and downloaded below
+      # for the self-update integration test.
       # The app reports the version it is published as: dev builds keep the last release's
       # source version, so stamp the npm version (see publish-dev).
       - name: Stamp the published version
@@ -236,46 +280,32 @@ jobs:
           archive="target/release/bundle/app/$(basename "${dmg%.dmg}").app.tar.gz"
           tar -czf "$archive" -C "$mount" Cranibox.app
           ls -l "$archive"
+      # Linux ships two installers; separate artifacts let testers download only the one
+      # they need (the AppImage carries its own WebKitGTK and is most of the size).
       - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux'
         with:
-          name: cranibox-desktop-${{ matrix.os }}
-          path: |
-            target/release/bundle/**/*.deb
-            target/release/bundle/**/*.AppImage
-            target/release/bundle/**/*.exe
-            target/release/bundle/**/*.dmg
-            target/release/bundle/**/*.app.tar.gz
+          name: cranibox-desktop-linux-deb
+          path: target/release/bundle/deb/*.deb
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux'
         with:
-          name: cranibox-cli-linux
-          path: ${{ runner.temp }}/cli/cranibox-linux-x86_64
+          name: cranibox-desktop-linux-appimage
+          path: target/release/bundle/appimage/*.AppImage
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: runner.os == 'macOS'
+        if: runner.os != 'Linux'
         with:
-          name: cranibox-cli-macos
-          path: ${{ runner.temp }}/cli/cranibox-macos-arm64
+          name: cranibox-desktop-${{ matrix.os }}
+          path: |
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.app.tar.gz
           retention-days: 14
           if-no-files-found: error
-      - uses: actions/upload-artifact@v7
-        if: runner.os == 'Windows'
-        with:
-          name: cranibox-cli-windows
-          path: ${{ runner.temp }}/cli/cranibox-windows-x86_64.exe
-          retention-days: 14
-          if-no-files-found: error
-      # Last, so the binaries above are uploaded for inspection even when it fails.
-      # The shipped program on each platform: adopt, update through npm, roll back,
-      # and default management for a plain start (with a loopback registry).
-      - name: Self-update with the real program
-        shell: bash
-        timeout-minutes: 15
-        run: |
-          CRANIBOX_BIN="$(ls "$RUNNER_TEMP"/cli/cranibox-*)" python -m unittest tests.test_runtime_update -v
   # Linux arm64 command line (also what the arm64 Agent Workspace image installs).
   linux-arm64:
     name: Linux arm64 command line
@@ -286,6 +316,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: linux-arm64
+          cache-on-failure: true
       - name: Build the Linux arm64 command line
         run: |
           cargo build --release --locked -p cranibox --features managed
@@ -302,9 +333,8 @@ jobs:
           path: ${{ runner.temp }}/cli/cranibox-linux-arm64
           retention-days: 14
           if-no-files-found: error
-  native:
-    env:
-      AGENT_WORKSPACE_SRC: ${{ github.workspace }}/agent-workspace-src
+  quality:
+    name: Static and desktop checks (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -312,32 +342,57 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      # A few tests drive these binaries with scripts from the workspace image.
-      - uses: actions/checkout@v7
-        if: runner.os == 'Linux'
-        with:
-          repository: fliaping/agent-workspace
-          path: agent-workspace-src
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/node-desktop/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: quality
+          cache-on-failure: true
+      - run: sudo apt-get update -o APT::Update::Error-Mode=any && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config libglib2.0-bin python3
+        if: runner.os == 'Linux'
+      - run: npm ci --prefix apps/node-desktop
+      - run: npm run build --prefix apps/node-desktop
+      - run: cargo fmt --all --check
+        if: runner.os == 'Linux'
+      - run: cargo clippy --workspace --locked --all-targets -- -D warnings
+      - run: cargo check --locked -p cranibox-node
+      - run: cargo clippy --locked -p cranibox-node-desktop --features desktop --all-targets -- -D warnings
+      - name: Verify Linux login launcher with spaces and reserved path characters
+        if: runner.os == 'Linux'
+        run: cargo test --locked -p cranibox-node-desktop --lib gio_launches -- --ignored --nocapture
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/node-desktop
+        if: runner.os == 'Linux'
+      - run: npm test
+        working-directory: apps/node-desktop
+        if: runner.os == 'Linux'
+  native:
+    name: Rust tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: native
+          cache-on-failure: true
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python scripts/install-herdr.py --output-directory target/herdr
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --locked --all-targets -- -D warnings
-      - run: cargo check --locked -p cranibox-node
       - run: cargo build --locked
       - run: cargo test --locked
         if: runner.os != 'Windows'
-      # The three-node mesh test runs real Noise sessions, vault sync and SQLite
-      # writes with fixed 5 s request deadlines. Next to the rest of the suite
-      # on the Windows runner it intermittently missed one of those deadlines
-      # (probe, exchange or count), so it runs on its own there.
       - name: cargo test (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -346,120 +401,6 @@ jobs:
           cargo test --locked -p cranibox-node --lib peer::server::multi_node::three_nodes_sync_over_noise -- --test-threads=1
       - name: Contract snapshot (fixtures round-trip through cranibox-contracts types)
         run: cargo test --locked -p cranibox-contracts --test fixtures
-      - uses: actions/setup-node@v7
-        if: runner.os == 'Linux'
-        with:
-          node-version: '22'
-      - run: sudo apt-get update && sudo apt-get install -y s6 xvfb x11vnc x11-utils x11-xserver-utils xdotool
-        if: runner.os == 'Linux'
-      - run: npm ci --prefix addons/control-center/ui
-        if: runner.os == 'Linux'
-      - run: node scripts/build-control-center-ui.cjs && git diff --exit-code -- addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css
-        if: runner.os == 'Linux'
-      - run: npx --prefix addons/control-center/ui playwright install --with-deps chromium
-        if: runner.os == 'Linux'
-      - run: npm test --prefix addons/control-center/ui
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
-      - run: npm run test:terminal --prefix addons/control-center/ui
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
-      - run: npm run test:access --prefix addons/control-center/ui
-        if: runner.os == 'Linux'
-      - run: npm run test:paths --prefix addons/control-center/ui
-        if: runner.os == 'Linux'
-      - uses: actions/upload-artifact@v7
-        if: failure() && runner.os == 'Linux'
-        with:
-          name: playwright-results
-          path: addons/control-center/ui/test-results*/
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Verify Browser Use with an isolated real Chromium and official MCP
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          export CRANIBOX_TEST_CHROMIUM="$(node -e "console.log(require('./addons/control-center/ui/node_modules/playwright-core').chromium.executablePath())")"
-          npx --yes chrome-devtools-mcp@1.11.0 --help > /dev/null
-          python -m unittest discover -s tests -p test_browser_real_chromium.py -v
-        env:
-          CRANIBOX_TEST_REAL_BROWSER: '1'
-      - run: python -m unittest discover -s tests -p test_workspace_bootstrap.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_workspace_services.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_workspace_web_operations.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_cranibox_terminal.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_web_direct_peers.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_web_peer_paths.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_project_catalog_sync.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_background_project_sync.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_background_agent_sync.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_background_activity_sync.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_web_host_node.py -v
-        if: runner.os == 'Linux'
-        env:
-          CRANIBOX_HERDR_BIN: target/herdr/herdr
-      - run: python -m unittest discover -s tests -p test_device_messages.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_device_tasks.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_federated_activity.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_task_runs.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_task_worker_mcp.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_automatic_task_worker.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_collaboration_runs.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_task_dependencies.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_agent_executions.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_remote_agent_executions.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_project_handoffs.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_project_streaming.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_agent_runs_mcp.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_node_peers.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_computer_use.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_browser_use.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_remote_desktops.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_desktop_service.py -v
-        if: runner.os == 'Linux'
       - name: Verify managed Windows TightVNC installation and loopback authentication
         if: runner.os == 'Windows'
         timeout-minutes: 20
@@ -467,13 +408,6 @@ jobs:
         env:
           CRANIBOX_TEST_WINDOWS_VNC: '1'
           CRANIBOX_BIN: target/debug/cranibox.exe
-      - name: Verify real VNC authentication, pixels, input and headless restart
-        if: runner.os == 'Linux'
-        run: python -m unittest discover -s tests -p test_desktop_real_vnc.py -v
-        env:
-          CRANIBOX_TEST_REAL_VNC: '1'
-      - run: python -m unittest discover -s tests -p test_device_networks.py -v
-        if: runner.os == 'Linux'
       - name: Verify real userspace EasyTier networking, restart and entry failover
         if: runner.os == 'Linux'
         shell: bash
@@ -483,27 +417,214 @@ jobs:
           unzip -q "$RUNNER_TEMP/cranibox-easytier.zip" -d "$RUNNER_TEMP/cranibox-easytier"
           chmod u+x "$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64/easytier-core" "$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64/easytier-cli"
           CRANIBOX_TEST_EASYTIER_DIR="$RUNNER_TEMP/cranibox-easytier/easytier-linux-x86_64" cargo test --locked -p cranibox-node network::tests::real_ -- --ignored --nocapture --test-threads=1
-      - run: python -m unittest discover -s tests -p test_virtual_spaces.py -v
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_space_catalog.py -v
-        if: runner.os == 'Linux'
-      - run: node scripts/check-control-center-web.mjs
-        if: runner.os == 'Linux'
-      - run: python -m pip install PyYAML
-        if: runner.os == 'Linux'
-      - run: python -m unittest discover -s tests -p test_workspacectl_rust.py -v
-        if: runner.os == 'Linux'
-      # The container build (workspace feature) is measured here; only the Docker image ships it.
-      - run: cargo build --release --locked -p cranibox
-        if: runner.os == 'Linux'
-      - run: python scripts/measure-workspace-resources.py --report target/resource-baseline.json
-        if: runner.os == 'Linux'
+  linux-integration:
+    name: Linux integration (${{ matrix.suite }})
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [ui, projects, tasks, devices]
+    runs-on: ubuntu-latest
+    env:
+      AGENT_WORKSPACE_SRC: ${{ github.workspace }}/agent-workspace-src
+      CRANIBOX_HERDR_BIN: target/herdr/herdr
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: fliaping/agent-workspace
+          path: agent-workspace-src
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native
+          # The native job writes this cache; shards only restore it.
+          save-if: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: addons/control-center/ui/package-lock.json
+      - run: python scripts/install-herdr.py --output-directory target/herdr
+      - run: cargo build --locked
+      - run: npm ci --prefix addons/control-center/ui
+      - run: sudo apt-get update -o APT::Update::Error-Mode=any && sudo apt-get install -y s6 xvfb x11vnc x11-utils x11-xserver-utils xdotool
+        if: matrix.suite == 'ui' || matrix.suite == 'devices'
+      - name: Checked-in control-center bundle matches its sources
+        if: matrix.suite == 'ui'
+        run: |
+          node scripts/build-control-center-ui.cjs
+          if ! git diff --stat --exit-code -- addons/control-center/index.en.html addons/control-center/index.zh-cn.html addons/control-center/web.js addons/control-center/web.css; then
+            echo "::error::The generated control-center files differ from the commit. Run 'node scripts/build-control-center-ui.cjs' and commit addons/control-center/{web.js,web.css,index.*.html}."
+            git diff -- addons/control-center/web.js addons/control-center/web.css | head -60
+            exit 1
+          fi
+      - run: npx --prefix addons/control-center/ui playwright install --with-deps chromium
+        if: matrix.suite == 'ui'
+      - run: npm test --prefix addons/control-center/ui
+        if: matrix.suite == 'ui'
         env:
-          CRANIBOX_BIN: target/release/cranibox
+          CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
+      - run: npm run test:terminal --prefix addons/control-center/ui
+        if: matrix.suite == 'ui'
+        env:
+          CRANIBOX_HERDR_BIN: ../../../target/herdr/herdr
+      - run: npm run test:access --prefix addons/control-center/ui
+        if: matrix.suite == 'ui'
+      - run: npm run test:paths --prefix addons/control-center/ui
+        if: matrix.suite == 'ui'
+      - uses: actions/upload-artifact@v7
+        if: failure() && matrix.suite == 'ui'
+        with:
+          name: playwright-results
+          path: addons/control-center/ui/test-results*/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify Browser Use with an isolated real Chromium and official MCP
+        if: matrix.suite == 'ui'
+        shell: bash
+        run: |
+          export CRANIBOX_TEST_CHROMIUM="$(node -e "console.log(require('./addons/control-center/ui/node_modules/playwright-core').chromium.executablePath())")"
+          npx --yes chrome-devtools-mcp@1.11.0 --help > /dev/null
+          python -m unittest discover -s tests -p test_browser_real_chromium.py -v
+        env:
+          CRANIBOX_TEST_REAL_BROWSER: '1'
+      - run: python -m unittest discover -s tests -p test_workspace_bootstrap.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_workspace_services.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_workspace_web_operations.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_cranibox_terminal.py -v
+        if: matrix.suite == 'devices'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_web_direct_peers.py -v
+        if: matrix.suite == 'devices'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_web_peer_paths.py -v
+        if: matrix.suite == 'devices'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_project_catalog_sync.py -v
+        if: matrix.suite == 'projects'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_background_project_sync.py -v
+        if: matrix.suite == 'projects'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_background_agent_sync.py -v
+        if: matrix.suite == 'projects'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_background_activity_sync.py -v
+        if: matrix.suite == 'projects'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_web_host_node.py -v
+        if: matrix.suite == 'devices'
+        env:
+          CRANIBOX_HERDR_BIN: target/herdr/herdr
+      - run: python -m unittest discover -s tests -p test_device_messages.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_device_tasks.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_federated_activity.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_task_runs.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_task_worker_mcp.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_automatic_task_worker.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_collaboration_runs.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_task_dependencies.py -v
+        if: matrix.suite == 'tasks'
+      - run: python -m unittest discover -s tests -p test_agent_executions.py -v
+        if: matrix.suite == 'projects'
+      - run: python -m unittest discover -s tests -p test_remote_agent_executions.py -v
+        if: matrix.suite == 'projects'
+      - run: python -m unittest discover -s tests -p test_project_handoffs.py -v
+        if: matrix.suite == 'projects'
+      - run: python -m unittest discover -s tests -p test_project_streaming.py -v
+        if: matrix.suite == 'projects'
+      - run: python -m unittest discover -s tests -p test_agent_runs_mcp.py -v
+        if: matrix.suite == 'projects'
+      - run: python -m unittest discover -s tests -p test_node_peers.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_computer_use.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_browser_use.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_remote_desktops.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_desktop_service.py -v
+        if: matrix.suite == 'devices'
+      - name: Verify real VNC authentication, pixels, input and headless restart
+        if: matrix.suite == 'devices'
+        run: python -m unittest discover -s tests -p test_desktop_real_vnc.py -v
+        env:
+          CRANIBOX_TEST_REAL_VNC: '1'
+      - run: python -m unittest discover -s tests -p test_device_networks.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_virtual_spaces.py -v
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_space_catalog.py -v
+        if: matrix.suite == 'devices'
+      - run: node scripts/check-control-center-web.mjs
+        if: matrix.suite == 'devices'
+      - run: python -m pip install PyYAML
+        if: matrix.suite == 'devices'
+      - run: python -m unittest discover -s tests -p test_workspacectl_rust.py -v
+        if: matrix.suite == 'devices'
+  resources:
+    name: Workspace resource measurement
+    needs: cli
+    runs-on: ubuntu-latest
+    env:
+      AGENT_WORKSPACE_SRC: ${{ github.workspace }}/agent-workspace-src
+      CRANIBOX_BIN: target/release/cranibox
+      CRANIBOX_HERDR_BIN: target/herdr/herdr
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: fliaping/agent-workspace
+          path: agent-workspace-src
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: native
+          save-if: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -o APT::Update::Error-Mode=any && sudo apt-get install -y s6
+      - run: python scripts/install-herdr.py --output-directory target/herdr
+      # Prepare the debug test binary used by measure-workspace-resources.py's offline run.
+      - run: cargo test --locked -p agent-workspace-web --no-run
+      - uses: actions/download-artifact@v8
+        with:
+          name: cranibox-cli-linux
+          path: ${{ runner.temp }}/cli
+      - name: Stage the workspace CLI for resource measurement
+        run: |
+          mkdir -p target/release
+          install -m 0755 "$RUNNER_TEMP/cli/cranibox-linux-x86_64" target/release/cranibox
+      - run: python scripts/measure-workspace-resources.py --report target/resource-baseline.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: resource-baseline
+          path: target/resource-baseline.json
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, native, distribution-tests, linux-arm64]
+    needs: [desktop, cli, native, quality, linux-integration, resources, wayland, distribution-tests, linux-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -544,7 +665,7 @@ jobs:
   publish-dev:
     name: Publish npm dev channel
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CRANIBOX_PUBLISH_NPM == 'true'
-    needs: [desktop, native, wayland, distribution-tests]
+    needs: [desktop, cli, native, quality, linux-integration, resources, wayland, distribution-tests]
     runs-on: ubuntu-latest
     environment: npm
     env:

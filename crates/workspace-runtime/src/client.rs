@@ -133,11 +133,23 @@ impl Api {
             url.path() == "/",
             "API URL must be an origin without a path"
         );
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(15))
-            .build()?;
+        // Building a client loads the TLS roots, which costs more than most of the
+        // calls made with it, and one is asked for on every probe, delivery and request
+        // to another device. They all share one. Connections are still not kept between
+        // calls: a device that restarted must never be reached over a stale one.
+        static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+        let client = match CLIENT.get() {
+            Some(client) => client.clone(),
+            None => {
+                let client = reqwest::Client::builder()
+                    .no_proxy()
+                    .redirect(reqwest::redirect::Policy::none())
+                    .timeout(Duration::from_secs(15))
+                    .pool_max_idle_per_host(0)
+                    .build()?;
+                CLIENT.get_or_init(|| client).clone()
+            }
+        };
         let endpoints = vec![crate::peers::config::Endpoint {
             url: options.url.clone(),
             allow_insecure: options.allow_insecure,
@@ -578,6 +590,11 @@ impl Api {
             .path()
             .strip_prefix(&prefix)
             .context("model target mismatch")?;
+        if path == "/health" {
+            // Lets the target answer its liveness probe without asking a person.
+            url.set_query(Some("probe=health"));
+            *upgrade.uri_mut() = url.as_str().parse()?;
+        }
         let mut input = body.into_stream();
         let mut bytes = Vec::new();
         while let Some(chunk) = input.next().await {

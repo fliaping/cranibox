@@ -126,7 +126,7 @@ export function pathLabel(device: Device, t: Translate, deviceName?: (node: stri
   const path = through ? t("经 " + through, "Via " + through) : device.path === "direct" ? t("直连", "Direct") : device.path === "relay" ? t("中继", "Relayed") : t("已连接", "Connected");
   return path + (device.rtt_ms !== null && device.rtt_ms !== undefined ? " · " + device.rtt_ms + " ms" : "");
 }
-export function StatusButton({ status, t, onClick }: { status: StatusData | null; t: Translate; onClick: () => void }) {
+export function StatusButton({ status, t, onClick, detail }: { status: StatusData | null; t: Translate; onClick: () => void; detail?: string }) {
   const labels: Record<StatusData["state"], string> = {
     connected: t("已连接", "Connected"),
     local: t("仅本机可用", "This device only"),
@@ -134,7 +134,7 @@ export function StatusButton({ status, t, onClick }: { status: StatusData | null
     no_models: t("添加模型即可开始", "Add a model to begin"),
     offline: t("暂时离线", "Offline"),
   };
-  return <button className={"cx-status " + (status?.state || "offline")} onClick={onClick}><span className="cx-dot" aria-hidden="true" />{status ? labels[status.state] : t("正在读取状态…", "Checking status…")}</button>;
+  return <button className={"cx-status " + (status?.state || "offline")} onClick={onClick}><span className="cx-dot" aria-hidden="true" /><span>{status ? labels[status.state] : t("正在读取状态…", "Checking status…")}</span>{detail && status?.state === "connected" && <small aria-hidden="true">{detail}</small>}</button>;
 }
 export function QrPanel({ invite, t }: { invite: Invite; t: Translate }) {
   const canvas = useRef<HTMLCanvasElement>(null);

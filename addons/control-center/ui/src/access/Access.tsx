@@ -6,7 +6,7 @@ import { Alert, capabilityName, Card, formatDeviceLabel, isThis, Pill } from '..
 import type { Device } from '../personal/api';
 import { accessWaits, subscribeAccessWaits, type AccessWait } from './request';
 import { RemoteBanner } from './Remote';
-import { capabilities, defaultModes, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, jevPresets, jevRanges, type JevThresholds, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState } from './types';
+import { capabilities, defaultModes, grantScopes, groups, labelName, operationName, reviewSource, riskName, riskTone, ruleName, scopeName, verdictName, verdictTone, type AccessRequest, type AuditEntry, jevPresets, jevRanges, type JevThresholds, type AuditView, type Capability, type GrantScope, type Mode, type Modes, type OperationDetail, type Review, type ReviewBackend, type ReviewState, type Sensitivity } from './types';
 import './access.css';
 
 function ModeControl({ label, value, disabled, change }: { label: string; value?: Mode; disabled: boolean; change: (mode: Mode) => void }) {
@@ -40,21 +40,79 @@ function PeerModes({ node }: { node: string }) {
     <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || saving} onClick={() => void save()}>{saving ? t('保存中…', 'Saving…') : t('保存', 'Save')}</button>{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>
   </>;
 }
-export function DeviceAccess({ device }: { device: Device }) {
-  const { t, access, accessError, refresh } = useApp(), { displayName } = useTerminalDevices();
+/** One choice per device instead of a grid of switches; the grid stays for exceptions. */
+type Level = 'messages' | 'ask' | 'auto' | 'trusted' | 'custom';
+const levels = ['messages', 'ask', 'auto', 'trusted'] as const;
+/** Capabilities a reviewer cannot judge: an interactive stream, or ones that always ask. */
+/** Sharing models and accounts is its own decision: a level neither turns it on nor off. */
+const shared: Capability[] = ['llm', 'vault'];
+const personOnly: Capability[] = ['terminals', 'desktop', 'computer', 'update', 'llm', 'vault'];
+function levelModes(level: typeof levels[number], own: boolean): Modes {
+  return Object.fromEntries(capabilities.map(cap => [cap, cap === 'messages' ? 'allow' : level === 'messages' || ownerOnly.includes(cap) && !own ? 'off'
+    : level === 'ask' || level === 'auto' && personOnly.includes(cap) ? 'ask' : 'allow'])) as Modes;
+}
+function levelOf(modes: Modes, own: boolean): Level {
+  return levels.find(level => capabilities.every(cap => shared.includes(cap) || levelModes(level, own)[cap] === modes[cap])) || 'custom';
+}
+function levelText(level: Level, t: (zh: string, en: string) => string): [string, string] {
+  return level === 'messages' ? [t('仅消息', 'Messages only'), t('只能给这台设备发消息和任务。', 'It can only send this device messages and tasks.')]
+    : level === 'ask' ? [t('每次询问', 'Ask every time'), t('每个请求都由你在这台设备上批准。', 'You approve every request on this device.')]
+    : level === 'auto' ? [t('自动审核（推荐）', 'Automatic review (recommended)'), t('命令、文件、浏览器等操作由自动审核判断：没有风险的直接放行，有风险的才询问你。打开交互终端或屏幕无法被审核，仍会询问。', 'Commands, files, browser and similar operations are reviewed automatically: harmless ones run, risky ones ask you. Opening an interactive terminal or the screen cannot be reviewed, so it still asks.')]
+    : level === 'trusted' ? [t('完全信任', 'Full trust'), t('终端和屏幕也不再询问。危险命令和更新仍会逐次确认。', 'Terminal and screen no longer ask either. Dangerous commands and updates still confirm each time.')]
+    : [t('自定义', 'Custom'), t('已逐项设置。', 'Set item by item.')];
+}
+/** What one device may do here, as a single level. `compact` is the one-line form for lists. */
+export function AccessLevel({ node, own, compact }: { node: string; own: boolean; compact?: boolean }) {
+  const { t, api, access, refresh } = useApp(), name = useId();
+  const [saving, setSaving] = useState(false), [error, setError] = useState('');
+  const modes = access?.peers.find(peer => peer.node === node)?.capabilities || (access ? defaultModes : undefined);
+  if (!modes) return null;
+  const current = levelOf(modes, own);
+  async function choose(level: typeof levels[number]) {
+    setSaving(true); setError('');
+    try { await api.call('PUT', '/access/' + encodeURIComponent(node), { ...levelModes(level, own), ...Object.fromEntries(shared.map(cap => [cap, modes![cap]])) }); await refresh(); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
+    finally { setSaving(false); }
+  }
+  if (compact) return <><select className="cx-access-level-select" aria-label={t('访问级别', 'Access level')} value={current} disabled={saving} onChange={event => { if (event.target.value !== 'custom') void choose(event.target.value as typeof levels[number]); }}>
+    {levels.map(level => <option key={level} value={level}>{levelText(level, t)[0]}</option>)}{current === 'custom' && <option value="custom">{levelText('custom', t)[0]}</option>}</select>{error && <Alert>{error}</Alert>}</>;
+  return <div className="cx-access-levels" role="radiogroup" aria-label={t('访问级别', 'Access level')}>
+    {levels.map(level => { const [title, detail] = levelText(level, t); return <label key={level} className={'cx-access-level' + (current === level ? ' selected' : '')}>
+      <input type="radio" name={name} checked={current === level} disabled={saving} onChange={() => void choose(level)} /><span><strong>{title}</strong><small>{detail}</small></span></label>; })}
+    {current === 'custom' && <p className="cx-muted cx-small">{t('当前是逐项设置的自定义组合；选择上面任一级别会覆盖它。', 'Currently a custom, item-by-item combination; choosing a level above replaces it.')}</p>}
+    {error && <Alert>{error}</Alert>}
+  </div>;
+}
+/** Every paired device and its level: the one place to see who may use this device. */
+export function AccessLevels() {
+  const { t, access, devices } = useApp(), { displayName } = useTerminalDevices();
   const others = access?.peers || [];
+  if (!access) return null;
+  if (!others.length) return <p className="cx-muted">{t('还没有其他已配对的设备。', 'No other paired devices yet.')}</p>;
+  return <div className="cx-access-list">{others.map(peer => <div className="cx-between" key={peer.node}>
+    <Link to={'/app/device/' + encodeURIComponent(peer.node) + '/access'}><strong>{displayName(peer.node) || peer.name}</strong></Link>
+    <AccessLevel compact node={peer.node} own={devices.find(device => device.node_id === peer.node)?.same_identity !== false} /></div>)}</div>;
+}
+export function DeviceAccess({ device }: { device: Device }) {
+  const { t, access, thisDevice } = useApp(), { displayName } = useTerminalDevices();
+  if (isThis(device)) return <div className="cx-access-stack">
+    <Card label={t('访问', 'Access')}><h2>{t('谁可以使用这台设备', 'Who may use this device')}</h2><AccessLevels /></Card>
+    <details className="cx-access-section"><summary>{t('自动审核与操作记录', 'Automatic review and operation log')}</summary><AutoReview /><AccessLog /></details>
+  </div>;
+  const name = displayName(device.node_id), own = device.same_identity !== false;
+  const modes = access?.peers.find(peer => peer.node === device.node_id)?.capabilities || defaultModes;
   return <div className="cx-access-stack">
     <Card label={t('访问', 'Access')}>
-      <h2>{isThis(device) ? t('其他设备可以在本设备上…', 'Other devices can use this device to…') : t(displayName(device.node_id) + ' 可以在本设备上…', displayName(device.node_id) + ' can use this device to…')}</h2>
-      <p className="cx-muted">{t('这些设置保存在本机。要使用对方的功能，请在对方设备上批准或调整访问设置。', 'These settings are stored here. To use another device, approve or change access on that device.')}</p>
-      {!isThis(device) ? <PeerModes key={device.node_id} node={device.node_id} /> : !access ? <Alert action={<button className="cx-btn small" onClick={() => void refresh()}>{t('重试', 'Retry')}</button>}>{accessError || t('正在读取访问设置…', 'Loading access settings…')}</Alert> : !others.length ? <p className="cx-muted">{t('还没有其他已配对的设备。', 'No other paired devices yet.')}</p> : others.map(peer => <details className="cx-access-peer" key={peer.node} open={others.length <= 2}>
-        <summary><strong>{displayName(peer.node) || peer.name}</strong> <small className="cx-muted cx-mono">{peer.node}</small></summary>
-        <PeerModes node={peer.node} />
-      </details>)}
+      <h2>{t(name + ' 可以在本设备上…', name + ' can use this device to…')}</h2>
+      <AccessLevel node={device.node_id} own={own} />
+      <details className="cx-access-section" open={levelOf(modes, own) === 'custom' || undefined}><summary>{t('逐项设置', 'Set item by item')}</summary><PeerModes key={device.node_id} node={device.node_id} /></details>
     </Card>
-    {!isThis(device) && <Grants node={device.node_id} />}
-    <AutoReview />
-    <AccessLog key={device.node_id} initialNode={isThis(device) ? '' : device.node_id} />
+    <Card label={t('反方向', 'The other direction')}>
+      <h2>{t('你可以在 ' + name + ' 上…', 'You can use ' + name + ' to…')}</h2>
+      <p className="cx-muted">{t('由 ' + name + ' 决定，这里改不了。在那台设备上打开 Cranibox：设备 › ' + (thisDevice?.name || t('这台设备', 'this device')) + ' › 权限，选择「自动审核」或其他访问级别。', name + ' decides this; it cannot be changed here. On that device open Cranibox: Devices › ' + (thisDevice?.name || 'this device') + ' › Permissions, and choose “Automatic review” or another access level.')}</p>
+    </Card>
+    <Grants node={device.node_id} />
+    <details className="cx-access-section"><summary>{t('自动审核与操作记录', 'Automatic review and operation log')}</summary><AutoReview /><AccessLog key={device.node_id} initialNode={device.node_id} /></details>
   </div>;
 }
 
@@ -153,14 +211,14 @@ function ApprovalControl() {
 /** Which second opinion this device asks before a covered operation runs. */
 function AutoReview() {
   const { t, api, access } = useApp();
-  const [state, setState] = useState<ReviewState | null>(null), [draft, setDraft] = useState<{ backend: ReviewBackend; model: string; url: string; key: string; jev: JevThresholds } | null>(null);
+  const [state, setState] = useState<ReviewState | null>(null), [draft, setDraft] = useState<{ backend: ReviewBackend; model: string; url: string; key: string; jev: JevThresholds; sensitivity: Sensitivity } | null>(null);
   const [models, setModels] = useState<string[]>([]), [busy, setBusy] = useState(''), [error, setError] = useState(''), [result, setResult] = useState<{ ok: boolean; review?: Review; error?: string } | null>(null), [saved, setSaved] = useState(false);
   useEffect(() => {
     api.call<ReviewState>('GET', '/access/review').then(setState).catch(problem => setError(problem instanceof Error ? problem.message : String(problem)));
     api.call<{ id: string; availability?: string }[]>('GET', '/models').then(list => setModels(Array.isArray(list) ? list.map(item => item.id).filter(Boolean) : [])).catch(() => setModels([]));
   }, [api]);
   if (!state) return error ? <Card label={t('自动审核', 'Automatic review')}><h2>{t('自动审核', 'Automatic review')}</h2><Alert>{error}</Alert></Card> : null;
-  const current = draft || { backend: state.settings.backend, model: state.settings.model || '', url: state.settings.url || '', key: '', jev: state.settings.jev || jevPresets.standard };
+  const current = draft || { backend: state.settings.backend, model: state.settings.model || '', url: state.settings.url || '', key: '', jev: state.settings.jev || jevPresets.standard, sensitivity: state.settings.sensitivity || 'medium' };
   const edit = (change: Partial<typeof current>) => { setDraft({ ...current, ...change }); setSaved(false); setResult(null); };
   const options: [ReviewBackend, string, string][] = [
     ['rules', t('仅内置规则', 'Built-in rules only'), t('不请模型判断。危险操作每次确认，其余按你的授权放行。', 'No model. Dangerous operations always ask; the rest follow your approvals.')],
@@ -171,7 +229,7 @@ function AutoReview() {
   async function save() {
     setBusy('save'); setError('');
     const standard = (Object.keys(jevPresets.standard) as (keyof JevThresholds)[]).every(key => current.jev[key] === jevPresets.standard[key]);
-    const settings = { backend: current.backend, model: current.backend === 'model' ? current.model || null : current.backend === 'jev' && current.model ? current.model : null, url: current.backend === 'http' || current.backend === 'jev' ? current.url.trim() || null : null, jev: standard ? null : current.jev };
+    const settings = { backend: current.backend, model: current.backend === 'model' ? current.model || null : current.backend === 'jev' && current.model ? current.model : null, url: current.backend === 'http' || current.backend === 'jev' ? current.url.trim() || null : null, jev: standard ? null : current.jev, ...((current.backend === 'model' || current.backend === 'http') && current.sensitivity !== 'medium' ? { sensitivity: current.sensitivity } : {}) };
     try { setState(await api.call<ReviewState>('PUT', '/access/review', { settings, ...(current.key ? { key: current.key } : {}) })); setDraft(null); setSaved(true); }
     catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
     finally { setBusy(''); }
@@ -193,6 +251,9 @@ function AutoReview() {
     {(current.backend === 'http' || current.backend === 'jev') && <label className="cx-field">{current.backend === 'jev' ? t('服务地址（可选）', 'Service address (optional)') : t('服务地址', 'Service address')}<input value={current.url} placeholder={current.backend === 'jev' ? 'https://api.typesafe.ai' : 'https://decide.example.com/v1/decide'} onChange={event => edit({ url: event.target.value })} /></label>}
     {(current.backend === 'jev' || current.backend === 'http') && <label className="cx-field">{current.backend === 'jev' ? t('Jev API 密钥', 'Jev API key') : t('访问密钥（可选）', 'Access key (optional)')}<input type="password" autoComplete="off" value={current.key} placeholder={state.has_key ? t('已保存，留空则不变', 'Saved; leave empty to keep') : ''} onChange={event => edit({ key: event.target.value })} /></label>}
     {current.backend === 'jev' && <JevScale value={current.jev} change={jev => edit({ jev })} />}
+    {(current.backend === 'model' || current.backend === 'http') && <div className="cx-field"><span>{t('询问阈值', 'Ask threshold')}</span>
+      <div className="cx-segment" role="group" aria-label={t('询问阈值', 'Ask threshold')}>{(['low', 'medium', 'high'] as const).map(value => <button type="button" key={value} aria-pressed={current.sensitivity === value} onClick={() => edit({ sensitivity: value })}>{value === 'low' ? t('低', 'Low') : value === 'medium' ? t('中', 'Medium') : t('高', 'High')}</button>)}</div>
+      <small className="cx-muted">{current.sensitivity === 'low' ? t('只有明显高风险的操作才询问你。', 'Only clearly high-risk operations ask you.') : current.sensitivity === 'medium' ? t('中等及以上风险的操作询问你。', 'Operations of medium risk and above ask you.') : t('只要有一点风险就询问你。', 'Anything with some risk asks you.')}</small></div>}
     {error && <Alert>{error}</Alert>}
     {result && (result.ok && result.review ? <Alert tone="info">{t('测试成功：', 'Test passed: ')}{verdictName(result.review.verdict, t)} · {result.review.reason} · {result.review.latency_ms ?? 0} ms</Alert> : <Alert>{t('测试失败：', 'Test failed: ')}{result.error}</Alert>)}
     <div className="cx-actions"><button className="cx-btn primary" disabled={!draft || !!busy || current.backend === 'jev' && jevBad(current.jev)} onClick={() => void save()}>{busy === 'save' ? t('保存中…', 'Saving…') : t('保存审核方式', 'Save review method')}</button>{state.settings.backend !== 'rules' && !draft && <button className="cx-btn" disabled={!!busy} onClick={() => void check()}>{busy === 'test' ? t('测试中…', 'Testing…') : t('测试', 'Test')}</button>}{saved && <span role="status">{t('已保存', 'Saved')}</span>}</div>

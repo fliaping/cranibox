@@ -523,6 +523,7 @@ async fn guarded(
         digest.update(&bytes);
         format!("{:x}", digest.finalize())
     };
+    let unattended = crate::access::unattended(recorder.operation.as_ref());
     let mut basis = None;
     for capability in &caps {
         match store(&app).authorize_for(
@@ -536,6 +537,11 @@ async fn guarded(
             },
         ) {
             Ok(decision) => {
+                // Every few seconds, for every device: the log is for what people and
+                // agents do, so these are not written to it.
+                if unattended {
+                    recorder.operation = None;
+                }
                 basis.get_or_insert(decision.basis);
             }
             Err(e) => {
@@ -569,7 +575,8 @@ async fn guarded(
         || (caps[0] == Capability::Computer && value["operation"] == "acquire")
         || (caps[0] == Capability::Update && request.method() == axum::http::Method::POST);
     let mut guards = Vec::new();
-    if !held {
+    // An unattended read holds no session: there is no approval it could outlive.
+    if !held && !unattended {
         for capability in caps {
             match store(&app).start_for(&caller.node, capability, &key, once) {
                 Ok(g) => guards.push(g),

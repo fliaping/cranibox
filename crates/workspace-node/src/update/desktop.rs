@@ -177,7 +177,8 @@ pub enum Relaunch {
     /// Start the replaced program the usual way.
     Restart,
     /// Exit, then let this detached command install and start the new version.
-    AfterExit(Command),
+    /// Boxed: a Windows `Command` is far larger than the other variant.
+    AfterExit(Box<Command>),
 }
 
 /// Replace this installation with the staged `version` (the shell calls this; it never takes
@@ -265,7 +266,7 @@ fn install_staged(staged: &Path) -> Result<Relaunch> {
         .env("CRANIBOX_UPDATE_PID", std::process::id().to_string())
         .env("CRANIBOX_UPDATE_SETUP", staged)
         .env("CRANIBOX_UPDATE_APP", std::env::current_exe()?);
-    Ok(Relaunch::AfterExit(command))
+    Ok(Relaunch::AfterExit(Box::new(command)))
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]

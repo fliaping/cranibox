@@ -555,7 +555,32 @@ impl Config {
         }
         Ok(())
     }
+    /// Every background loop and every request reads this file. One validated copy per
+    /// path is kept for the process and reused while the configuration and identity
+    /// files are unchanged on disk, so an idle device does not parse it and verify its
+    /// signature several times a second. Errors are never cached.
     pub fn read(path: &Path) -> Result<Self> {
+        type Cache = std::collections::HashMap<PathBuf, (ConfigStamp, Config)>;
+        static CACHE: std::sync::OnceLock<std::sync::Mutex<Cache>> = std::sync::OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let mut entry = cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(path)
+            .cloned();
+        let result = Self::read_cached(path, &mut entry);
+        let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        match entry {
+            Some(entry) => {
+                cache.insert(path.to_path_buf(), entry);
+            }
+            None => {
+                cache.remove(path);
+            }
+        }
+        result
+    }
+    fn read_fresh(path: &Path) -> Result<Self> {
         let bytes =
             crate::config::read_bounded(path, 128 * 1024).context("read peer configuration")?;
         ensure!(bytes.len() <= 128 * 1024, "peer configuration too large");
@@ -593,7 +618,7 @@ impl Config {
             return Ok(value.clone());
         }
         *cache = None;
-        let value = Self::read(path)?;
+        let value = Self::read_fresh(path)?;
         if ConfigStamp::read(path)? == stamp {
             *cache = Some((stamp, value.clone()));
         }

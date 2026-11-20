@@ -26,9 +26,11 @@ const connect: TerminalEnvironment['connect'] = async (options, events) => {
   return { close: () => socket.close(), send: input => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(input)); } };
 };
 export function WebTerminalEnvironment({ children }: { children: ReactNode }) {
-  const { snapshot, available } = useWorkspace();
+  const { snapshot, available, state } = useWorkspace();
   // Without the container workspace the node serves terminals itself.
-  const ready = !!snapshot || available === false;
+  // Terminals on other devices do not need the container workspace: when its status
+  // cannot be read, open them anyway instead of a button that does nothing.
+  const ready = !!snapshot || available === false || !!state.error;
   const [routes, setRoutes] = useState<DirectCatalog['routes']>([]);
   useEffect(() => {
     let alive = true, serial = 0;

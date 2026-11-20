@@ -716,6 +716,18 @@ mod access_policy {
     #[tokio::test]
     async fn default_off_and_nested_routes_are_enforced() {
         let f = Fixture::new().await;
+        // The caller is one of the owner's devices, which start at "ask": turn everything
+        // but messages off, as the owner would, to check that off is enforced everywhere.
+        f.store
+            .change(
+                &f.caller,
+                Capability::ALL
+                    .into_iter()
+                    .filter(|c| *c != Capability::Messages)
+                    .map(|c| (c, Mode::Off))
+                    .collect(),
+            )
+            .unwrap();
         let (status, body) = f.call("GET", &f.terminal("one"), Value::Null).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
         assert_eq!(body["error"], "capability_off");

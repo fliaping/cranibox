@@ -31,7 +31,7 @@ test('federated copies keep their owner, shared ProjectID and Shell through sour
   await expect(page.locator('.projects-sources')).toContainText('2/3 available');
   await expect(page.locator('.projects-sources')).toContainText('Project access revoked');
   await page.getByLabel('Working copy', { exact: true }).selectOption('direct:direct-laptop/' + replicaId);
-  await expect(page.locator('.projects-location')).toContainText('direct-laptop · Direct');
+  await expect(page.locator('.projects-location')).toContainText('direct-laptop');
   await page.getByLabel('Link existing session', { exact: true }).selectOption(shell.id);
   await page.getByRole('button', { name: 'Link', exact: true }).click();
   expect(actions.find(a => a.operation === 'projects' && a.command.operation === 'bind')).toEqual({ operation: 'projects', node: 'direct-laptop', command: { operation: 'bind', replica_id: replicaId, terminal_id: shell.id } });
@@ -85,7 +85,7 @@ test('catalog-only direct access works with the gateway down and does not grant 
   await expect(page.locator('.projects-sources')).toContainText('1/2 available');
   await page.getByRole('button', { name: 'Register project', exact: true }).click();
   await expect(page.getByLabel('Device', { exact: true })).toHaveValue('direct:direct-laptop');
-  expect(await page.getByLabel('Device', { exact: true }).locator('option:enabled').allTextContents()).toEqual(['direct-laptop · Direct']);
+  expect(await page.getByLabel('Device', { exact: true }).locator('option:enabled').allTextContents()).toEqual(['direct-laptop']);
   await page.getByRole('button', { name: 'Cancel registration', exact: true }).click();
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Remove directory record', exact: true }).click();

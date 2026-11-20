@@ -1,3 +1,4 @@
+import { NodeName, useNodeName } from '../app/store';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Archive, FileText, Monitor, Play, RefreshCw, Square, Terminal } from 'lucide-react';
 import type { DirectCatalog, DirectClient } from '../devices/DirectDevicesView';
@@ -24,6 +25,7 @@ function identifier() {
 
 /** Changing the target remounts its observer, so late responses cannot cross devices. */
 export function ManagedRuns({ client, language, paused, devices }: { client: DirectClient; language: string; paused: boolean; devices?: DirectCatalog }) {
+  const nodeName = useNodeName();
   const t = (cn: string, en: string) => language.startsWith('zh') ? cn : en;
   const [open, setOpen] = useState(false), [node, setNode] = useState(''), [locked, setLocked] = useState(false);
   const available = !node || devices?.routes.some(route => route.node === node);
@@ -34,7 +36,7 @@ export function ManagedRuns({ client, language, paused, devices }: { client: Dir
         <Monitor size={20} aria-hidden="true" />
         <label>{t('后台执行设备', 'Background execution device')}<select value={node} disabled={locked || !devices} onChange={event => setNode(event.target.value)} aria-describedby="managed-run-device-help">
           <option value="">{t('本机', 'This device')}{devices?.node_id ? ` · ${devices.node_id}` : ''}</option>
-          {devices?.routes.filter(route => route.node !== devices.node_id).map(route => <option key={route.node} value={route.node}>{route.node}</option>)}
+          {devices?.routes.filter(route => route.node !== devices.node_id).map(route => <option key={route.node} value={route.node}>{nodeName(route.node)}</option>)}
           {!available && <option value={node}>{node} · {t('连接已移除', 'Connection removed')}</option>}
         </select></label>
         <p id="managed-run-device-help" className="direct-note">{node ? t('目标需授予执行权限。仅显示本机在当前授权下提交的运行；切换设备会清除未提交的表单。', 'Execution access is required. Only runs submitted by this device under its current grant are shown. Switching devices clears the unsubmitted form.') : t('Web 上的本机是运行 Workspace 服务的设备。选择其他设备可管理其授权的后台运行。', 'On the Web, this device runs the Workspace service. Select another device to manage authorized background runs.')}</p>
@@ -151,7 +153,7 @@ function DeviceRuns({ client, language, paused, node, onLock }: { client: Direct
         {review ? <div className="managed-run-review">
           <div><h3>{t('检查启动内容', 'Review launch')}</h3><p className="direct-note">{t('确认后才会在以下设备执行。', 'Execution begins on the following device only after confirmation.')}</p></div>
           <dl className="managed-run-facts">
-            <div><dt>{t('执行设备', 'Execution device')}</dt><dd><code>{catalog?.owner}</code></dd></div>
+            <div><dt>{t('执行设备', 'Execution device')}</dt><dd><NodeName id={catalog?.owner} /></dd></div>
             <div><dt>{t('运行名称', 'Run name')}</dt><dd>{review.launch.name}</dd></div>
             <div><dt>{t('Agent / 程序', 'Agent / program')}</dt><dd>{review.adapter === 'codex' ? 'Codex' : review.adapter === 'claude_code' ? 'Claude Code' : review.launch.harness}</dd></div>
             <div><dt>{t('工作目录', 'Working directory')}</dt><dd><code>{review.launch.cwd}</code></dd></div>
@@ -170,7 +172,7 @@ function DeviceRuns({ client, language, paused, node, onLock }: { client: Direct
             <label>{t('运行名称', 'Run name')}<input required maxLength={120} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>
           </div>
           <label>{t('完整工作目录', 'Absolute working directory')}<input required value={cwd} disabled={busy} placeholder={t('节点上的项目绝对路径', 'Absolute project path on the node')} onChange={event => setCwd(event.target.value)} /></label>
-          <p className="direct-note">{t('执行设备：', 'Execution device: ')}<code>{catalog?.owner || node || '…'}</code>{node ? t('。目录和 CLI 均使用目标设备上的配置。', '. Directories and CLI configuration belong to the target device.') : t('。Web 页面操作的是服务所在设备。', '. On the Web, this is the device running the service.')}</p>
+          <p className="direct-note">{t('执行设备：', 'Execution device: ')}<NodeName id={catalog?.owner || node || '…'} />{node ? t('。目录和 CLI 均使用目标设备上的配置。', '. Directories and CLI configuration belong to the target device.') : t('。Web 页面操作的是服务所在设备。', '. On the Web, this is the device running the service.')}</p>
           {adapter === 'custom' ? <>
             <label>{t('Agent 类型', 'Agent type')}<input required value={harness} disabled={busy} onChange={event => setHarness(event.target.value)} /></label>
             <label>{t('可执行程序', 'Executable')}<input required value={program} disabled={busy} onChange={event => setProgram(event.target.value)} /></label>
