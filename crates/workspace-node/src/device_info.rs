@@ -10,7 +10,7 @@ pub struct DeviceInfo {
     pub os_version: Option<String>,
     pub arch: &'static str,
     pub model: Option<String>,
-    /// `desktop`, `laptop` or `server`.
+    /// `desktop`, `laptop`, `server` or `phone`.
     pub kind: &'static str,
 }
 
@@ -105,7 +105,20 @@ fn read() -> DeviceInfo {
             },
         }
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "android")]
+    {
+        let model = command("/system/bin/getprop", &["ro.product.model"]);
+        DeviceInfo {
+            name: model.clone().unwrap_or_else(|| "Android".into()),
+            os,
+            os_version: command("/system/bin/getprop", &["ro.build.version.release"])
+                .map(|version| format!("Android {version}")),
+            arch,
+            model,
+            kind: "phone",
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
     {
         DeviceInfo {
             name: hostname().unwrap_or_else(|| "Windows".into()),
@@ -125,6 +138,9 @@ mod tests {
         let info = super::local();
         assert!(!info.name.is_empty() && info.name.len() <= 256);
         assert_eq!(info.os, std::env::consts::OS);
-        assert!(matches!(info.kind, "desktop" | "laptop" | "server"));
+        assert!(matches!(
+            info.kind,
+            "desktop" | "laptop" | "server" | "phone"
+        ));
     }
 }

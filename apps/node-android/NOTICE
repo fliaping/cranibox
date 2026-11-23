@@ -1,0 +1,11 @@
+Cranibox Android node
+Copyright 2026 Cranibox contributors
+
+This product includes code adapted from Mika (https://github.com/wangzan101/Mika),
+Copyright 2026 wangzan101, licensed under the Apache License, Version 2.0:
+  core/src/main/kotlin/com/cranibox/android/core/adb/*
+  core/src/main/kotlin/com/cranibox/android/core/helper/HelperHandoff.kt
+  core/src/test/kotlin/com/cranibox/android/core/adb/*
+  core/src/test/kotlin/com/cranibox/android/core/helper/HelperHandoffTest.kt
+  core/src/test/resources/adb/spake2-vectors.txt
+Each adapted file carries a notice at its top. The files were modified for Cranibox.

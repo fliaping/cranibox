@@ -61,6 +61,10 @@ async fn main() -> Result<()> {
         let managed = true;
         if managed {
             cranibox_node::update::set_product_version(env!("CARGO_PKG_VERSION"));
+            // Android executes the APK-extracted native library. Its writable app
+            // directories cannot contain executable code, so the desktop launcher's
+            // adopted runtime copy cannot run there. Updates arrive through the APK.
+            #[cfg(not(target_os = "android"))]
             if let Some(code) = cranibox_node::update::cli::auto_launch(&args).await? {
                 std::process::exit(code);
             }

@@ -628,13 +628,23 @@ impl AppApi for Service {
                 let probed = !own && self.reachable(&member.node_id);
                 // Our own devices allow everything; whether one actually shares its
                 // desktop, Computer Use or browser is what it last reported.
+                // Android has no bundled desktop/browser setup: only advertise those
+                // local providers when configured, so its card doesn't promise them.
                 let caps = DeviceCaps {
                     exec: true,
                     terminals: true,
                     projects: true,
-                    desktop: own || remembered.offers("desktop"),
+                    desktop: if own {
+                        !cfg!(target_os = "android") || config.desktop.is_some()
+                    } else {
+                        remembered.offers("desktop")
+                    },
                     computer: own || remembered.offers("computer"),
-                    browser: own || remembered.offers("browser"),
+                    browser: if own {
+                        !cfg!(target_os = "android") || config.browser.is_some()
+                    } else {
+                        remembered.offers("browser")
+                    },
                     messages: true,
                     activity: true,
                     spaces: true,
