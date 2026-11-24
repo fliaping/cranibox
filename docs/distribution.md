@@ -178,3 +178,7 @@ python3 scripts/release/publish-npm.py --directory dist/npm-dev --dist-tag dev -
 
 python3 -m unittest discover -s tests -p test_distribution.py -v
 ```
+
+## 包管理器清单（尚未发布）
+
+仓库的 [`packaging/`](../packaging/README.md) 目录里有 Homebrew formula、Scoop 清单、winget 清单和 AUR `cranibox-bin` PKGBUILD，版本和校验和应对应当前 GitHub Release。它们还没有推到 Homebrew tap、Scoop 源、winget-pkgs 或 AUR。发布方式见该说明；发新版时用 `python3 scripts/release/bump-packaging.py --tag vX.Y.Z` 更新清单。
