@@ -14,6 +14,7 @@ from release_common import ROOT, PLATFORMS, DESKTOP_PLATFORMS, check_binary, che
 # artifacts and the GitHub release), and its place in the package.
 APPS = {
     "darwin-arm64": ("*_aarch64.app.tar.gz", "Cranibox.app"),
+    "darwin-x64": ("*_x64.app.tar.gz", "Cranibox.app"),
     "linux-x64-gnu": ("*_amd64.AppImage", "Cranibox.AppImage"),
     "win32-x64": ("*_x64-setup.exe", "cranibox-setup.exe"),
 }

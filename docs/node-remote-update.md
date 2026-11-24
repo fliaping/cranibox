@@ -61,7 +61,7 @@
 
 - **外壳声明能力：** 外壳启动运行时时传入 `CRANIBOX_SHELL_VERSION` 与 `CRANIBOX_SHELL_API`（当前为 1）。
   没有这两个变量的旧外壳视为 API 0，不能自我更新，需要手动安装一次新版桌面应用。
-- **桌面应用包：** `@fliaping/cranibox-desktop-{darwin-arm64,linux-x64-gnu,win32-x64}`，分别包含
+- **桌面应用包：** `@fliaping/cranibox-desktop-{darwin-arm64,darwin-x64,linux-x64-gnu,win32-x64}`，分别包含
   `app/Cranibox.app`、`app/Cranibox.AppImage` 与 `app/cranibox-setup.exe`，与运行时同版本发布。
 - **顺序：** 先下载并校验桌面应用包（失败则什么都不改）→ 更新运行时 → 请外壳安装新应用 → 整体重启。
   外壳安装失败时运行时照常更新，并在状态里给出 `warning`。
@@ -218,7 +218,7 @@ CRANIBOX_APP_MOCK=1 提供相同路由的本机、受管远端与未受管远端
 - **远程更新：** mesh 接口 `GET/POST /api/v1/nodes/{node}/update`、`GET …/update/{id}`、`POST …/update/rollback`，
   仅限已核对配对码的 roster 成员且必须走端到端加密通道。两节点集成测试
   `peer/server/multi_node_update.rs`：owner 设备经真实 Noise 通道更新并回滚另一节点，roster 之外的对端被拒绝。
-- **分发：** npm 是唯一渠道。CI 在三个平台构建独立的 `cranibox`，主干推送发布 `x.y.z-dev.N` 到 `dev` 标签，
+- **分发：** npm 是唯一渠道。CI 在各支持平台构建独立的 `cranibox`，主干推送发布 `x.y.z-dev.N` 到 `dev` 标签，
   打 tag 发布正式版（`docs/distribution.md`）。
 - **互相拉起协议：** `update/duo.rs` 实现底座与上层互相监督、互相更新、超时回滚、崩溃循环回滚及全部不变量，
   含按角色独立的版本指针；有模拟进程的测试和一个 Linux 真实分离进程测试。

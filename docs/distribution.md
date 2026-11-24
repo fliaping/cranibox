@@ -42,6 +42,7 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 | 平台 | 构建文件名 | npm 平台包 |
 | --- | --- | --- |
 | macOS Apple Silicon | `cranibox-macos-arm64` | `@fliaping/cranibox-darwin-arm64` |
+| macOS Intel | `cranibox-macos-x86_64` | `@fliaping/cranibox-darwin-x64` |
 | Linux x64 / glibc | `cranibox-linux-x86_64` | `@fliaping/cranibox-linux-x64-gnu` |
 | Windows x64 | `cranibox-windows-x86_64.exe` | `@fliaping/cranibox-win32-x64` |
 | Linux arm64 / glibc | `cranibox-linux-arm64` | `@fliaping/cranibox-linux-arm64-gnu` |
@@ -52,11 +53,12 @@ Linux 版同时包含 Agent Workspace 容器的控制台和服务管理（`ctl`�
 在容器内（有 `--config-root`、`AGENT_WORKSPACE_CONFIG_ROOT` 或 `/usr/local/lib/agent-workspace`）
 `serve` 是容器控制台，更新由镜像负责。
 
-桌面应用另有三个包，只在本机完整更新时下载，不是入口包的依赖：
+桌面应用另有四个包，只在本机完整更新时下载，不是入口包的依赖：
 
 | 平台 | npm 包 | 内容 |
 | --- | --- | --- |
 | macOS Apple Silicon | `@fliaping/cranibox-desktop-darwin-arm64` | `app/Cranibox.app`（取自 `.dmg`） |
+| macOS Intel | `@fliaping/cranibox-desktop-darwin-x64` | `app/Cranibox.app`（取自 `.dmg`） |
 | Linux x64 / glibc | `@fliaping/cranibox-desktop-linux-x64-gnu` | `app/Cranibox.AppImage` |
 | Windows x64 | `@fliaping/cranibox-desktop-win32-x64` | `app/cranibox-setup.exe`（NSIS 安装程序） |
 
@@ -64,14 +66,16 @@ Linux 版同时包含 Agent Workspace 容器的控制台和服务管理（`ctl`�
 第三方许可证。入口包的 `optionalDependencies` 精确固定到相同版本；没有 postinstall，
 安装时不从 GitHub 下载。CLI 在桌面应用打包前复制保存，避免被应用的同名二进制覆盖。
 
-Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、musl。Linux arm64 有 CLI 的 npm 平台包，暂无桌面应用包。
+Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 musl。Linux arm64 有 CLI 的 npm 平台包，暂无桌面应用包。Intel Mac 的 CLI 与桌面应用为独立构建（`cranibox-macos-x86_64` 和 `*_x64.dmg`），不是通用二进制。
 打包时校验 ELF / Mach-O / PE 架构，并核对 `SHA256SUMS` 的文件清单与 SHA-256。
 Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下载完整附件后可运行
 `sha256sum --check SHA256SUMS`。现有桌面应用签名流程保持不变。
 
 ## 首次发布（引导）
 
-> 现有包已完成引导并配置了 Trusted Publisher。新增 `@fliaping/cranibox-linux-arm64-gnu` 时，需要先按下面的步骤做一次暂存审批并添加 Trusted Publisher，再合并到 main，否则 dev 频道的直接发布会失败。
+> 现有包已完成引导并配置了 Trusted Publisher。新增 `@fliaping/cranibox-linux-arm64-gnu`、
+> `@fliaping/cranibox-darwin-x64` 和 `@fliaping/cranibox-desktop-darwin-x64` 时，需要先按下面的步骤
+> 做一次暂存审批并添加 Trusted Publisher，再把 dev 频道切回 direct，否则 dev 频道的直接发布会失败。
 > 审批与 `npm trust` 需要 npm >= 11.15 和交互式终端；`approve-staged.py --version <版本>` 只处理指定版本。
 
 首次包尚不存在时，可直接暂存创建，无需先运行 `npm publish`。现有 `NPM_TOKEN`
@@ -82,12 +86,12 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
 
    ```bash
    gh variable set CRANIBOX_PUBLISH_NPM --body true --repo fliaping/cranibox
-   gh variable set CRANIBOX_NPM_PUBLISH_MODE --body stage --repo fliaping/cranibox
+   gh variable set CRANIBOX_NPM_DEV_PUBLISH_MODE --body stage --repo fliaping/cranibox
    ```
 
 2. 将包含这些发布工具的修改推送到 main（`git push origin main`），等待 CI 完成。
    CI 使用 Node.js 24，stage 模式在 setup-node 后升级 npm 并输出版本
-   （要求 npm >= 11.15.0、Node >= 22.14），从解包目录按四个平台包、入口包顺序暂存。
+   （要求 npm >= 11.15.0、Node >= 22.14），从解包目录按五个平台包、入口包、四个桌面应用包的顺序暂存。
    **stage 模式下每次 main push 都暂存一个 dev 构建**，每个 run 只调用一次实际暂存流程；
    引导完成后及时切换 direct。Actions summary 给出结果和审批入口。
 
@@ -98,7 +102,7 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    python scripts/release/approve-staged.py --approve
    ```
 
-   脚本处理这八个包（四个平台包、入口包、三个桌面应用包）的所有待审批版本，先列清单，
+   脚本处理这十个包（五个平台包、入口包、四个桌面应用包）的所有待审批版本，先列清单，
    再逐个审批。默认走浏览器验证（WebAuthn / 通行密钥）：npm 为每个包打印一个
    `https://www.npmjs.com/auth/cli/...` 链接，在浏览器打开并确认；确认页勾选 5 分钟内
    不再验证，后续包即可连续完成。使用验证器 App 时传 `--otp <OTP>`，输出会被隐藏。
@@ -113,7 +117,7 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    验证，同一配置即可覆盖；每个包只能配一个 Trusted Publisher，因此手动运行
    `distribute.yml` 补发时不匹配，需用 stage 模式。流水线已有 `id-token: write` 和 provenance。
 
-5. 全部包的 OIDC 配置完成后，dev 频道切换为直接发布：
+5. 每个新增包的 OIDC 配置完成后，dev 频道切换为直接发布：
 
    ```bash
    gh variable set CRANIBOX_NPM_DEV_PUBLISH_MODE --body direct --repo fliaping/cranibox
@@ -144,7 +148,7 @@ npmmirror 不需要发布凭据。
 - **正式版 / 预发布：** 更新 CLI Cargo、Tauri、桌面前端与 npm 入口包的版本及相应
   lockfile，再创建不可变的 `vX.Y.Z` 或 `vX.Y.Z-beta.N` tag。CI 通过后创建 GitHub Release，
   调用 `distribute.yml` 下载归档、校验 SHA256SUMS 并打包。版本必须一致，禁止 build metadata。
-  npm 按四个平台包、入口包、三个桌面应用包的顺序发布；正式版使用 `latest`，预发布使用 `next`。
+  npm 按五个平台包、入口包、四个桌面应用包的顺序发布；正式版使用 `latest`，预发布使用 `next`。
 - **开发构建：** 每次 main push（包括仅修改文档）在 desktop、native、Wayland 和分发测试
   全部通过后，由 `publish-dev` 发布 `<crates/cranibox 的 Cargo version>-dev.<github.run_number>`。
   `--version` 覆盖全部 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo

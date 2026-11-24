@@ -136,6 +136,7 @@ The desktop app and the CLI serve the same interface (preview mode with sample d
 | Platform | Status |
 |---|---|
 | macOS (Apple Silicon) | Desktop app and CLI. The app is self-signed: after the first launch, allow it once under System Settings → Privacy & Security |
+| macOS (Intel) | Desktop app and CLI, shipped as a separate x86_64 build (not a universal binary). The app is self-signed the same way |
 | Windows x64 | Desktop app and CLI |
 | Linux x64 (glibc) | Desktop app (`.deb`, `.AppImage`) and CLI; also works as a relay |
 | Linux arm64 (glibc) | CLI (npm and GitHub Releases), for Raspberry Pi and ARM servers |

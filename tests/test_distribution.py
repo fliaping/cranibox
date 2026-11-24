@@ -18,7 +18,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
-from release_common import PLATFORMS, DESKTOP_PLATFORMS, check_binary, dev_version, sha256, verified_assets, version_for_tag
+from release_common import (
+    PLATFORMS, DESKTOP_PLATFORMS, CLI_ARTIFACTS, check_binary, dev_version, sha256,
+    verified_assets, version_for_tag,
+)
 
 
 def load(name):
@@ -105,7 +108,8 @@ def fixtures(directory):
             header[:6] = b"\x7fELF\x02\x01"
             header[18:20] = (183 if "arm64" in target else 62).to_bytes(2, "little")
         elif target.startswith("darwin"):
-            header[:8] = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"
+            cpu = 0x01000007 if target == "darwin-x64" else 0x0100000C
+            header[:8] = b"\xcf\xfa\xed\xfe" + cpu.to_bytes(4, "little")
         else:
             header[:2] = b"MZ"
             header[60:64] = (64).to_bytes(4, "little")
@@ -199,6 +203,10 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not match"):
             check_binary(self.assets / "cranibox-macos-arm64", "linux-x64-gnu")
         with self.assertRaisesRegex(ValueError, "does not match"):
+            check_binary(self.assets / "cranibox-macos-x86_64", "darwin-arm64")
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            check_binary(self.assets / "cranibox-macos-arm64", "darwin-x64")
+        with self.assertRaisesRegex(ValueError, "does not match"):
             builder.build(self.assets, self.root / "bad-version", "v99.0.0")
 
     def test_generated_packages_pin_versions_and_support_custom_scope(self):
@@ -238,12 +246,15 @@ class DistributionTests(unittest.TestCase):
             archive.add(bundle / "Cranibox.app", "Cranibox.app")
             if bundle_member:
                 archive.addfile(bundle_member)
+        (apps / "dmg/Cranibox_99.0.0_x64.dmg").write_bytes(b"intel disk image")
+        shutil.copyfile(apps / "app/Cranibox_99.0.0_aarch64.app.tar.gz",
+                        apps / "app/Cranibox_99.0.0_x64.app.tar.gz")
         return apps
 
     def test_desktop_app_packages_follow_the_command_line(self):
         output = self.root / "npm"
         plan = builder.build(self.assets, output, version="99.0.0-dev.42", apps=self.fake_apps())
-        self.assertEqual(plan[len(PLATFORMS)], "cli")
+        self.assertEqual(plan[:CLI_PACKAGES][-1], "cli")
         self.assertEqual(plan[CLI_PACKAGES:], [f"desktop-{target}" for target in DESKTOP_PLATFORMS])
         for target in DESKTOP_PLATFORMS:
             manifest = json.loads((output / f"desktop-{target}/package.json").read_text())
@@ -255,6 +266,10 @@ class DistributionTests(unittest.TestCase):
         self.assertTrue(os.access(app / "MacOS/cranibox", os.X_OK))
         self.assertTrue(os.access(output / "desktop-linux-x64-gnu/app/Cranibox.AppImage", os.X_OK))
         self.assertEqual((output / "desktop-win32-x64/app/cranibox-setup.exe").read_bytes(), b"MZ setup")
+        intel = output / "desktop-darwin-x64/app/Cranibox.app/Contents"
+        self.assertTrue((intel / "Info.plist").is_file())
+        self.assertTrue(os.access(intel / "MacOS/cranibox", os.X_OK))
+        self.assertIn("@fliaping/cranibox-desktop-darwin-x64", stage_approver.package_names("@fliaping/cranibox"))
         self.assertIn("@fliaping/cranibox-desktop-win32-x64", stage_approver.package_names("@fliaping/cranibox"))
 
     @unittest.skipUnless(shutil.which("npm"), "npm is not installed")
@@ -329,43 +344,37 @@ class DistributionTests(unittest.TestCase):
     def test_collect_cli_artifacts_with_installers_and_licenses(self):
         artifacts = self.root / "artifacts"
         # These names are the upload-artifact contract, including Windows .exe.
-        names = {"macos": "cranibox-macos-arm64", "linux": "cranibox-linux-x86_64",
-                 "windows": "cranibox-windows-x86_64.exe"}
-        for platform, filename in names.items():
-            directory = artifacts / f"cranibox-cli-{platform}"
+        for filename, os_name, _ in PLATFORMS.values():
+            directory = artifacts / CLI_ARTIFACTS[filename]
             directory.mkdir(parents=True)
             shutil.copyfile(self.assets / filename, directory / filename)
             (directory / filename).chmod(0o644)
-        arm64 = artifacts / "cranibox-cli-linux-arm64"
-        arm64.mkdir(parents=True)
-        shutil.copyfile(self.assets / "cranibox-linux-arm64", arm64 / "cranibox-linux-arm64")
         desktop = artifacts / "cranibox-desktop-macos-latest/bundle/dmg"
         desktop.mkdir(parents=True)
         shutil.copyfile(self.assets / "Cranibox installer.dmg", desktop / "Cranibox installer.dmg")
         self.fake_apps(apps=artifacts / "cranibox-desktop-all")
         app_files = {"Cranibox_99.0.0_amd64.AppImage", "Cranibox_99.0.0_amd64.deb", "Cranibox_99.0.0_x64-setup.exe",
-                     "Cranibox_99.0.0_aarch64.dmg", "Cranibox_99.0.0_aarch64.app.tar.gz"}
+                     "Cranibox_99.0.0_aarch64.dmg", "Cranibox_99.0.0_aarch64.app.tar.gz",
+                     "Cranibox_99.0.0_x64.dmg", "Cranibox_99.0.0_x64.app.tar.gz"}
         for installers in (False, True):
             with self.subTest(installers=installers):
                 output = self.root / f"collected-{installers}"
                 collector.collect(artifacts, output, installers=installers)
-                expected = set(names.values()) | {"LICENSE", "SHA256SUMS", "cranibox-linux-arm64"}
+                expected = {filename for filename, _, _ in PLATFORMS.values()} | {"LICENSE", "SHA256SUMS"}
                 expected.update(p.name for p in (ROOT / "docs/licenses").glob("*.txt"))
                 if installers:
                     expected.update({"Cranibox installer.dmg"} | app_files)
                 self.assertEqual({p.name for p in verified_assets(output)}, expected)
-                for platform, filename in names.items():
+                for filename, os_name, _ in PLATFORMS.values():
                     self.assertEqual((output / filename).read_bytes(), (self.assets / filename).read_bytes())
-                    if os.name != "nt" and platform != "windows":
+                    if os.name != "nt" and os_name != "win32":
                         self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
-                if os.name != "nt":
-                    self.assertEqual((output / "cranibox-linux-arm64").stat().st_mode & 0o111, 0o111)
                 builder.build(output, self.root / f"npm-{installers}", version="99.0.0-dev.42")
         # A tagged release packages the desktop apps straight from its own assets.
         plan = builder.build(self.root / "collected-True", self.root / "npm-apps", version="99.0.0-dev.42",
                              apps=self.root / "collected-True")
         self.assertEqual(plan[CLI_PACKAGES:], [f"desktop-{target}" for target in DESKTOP_PLATFORMS])
-        (artifacts / "cranibox-cli-windows" / names["windows"]).unlink()
+        (artifacts / "cranibox-cli-windows" / "cranibox-windows-x86_64.exe").unlink()
         with self.assertRaisesRegex(ValueError, "Missing release asset.*cranibox-windows-x86_64.exe"):
             collector.collect(artifacts, self.root / "missing")
         self.assertFalse((self.root / "missing").exists())
