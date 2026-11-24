@@ -138,6 +138,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 | 平台 | 状态 |
 |---|---|
 | macOS（Apple Silicon） | 桌面客户端和命令行版。客户端为自签名：首次打开后，到“系统设置 → 隐私与安全性”点一次“仍要打开” |
+| macOS（Intel） | 桌面客户端和命令行版，单独提供 x86_64 构建（不是通用二进制）。客户端同样为自签名 |
 | Windows x64 | 桌面客户端和命令行版 |
 | Linux x64（glibc） | 桌面客户端（`.deb`、`.AppImage`）和命令行版，也可以兼作 relay |
 | Linux arm64（glibc） | 命令行版（npm 与 GitHub Releases），用于树莓派和 ARM 服务器 |

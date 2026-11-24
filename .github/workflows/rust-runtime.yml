@@ -85,6 +85,15 @@ jobs:
             artifact: cranibox-cli-macos
             output: cranibox-macos-arm64
             features: none
+          # macos-13 was retired in Dec 2025. Native macos-15-intel is the current
+          # Intel image and avoids cross-compiling (and Rosetta) so the desktop
+          # job can reuse the same target/release layout, codesign, and hdiutil
+          # steps as Apple Silicon. GitHub plans to retire Intel runners after
+          # the macOS 15 image (Fall 2027).
+          - os: macos-15-intel
+            artifact: cranibox-cli-macos-x86_64
+            output: cranibox-macos-x86_64
+            features: none
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -109,6 +118,10 @@ jobs:
             cp target/release/cranibox "$RUNNER_TEMP/cli/${{ matrix.output }}"
           fi
           "$RUNNER_TEMP/cli/${{ matrix.output }}" --version
+          if [ "${{ matrix.output }}" = cranibox-macos-x86_64 ]; then
+            file "$RUNNER_TEMP/cli/${{ matrix.output }}"
+            lipo -info "$RUNNER_TEMP/cli/${{ matrix.output }}" | grep -q x86_64
+          fi
           if [ "${{ matrix.features }}" = managed ]; then
             "$RUNNER_TEMP/cli/${{ matrix.output }}" ctl --version
             grep -q -- --listen <("$RUNNER_TEMP/cli/${{ matrix.output }}" serve --help)
@@ -140,6 +153,9 @@ jobs:
           - os: macos-latest
             bundles: dmg
             cli_artifact: cranibox-cli-macos
+          - os: macos-15-intel
+            bundles: dmg
+            cli_artifact: cranibox-cli-macos-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -153,7 +169,8 @@ jobs:
           cache-dependency-path: apps/node-desktop/package-lock.json
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: node-desktop
+          # Include the runner so Apple Silicon and Intel caches stay separate.
+          shared-key: node-desktop-${{ matrix.os }}
           cache-on-failure: true
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev librsvg2-dev libayatana-appindicator3-dev pkg-config libglib2.0-bin python3
         if: runner.os == 'Linux'
@@ -280,6 +297,15 @@ jobs:
           archive="target/release/bundle/app/$(basename "${dmg%.dmg}").app.tar.gz"
           tar -czf "$archive" -C "$mount" Cranibox.app
           ls -l "$archive"
+      - name: Confirm the Intel macOS app is x86_64
+        if: matrix.os == 'macos-15-intel'
+        shell: bash
+        run: |
+          set -euo pipefail
+          file target/release/cranibox
+          lipo -info target/release/cranibox | grep -q x86_64
+          ls target/release/bundle/dmg/*_x64.dmg
+          ls target/release/bundle/app/*_x64.app.tar.gz
       # Linux ships two installers; separate artifacts let testers download only the one
       # they need (the AppImage carries its own WebKitGTK and is most of the size).
       - uses: actions/upload-artifact@v7
