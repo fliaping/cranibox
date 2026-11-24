@@ -66,7 +66,7 @@ Claude Code 还可以安装插件，里面包含 MCP 服务器和一个教 Agent
 
 Codex 用户把 [`plugins/cranibox/skills/cranibox`](plugins/cranibox/skills/cranibox/SKILL.md) 复制到 `~/.codex/skills/cranibox`。
 
-然后直接说，例如：*“在我的 Windows 上跑一遍测试，把报告拿回来。”*
+然后直接说，例如：*“在我的 Windows 上跑一遍测试，把报告拿回来。”* 完整步骤（含批准提示）见 [docs/examples/cross-platform-tests.md](docs/examples/cross-platform-tests.md)。
 
 同样的操作也可以在终端里做：
 
@@ -158,6 +158,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 - 设计：[docs/design](docs/design/README.md) 与[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)
 - 网络与身份：[iroh 组网](docs/iroh-network.md)、[节点身份与端到端加密](docs/node-identity-and-e2e.md)、[节点直连](docs/direct-node-peers.md)、[其他组网（EasyTier、Tailscale）](docs/device-networks.md)
 - Agent 协作：[Agent 会话](docs/agent-sessions.md)、[后台执行](docs/agent-executions.md)、[跨设备任务](docs/device-tasks.md)、[协作记录](docs/federated-activity.md)
+- 示例：[在另一台系统上跑测试套件](docs/examples/cross-platform-tests.md)
 
 ## 参与贡献
 
