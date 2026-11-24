@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 
-from release_common import PLATFORMS, validate_version
+from release_common import PLATFORMS, DESKTOP_PLATFORMS, validate_version
 
 NPM = "npm.cmd" if os.name == "nt" else "npm"
 REGISTRY = "https://registry.npmjs.org"
@@ -14,7 +14,7 @@ def package_names(name):
     if not re.fullmatch(r"@[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*", name):
         raise ValueError("The npm package must be a scoped lowercase name, e.g. @fliaping/cranibox.")
     return ([f"{name}-{target}" for target in PLATFORMS] + [name]
-            + [f"{name}-desktop-{target}" for target in PLATFORMS])
+            + [f"{name}-desktop-{target}" for target in DESKTOP_PLATFORMS])
 
 
 def stage_json(action, value):

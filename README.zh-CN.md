@@ -140,6 +140,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 | macOS（Apple Silicon） | 桌面客户端和命令行版。客户端为自签名：首次打开后，到“系统设置 → 隐私与安全性”点一次“仍要打开” |
 | Windows x64 | 桌面客户端和命令行版 |
 | Linux x64（glibc） | 桌面客户端（`.deb`、`.AppImage`）和命令行版，也可以兼作 relay |
+| Linux arm64（glibc） | 命令行版（npm 与 GitHub Releases），用于树莓派和 ARM 服务器 |
 | Docker | [Agent Workspace](https://github.com/fliaping/agent-workspace)：给 Agent 的一台 Linux 电脑，带桌面、浏览器和开发工具链，内置 Cranibox |
 | 安卓 | 开发中：默认是控制端，可选开启被控，见[安卓手机节点](docs/android-node.md) |
 

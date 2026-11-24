@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
-from release_common import PLATFORMS, check_binary, dev_version, sha256, verified_assets, version_for_tag
+from release_common import PLATFORMS, DESKTOP_PLATFORMS, check_binary, dev_version, sha256, verified_assets, version_for_tag
 
 
 def load(name):
@@ -35,6 +35,8 @@ def packed(directory, filename):
 
 
 builder = load("build-npm")
+CLI_PACKAGES = len(PLATFORMS) + 1  # platform packages plus the entry package
+NPM_PACKAGES = CLI_PACKAGES + len(DESKTOP_PLATFORMS)
 collector = load("collect-assets")
 npm_publisher = load("publish-npm")
 stage_approver = load("approve-staged")
@@ -101,7 +103,7 @@ def fixtures(directory):
         header = bytearray(128)
         if target.startswith("linux"):
             header[:6] = b"\x7fELF\x02\x01"
-            header[18:20] = (62).to_bytes(2, "little")
+            header[18:20] = (183 if "arm64" in target else 62).to_bytes(2, "little")
         elif target.startswith("darwin"):
             header[:8] = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"
         else:
@@ -241,9 +243,9 @@ class DistributionTests(unittest.TestCase):
     def test_desktop_app_packages_follow_the_command_line(self):
         output = self.root / "npm"
         plan = builder.build(self.assets, output, version="99.0.0-dev.42", apps=self.fake_apps())
-        self.assertEqual(plan[:4][-1], "cli")
-        self.assertEqual(plan[4:], [f"desktop-{target}" for target in builder.PLATFORMS])
-        for target in builder.PLATFORMS:
+        self.assertEqual(plan[len(PLATFORMS)], "cli")
+        self.assertEqual(plan[CLI_PACKAGES:], [f"desktop-{target}" for target in DESKTOP_PLATFORMS])
+        for target in DESKTOP_PLATFORMS:
             manifest = json.loads((output / f"desktop-{target}/package.json").read_text())
             self.assertEqual(manifest["name"], f"@fliaping/cranibox-desktop-{target}")
             self.assertEqual(manifest["version"], "99.0.0-dev.42")
@@ -259,7 +261,7 @@ class DistributionTests(unittest.TestCase):
     def test_desktop_packages_ship_their_app(self):
         output = self.root / "npm"
         builder.build(self.assets, output, version="99.0.0-dev.42", apps=self.fake_apps())
-        for target in builder.PLATFORMS:
+        for target in DESKTOP_PLATFORMS:
             package = output / f"desktop-{target}"
             result = subprocess.run(["npm", "pack", "--dry-run", "--json", "--ignore-scripts"], cwd=package,
                                     env=self.npm_environment(), text=True, capture_output=True, check=True)
@@ -299,7 +301,7 @@ class DistributionTests(unittest.TestCase):
         output = self.root / "npm"
         version = "99.2.3-dev.42"
         plan = builder.build(self.assets, output, "v0.0.0", version=version)
-        self.assertEqual(len(plan), 4)
+        self.assertEqual(len(plan), CLI_PACKAGES)
         self.assertEqual(plan[-1], "cli")
         for entry in plan:
             manifest = json.loads((output / entry / "package.json").read_text())
@@ -336,7 +338,7 @@ class DistributionTests(unittest.TestCase):
             (directory / filename).chmod(0o644)
         arm64 = artifacts / "cranibox-cli-linux-arm64"
         arm64.mkdir(parents=True)
-        shutil.copyfile(self.assets / names["linux"], arm64 / "cranibox-linux-arm64")
+        shutil.copyfile(self.assets / "cranibox-linux-arm64", arm64 / "cranibox-linux-arm64")
         desktop = artifacts / "cranibox-desktop-macos-latest/bundle/dmg"
         desktop.mkdir(parents=True)
         shutil.copyfile(self.assets / "Cranibox installer.dmg", desktop / "Cranibox installer.dmg")
@@ -347,23 +349,22 @@ class DistributionTests(unittest.TestCase):
             with self.subTest(installers=installers):
                 output = self.root / f"collected-{installers}"
                 collector.collect(artifacts, output, installers=installers)
-                expected = set(names.values()) | {"LICENSE", "SHA256SUMS"}
+                expected = set(names.values()) | {"LICENSE", "SHA256SUMS", "cranibox-linux-arm64"}
                 expected.update(p.name for p in (ROOT / "docs/licenses").glob("*.txt"))
                 if installers:
-                    expected.update({"Cranibox installer.dmg", "cranibox-linux-arm64"} | app_files)
+                    expected.update({"Cranibox installer.dmg"} | app_files)
                 self.assertEqual({p.name for p in verified_assets(output)}, expected)
                 for platform, filename in names.items():
                     self.assertEqual((output / filename).read_bytes(), (self.assets / filename).read_bytes())
                     if os.name != "nt" and platform != "windows":
                         self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
-                for filename in ("cranibox-linux-arm64",) if installers else ():
-                    if os.name != "nt":
-                        self.assertEqual((output / filename).stat().st_mode & 0o111, 0o111)
+                if os.name != "nt":
+                    self.assertEqual((output / "cranibox-linux-arm64").stat().st_mode & 0o111, 0o111)
                 builder.build(output, self.root / f"npm-{installers}", version="99.0.0-dev.42")
         # A tagged release packages the desktop apps straight from its own assets.
         plan = builder.build(self.root / "collected-True", self.root / "npm-apps", version="99.0.0-dev.42",
                              apps=self.root / "collected-True")
-        self.assertEqual(plan[4:], [f"desktop-{target}" for target in builder.PLATFORMS])
+        self.assertEqual(plan[CLI_PACKAGES:], [f"desktop-{target}" for target in DESKTOP_PLATFORMS])
         (artifacts / "cranibox-cli-windows" / names["windows"]).unlink()
         with self.assertRaisesRegex(ValueError, "Missing release asset.*cranibox-windows-x86_64.exe"):
             collector.collect(artifacts, self.root / "missing")
@@ -391,7 +392,7 @@ class DistributionTests(unittest.TestCase):
                     npm_publisher.publish(output, dist_tag=override)
                 publications = [command for command in commands if command[1] == "publish"]
                 self.assertEqual([Path(command[2]).stem for command in publications], plan)
-                self.assertEqual(len(publications), 4)
+                self.assertEqual(len(publications), CLI_PACKAGES)
                 for command in publications:
                     self.assertEqual(command[command.index("--tag") + 1], expected)
                     self.assertIn("--provenance", command)
@@ -431,7 +432,7 @@ class DistributionTests(unittest.TestCase):
         self.assertIn("approve-staged.py --package-name @fliaping/cranibox --approve", summary)
         self.assertIn("https://www.npmjs.com/package/@fliaping/cranibox", summary)
         summary = self.publish_with_fake(output, environment, dist_tag="dev")
-        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), CLI_PACKAGES)
         self.assertIn("Already staged and verified", summary)
         self.assertIn("npm stage approve stage-cli --otp <OTP>", summary)
 
@@ -441,7 +442,7 @@ class DistributionTests(unittest.TestCase):
         environment = self.fake_npm()
         summary = self.publish_with_fake(output, environment, published=self.stage_fixtures()[0]["integrity"])
         self.assertTrue(all(call[0] == "pack" for call in self.fake_calls()))
-        self.assertEqual(summary.count("Already published and verified"), 4)
+        self.assertEqual(summary.count("Already published and verified"), CLI_PACKAGES)
         with self.assertRaisesRegex(ValueError, "different contents"):
             self.publish_with_fake(output, environment, published="sha512-different")
 
@@ -468,7 +469,7 @@ class DistributionTests(unittest.TestCase):
         views = {stage["id"]: {**stage, "integrity": None, "dist": {"integrity": stage["integrity"]}} for stage in stages}
         environment = self.fake_npm({"lists": lists, "views": views})
         self.publish_with_fake(output, environment, dist_tag="dev")
-        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "view"]]), 4)
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "view"]]), CLI_PACKAGES)
         self.assertFalse(any(call[:2] == ["stage", "publish"] for call in self.fake_calls()))
 
     def test_stage_unknown_metadata_and_missing_integrity_fail_closed(self):
@@ -488,7 +489,7 @@ class DistributionTests(unittest.TestCase):
         builder.build(self.assets, output, version="99.0.0-dev.42")
         environment = self.fake_npm({"list_error": "E404"})
         self.publish_with_fake(output, environment, dist_tag="dev")
-        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), CLI_PACKAGES)
         environment = self.fake_npm({"list_error": "E401"})
         with self.assertRaisesRegex(RuntimeError, "npm stage list failed"):
             self.publish_with_fake(output, environment, dist_tag="dev")
@@ -509,7 +510,7 @@ class DistributionTests(unittest.TestCase):
                 self.assertNotIn("--approve", result.stdout)
                 self.assertFalse(any(call[:2] in (["stage", "list"], ["stage", "view"]) for call in self.fake_calls()))
                 publications = [call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]
-                self.assertEqual(len(publications), 4)
+                self.assertEqual(len(publications), CLI_PACKAGES)
                 for call in publications:
                     self.assertIn("--dry-run", call)
                     self.assertIn("--offline", call)
@@ -541,7 +542,7 @@ class DistributionTests(unittest.TestCase):
             stage["version"] = "99.0.0-dev.41"
         environment = self.fake_npm({"stages": stages})
         self.publish_with_fake(output, environment, dist_tag="dev")
-        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), CLI_PACKAGES)
 
     def test_stage_of_another_version_without_integrity_does_not_block(self):
         # An approved or superseded stage may no longer report integrity in npm stage view.
@@ -552,7 +553,7 @@ class DistributionTests(unittest.TestCase):
         environment = self.fake_npm({"lists": {old["name"]: [old, unversioned]},
                                      "views": {old["id"]: old, unversioned["id"]: {**old, "id": unversioned["id"]}}})
         self.publish_with_fake(output, environment, dist_tag="dev")
-        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), 4)
+        self.assertEqual(len([call for call in self.fake_calls() if call[:2] == ["stage", "publish"]]), CLI_PACKAGES)
 
     def test_approve_lists_only_expected_packages_without_action(self):
         stages = self.stage_fixtures()
@@ -562,7 +563,7 @@ class DistributionTests(unittest.TestCase):
         result = self.approve_with_fake(environment)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("@other/package", result.stdout)
-        self.assertEqual(len(self.fake_calls()), 7)
+        self.assertEqual(len(self.fake_calls()), NPM_PACKAGES)
         self.assertTrue(all(call[:2] == ["stage", "list"] for call in self.fake_calls()))
         for stage in stages:
             self.assertIn(stage["id"], result.stdout)
@@ -587,9 +588,9 @@ class DistributionTests(unittest.TestCase):
         result = self.approve_with_fake(environment, "--approve")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.fake_calls()
-        self.assertEqual(len(calls), 14)
-        self.assertTrue(all(call[:2] == ["stage", "list"] for call in calls[:7]))
-        for call in calls[7:]:
+        self.assertEqual(len(calls), NPM_PACKAGES * 2)
+        self.assertTrue(all(call[:2] == ["stage", "list"] for call in calls[:NPM_PACKAGES]))
+        for call in calls[NPM_PACKAGES:]:
             self.assertEqual(call[:2], ["stage", "approve"])
             self.assertEqual(call[call.index("--auth-type") + 1], "web")
             self.assertNotIn("--otp", call)
@@ -610,7 +611,7 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("remaining stages", result.stderr)
         self.assertNotIn("123456", result.stdout + result.stderr)
-        self.assertEqual(len(self.fake_calls()), 8)
+        self.assertEqual(len(self.fake_calls()), NPM_PACKAGES + 1)
 
     def test_approve_rejects_unverifiable_identity_before_any_action(self):
         stage = self.stage_fixtures()[0]
@@ -645,7 +646,7 @@ class DistributionTests(unittest.TestCase):
             result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr)
             digests = {file.name: sha256(file) for file in output.glob("*.tgz")}
-            self.assertEqual(len(digests), 4)
+            self.assertEqual(len(digests), CLI_PACKAGES)
             if attempt == 0:
                 original = digests
             else:

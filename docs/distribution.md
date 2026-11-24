@@ -37,14 +37,14 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 
 ## 平台包
 
-入口包为 `@fliaping/cranibox`，三个平台包均包含**无 GUI 的独立 CLI / 节点运行时**：
+入口包为 `@fliaping/cranibox`，平台包均包含**无 GUI 的独立 CLI / 节点运行时**：
 
 | 平台 | 构建文件名 | npm 平台包 |
 | --- | --- | --- |
 | macOS Apple Silicon | `cranibox-macos-arm64` | `@fliaping/cranibox-darwin-arm64` |
 | Linux x64 / glibc | `cranibox-linux-x86_64` | `@fliaping/cranibox-linux-x64-gnu` |
 | Windows x64 | `cranibox-windows-x86_64.exe` | `@fliaping/cranibox-win32-x64` |
-| Linux arm64 / glibc | `cranibox-linux-arm64` | 无，仅 GitHub Release |
+| Linux arm64 / glibc | `cranibox-linux-arm64` | `@fliaping/cranibox-linux-arm64-gnu` |
 
 Linux 版同时包含 Agent Workspace 容器的控制台和服务管理（`ctl`、`service`、`serve --config-root`）。
 [Agent Workspace](https://github.com/fliaping/agent-workspace) 镜像直接下载对应架构的
@@ -64,14 +64,14 @@ Linux 版同时包含 Agent Workspace 容器的控制台和服务管理（`ctl`�
 第三方许可证。入口包的 `optionalDependencies` 精确固定到相同版本；没有 postinstall，
 安装时不从 GitHub 下载。CLI 在桌面应用打包前复制保存，避免被应用的同名二进制覆盖。
 
-Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、musl，Linux arm64 暂无 npm 包。
+Linux glibc 下限取决于 CI 的 Ubuntu runner；暂不支持 Intel Mac、musl。Linux arm64 有 CLI 的 npm 平台包，暂无桌面应用包。
 打包时校验 ELF / Mach-O / PE 架构，并核对 `SHA256SUMS` 的文件清单与 SHA-256。
 Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下载完整附件后可运行
 `sha256sum --check SHA256SUMS`。现有桌面应用签名流程保持不变。
 
 ## 首次发布（引导）
 
-> 七个包均已完成引导并配置了 Trusted Publisher；以下步骤保留给新增包或换用自定义包名时参考。
+> 现有包已完成引导并配置了 Trusted Publisher。新增 `@fliaping/cranibox-linux-arm64-gnu` 时，需要先按下面的步骤做一次暂存审批并添加 Trusted Publisher，再合并到 main，否则 dev 频道的直接发布会失败。
 > 审批与 `npm trust` 需要 npm >= 11.15 和交互式终端；`approve-staged.py --version <版本>` 只处理指定版本。
 
 首次包尚不存在时，可直接暂存创建，无需先运行 `npm publish`。现有 `NPM_TOKEN`
@@ -87,7 +87,7 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
 
 2. 将包含这些发布工具的修改推送到 main（`git push origin main`），等待 CI 完成。
    CI 使用 Node.js 24，stage 模式在 setup-node 后升级 npm 并输出版本
-   （要求 npm >= 11.15.0、Node >= 22.14），从解包目录按三个平台包、入口包顺序暂存。
+   （要求 npm >= 11.15.0、Node >= 22.14），从解包目录按四个平台包、入口包顺序暂存。
    **stage 模式下每次 main push 都暂存一个 dev 构建**，每个 run 只调用一次实际暂存流程；
    引导完成后及时切换 direct。Actions summary 给出结果和审批入口。
 
@@ -98,7 +98,7 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    python scripts/release/approve-staged.py --approve
    ```
 
-   脚本处理这七个包（三个平台包、入口包、三个桌面应用包）的所有待审批版本，先列清单，
+   脚本处理这八个包（四个平台包、入口包、三个桌面应用包）的所有待审批版本，先列清单，
    再逐个审批。默认走浏览器验证（WebAuthn / 通行密钥）：npm 为每个包打印一个
    `https://www.npmjs.com/auth/cli/...` 链接，在浏览器打开并确认；确认页勾选 5 分钟内
    不再验证，后续包即可连续完成。使用验证器 App 时传 `--otp <OTP>`，输出会被隐藏。
@@ -107,13 +107,13 @@ Release 中的校验清单覆盖全部安装包、CLI 和许可证附件；下�
    对应包页面审批。操作有误时用 `python scripts/release/approve-staged.py --reject`
    批量拒绝（同样需要 2FA），或逐项 `npm stage reject <stage-id> --otp <OTP>`。
 
-4. 在 npm Settings 为上述七个包**逐个**添加 Trusted Publisher（包须已发布过一次）：
+4. 在 npm Settings 为上述每个包**逐个**添加 Trusted Publisher（包须已发布过一次）：
    GitHub repository 为 `fliaping/cranibox`，workflow filename 为 `rust-runtime.yml`，
    environment 为 `npm`。tag 发布由 `rust-runtime.yml` 调用 `distribute.yml`，OIDC 按调用方
    验证，同一配置即可覆盖；每个包只能配一个 Trusted Publisher，因此手动运行
    `distribute.yml` 补发时不匹配，需用 stage 模式。流水线已有 `id-token: write` 和 provenance。
 
-5. 七个包的 OIDC 配置完成后，dev 频道切换为直接发布：
+5. 全部包的 OIDC 配置完成后，dev 频道切换为直接发布：
 
    ```bash
    gh variable set CRANIBOX_NPM_DEV_PUBLISH_MODE --body direct --repo fliaping/cranibox
@@ -144,10 +144,10 @@ npmmirror 不需要发布凭据。
 - **正式版 / 预发布：** 更新 CLI Cargo、Tauri、桌面前端与 npm 入口包的版本及相应
   lockfile，再创建不可变的 `vX.Y.Z` 或 `vX.Y.Z-beta.N` tag。CI 通过后创建 GitHub Release，
   调用 `distribute.yml` 下载归档、校验 SHA256SUMS 并打包。版本必须一致，禁止 build metadata。
-  npm 按三个平台包、入口包、三个桌面应用包的顺序发布；正式版使用 `latest`，预发布使用 `next`。
+  npm 按四个平台包、入口包、三个桌面应用包的顺序发布；正式版使用 `latest`，预发布使用 `next`。
 - **开发构建：** 每次 main push（包括仅修改文档）在 desktop、native、Wayland 和分发测试
   全部通过后，由 `publish-dev` 发布 `<crates/cranibox 的 Cargo version>-dev.<github.run_number>`。
-  `--version` 覆盖七个 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo
+  `--version` 覆盖全部 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo
   版本一致性；仍严格校验 SemVer，禁止 build metadata。二进制 `--version` 仍为 Cargo
   版本。开发包显式使用 `--dist-tag dev`，不会推进 `latest` 或 `next`。
 
@@ -168,7 +168,7 @@ stage 模式还查询 `npm stage list`，必要时查询 `npm stage view`：同�
 tarball 与 `publish-plan.json`。
 
 ```bash
-# assets/ 包含三个 CLI、许可证及 SHA256SUMS
+# assets/ 包含全部 CLI、许可证及 SHA256SUMS
 python3 scripts/release/build-npm.py --tag v1.1.0 --assets assets --output dist/npm
 python3 scripts/release/publish-npm.py --directory dist/npm --dry-run
 

@@ -7,7 +7,7 @@ import re
 import shutil
 import tarfile
 
-from release_common import ROOT, PLATFORMS, check_binary, check_versions, validate_version, verified_assets
+from release_common import ROOT, PLATFORMS, DESKTOP_PLATFORMS, check_binary, check_versions, validate_version, verified_assets
 
 
 # The desktop app for each target: the installer file it ships as (in the desktop CI
@@ -102,7 +102,8 @@ def build(assets, output, tag=None, package_name="@fliaping/cranibox", root=ROOT
     (directory / "bin/cranibox.cjs").chmod(0o755)
     plan.append(directory.name)  # Native packages must exist before publishing the entry point.
     # Last: a new desktop package name that fails to publish cannot hold back the runtime.
-    for target, (filename, os_name, cpu) in PLATFORMS.items() if apps is not None else ():
+    for target in DESKTOP_PLATFORMS if apps is not None else ():
+        _filename, os_name, cpu = PLATFORMS[target]
         manifest = {key: value for key, value in template.items()
                     if key not in ("bin", "optionalDependencies", "craniboxPlatforms", "engines")}
         # The command line template ships only bin/; this package ships the app instead.

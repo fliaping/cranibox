@@ -641,7 +641,7 @@ jobs:
         with:
           path: dist
           pattern: cranibox-*
-      - name: Collect installers and all three command lines
+      - name: Collect installers and all command lines
         run: python scripts/release/collect-assets.py --artifacts dist --output release --installers
       - name: Create GitHub release
         env:
@@ -665,7 +665,7 @@ jobs:
   publish-dev:
     name: Publish npm dev channel
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CRANIBOX_PUBLISH_NPM == 'true'
-    needs: [desktop, cli, native, quality, linux-integration, resources, wayland, distribution-tests]
+    needs: [desktop, cli, native, quality, linux-integration, resources, wayland, distribution-tests, linux-arm64]
     runs-on: ubuntu-latest
     environment: npm
     env:

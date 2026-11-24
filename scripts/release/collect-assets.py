@@ -6,25 +6,22 @@ import argparse
 from pathlib import Path
 import shutil
 
-from release_common import ROOT, PLATFORMS, sha256
+from release_common import ROOT, PLATFORMS, CLI_ARTIFACTS, sha256
 
-# Release-only command lines without an npm package. The Linux builds also serve
-# the Agent Workspace image, which downloads cranibox-linux-<arch>.
-RELEASE_ONLY = {"cranibox-cli-linux-arm64": "cranibox-linux-arm64"}
+# Every CLI in PLATFORMS is collected, including Linux arm64 (used by the
+# Agent Workspace image and the npm launcher).
 
 
 def collect(artifacts, output, installers=False, root=ROOT):
     artifacts, output = Path(artifacts), Path(output)
     if output.exists() and any(output.iterdir()):
         raise ValueError(f"Output directory is not empty: {output}.")
-    platforms = {"darwin": "macos", "linux": "linux", "win32": "windows"}
     files = []
     for filename, os_name, _ in PLATFORMS.values():
-        files.append((artifacts / f"cranibox-cli-{platforms[os_name]}" / filename, os_name != "win32"))
+        files.append((artifacts / CLI_ARTIFACTS[filename] / filename, os_name != "win32"))
     files += [(root / "LICENSE", False)]
     files += [(notice, False) for notice in sorted((root / "docs/licenses").glob("*.txt"))]
     if installers:
-        files += [(artifacts / directory / name, True) for directory, name in RELEASE_ONLY.items()]
         for directory in sorted(artifacts.glob("cranibox-desktop-*")):
             files += [(file, False) for file in sorted(directory.rglob("*"))
                       if file.is_file() and file.name.endswith((".dmg", ".exe", ".deb", ".AppImage", ".app.tar.gz"))]
