@@ -2,7 +2,7 @@
 
 Run a Cranibox node on your device and connect it to your other devices and agents.
 Requires Node.js 22 or newer. Supported binaries: macOS Apple Silicon, Windows x64,
-and Linux x64 with glibc (built on the workflow's Ubuntu runner). Intel Macs, Linux arm64 and
+and Linux x64 or arm64 with glibc (built on the workflow's Ubuntu runners). Intel Macs and
 musl/Alpine are not included.
 
 ```sh

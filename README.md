@@ -138,6 +138,7 @@ The desktop app and the CLI serve the same interface (preview mode with sample d
 | macOS (Apple Silicon) | Desktop app and CLI. The app is self-signed: after the first launch, allow it once under System Settings → Privacy & Security |
 | Windows x64 | Desktop app and CLI |
 | Linux x64 (glibc) | Desktop app (`.deb`, `.AppImage`) and CLI; also works as a relay |
+| Linux arm64 (glibc) | CLI (npm and GitHub Releases), for Raspberry Pi and ARM servers |
 | Docker | [Agent Workspace](https://github.com/fliaping/agent-workspace): a Linux computer for your agents with a desktop, browser and toolchain, with Cranibox built in |
 | Android | In progress: a controller by default, optionally a controlled device. See [Android node](docs/android-node.md) |
 

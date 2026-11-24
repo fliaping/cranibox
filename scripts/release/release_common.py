@@ -9,8 +9,18 @@ ROOT = Path(__file__).resolve().parents[2]
 PLATFORMS = {
     "darwin-arm64": ("cranibox-macos-arm64", "darwin", "arm64"),
     "linux-x64-gnu": ("cranibox-linux-x86_64", "linux", "x64"),
+    "linux-arm64-gnu": ("cranibox-linux-arm64", "linux", "arm64"),
     "win32-x64": ("cranibox-windows-x86_64.exe", "win32", "x64"),
 }
+# CI artifact directory for each CLI filename (Linux arm64 is a separate job).
+CLI_ARTIFACTS = {
+    "cranibox-macos-arm64": "cranibox-cli-macos",
+    "cranibox-linux-x86_64": "cranibox-cli-linux",
+    "cranibox-linux-arm64": "cranibox-cli-linux-arm64",
+    "cranibox-windows-x86_64.exe": "cranibox-cli-windows",
+}
+# Desktop npm packages are a subset of PLATFORMS; there is no Linux arm64 desktop app yet.
+DESKTOP_PLATFORMS = ("darwin-arm64", "linux-x64-gnu", "win32-x64")
 VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
 
 
@@ -99,6 +109,8 @@ def check_binary(path, target):
         valid = False
         if target == "linux-x64-gnu":
             valid = header[:6] == b"\x7fELF\x02\x01" and int.from_bytes(header[18:20], "little") == 62
+        elif target == "linux-arm64-gnu":
+            valid = header[:6] == b"\x7fELF\x02\x01" and int.from_bytes(header[18:20], "little") == 183
         elif target == "darwin-arm64":
             valid = header[:4] == b"\xcf\xfa\xed\xfe" and int.from_bytes(header[4:8], "little") == 0x0100000C
         elif target == "win32-x64" and len(header) == 64 and header[:2] == b"MZ":
