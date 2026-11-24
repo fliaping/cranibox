@@ -11,6 +11,7 @@ import type { ProjectClient } from "../projects/ProjectsView";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { request, useWorkspace } from "../workspace";
 import { deviceCaps, devicePath, since } from "./Home";
+import { RenameDevice } from "./RenameDevice";
 import { relationLabel, relationOf, relationSentence, relationTones } from "./relations";
 import { useApp } from "./store";
 import { useTerminalNode } from "./targets";
@@ -41,6 +42,7 @@ export function DeviceDetail() {
       <div className="cx-grow">
         <div className="cx-device-title">
           {(() => { const info = formatDeviceLabel(device.name, device.node_id, t); return <h1>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h1>; })()}
+          <RenameDevice device={device} />
           {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relationOf(device) !== "peer" && <Pill tone={relationTones[relationOf(device)]}>{relationLabel(relationOf(device), t)}</Pill>}
         </div>
         <div className="cx-device-meta"><span className={"cx-dot " + (reachable ? "online" : "")} aria-hidden="true" />{local ? t("在线", "Online") : reachable ? <>{t("在线", "Online")}<span aria-hidden="true">·</span>{pathLabel(device, t, deviceName)}</> : recent ? t("这台设备连不上它", "Unreachable from this device") : <>{t("离线", "Offline")}{seen && <><span aria-hidden="true">·</span>{t("最近在线 ", "last seen ") + seen}</>}</>}</div>

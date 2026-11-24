@@ -33,8 +33,11 @@ pub enum Command {
         #[command(subcommand)]
         command: crate::peer::Command,
     },
-    /// List devices accessible to this device's Agent.
-    Nodes,
+    /// List devices accessible to this device's Agent, or rename one.
+    Nodes {
+        #[command(subcommand)]
+        command: Option<NodesCommand>,
+    },
     /// Update this device or other devices of your identity to a new version.
     Update {
         #[command(subcommand)]
@@ -115,11 +118,33 @@ pub enum Command {
         listen: Option<std::net::SocketAddr>,
     },
 }
+
+/// `cranibox nodes` subcommands. With no subcommand, the devices are listed.
+#[derive(clap::Subcommand, Debug)]
+pub enum NodesCommand {
+    /// Give a device a display name. The name syncs to your other devices.
+    Rename {
+        /// Node ID, or the device's current name if that name is unique.
+        node: String,
+        /// New name. An empty name clears it so the device's own name is shown again.
+        name: String,
+    },
+}
+
 /// Agent commands over this device's own peers (paired and same-identity devices).
 pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()> {
     let fleet = client::Fleet::new(peers.clone());
     match command {
-        Command::Nodes => client::print(fleet.nodes().await?),
+        Command::Nodes { command: None } => client::print(crate::app::known::apply_to_list(
+            &peers,
+            fleet.nodes().await?,
+        )),
+        Command::Nodes {
+            command: Some(NodesCommand::Rename { node, name }),
+        } => {
+            let id = crate::app::known::resolve(&peers, &node)?;
+            client::print(crate::app::known::rename(&peers, &id, &name)?.to_json())
+        }
         // Needs the settings path, which only the command line entry point has.
         Command::Update { .. } => {
             anyhow::bail!("update is handled by the command line entry point")

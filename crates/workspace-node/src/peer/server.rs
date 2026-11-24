@@ -291,7 +291,9 @@ async fn nodes(State(app): State<App>, Extension(caller): Extension<Caller>) -> 
     } else {
         Value::Null
     };
-    let mut answer = json!({"nodes":[{"id":app.node,"name":info.name,"labels":labels,"online":true,"os":info.os,
+    // This device's own alias is what it calls itself, including to guests.
+    let name = crate::app::known::advertised_name(&app.path, &app.node);
+    let mut answer = json!({"nodes":[{"id":app.node,"name":name,"labels":labels,"online":true,"os":info.os,
         "os_version":info.os_version,"model":info.model,"kind":info.kind,
         "arch":info.arch,"terminal":caller.grant.permissions.terminals,
         "terminal_sessions":caller.grant.permissions.terminals,"exec":caller.grant.permissions.exec,

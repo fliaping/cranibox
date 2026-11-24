@@ -372,7 +372,7 @@ async fn public_identity(local: &LocalNode, public_url: Option<&str>) -> Value {
         .unwrap_or_default();
     json!({
         "node_id": local.id,
-        "name": crate::device_info::local().name,
+        "name": crate::app::known::advertised_name(local.config_path(), &local.id),
         "fingerprint": identity["identity"]["fingerprint"],
         "endpoint_id": identity["identity"]["public"]["signing_key"],
         "relay": true,

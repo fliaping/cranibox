@@ -72,6 +72,7 @@ Codex 用户把 [`plugins/cranibox/skills/cranibox`](plugins/cranibox/skills/cra
 
 ```bash
 cranibox nodes                                   # Agent 可以使用的设备
+cranibox nodes rename <node> "办公电脑"              # 你起的名称，会同步到你的其他设备
 cranibox exec --node <NodeID> -- uname -a
 cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # 分块传输、SHA-256 校验、原子替换
 cranibox pull --node <NodeID> /var/log/system.log ./system.log
@@ -156,7 +157,7 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 ## 文档
 
 - 设计：[docs/design](docs/design/README.md) 与[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)
-- 网络与身份：[iroh 组网](docs/iroh-network.md)、[节点身份与端到端加密](docs/node-identity-and-e2e.md)、[节点直连](docs/direct-node-peers.md)、[其他组网（EasyTier、Tailscale）](docs/device-networks.md)
+- 网络与身份：[iroh 组网](docs/iroh-network.md)、[节点身份与端到端加密](docs/node-identity-and-e2e.md)、[设备名称](docs/device-names.md)、[节点直连](docs/direct-node-peers.md)、[其他组网（EasyTier、Tailscale）](docs/device-networks.md)
 - Agent 协作：[Agent 会话](docs/agent-sessions.md)、[后台执行](docs/agent-executions.md)、[跨设备任务](docs/device-tasks.md)、[协作记录](docs/federated-activity.md)
 
 ## 参与贡献

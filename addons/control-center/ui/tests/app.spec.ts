@@ -40,7 +40,8 @@ test('one navigation: home shows peers, approvals and no hub wording', async ({ 
   await expect(page.getByRole('region', { name: 'MacBook Pro', exact: true }).getByRole('link', { name: 'Sharing' })).toHaveAttribute('href', '#/app/this');
   const studio = page.getByRole('region', { name: 'Studio', exact: true });
   await expect(studio).toContainText('Offline');
-  await expect(studio.getByRole('button')).toHaveCount(0);
+  await expect(studio.getByRole('button', { name: 'Rename Studio' })).toBeVisible();
+  await expect(studio.getByRole('button', { name: /Terminal|Desktop|Browser/ })).toHaveCount(0);
   await page.goto('/#/app/home');
   await expect(page).toHaveURL(/#\/app\/devices$/);
   await expect(page.locator('.cx-approval-strip')).toContainText('Verify a new device');
@@ -464,4 +465,55 @@ test('the command palette finds devices, pages and actions from the keyboard', a
   await page.keyboard.press('Escape');
   await expect(palette).toHaveCount(0);
   await expect(page).toHaveURL(/#\/nodes$/);
+});
+
+
+test('can rename a device from the list and the device page', async ({ page }) => {
+  const shots = process.env.CRANIBOX_RENAME_SCREENSHOTS;
+  const openRename = async (current: string) => {
+    await page.getByRole('button', { name: 'Rename ' + current }).first().click();
+    return page.getByRole('dialog', { name: 'Rename device' });
+  };
+  const saveAs = async (current: string, next: string) => {
+    const dialog = await openRename(current);
+    await dialog.getByRole('textbox').fill(next);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  await ready(page, '/app/devices');
+  try {
+    const server = page.getByRole('region', { name: 'Home server', exact: true });
+    await server.getByRole('button', { name: 'Rename Home server' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Rename device' });
+    await expect(dialog).toContainText('A name you give this device');
+    if (shots) await page.screenshot({ path: shots + '/rename-dialog.png', fullPage: true });
+    const field = dialog.getByRole('textbox');
+    await expect(field).toHaveValue('Home server');
+    await field.fill('Studio');
+    await expect(dialog).toContainText('Another device is already named');
+    if (shots) await page.screenshot({ path: shots + '/rename-duplicate-warning.png', fullPage: true });
+    await field.fill('Office NAS');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Office NAS', exact: true })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Renamed this device to' })).toBeVisible();
+    if (shots) await page.screenshot({ path: shots + '/devices-renamed.png', fullPage: true });
+    await page.getByRole('region', { name: 'Office NAS', exact: true }).getByRole('link', { name: 'Open Office NAS' }).click();
+    await expect(page.locator('main h1')).toContainText('Office NAS');
+    await page.getByRole('button', { name: 'Rename Office NAS' }).click();
+    if (shots) await page.screenshot({ path: shots + '/device-page-rename.png', fullPage: true });
+    await page.getByRole('dialog', { name: 'Rename device' }).getByRole('button', { name: 'Cancel', exact: true }).click();
+  } finally {
+    // Restore the fixture name so later tests still find "Home server".
+    if (await page.getByRole('dialog', { name: 'Rename device' }).count()) {
+      await page.getByRole('dialog', { name: 'Rename device' }).getByRole('button', { name: 'Cancel', exact: true }).click();
+    }
+    const renamed = await page.getByRole('region', { name: 'Office NAS', exact: true }).count()
+      || (await page.locator('main h1').textContent() || '').includes('Office NAS');
+    if (renamed) {
+      if (page.url().includes('/app/device/')) await page.goto('/#/app/devices');
+      await saveAs('Office NAS', 'Home server');
+    }
+    await expect(page.getByRole('region', { name: 'Home server', exact: true })).toBeVisible();
+  }
 });

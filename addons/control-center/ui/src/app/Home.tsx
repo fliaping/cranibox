@@ -2,6 +2,7 @@ import { Bell, ChevronRight, Globe, Lock, Monitor, Plus, SlidersHorizontal, Squa
 import { Link, useNavigate } from "react-router-dom";
 import type { Device, Relation } from "../personal/api";
 import { DeviceGraph } from "./DeviceGraph";
+import { RenameDevice } from "./RenameDevice";
 import { relationLabel, relationOf, relationTones } from "./relations";
 import { useTerminalWindow } from "../terminal/TerminalWindowContext";
 import { useApp } from "./store";
@@ -36,6 +37,7 @@ function DeviceRow({ device }: { device: Device }) {
     <div className="cx-grow">
       <div className="cx-device-title">
         <Link className="cx-device-name" to={devicePath(device)}><h3>{info.label}{info.rawHidden && <span className="cx-sr"> {info.rawHidden}</span>}</h3></Link>
+        <RenameDevice device={device} />
         {info.shortId && <span className="cx-id-pill">{info.shortId}</span>}
         {local ? <Pill tone="accent">{t("本机", "This device")}</Pill> : relation !== "peer" ? <Pill tone={relationTones[relation]}>{relationLabel(relation, t)}</Pill> : null}
       </div>

@@ -195,4 +195,24 @@ mod tests {
             other => panic!("unexpected command: {other:?}"),
         }
     }
+
+    #[test]
+    fn nodes_rename_is_a_subcommand_of_nodes() {
+        let args =
+            Args::try_parse_from(["cranibox", "nodes", "rename", "Work Mac", "Studio"]).unwrap();
+        match args.command {
+            Some(agent::Command::Nodes {
+                command: Some(agent::NodesCommand::Rename { node, name }),
+            }) => {
+                assert_eq!(node, "Work Mac");
+                assert_eq!(name, "Studio");
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+        let list = Args::try_parse_from(["cranibox", "nodes"]).unwrap();
+        assert!(matches!(
+            list.command,
+            Some(agent::Command::Nodes { command: None })
+        ));
+    }
 }

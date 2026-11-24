@@ -1,10 +1,16 @@
 //! Remembered details of paired devices (`devices.json` beside `peers.json`), so offline
 //! devices keep their names and the time they were last seen.
-use anyhow::Result;
+use agent_workspace_runtime::peers::config::Config;
+use agent_workspace_runtime::peers::roster::RosterStore;
+use anyhow::{Result, ensure};
 use cranibox_contracts::app::DeviceKind;
+use cranibox_contracts::roster::RosterView;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use serde_json::{Value, json};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -149,6 +155,153 @@ pub fn forget(peers: &Path, node: &str) {
     }
 }
 
+/// Longest display name, counted in Unicode characters after trimming.
+pub const NAME_MAX_CHARS: usize = 64;
+
+/// Trim a name, treat a blank as “clear the alias”, and reject control characters
+/// or anything longer than [`NAME_MAX_CHARS`].
+pub fn normalize(name: &str) -> std::result::Result<Option<String>, &'static str> {
+    let trimmed = name.trim();
+    if trimmed.chars().any(|c| c.is_control()) {
+        return Err("Name cannot contain control characters");
+    }
+    if trimmed.chars().count() > NAME_MAX_CHARS {
+        return Err("Use at most 64 characters");
+    }
+    Ok((!trimmed.is_empty()).then(|| trimmed.to_owned()))
+}
+
+/// The name this device should advertise: the owner's alias when one is set,
+/// otherwise the hostname (or computer name).
+pub fn advertised_name(peers: &Path, local_id: &str) -> String {
+    load(peers)
+        .get(local_id)
+        .and_then(|k| k.alias.clone())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| crate::device_info::local().name.clone())
+}
+
+/// Every device this node knows, mapped to the name that should be shown for it.
+pub fn catalog(peers: &Path) -> BTreeMap<String, String> {
+    let mut names = BTreeMap::new();
+    if let Ok(config) = Config::read(peers) {
+        names.insert(
+            config.node_id.clone(),
+            advertised_name(peers, &config.node_id),
+        );
+        for node in config.routes.keys().chain(config.grants.keys()) {
+            names.entry(node.clone()).or_insert_with(|| node.clone());
+        }
+    }
+    if let Ok(roster) = RosterStore::load(roster_path(peers)) {
+        if let Some(current) = roster.current() {
+            for member in current.members {
+                names.entry(member.node_id).or_insert(member.name);
+            }
+        }
+    }
+    for (node, known) in load(peers) {
+        names.insert(node.clone(), known.display(&node));
+    }
+    if let Ok(config) = Config::read(peers) {
+        names.insert(
+            config.node_id.clone(),
+            advertised_name(peers, &config.node_id),
+        );
+    }
+    names
+}
+
+fn roster_path(peers: &Path) -> PathBuf {
+    peers.with_file_name("models").join("roster.json")
+}
+
+/// Look up a device by node ID or a unique display name (case-insensitive).
+pub fn resolve(peers: &Path, value: &str) -> Result<String> {
+    let names = catalog(peers);
+    if names.contains_key(value) {
+        return Ok(value.to_owned());
+    }
+    let matches: Vec<_> = names
+        .iter()
+        .filter(|(_, name)| name.eq_ignore_ascii_case(value))
+        .map(|(id, _)| id.clone())
+        .collect();
+    ensure!(
+        matches.len() == 1,
+        "device name is unknown or ambiguous: {value}; use its node ID"
+    );
+    Ok(matches[0].clone())
+}
+
+pub fn is_duplicate(peers: &Path, node: &str, name: &str) -> bool {
+    !name.is_empty()
+        && catalog(peers)
+            .iter()
+            .any(|(id, existing)| id != node && existing.eq_ignore_ascii_case(name))
+}
+
+/// Result of setting or clearing a display name.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct Rename {
+    pub node: String,
+    /// The name now used, or `None` if the alias was cleared.
+    pub name: Option<String>,
+    /// Another known device already uses this display name.
+    pub duplicate: bool,
+}
+
+impl Rename {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "node": self.node,
+            "name": self.name,
+            "cleared": self.name.is_none(),
+            "duplicate": self.duplicate,
+        })
+    }
+}
+
+/// Set or clear the owner's display name for a known device. The change is stored
+/// as an alias in `devices.json` and syncs to other owner devices.
+pub fn rename(peers: &Path, node: &str, name: &str) -> Result<Rename> {
+    ensure!(catalog(peers).contains_key(node), "device not found");
+    let label = normalize(name).map_err(anyhow::Error::msg)?;
+    update(peers, node, |k| {
+        k.alias = label.clone();
+        k.alias_at = Some(cranibox_llm::auth::now().saturating_mul(1000));
+    })?;
+    let shown = label.clone().unwrap_or_default();
+    Ok(Rename {
+        node: node.to_owned(),
+        name: label,
+        duplicate: is_duplicate(peers, node, &shown),
+    })
+}
+
+/// Prefer owner aliases (and this device's advertised name) in a `cranibox nodes` list.
+pub fn apply_to_list(peers: &Path, mut value: Value) -> Value {
+    let names = catalog(peers);
+    let known = load(peers);
+    let Some(nodes) = value["nodes"].as_array_mut() else {
+        return value;
+    };
+    for node in nodes {
+        let Some(id) = node["id"].as_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some(name) = names.get(&id) else {
+            continue;
+        };
+        let probed = node["name"].as_str();
+        let aliased = known.get(&id).is_some_and(|k| k.alias.is_some());
+        if node["this"] == true || aliased || probed.is_none() || probed == Some(id.as_str()) {
+            node["name"] = json!(name);
+        }
+    }
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +352,80 @@ mod tests {
         merge_labels(&peers, &json!({"node-a": {"label": "", "at": 30}})).unwrap();
         assert_eq!(load(&peers)["node-a"].display("node-a"), "node-a");
         assert_eq!(labels(&peers)["node-a"], json!({"label": "", "at": 30}));
+    }
+
+    #[test]
+    fn normalize_trims_rejects_control_characters_and_clears_a_blank() {
+        assert_eq!(
+            normalize("  Work Laptop  ").unwrap().as_deref(),
+            Some("Work Laptop")
+        );
+        assert_eq!(normalize("   ").unwrap(), None);
+        assert_eq!(normalize("").unwrap(), None);
+        assert_eq!(
+            normalize(
+                "a
+b"
+            )
+            .unwrap_err(),
+            "Name cannot contain control characters"
+        );
+        assert_eq!(
+            normalize(&"n".repeat(NAME_MAX_CHARS + 1)).unwrap_err(),
+            "Use at most 64 characters"
+        );
+        assert_eq!(
+            normalize(&"你".repeat(NAME_MAX_CHARS))
+                .unwrap()
+                .unwrap()
+                .chars()
+                .count(),
+            NAME_MAX_CHARS
+        );
+    }
+
+    #[test]
+    fn rename_sets_and_clears_an_alias_and_warns_on_a_duplicate() {
+        let dir = tempfile::tempdir().unwrap();
+        let peers = dir.path().join("peers.json");
+        Config::update(&peers, |_| Ok(())).unwrap();
+        let me = Config::read(&peers).unwrap().node_id;
+        let other = "node-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        update(&peers, other, |k| {
+            k.name = Some("Studio".into());
+        })
+        .unwrap();
+        let renamed = rename(&peers, other, "  Work Mac  ").unwrap();
+        assert_eq!(renamed.name.as_deref(), Some("Work Mac"));
+        assert!(!renamed.duplicate);
+        assert_eq!(renamed.to_json()["cleared"], false);
+        assert_eq!(load(&peers)[other].display(other), "Work Mac");
+        assert_eq!(
+            advertised_name(&peers, &me),
+            crate::device_info::local().name
+        );
+        let again = rename(&peers, &me, "Work Mac").unwrap();
+        assert!(again.duplicate);
+        assert_eq!(advertised_name(&peers, &me), "Work Mac");
+        let cleared = rename(&peers, other, "  ").unwrap();
+        assert!(cleared.name.is_none());
+        assert_eq!(cleared.to_json()["cleared"], true);
+        assert_eq!(load(&peers)[other].display(other), "Studio");
+        assert!(
+            rename(&peers, "node-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "X")
+                .unwrap_err()
+                .to_string()
+                .contains("device not found")
+        );
+        assert_eq!(resolve(&peers, "work mac").unwrap(), me);
+        let list = apply_to_list(
+            &peers,
+            json!({"nodes":[
+                {"id": me, "this": true, "online": true},
+                {"id": other, "name": other, "online": false}
+            ]}),
+        );
+        assert_eq!(list["nodes"][0]["name"], "Work Mac");
+        assert_eq!(list["nodes"][1]["name"], "Studio");
     }
 }
