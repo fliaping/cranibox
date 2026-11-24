@@ -100,7 +100,7 @@ cranibox pull --node <NodeID> /var/log/system.log ./system.log
 - **在别的设备上批准。** 审批会发到你的其他设备；远程批准需要输入恢复口令确认。
 - **审计。** 每次使用都记录在被使用的设备上（谁、做了什么、什么时候），并在那台设备上实时提示。
 
-详见[设备访问控制](docs/device-access-control.md)、[节点身份与端到端加密](docs/node-identity-and-e2e.md)、[安全审查](docs/security-review-2026-10-23.md)。
+详见[设备访问控制](docs/device-access-control.md)（[English](docs/device-access-control.en.md)）、[节点身份与端到端加密](docs/node-identity-and-e2e.md)（[English](docs/node-identity-and-e2e.en.md)）、[安全审查](docs/security-review-2026-10-23.md)。
 
 ## 和其他方案对比
 
@@ -151,12 +151,12 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 
 ### 服务器与 relay
 
-用 SSH 隧道打开远程服务器的界面：`ssh -L 7377:127.0.0.1:7377 server`。要让它兼作你设备的 relay，加上 `--public-url https://relay.example.com`（经反向代理）或 `--relay-listen 0.0.0.0:7378`（只提供 relay 与只读身份，界面仍只在回环）。见[设备组网](docs/iroh-network.md)和[客户端与设备组网](docs/node-desktop-and-device-mesh.md)。
+用 SSH 隧道打开远程服务器的界面：`ssh -L 7377:127.0.0.1:7377 server`。要让它兼作你设备的 relay，加上 `--public-url https://relay.example.com`（经反向代理）或 `--relay-listen 0.0.0.0:7378`（只提供 relay 与只读身份，界面仍只在回环）。见[设备组网](docs/iroh-network.md)（[English](docs/iroh-network.en.md)）和[客户端与设备组网](docs/node-desktop-and-device-mesh.md)。
 
 ## 文档
 
 - 设计：[docs/design](docs/design/README.md) 与[实现核对与缺口](docs/design/IMPLEMENTATION-STATUS.md)
-- 网络与身份：[iroh 组网](docs/iroh-network.md)、[节点身份与端到端加密](docs/node-identity-and-e2e.md)、[节点直连](docs/direct-node-peers.md)、[其他组网（EasyTier、Tailscale）](docs/device-networks.md)
+- 网络与身份：[iroh 组网](docs/iroh-network.md)（[English](docs/iroh-network.en.md)）、[节点身份与端到端加密](docs/node-identity-and-e2e.md)（[English](docs/node-identity-and-e2e.en.md)）、[节点直连](docs/direct-node-peers.md)、[其他组网（EasyTier、Tailscale）](docs/device-networks.md)
 - Agent 协作：[Agent 会话](docs/agent-sessions.md)、[后台执行](docs/agent-executions.md)、[跨设备任务](docs/device-tasks.md)、[协作记录](docs/federated-activity.md)
 
 ## 参与贡献

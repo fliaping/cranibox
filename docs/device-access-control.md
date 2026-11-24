@@ -1,5 +1,7 @@
 # 设备访问控制：按能力白名单、限时批准与使用审计 / Device access control
 
+> English: [device-access-control.en.md](device-access-control.en.md).
+
 > 状态：方案已确定（2026-10-25），按阶段实现。第二阶段的管理员签名部分沿用
 > [`admin-access-policy.md`](admin-access-policy.md)。本文定义第一阶段，以及两份文档合起来的实现顺序。
 

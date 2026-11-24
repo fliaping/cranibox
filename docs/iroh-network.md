@@ -1,5 +1,7 @@
 # iroh 默认网络：内置 relay 与链接/二维码配对 / iroh default network
 
+> English: [iroh-network.en.md](iroh-network.en.md).
+
 > WS1. Code: `crates/cranibox-net`, `crates/workspace-node/src/peer/transport_iroh.rs`,
 > `crates/workspace-web/src/relay.rs`. Acceptance: `tests/integration/iroh_netns.sh`.
 
