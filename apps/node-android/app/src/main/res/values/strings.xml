@@ -10,6 +10,7 @@
     <string name="tasks_section">进行中的任务</string>
     <string name="tasks_empty">暂无进行中的任务</string>
     <string name="scan_pair">扫码配对</string>
+    <string name="devices_empty">还没有配对设备。点右上角扫码，或粘贴配对链接。</string>
     <string name="scan_title">扫描配对二维码</string>
     <string name="scan_hint">对准另一台设备上的 Cranibox 二维码，或在下方粘贴配对链接。</string>
     <string name="scan_paste_hint">粘贴 cranibox:// 链接</string>
@@ -50,4 +51,39 @@
     <string name="this_device">本机</string>
     <string name="channel_approvals">待审批</string>
     <string name="channel_approvals_desc">有新的配对、访问或 Agent 请求等待你处理时通知你。</string>
+
+    <string name="tab_chat">对话</string>
+    <string name="chat_connected">已连接本机 Agent</string>
+    <string name="chat_offline">Agent 未运行</string>
+    <string name="chat_history">对话记录</string>
+    <string name="chat_history_empty">还没有历史对话</string>
+    <string name="chat_new">新对话</string>
+    <string name="chat_settings">Agent 设置</string>
+    <string name="chat_settings_intro">默认使用本机 Cranibox 模型网关（127.0.0.1:3424/v1）。若尚未订阅网关，也可填写兼容 OpenAI 的接口，即可直接对话。</string>
+    <string name="chat_use_gateway">优先使用本机模型网关</string>
+    <string name="chat_api_base">自定义 API 地址</string>
+    <string name="chat_api_key">API 密钥</string>
+    <string name="chat_model_id">模型 ID</string>
+    <string name="chat_setup_title">先配置一个模型</string>
+    <string name="chat_setup_body">打开设置，使用本机模型网关，或填写兼容 OpenAI 的接口和密钥。</string>
+    <string name="chat_approval_banner">有 %1$d 项请求待你审批，点这里处理。</string>
+    <string name="chat_empty_title">你好，我是本机 Agent</string>
+    <string name="chat_empty_body">通过 Cranibox 权限体系操作已配对的设备。可以先试一条快捷指令。</string>
+    <string name="chat_chip_devices">查看我的在线设备</string>
+    <string name="chat_chip_build">在电脑上检查构建状态</string>
+    <string name="chat_chip_phone">在手机虚拟屏上帮我操作</string>
+    <string name="chat_placeholder">发送消息给 Agent</string>
+    <string name="chat_send">发送</string>
+    <string name="chat_stop">停止显示</string>
+    <string name="chat_copy">复制</string>
+    <string name="chat_typing">正在回复…</string>
+    <string name="chat_thought">思考过程</string>
+    <string name="preview_takeover">接管虚拟屏</string>
+    <string name="preview_takeover_on">已接管 · 触摸将点按虚拟屏（不操作手机主屏）</string>
+    <string name="preview_takeover_off">实时预览 · 打开「接管」后可在画面上点按</string>
+    <string name="wireless_step1">打开系统无线调试</string>
+    <string name="wireless_step1_hint">在开发者选项里打开无线调试，并查看配对码。</string>
+    <string name="wireless_step2">输入 6 位配对码</string>
+    <string name="wireless_step3">连接并完成</string>
+    <string name="refresh">刷新</string>
 </resources>

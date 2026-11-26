@@ -4,11 +4,15 @@ import android.app.Application
 import android.content.Context
 import android.os.SystemClock
 import com.cranibox.android.api.NodeRepository
+import com.cranibox.android.pico.PicoClawRuntime
 import com.cranibox.android.core.bridge.Bridge
 import com.cranibox.android.core.bridge.FilePauseStore
 import com.cranibox.android.core.helper.HandoffNonces
 import com.cranibox.android.core.helper.NonceSlots
 import com.cranibox.android.core.helper.NonceStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 
@@ -22,6 +26,8 @@ class NodeApp : Application() {
     @Volatile var acceptHelpers = true
     val adb by lazy { PhoneSetup(this) }
     val repository by lazy { NodeRepository(this) }
+    val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val pico by lazy { PicoClawRuntime(this) }
 
     override fun onCreate() {
         super.onCreate()

@@ -5,6 +5,7 @@ import com.cranibox.android.core.bridge.BridgeToken
 import com.cranibox.android.core.bridge.LoopbackHttpServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -80,6 +81,7 @@ class NodeRuntime(private val app: NodeApp) {
                     app.loginUrl.value = url
                     app.status.value = "节点运行中"
                     ready = true
+                    app.work.launch { app.pico.start() }
                     break
                 }
                 delay(500)
@@ -92,6 +94,7 @@ class NodeRuntime(private val app: NodeApp) {
 
     @Synchronized
     fun close() {
+        app.pico.stop()
         app.loginUrl.value?.let { OwnListeningPorts.remove(android.net.Uri.parse(it).port) }
         app.loginUrl.value = null
         process?.let { child ->

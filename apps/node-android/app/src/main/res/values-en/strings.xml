@@ -10,6 +10,7 @@
     <string name="tasks_section">Active tasks</string>
     <string name="tasks_empty">No tasks in progress</string>
     <string name="scan_pair">Scan to pair</string>
+    <string name="devices_empty">No paired devices yet. Scan a QR code or paste a pairing link.</string>
     <string name="scan_title">Scan a pairing QR code</string>
     <string name="scan_hint">Point the camera at the Cranibox QR code on the other device, or paste a pairing link below.</string>
     <string name="scan_paste_hint">Paste a cranibox:// link</string>
@@ -52,4 +53,39 @@
     <string name="channel_approvals_desc">Notifies you when a new pairing, access, or agent request is waiting.</string>
     <string name="agent_overlay_label">Cranibox · Agent screen overlay</string>
     <string name="agent_overlay_description">Shows a live preview of the Agent virtual display over other apps. You can drag, collapse, or stop the Agent. This service does not read other apps or perform touches. Phone control still requires a wireless debugging connection.</string>
+
+    <string name="tab_chat">Chat</string>
+    <string name="chat_connected">Local Agent connected</string>
+    <string name="chat_offline">Agent is not running</string>
+    <string name="chat_history">Chat history</string>
+    <string name="chat_history_empty">No previous conversations yet</string>
+    <string name="chat_new">New chat</string>
+    <string name="chat_settings">Agent settings</string>
+    <string name="chat_settings_intro">Uses the on-device Cranibox model gateway (127.0.0.1:3424/v1) by default. If that is not set up, enter an OpenAI-compatible endpoint so Chat works on its own.</string>
+    <string name="chat_use_gateway">Prefer the on-device model gateway</string>
+    <string name="chat_api_base">Custom API base URL</string>
+    <string name="chat_api_key">API key</string>
+    <string name="chat_model_id">Model ID</string>
+    <string name="chat_setup_title">Set up a model first</string>
+    <string name="chat_setup_body">Open settings to use the on-device gateway, or enter an OpenAI-compatible endpoint and key.</string>
+    <string name="chat_approval_banner">%1$d request(s) need your approval. Tap to review.</string>
+    <string name="chat_empty_title">Hi, I am the on-device Agent</string>
+    <string name="chat_empty_body">I act on paired devices through Cranibox permissions. Try a prompt to get started.</string>
+    <string name="chat_chip_devices">Show my online devices</string>
+    <string name="chat_chip_build">Check the build status on my computer</string>
+    <string name="chat_chip_phone">Help me operate the phone virtual display</string>
+    <string name="chat_placeholder">Message the Agent</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_stop">Stop showing</string>
+    <string name="chat_copy">Copy</string>
+    <string name="chat_typing">Replying…</string>
+    <string name="chat_thought">Thinking</string>
+    <string name="preview_takeover">Take over the virtual display</string>
+    <string name="preview_takeover_on">Takeover on · taps go to the virtual display, not the phone home screen</string>
+    <string name="preview_takeover_off">Live preview · turn on Takeover to tap the picture</string>
+    <string name="wireless_step1">Open wireless debugging</string>
+    <string name="wireless_step1_hint">Enable Wireless debugging in Developer options and find the pairing code.</string>
+    <string name="wireless_step2">Enter the 6-digit pairing code</string>
+    <string name="wireless_step3">Connect and finish</string>
+    <string name="refresh">Refresh</string>
 </resources>

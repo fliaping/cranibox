@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -94,6 +95,7 @@ fun HomeScreen(snackbar: androidx.compose.material3.SnackbarHostState, model: Ho
     }
     val pending = inbox.map { PendingItem.Inbox(it) } + local.map { PendingItem.Local(it) } + remotes
     val activeTasks = tasks.filter { it.state !in setOf("done", "finished", "succeeded", "failed", "error", "cancelled", "canceled") }
+    var refreshing by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -103,6 +105,17 @@ fun HomeScreen(snackbar: androidx.compose.material3.SnackbarHostState, model: Ho
         if (!ready) {
             Text(stringResource(R.string.node_not_ready), modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    refreshing = true
+                    runCatching { model.repo.refresh() }
+                    refreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.approvals_section), style = MaterialTheme.typography.titleMedium) }
             if (pending.isEmpty()) {
@@ -123,6 +136,7 @@ fun HomeScreen(snackbar: androidx.compose.material3.SnackbarHostState, model: Ho
             } else {
                 items(activeTasks, key = { it.id }) { TaskCard(it) }
             }
+        }
         }
     }
     selected?.let { item ->

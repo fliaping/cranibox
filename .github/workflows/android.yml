@@ -27,6 +27,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: android-arm64
@@ -37,6 +41,8 @@ jobs:
         run: cargo test --locked -p agent-workspace-runtime --lib peers::computer::tests
       - name: Build ARM64 node
         working-directory: apps/node-android
+        env:
+          PICOCLAW_SRC: ${{ runner.temp }}/picoclaw
         run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" ./build-native.sh
       - name: Test and build APK
         working-directory: apps/node-android

@@ -38,6 +38,10 @@ class AndroidPhone(private val app: NodeApp) : PhoneControl {
     private val previewFrames = MutableStateFlow<Bitmap?>(null)
     // Published bitmaps are immutable snapshots. Never recycle them while a View may draw them.
     val frames = previewFrames.asStateFlow()
+    @Volatile var displayWidth: Int = 0
+        private set
+    @Volatile var displayHeight: Int = 0
+        private set
 
     fun attach(helper: ShellClient) = synchronized(lock) {
         if (client?.binder == helper.binder && connected.value) return@synchronized
@@ -52,6 +56,8 @@ class AndroidPhone(private val app: NodeApp) : PhoneControl {
         val density = (metrics.densityDpi * scale).toInt().coerceIn(72, 1000)
         val thread = HandlerThread("cranibox-frames").apply { start() }
         worker = thread
+        displayWidth = width
+        displayHeight = height
         val images = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3)
         reader = images
         val handler = Handler(thread.looper)

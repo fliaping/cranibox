@@ -2,12 +2,12 @@
 
 2026-11-02：新增安卓 App（`apps/node-android`），让安卓手机成为 Cranibox 网络中的一个节点。手机运行与桌面版相同的 Rust 节点，并在一块单独的后台虚拟屏上提供 Computer Use，其他设备上的 Agent 可以通过现有授权、租约、紧急停止和 MCP 操作手机上的 App。手机控制的做法参考 [Mika](https://github.com/wangzan101/Mika)（Apache-2.0），ADB 配对与连接代码改编自 Mika，见 `apps/node-android/NOTICE`。
 
-分两期：
+2026-11-27：节点 App 改为原生 Jetpack Compose + Material 3 四 Tab 界面（对话、动态、设备、本机），并内置 PicoClaw Agent Runtime（`libpicoclaw.so`），可在手机上直接对话、经 Cranibox MCP 操作已配对节点。终端/桌面会话仍可在无底栏的专用页中打开节点界面。
 
 | 期 | 内容 | 状态 |
 | --- | --- | --- |
-| 一 | 手机作为节点：配对、消息与协作任务、命令执行（App 身份）、Computer Use（虚拟屏、启动 App、点击、滑动、输入、按键、截图） | Android 15 ARM64 模拟器已通过节点入网、无线配对、跨节点控制及 MCP 截图验收；物理手机待验收 |
-| 二 | 手机自带 Agent：按接收方策略自动领取 device_tasks，用 cranibox-llm 的模型在手机上自己操作虚拟屏并报告结果 | 未开始，接口见文末 |
+| 一 | 手机作为节点：配对、消息与协作任务、命令执行、Computer Use（虚拟屏、启动 App、点击、滑动、输入、按键、截图） | 原生 Compose 控制器与受控界面已落地；Android 15 ARM64 模拟器此前已通过入网与无线配对验收；物理手机待验收 |
+| 二 | 手机自带对话 Agent：内置 PicoClaw Runtime，连接本机模型网关或自定义 OpenAI 兼容接口，经 `cranibox mcp` / `app-mcp` 调用设备、任务与 Computer Use，遵守既有审批与权限 | 已接入本机 Runtime 与「对话」Tab；真机与模型网关联调待验收 |
 
 ## 结构
 
@@ -29,7 +29,7 @@
                                     经 ContentProvider.call 把 Binder 交给 App
 ~~~
 
-- **Rust 节点**：`cargo build -p cranibox --no-default-features --target aarch64-linux-android`，作为 `lib/arm64-v8a/libcranibox.so` 打进 APK（`useLegacyPackaging`，安装时解出，可执行；安卓 10 起 App 不能执行自己写入的文件，只有原生库目录可以）。Android 不走桌面版复制 runtime 再执行的自动启动路径，首次私密配置发布使用 SELinux 允许的原子重命名。NodeService 设好 `HOME=filesDir`、`TMPDIR=cacheDir`、`SHELL=/system/bin/sh`、`PATH=/system/bin:/system/xbin` 后以子进程启动它，配置在 `filesDir/.config/cranibox/settings.json`。节点身份、配对、授权、消息、任务都与桌面相同，管理界面就是节点自带的 Web 界面，App 用 WebView 登录后直接打开中文设备列表。
+- **Rust 节点**：`cargo build -p cranibox --no-default-features --target aarch64-linux-android`，作为 `lib/arm64-v8a/libcranibox.so` 打进 APK（`useLegacyPackaging`，安装时解出，可执行；安卓 10 起 App 不能执行自己写入的文件，只有原生库目录可以）。Android 不走桌面版复制 runtime 再执行的自动启动路径，首次私密配置发布使用 SELinux 允许的原子重命名。NodeService 设好 `HOME=filesDir`、`TMPDIR=cacheDir`、`SHELL=/system/bin/sh`、`PATH=/system/bin:/system/xbin` 后以子进程启动它，配置在 `filesDir/.config/cranibox/settings.json`。节点身份、配对、授权、消息、任务都与桌面相同，节点管理 API 由原生界面调用（本机 `127.0.0.1:7377` 的 App API）。终端与远程桌面在无底栏的专用 WebView 中打开对应哈希路由，避免与底部导航重叠。
 - **手机控制**：与 Mika 相同，不需要 root，也不需要电脑。用户在「开发者选项 › 无线调试」里点「使用配对码配对设备」，App 用 mDNS 找到配对端口（`_adb-tls-pairing._tcp`），用户把六位配对码填进 App 的通知输入框（可留在设置页分屏）。配对后 App 用自己的 RSA 钥匙经 TLS 连上本机 adbd（`_adb-tls-connect._tcp`），用 `exec:` 以 shell 身份启动 `app_process` 助手。助手拿到 App 的 ContentProvider，把自己的 Binder 交过去。mDNS 不可用时，连接会尝试上次端口和本机端口扫描；设置页也支持手填配对端口、连接端口。调试钥匙经 Android Keystore 的 AES-GCM 密钥加密存放，不随系统备份或换机迁移。
 - **虚拟屏**：助手用 `DisplayManager.createVirtualDisplay` 建一块与主屏相同比例、最长边不超过 1920 像素的虚拟屏，画面输出到 App 进程里的 ImageReader。安卓 14 起尝试带 `OWN_FOCUS | STEAL_TOP_FOCUS_DISABLED` 的可信屏，避免抢主屏焦点；shell 没有 `ADD_TRUSTED_DISPLAY` 时去掉可信相关标志再建。状态会报告是否获得可信屏。Agent 的输入只发到这块屏；不同系统版本和厂商对副屏焦点、应用启动的支持需真机验证。
 - **实时预览**：底部「屏幕」页和概览的「查看 Agent 屏幕」可查看完整画面。`AndroidPhone.frames` 发布独立的 Bitmap 快照，最高 10 帧/秒、短边不超过 540 像素；原始尺寸截图仍供 Computer Use 使用。`AgentScreenView` 按比例完整显示，隐藏时取消订阅、清除视图引用，断开时显示连接提示。预览只读，点击画面不会向虚拟屏注入输入。
@@ -130,9 +130,25 @@ python3 scripts/verify-phone-control.py --adb "$ANDROID_HOME/platform-tools/adb"
 
 2026-11-05 补充：实时「屏幕」页和无障碍悬浮窗已部署到上述 MacMini 模拟器。实际验证跨节点打开短信草稿、应用内/跨应用画面、拖动、收起/展开、关闭/重开、横屏边界，以及浮窗停止撤销租约和本机恢复。最终保留草稿未发送，设备在线且无控制租约。证据见 `dist/android/agent-preview/REPORT.zh-CN.md`，交付包校验见 `dist/android/build-agent-preview-verified.json`。当前预览只读，未实现画面内直接接管。
 
-## 二期：手机自带 Agent（待做）
+## 对话 Agent 与 PicoClaw Runtime
 
-- 接收方策略允许时，NodeService 领取发给本机的 device_tasks，在手机上运行一个模型循环：截图 → 模型（cranibox-llm 的本机网关，复用节点已配置的模型与凭据）→ 桥动作 → 进度汇报 → finish。
-- 循环只经本机桥操作虚拟屏，与远端 Agent 共用租约，同一时刻只有一个控制者。
-- 花钱、发消息、删除等不可逆操作先经 device_tasks 的提问流程向委托方确认。
-- 需要的节点改动：自动接单策略加入「内置手机 Agent」类型（现有策略只能启动外部程序）。
+本机在 `NodeService` 中与 `libcranibox.so serve` 一起启动 `libpicoclaw.so gateway --host 127.0.0.1 --allow-empty`。
+
+- **构建**：`apps/node-android/build-native.sh` 在打好 `libcranibox.so` 之后，从 Git 固定检出 [PicoClaw v0.3.1](https://github.com/sipeed/picoclaw/releases/tag/v0.3.1)（commit `2cf030d2fd3b871d7ec17e3be34c24688aac76da`），以 `CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -tags stdjson` 交叉编译，产出 `app/src/main/jniLibs/arm64-v8a/libpicoclaw.so`。GitHub Actions 的 Android 工作流同样执行这一步。PicoClaw 为 MIT 许可，全文见 `apps/node-android/THIRD_PARTY_LICENSES`。
+- **配置**：每次启动在 `filesDir/picoclaw/`（`PICOCLAW_HOME`）写入 schema v2 的 `config.json` 与 `.security.yml`。默认 `model_list` 指向本机 Cranibox 模型网关 `http://127.0.0.1:3424/v1`（`cranibox-llm` 的 `LLM_ADDR`）。若用户在「对话」设置中填写了兼容 OpenAI 的地址、密钥和模型 ID，则将其作为默认模型，以便在尚未订阅网关时也能对话。网关监听 `127.0.0.1:18790`。本地 `exec` 工具关闭，设备操作走 Cranibox MCP。
+- **MCP**：为 PicoClaw 注册三个 stdio 服务器，命令均为本机 `libcranibox.so`（绝对路径），环境变量与节点进程一致（`HOME`、`XDG_CONFIG_HOME`）：
+  - `cranibox`：`libcranibox.so --config <settings.json> mcp`（官方舰队 MCP：设备、命令、文件、任务等，受既有授权与审批约束）
+  - `cranibox-devices`：`app-mcp --data <filesDir/.config/cranibox> --service devices`（只读设备/审批列表，不能代人批准）
+  - `cranibox-computer`：`app-mcp --service computer`（Computer Use，同样走既有租约与紧急停止）
+- **对话协议**：原生 Chat 经 OkHttp 连接 `ws://127.0.0.1:18790/pico/ws?session_id=…`，使用 `Authorization: Bearer <token>`。客户端发送 `{type:"message.send",id,session_id,payload:{content}}`；服务端事件为 `message.create` / `message.update` / `message.delete` / `typing.*` / `error` / `pong`（对照 v0.3.1 的 `pkg/channels/pico/protocol.go`）。v0.3.1 的 Pico 通道没有中止帧，「停止」只结束本机的进行中状态显示。
+- **安全**：令牌自动生成并写在 `filesDir/picoclaw/.security.yml`（仅应用私有目录）。网关只绑定 127.0.0.1。不启用 URL query token。
+
+## 界面
+
+四 Tab 底部导航（对话为默认首页）：
+
+- **对话**：原生 Compose 流式聊天、Markdown、工具调用状态、待审批横幅、会话历史、模型设置。
+- **动态**：待你审批（本机 inbox、本地/远程访问请求）与进行中任务；新待办走系统通知。
+- **设备**：原生设备卡片、重命名、能力开关（关/询问/允许）、扫码或粘贴 `cranibox://` 配对；终端/桌面进入无底栏专用页。
+- **本机**：节点启停、紧急停止/恢复、虚拟屏预览。预览页可打开「接管」，把触摸映射到 Agent 虚拟屏（不操作手机主屏，且受紧急停止约束）。无线调试配对为三步引导，端口可自动发现或手动填写。
+

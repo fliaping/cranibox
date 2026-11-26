@@ -26,6 +26,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.Switch
+import android.annotation.SuppressLint
+import android.view.MotionEvent
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +53,7 @@ fun PreviewScreen(onBack: () -> Unit) {
     val available by AgentOverlayService.available.collectAsState()
     val requested by AgentOverlayService.requested.collectAsState()
     val paused by produceState(initialValue = app.bridge.paused, key1 = app) { while (true) { value = app.bridge.paused; delay(500) } }
+    var takeover by remember { mutableStateOf(false) }
     DisposableEffect(Unit) {
         app.agentScreenVisible.value = true
         onDispose { app.agentScreenVisible.value = false }
@@ -68,8 +75,44 @@ fun PreviewScreen(onBack: () -> Unit) {
             modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(stringResource(R.string.preview_readonly), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AndroidView(factory = { AgentScreenView(it) }, modifier = Modifier.fillMaxWidth().weight(1f).padding(16.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                stringResource(if (takeover) R.string.preview_takeover_on else R.string.preview_takeover_off),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+            )
+            Row {
+                Text(stringResource(R.string.preview_takeover), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(end = 8.dp))
+                Switch(checked = takeover, onCheckedChange = { takeover = it }, enabled = connected && !paused)
+            }
+        }
+        AndroidView(
+            factory = { ctx ->
+                AgentScreenView(ctx).apply {
+                    contentDescription = "Agent 虚拟屏"
+                    @SuppressLint("ClickableViewAccessibility")
+                    setOnTouchListener { view, event ->
+                        val enabled = view.getTag(R.id.preview_takeover_tag) as? Boolean ?: false
+                        if (!enabled || event.action != MotionEvent.ACTION_UP) return@setOnTouchListener enabled
+                        val dw = ctx.node.phone.displayWidth
+                        val dh = ctx.node.phone.displayHeight
+                        if (dw <= 0 || dh <= 0) return@setOnTouchListener true
+                        val scale = minOf(view.width.toFloat() / dw, view.height.toFloat() / dh)
+                        val shownW = dw * scale
+                        val shownH = dh * scale
+                        val left = (view.width - shownW) / 2f
+                        val top = (view.height - shownH) / 2f
+                        val px = ((event.x - left) / scale).toInt()
+                        val py = ((event.y - top) / scale).toInt()
+                        if (px in 0 until dw && py in 0 until dh) ctx.node.phone.tap(px, py)
+                        true
+                    }
+                }
+            },
+            update = { it.setTag(R.id.preview_takeover_tag, takeover && connected && !paused) },
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(16.dp),
+        )
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 if (available) {

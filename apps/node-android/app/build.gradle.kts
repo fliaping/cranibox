@@ -72,9 +72,14 @@ android {
 }
 
 val verifyNative by tasks.registering {
-    val binary = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libcranibox.so")
-    inputs.file(binary)
-    doLast { check(binary.asFile.isFile) { "Build the Android node first: ./build-native.sh" } }
+    val cranibox = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libcranibox.so")
+    val picoclaw = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libpicoclaw.so")
+    inputs.file(cranibox)
+    inputs.file(picoclaw)
+    doLast {
+        check(cranibox.asFile.isFile) { "Build the Android node first: ./build-native.sh" }
+        check(picoclaw.asFile.isFile) { "Build PicoClaw first: ./build-native.sh" }
+    }
 }
 // Compile and unit tests do not need the native node; packaging and lint-on-APK do.
 listOf("mergeDebugNativeLibs", "mergeReleaseNativeLibs", "assembleDebug", "assembleRelease", "lintDebug", "lintRelease").forEach { name ->
@@ -82,7 +87,7 @@ listOf("mergeDebugNativeLibs", "mergeReleaseNativeLibs", "assembleDebug", "assem
 }
 
 val legalAssets by tasks.registering(Copy::class) {
-    from(rootProject.file("NOTICE"), rootProject.file("../../LICENSE"))
+    from(rootProject.file("NOTICE"), rootProject.file("../../LICENSE"), rootProject.file("THIRD_PARTY_LICENSES"))
     into(layout.buildDirectory.dir("generated/legalAssets"))
 }
 android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/legalAssets"))

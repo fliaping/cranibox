@@ -149,14 +149,16 @@ fun PhoneScreen(onPreview: () -> Unit, snackbar: SnackbarHostState, model: Phone
                     Text(stringResource(R.string.wireless_pair), style = MaterialTheme.typography.titleMedium)
                     Text(phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("1. 在开发者选项中开启「无线调试」\n2. 选择「使用配对码配对设备」，保持弹窗打开\n3. 把六位配对码填在下方，或从通知栏输入", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.wireless_step1), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.wireless_step1_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     FilledTonalButton(onClick = {
                         service(NodeService.SHOW_PAIR)
                         runCatching { context.startActivity(Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS")) }
                             .onFailure { context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
                     }, modifier = Modifier.fillMaxWidth()) { Text("打开无线调试") }
+                    Text(stringResource(R.string.wireless_step2), style = MaterialTheme.typography.titleSmall)
                     OutlinedTextField(value = code, onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) }, label = { Text("六位配对码") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-                    OutlinedTextField(value = pairPort, onValueChange = { pairPort = it.filter(Char::isDigit).take(5) }, label = { Text("配对端口 · 选填") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                    OutlinedTextField(value = pairPort, onValueChange = { pairPort = it.filter(Char::isDigit).take(5) }, label = { Text("配对端口 · 选填，自动发现时可留空") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
                     Button(onClick = {
                         if (code.length != 6) scope.launch { snackbar.showSnackbar("请输入六位配对码") }
                         else {
@@ -165,7 +167,8 @@ fun PhoneScreen(onPreview: () -> Unit, snackbar: SnackbarHostState, model: Phone
                             else { service(NodeService.PAIR, code, port); code = "" }
                         }
                     }, modifier = Modifier.fillMaxWidth(), enabled = !busy) { Text("配对并启动") }
-                    OutlinedTextField(value = connectPort, onValueChange = { connectPort = it.filter(Char::isDigit).take(5) }, label = { Text("连接端口 · 选填") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                    Text(stringResource(R.string.wireless_step3), style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(value = connectPort, onValueChange = { connectPort = it.filter(Char::isDigit).take(5) }, label = { Text("连接端口 · 选填，自动发现时可留空") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
                     OutlinedButton(onClick = {
                         val port = parsePort(connectPort)
                         if (connectPort.isNotBlank() && port == null) scope.launch { snackbar.showSnackbar("端口需在 1–65535 之间") }

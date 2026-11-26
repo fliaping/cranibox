@@ -1,6 +1,14 @@
 package com.cranibox.android.ui
 
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import com.cranibox.android.node
+import com.cranibox.android.ui.chat.ChatScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Devices
@@ -47,7 +55,11 @@ fun CraniboxApp(
     val snackbar = remember { SnackbarHostState() }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route.orEmpty()
-    val showBar = route in setOf("home", "devices", "phone")
+    val showBar = route in setOf("chat", "home", "devices", "phone")
+    val app = LocalContext.current.node
+    val approvals by app.repository.approvals.collectAsState()
+    val now = System.currentTimeMillis() / 1000
+    val pending = approvals.count { it.expiresAt == null || it.expiresAt > now }
 
     LaunchedEffect(openApprovals) {
         if (openApprovals) {
@@ -68,14 +80,16 @@ fun CraniboxApp(
         bottomBar = {
             if (showBar) {
                 NavigationBar {
-                    NavItem("home", stringResource(R.string.tab_home), Icons.Outlined.Widgets, route, nav)
+                    NavItem("chat", stringResource(R.string.tab_chat), Icons.Outlined.ChatBubbleOutline, route, nav)
+                    NavItem("home", stringResource(R.string.tab_home), Icons.Outlined.Widgets, route, nav, badge = pending)
                     NavItem("devices", stringResource(R.string.tab_devices), Icons.Outlined.Devices, route, nav)
                     NavItem("phone", stringResource(R.string.tab_phone), Icons.Outlined.PhoneAndroid, route, nav)
                 }
             }
         },
     ) { inner ->
-        NavHost(navController = nav, startDestination = "home", modifier = Modifier.padding(inner)) {
+        NavHost(navController = nav, startDestination = "chat", modifier = Modifier.padding(inner)) {
+            composable("chat") { ChatScreen(snackbar = snackbar, onApprovals = { nav.navigate("home") { launchSingleTop = true } }) }
             composable("home") { HomeScreen(snackbar) }
             composable("devices") {
                 DevicesScreen(
@@ -134,6 +148,7 @@ private fun RowScope.NavItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     current: String,
     nav: androidx.navigation.NavHostController,
+    badge: Int = 0,
 ) {
     NavigationBarItem(
         selected = current == route,
@@ -144,7 +159,13 @@ private fun RowScope.NavItem(
                 restoreState = true
             }
         },
-        icon = { Icon(icon, contentDescription = label) },
+        icon = {
+            if (badge > 0) {
+                BadgedBox(badge = { Badge { Text(if (badge > 99) "99+" else badge.toString()) } }) {
+                    Icon(icon, contentDescription = label)
+                }
+            } else Icon(icon, contentDescription = label)
+        },
         label = { Text(label) },
     )
 }

@@ -28,6 +28,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +55,8 @@ class DevicesViewModel(application: Application) : AndroidViewModel(application)
 fun DevicesScreen(onDevice: (String) -> Unit, onScan: () -> Unit, model: DevicesViewModel = viewModel()) {
     val devices by model.repo.devices.collectAsState()
     val ready by model.repo.signedIn.collectAsState()
+    val scope = rememberCoroutineScope()
+    var refreshing by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(stringResource(R.string.tab_devices)) },
@@ -61,9 +69,34 @@ fun DevicesScreen(onDevice: (String) -> Unit, onScan: () -> Unit, model: Devices
         if (!ready) {
             Text(stringResource(R.string.node_not_ready), modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(devices, key = { it.nodeId }) { device ->
-                DeviceCard(device) { onDevice(device.nodeId) }
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    refreshing = true
+                    runCatching { model.repo.refresh() }
+                    refreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (devices.isEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.devices_empty),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    }
+                }
+                items(devices, key = { it.nodeId }) { device ->
+                    DeviceCard(device) { onDevice(device.nodeId) }
+                }
             }
         }
     }

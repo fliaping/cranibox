@@ -54,3 +54,29 @@ cargo build --locked -p cranibox --no-default-features --target "$TARGET" $FLAG
 mkdir -p "$OUT"
 cp "${CARGO_TARGET_DIR:-$ROOT/target}/$TARGET/$PROFILE/cranibox" "$OUT/libcranibox.so"
 echo "$OUT/libcranibox.so"
+
+# PicoClaw Agent Runtime (pinned tag, MIT). Built with CGO_ENABLED=0 and -tags stdjson.
+PICOCLAW_REPO="${PICOCLAW_REPO:-https://github.com/sipeed/picoclaw.git}"
+PICOCLAW_REF="${PICOCLAW_REF:-v0.3.1}"
+PICOCLAW_COMMIT="${PICOCLAW_COMMIT:-2cf030d2fd3b871d7ec17e3be34c24688aac76da}"
+PICOCLAW_SRC="${PICOCLAW_SRC:-${PICOCLAW_CACHE:-$HOME/src/picoclaw}}"
+if [ ! -d "$PICOCLAW_SRC/.git" ]; then
+  mkdir -p "$(dirname "$PICOCLAW_SRC")"
+  git clone --branch "$PICOCLAW_REF" --depth 1 "$PICOCLAW_REPO" "$PICOCLAW_SRC"
+fi
+git -C "$PICOCLAW_SRC" fetch --depth 1 origin "$PICOCLAW_REF"
+git -C "$PICOCLAW_SRC" checkout --detach "$PICOCLAW_COMMIT"
+GOT=$(git -C "$PICOCLAW_SRC" rev-parse HEAD)
+[ "$GOT" = "$PICOCLAW_COMMIT" ] || { echo "PicoClaw commit mismatch: $GOT" >&2; exit 1; }
+# Persistent module cache when unset (avoid workspace .cache / build dirs).
+export GOPATH="${GOPATH:-$HOME/go-workspace}"
+export GOMODCACHE="${GOMODCACHE:-$HOME/go-mod}"
+export GOCACHE="${GOCACHE:-$HOME/go-build-cache}"
+mkdir -p "$GOPATH" "$GOMODCACHE" "$GOCACHE"
+(
+  cd "$PICOCLAW_SRC"
+  CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -tags stdjson \
+    -ldflags "-s -w -X github.com/sipeed/picoclaw/pkg/config.Version=$PICOCLAW_REF -X github.com/sipeed/picoclaw/pkg/config.GitCommit=$PICOCLAW_COMMIT" \
+    -o "$OUT/libpicoclaw.so" ./cmd/picoclaw
+)
+echo "$OUT/libpicoclaw.so"
