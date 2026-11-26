@@ -64,7 +64,7 @@ For Claude Code there is also a plugin with the MCP server and a skill that teac
 
 For Codex, copy [`plugins/cranibox/skills/cranibox`](plugins/cranibox/skills/cranibox/SKILL.md) to `~/.codex/skills/cranibox`.
 
-Then ask, for example: *"Run the test suite on my Windows PC and pull the report back here."*
+Then ask, for example: *"Run the test suite on my Windows PC and pull the report back here."* A full walkthrough, including the approval prompt, is in [docs/examples/cross-platform-tests.md](docs/examples/cross-platform-tests.md).
 
 The same operations work from a shell:
 
@@ -158,6 +158,7 @@ Open a remote server's UI through an SSH tunnel: `ssh -L 7377:127.0.0.1:7377 ser
 - Design: [docs/design](docs/design/README.md) and [implementation status](docs/design/IMPLEMENTATION-STATUS.md)
 - Network and identity: [iroh network](docs/iroh-network.md), [node identity and E2E](docs/node-identity-and-e2e.md), [direct peers](docs/direct-node-peers.md), [other networks (EasyTier, Tailscale)](docs/device-networks.md)
 - Agent work: [agent sessions](docs/agent-sessions.md), [agent executions](docs/agent-executions.md), [device tasks](docs/device-tasks.md), [federated activity](docs/federated-activity.md)
+- Examples: [run a test suite on another OS](docs/examples/cross-platform-tests.md)
 
 ## Contributing
 
