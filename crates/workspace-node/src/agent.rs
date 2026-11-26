@@ -34,7 +34,11 @@ pub enum Command {
         command: crate::peer::Command,
     },
     /// List devices accessible to this device's Agent.
-    Nodes,
+    Nodes {
+        /// Print JSON (the default when stdout is not a terminal).
+        #[arg(long)]
+        json: bool,
+    },
     /// Update this device or other devices of your identity to a new version.
     Update {
         #[command(subcommand)]
@@ -119,7 +123,14 @@ pub enum Command {
 pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()> {
     let fleet = client::Fleet::new(peers.clone());
     match command {
-        Command::Nodes => client::print(fleet.nodes().await?),
+        Command::Nodes { json } => {
+            let value = fleet.nodes().await?;
+            if json || !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+                client::print(value);
+            } else {
+                print!("{}", format_nodes_table(&value));
+            }
+        }
         // Needs the settings path, which only the command line entry point has.
         Command::Update { .. } => {
             anyhow::bail!("update is handled by the command line entry point")
@@ -166,4 +177,115 @@ pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()
         _ => anyhow::bail!("device commands use their local configuration"),
     }
     Ok(())
+}
+
+/// Human-readable table for `cranibox nodes` when stdout is a terminal.
+pub fn format_nodes_table(value: &serde_json::Value) -> String {
+    let nodes = value["nodes"].as_array().cloned().unwrap_or_default();
+    let mut rows: Vec<[String; 5]> = vec![[
+        "NAME".into(),
+        "OS".into(),
+        "ONLINE".into(),
+        "PATH".into(),
+        "NODE ID".into(),
+    ]];
+    for node in &nodes {
+        let id = node["id"].as_str().unwrap_or("").to_owned();
+        let this = node["this"].as_bool().unwrap_or(false);
+        let name = node["name"]
+            .as_str()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                if this {
+                    "this device".into()
+                } else {
+                    id.clone()
+                }
+            });
+        let os = node["os"]
+            .as_str()
+            .map(str::trim)
+            .filter(|os| !os.is_empty())
+            .unwrap_or("-")
+            .to_owned();
+        let online = if node["online"].as_bool().unwrap_or(false) {
+            "yes"
+        } else {
+            "no"
+        }
+        .to_owned();
+        let path = node["path"]
+            .as_str()
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| if this { "local".into() } else { "-".into() });
+        rows.push([name, os, online, path, id]);
+    }
+    let widths: [usize; 5] = std::array::from_fn(|column| {
+        rows.iter()
+            .map(|row| row[column].chars().count())
+            .max()
+            .unwrap_or(0)
+    });
+    let mut out = String::new();
+    for row in rows {
+        for (column, cell) in row.iter().enumerate() {
+            if column > 0 {
+                out.push_str("  ");
+            }
+            out.push_str(cell);
+            out.extend(std::iter::repeat_n(
+                ' ',
+                widths[column].saturating_sub(cell.chars().count()),
+            ));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn nodes_table_lists_name_os_online_path_and_id() {
+        let value = json!({"nodes":[
+            {"id":"node-local","this":true,"online":true},
+            {"id":"node-mac","name":"Studio","os":"macOS","online":true,"path":"direct"},
+            {"id":"node-win","name":"Windows PC","os":"Windows","online":false}
+        ]});
+        let table = format_nodes_table(&value);
+        let lines: Vec<_> = table.lines().collect();
+        assert_eq!(
+            lines[0].split_whitespace().collect::<Vec<_>>(),
+            ["NAME", "OS", "ONLINE", "PATH", "NODE", "ID"]
+        );
+        assert!(table.contains("this device"));
+        assert!(table.contains("local"));
+        assert!(table.contains("Studio"));
+        assert!(table.contains("macOS"));
+        assert!(table.contains("direct"));
+        assert!(table.contains("Windows PC"));
+        assert!(table.contains("node-win"));
+        // Offline devices with no path show a dash, not a blank path column.
+        let win = lines
+            .iter()
+            .find(|line| line.contains("Windows PC"))
+            .unwrap();
+        assert!(win.contains("no"));
+        assert!(win.split_whitespace().any(|cell| cell == "-"));
+    }
+
+    #[test]
+    fn nodes_table_for_missing_list_is_just_the_header() {
+        assert_eq!(
+            format_nodes_table(&json!({})),
+            "NAME  OS  ONLINE  PATH  NODE ID\n"
+        );
+    }
 }

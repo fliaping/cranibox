@@ -141,6 +141,20 @@ mod tests {
     use crate::{peer, spaces};
 
     #[test]
+    fn nodes_json_flag_is_opt_in() {
+        let default = Args::try_parse_from(["cranibox", "nodes"]).unwrap();
+        match default.command {
+            Some(agent::Command::Nodes { json }) => assert!(!json),
+            other => panic!("unexpected command: {other:?}"),
+        }
+        let flagged = Args::try_parse_from(["cranibox", "nodes", "--json"]).unwrap();
+        match flagged.command {
+            Some(agent::Command::Nodes { json }) => assert!(json),
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
     fn terminal_host_is_a_hidden_local_command() {
         use clap::CommandFactory;
         let help = Args::command().render_long_help().to_string();

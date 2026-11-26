@@ -69,7 +69,7 @@ Then ask, for example: *"Run the test suite on my Windows PC and pull the report
 The same operations work from a shell:
 
 ```bash
-cranibox nodes                                   # devices your agents can use
+cranibox nodes                                   # table in a terminal, JSON otherwise; --json for scripts
 cranibox exec --node <NodeID> -- uname -a
 cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # chunked, SHA-256 verified, atomic
 cranibox pull --node <NodeID> /var/log/system.log ./system.log

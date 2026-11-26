@@ -71,7 +71,7 @@ Codex 用户把 [`plugins/cranibox/skills/cranibox`](plugins/cranibox/skills/cra
 同样的操作也可以在终端里做：
 
 ```bash
-cranibox nodes                                   # Agent 可以使用的设备
+cranibox nodes                                   # 终端里显示表格，否则输出 JSON；脚本请加 --json
 cranibox exec --node <NodeID> -- uname -a
 cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # 分块传输、SHA-256 校验、原子替换
 cranibox pull --node <NodeID> /var/log/system.log ./system.log
