@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.9.0.schema.json
+PackageIdentifier: fliaping.Cranibox
+PackageVersion: 1.2.1
+PackageLocale: en-US
+Publisher: fliaping
+PublisherUrl: https://github.com/fliaping
+PublisherSupportUrl: https://github.com/fliaping/cranibox/issues
+Author: fliaping
+PackageName: Cranibox
+PackageUrl: https://github.com/fliaping/cranibox
+License: Apache-2.0
+LicenseUrl: https://github.com/fliaping/cranibox/blob/main/LICENSE
+Copyright: Copyright (c) 2026 fliaping
+ShortDescription: Give your agents hands on every device you own
+Description: Claude Code or Codex on one machine can run commands on your Mac, Windows PC and Linux servers, copy files between them, and see or operate their desktops and browsers. Every device decides what it allows. Devices connect peer to peer, end-to-end encrypted. No account, no cloud.
+Moniker: cranibox
+Tags:
+  - agent
+  - mcp
+  - p2p
+  - cli
+ReleaseNotesUrl: https://github.com/fliaping/cranibox/releases/tag/v1.2.1
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0

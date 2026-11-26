@@ -1,0 +1,29 @@
+# Maintainer: fliaping <https://github.com/fliaping>
+pkgname=cranibox-bin
+pkgver=1.2.1
+pkgrel=1
+pkgdesc="Give your agents hands on every device you own"
+arch=('x86_64' 'aarch64')
+url="https://github.com/fliaping/cranibox"
+license=('Apache-2.0')
+depends=('glibc')
+provides=('cranibox')
+conflicts=('cranibox')
+source_x86_64=("cranibox-linux-x86_64-$pkgver::https://github.com/fliaping/cranibox/releases/download/v$pkgver/cranibox-linux-x86_64"
+               "SHA256SUMS-$pkgver::https://github.com/fliaping/cranibox/releases/download/v$pkgver/SHA256SUMS")
+source_aarch64=("cranibox-linux-arm64-$pkgver::https://github.com/fliaping/cranibox/releases/download/v$pkgver/cranibox-linux-arm64"
+                "SHA256SUMS-$pkgver::https://github.com/fliaping/cranibox/releases/download/v$pkgver/SHA256SUMS")
+sha256sums_x86_64=('b5d058f7f9a428e778bb476ad5743259060c68b1b68924875c3be827015e97f5'
+                   '3a9d3b1b16f5dd932f5f93fb7570737253ce7ff901b956e554df53cef909ab11')
+sha256sums_aarch64=('ca242dff9d245790a10bbcde56838c8f2eb566cdb2d56175508904c5bf18d890'
+                    '3a9d3b1b16f5dd932f5f93fb7570737253ce7ff901b956e554df53cef909ab11')
+
+package() {
+  local src
+  if [[ $CARCH == aarch64 ]]; then
+    src="cranibox-linux-arm64-$pkgver"
+  else
+    src="cranibox-linux-x86_64-$pkgver"
+  fi
+  install -Dm755 "$srcdir/$src" "$pkgdir/usr/bin/cranibox"
+}

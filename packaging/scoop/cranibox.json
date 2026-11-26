@@ -1,0 +1,24 @@
+{
+  "version": "1.2.1",
+  "description": "Give your agents hands on every device you own",
+  "homepage": "https://github.com/fliaping/cranibox",
+  "license": "Apache-2.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/fliaping/cranibox/releases/download/v1.2.1/cranibox-windows-x86_64.exe#/cranibox.exe",
+      "hash": "0507ea3dee598e91c6df3821b07ef63321cc64b7cd76f391c781ab338f496152"
+    }
+  },
+  "bin": "cranibox.exe",
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/fliaping/cranibox/releases/download/v$version/cranibox-windows-x86_64.exe#/cranibox.exe"
+      }
+    },
+    "hash": {
+      "url": "https://github.com/fliaping/cranibox/releases/download/v$version/SHA256SUMS"
+    }
+  }
+}
