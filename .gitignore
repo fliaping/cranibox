@@ -4,6 +4,9 @@ __pycache__/
 core
 # noVNC source directory, not a core dump.
 !addons/novnc/core/
+# Android phone node core module (and its Kotlin core package), not a core dump.
+!apps/node-android/core/
+!apps/node-android/core/**/core/
 core.*
 /target/
 /target-*/
