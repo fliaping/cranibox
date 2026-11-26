@@ -20,7 +20,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # v4 no longer installs the removed `tools` package (v3's default).
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -29,7 +32,7 @@ jobs:
           shared-key: android-arm64
       - uses: gradle/actions/setup-gradle@v4
       - name: Install Android build tools
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
       - name: Test bridge and node protocol
         run: cargo test --locked -p agent-workspace-runtime --lib peers::computer::tests
       - name: Build ARM64 node
@@ -37,7 +40,7 @@ jobs:
         run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018" ./build-native.sh
       - name: Test and build APK
         working-directory: apps/node-android
-        run: ./gradlew :core:test :app:lintDebug :app:assembleDebug --console=plain
+        run: ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
       - uses: actions/upload-artifact@v4
         with:
           name: cranibox-android-arm64-debug
@@ -48,4 +51,5 @@ jobs:
           name: android-test-reports
           path: |
             apps/node-android/core/build/reports/tests/
+            apps/node-android/app/build/reports/tests/
             apps/node-android/app/build/reports/lint-results-debug.*

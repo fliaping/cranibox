@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import com.cranibox.android.notify.ApprovalNotifier
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.sync.Mutex
@@ -39,6 +40,7 @@ class NodeService : Service() {
             if (!connected && app.adb.state.value.startsWith("手机控制已连接")) app.adb.state.value = "助手已断开，可点击重新连接"
             update()
         } }
+        app.repository.start(scope, ApprovalNotifier(this))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

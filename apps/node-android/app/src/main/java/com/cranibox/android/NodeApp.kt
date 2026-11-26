@@ -3,6 +3,7 @@ package com.cranibox.android
 import android.app.Application
 import android.content.Context
 import android.os.SystemClock
+import com.cranibox.android.api.NodeRepository
 import com.cranibox.android.core.bridge.Bridge
 import com.cranibox.android.core.bridge.FilePauseStore
 import com.cranibox.android.core.helper.HandoffNonces
@@ -20,6 +21,7 @@ class NodeApp : Application() {
     val agentScreenVisible = MutableStateFlow(false)
     @Volatile var acceptHelpers = true
     val adb by lazy { PhoneSetup(this) }
+    val repository by lazy { NodeRepository(this) }
 
     override fun onCreate() {
         super.onCreate()
