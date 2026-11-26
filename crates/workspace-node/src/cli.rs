@@ -80,6 +80,12 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
         return result;
     }
     let command = match args.command {
+        Some(agent::Command::Completions { shell }) => {
+            use clap::CommandFactory;
+            let mut command = Args::command();
+            clap_complete::generate(shell, &mut command, "cranibox", &mut std::io::stdout());
+            return Ok(());
+        }
         Some(agent::Command::Access { args }) => {
             return crate::access::cli::run(&peer_path, args).await;
         }
@@ -139,6 +145,27 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::{peer, spaces};
+
+    #[test]
+    fn completions_are_nonempty_for_each_shell() {
+        use clap::CommandFactory;
+        use clap_complete::{Shell, generate};
+        for shell in [Shell::Bash, Shell::Zsh, Shell::Fish, Shell::PowerShell] {
+            let name = shell.to_string().to_lowercase();
+            let args = Args::try_parse_from(["cranibox", "completions", &name]).unwrap();
+            assert!(matches!(
+                args.command,
+                Some(agent::Command::Completions { shell: parsed }) if parsed == shell
+            ));
+            let mut command = Args::command();
+            let mut script = Vec::new();
+            generate(shell, &mut command, "cranibox", &mut script);
+            assert!(
+                !script.is_empty(),
+                "{shell} completions should be non-empty"
+            );
+        }
+    }
 
     #[test]
     fn terminal_host_is_a_hidden_local_command() {

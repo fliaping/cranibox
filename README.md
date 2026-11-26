@@ -75,6 +75,8 @@ cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # chunked, SHA-256 ve
 cranibox pull --node <NodeID> /var/log/system.log ./system.log
 ```
 
+Shell completions: `cranibox completions bash|zsh|fish|powershell` prints a script to stdout, for example `cranibox completions zsh > _cranibox`.
+
 ## What your agent can do
 
 | Capability | How |

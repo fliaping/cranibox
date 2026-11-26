@@ -77,6 +77,8 @@ cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # 分块传输、SHA-
 cranibox pull --node <NodeID> /var/log/system.log ./system.log
 ```
 
+命令行补全：`cranibox completions bash|zsh|fish|powershell` 会把脚本打印到标准输出，例如 `cranibox completions zsh > _cranibox`。
+
 ## Agent 能做什么
 
 | 能力 | 方式 |

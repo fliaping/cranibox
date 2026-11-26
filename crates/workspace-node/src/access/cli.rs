@@ -19,7 +19,7 @@ enum Command {
     /// Enable or disable all approval prompts on this device. Off capabilities
     /// and transport authentication remain enforced. Omit on/off to show status.
     Approvals {
-        #[arg(value_parser = clap::builder::BoolishValueParser::new())]
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
         enabled: Option<bool>,
     },
     /// Change capabilities or groups (messages, terminal, screen, browser, update,
@@ -82,7 +82,7 @@ enum Remote {
     Submit { file: std::path::PathBuf },
     /// Whether your other devices may decide requests waiting on this one.
     Allow {
-        #[arg(value_parser = clap::builder::BoolishValueParser::new())]
+        #[arg(value_parser = clap::builder::BoolishValueParser::new(), action = clap::ArgAction::Set)]
         enabled: bool,
     },
 }

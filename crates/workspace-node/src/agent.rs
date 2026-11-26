@@ -35,6 +35,11 @@ pub enum Command {
     },
     /// List devices accessible to this device's Agent.
     Nodes,
+    /// Print a shell completion script to stdout.
+    Completions {
+        /// bash, zsh, fish or powershell
+        shell: clap_complete::Shell,
+    },
     /// Update this device or other devices of your identity to a new version.
     Update {
         #[command(subcommand)]
