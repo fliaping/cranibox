@@ -98,7 +98,7 @@ Letting an agent touch real machines is only acceptable if you stay in charge.
 - **Approve from another device.** Approvals reach your other devices; remote approvals are confirmed with your recovery passphrase.
 - **Audit.** Each use is logged on the device that was used, with who, what and when, and shown there as it happens.
 
-Details: [device access control](docs/device-access-control.md), [node identity and E2E encryption](docs/node-identity-and-e2e.md), [security review](docs/security-review-2026-10-23.md).
+Details: [device access control](docs/device-access-control.en.md) ([中文](docs/device-access-control.md)), [node identity and E2E encryption](docs/node-identity-and-e2e.en.md) ([中文](docs/node-identity-and-e2e.md)), [security review](docs/security-review-2026-10-23.md).
 
 ## How it compares
 
@@ -151,12 +151,12 @@ Installed devices update without Node.js: Settings → General → Updates, or `
 
 ### Servers and relays
 
-Open a remote server's UI through an SSH tunnel: `ssh -L 7377:127.0.0.1:7377 server`. To make it a relay for your devices, add `--public-url https://relay.example.com` (behind a reverse proxy) or `--relay-listen 0.0.0.0:7378` (serves only the relay and the read-only identity; the UI stays on loopback). See [the device network](docs/iroh-network.md) and [desktop client and device mesh](docs/node-desktop-and-device-mesh.md).
+Open a remote server's UI through an SSH tunnel: `ssh -L 7377:127.0.0.1:7377 server`. To make it a relay for your devices, add `--public-url https://relay.example.com` (behind a reverse proxy) or `--relay-listen 0.0.0.0:7378` (serves only the relay and the read-only identity; the UI stays on loopback). See [the device network](docs/iroh-network.en.md) ([中文](docs/iroh-network.md)) and [desktop client and device mesh](docs/node-desktop-and-device-mesh.md).
 
 ## Documentation
 
 - Design: [docs/design](docs/design/README.md) and [implementation status](docs/design/IMPLEMENTATION-STATUS.md)
-- Network and identity: [iroh network](docs/iroh-network.md), [node identity and E2E](docs/node-identity-and-e2e.md), [direct peers](docs/direct-node-peers.md), [other networks (EasyTier, Tailscale)](docs/device-networks.md)
+- Network and identity: [iroh network](docs/iroh-network.en.md) ([中文](docs/iroh-network.md)), [node identity and E2E](docs/node-identity-and-e2e.en.md) ([中文](docs/node-identity-and-e2e.md)), [direct peers](docs/direct-node-peers.md), [other networks (EasyTier, Tailscale)](docs/device-networks.md)
 - Agent work: [agent sessions](docs/agent-sessions.md), [agent executions](docs/agent-executions.md), [device tasks](docs/device-tasks.md), [federated activity](docs/federated-activity.md)
 
 ## Contributing

@@ -1,6 +1,6 @@
 # 节点身份与端到端加密 / Node identity and end-to-end encryption
 
-> 中文在前，English summary below.
+> 中文在前，文内另有 English summary。完整英文版：[node-identity-and-e2e.en.md](node-identity-and-e2e.en.md)。
 
 Cranibox 把节点看作 Agent 的“脑壳”：Codex、Claude Code 等 Agent 是大脑，节点负责身份、授权、人工审批和节点之间的安全传输。本文记录节点身份、凭据存储与签名记录（阶段 1），以及节点间端到端加密通道、密钥固定与配对码确认（阶段 2）的设计、迁移和威胁模型。
 
