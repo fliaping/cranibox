@@ -22,6 +22,7 @@ CLI equivalents, for when the MCP server is not configured:
 
 ```bash
 cranibox nodes
+cranibox nodes rename <node> "Work laptop"
 cranibox exec --node <NodeID> -- <program> <args...>
 cranibox push --node <NodeID> <local> <remote>
 cranibox pull --node <NodeID> <remote> <local>

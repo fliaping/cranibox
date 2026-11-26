@@ -70,6 +70,7 @@ The same operations work from a shell:
 
 ```bash
 cranibox nodes                                   # devices your agents can use
+cranibox nodes rename <node> "Work laptop"       # a name that syncs to your other devices
 cranibox exec --node <NodeID> -- uname -a
 cranibox push --node <NodeID> ./build.zip /tmp/build.zip   # chunked, SHA-256 verified, atomic
 cranibox pull --node <NodeID> /var/log/system.log ./system.log
@@ -156,7 +157,7 @@ Open a remote server's UI through an SSH tunnel: `ssh -L 7377:127.0.0.1:7377 ser
 ## Documentation
 
 - Design: [docs/design](docs/design/README.md) and [implementation status](docs/design/IMPLEMENTATION-STATUS.md)
-- Network and identity: [iroh network](docs/iroh-network.md), [node identity and E2E](docs/node-identity-and-e2e.md), [direct peers](docs/direct-node-peers.md), [other networks (EasyTier, Tailscale)](docs/device-networks.md)
+- Network and identity: [iroh network](docs/iroh-network.md), [node identity and E2E](docs/node-identity-and-e2e.md), [device names](docs/device-names.md), [direct peers](docs/direct-node-peers.md), [other networks (EasyTier, Tailscale)](docs/device-networks.md)
 - Agent work: [agent sessions](docs/agent-sessions.md), [agent executions](docs/agent-executions.md), [device tasks](docs/device-tasks.md), [federated activity](docs/federated-activity.md)
 
 ## Contributing

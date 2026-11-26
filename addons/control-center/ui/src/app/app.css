@@ -195,6 +195,12 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border
 .cx-device-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
 .cx-device-name { color: var(--text); min-width: 0; }
 .cx-device-name h3 { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.cx-rename-btn { color: var(--muted); flex-shrink: 0; }
+.cx-device-title .cx-rename-btn { width: 28px; height: 28px; }
+.cx-device-head .cx-rename-btn { width: 36px; height: 36px; }
+.cx-rename-btn:hover, .cx-rename-btn:focus-visible { color: var(--text); }
+.cx-form-error { color: var(--danger, var(--bad, #b42318)); font-size: var(--text-xs); margin: 0; }
+.cx-form-warn { color: var(--warn); font-size: var(--text-xs); margin: 0; }
 .cx-device-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .cx-device-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: var(--text-xs); margin-top: 3px; }
 .cx-quick { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }

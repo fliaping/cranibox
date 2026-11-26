@@ -269,7 +269,7 @@ impl Service {
             .map_err(unavailable)?;
         let me = serde_json::json!({
             "node_id": local.id,
-            "name": crate::device_info::local().name,
+            "name": known::advertised_name(local.config_path(), &local.id),
             "fingerprint": identity["identity"]["fingerprint"],
             "endpoint_id": identity["identity"]["public"]["signing_key"],
         });
@@ -467,24 +467,25 @@ impl Service {
         let owner = self.models.roster.is_owner_node(node);
         write_grant(self.local()?.config_path(), node, owner, grant)
     }
-    pub async fn device_update(&self, node: &str, input: Value) -> Result<(), AppError> {
+    pub async fn device_update(&self, node: &str, input: Value) -> Result<Value, AppError> {
         let local = self.local()?;
+        let mut renamed = None;
         if let Some(name) = input.get("name") {
             let name = name
                 .as_str()
-                .map(str::trim)
                 .ok_or_else(|| error(400, "invalid", "Name must be text"))?;
-            if name.chars().count() > 64 {
-                return Err(error(400, "invalid", "Use at most 64 characters"));
-            }
-            known::update(local.config_path(), node, |k| {
-                k.alias = (!name.is_empty()).then(|| name.to_owned());
-                k.alias_at = Some(cranibox_llm::auth::now().saturating_mul(1000));
-            })
-            .map_err(unavailable)?;
+            let result = known::rename(local.config_path(), node, name).map_err(|e| {
+                let message = format!("{e:#}");
+                if message.contains("device not found") {
+                    error(404, "not_found", "Device not found")
+                } else {
+                    error(400, "invalid", message)
+                }
+            })?;
             if input.get("caps").is_none() && input.get("revoke").is_none() {
-                return Ok(());
+                return Ok(result.to_json());
             }
+            renamed = Some(result);
         }
         let owner = self.models.roster.is_owner_node(node);
         if input["revoke"] == true {
@@ -507,7 +508,7 @@ impl Service {
                     .await
                     .map_err(unavailable)?;
             }
-            return Ok(());
+            return Ok(Value::Null);
         }
         if !owner {
             let caps: peers::config::Permissions = serde_json::from_value(input["caps"].clone())
@@ -528,7 +529,7 @@ impl Service {
                 Ok(())
             })
             .map_err(unavailable)?;
-            return Ok(());
+            return Ok(renamed.map(|r| r.to_json()).unwrap_or(Value::Null));
         }
         self.models
             .edit_members(|members| {
@@ -545,7 +546,8 @@ impl Service {
                 }
                 Ok(())
             })
-            .map_err(unavailable)
+            .map_err(unavailable)?;
+        Ok(renamed.map(|r| r.to_json()).unwrap_or(Value::Null))
     }
 }
 #[async_trait::async_trait]
@@ -1485,10 +1487,10 @@ async fn route(
             if let Some(node) = path.strip_prefix("/devices/")
                 && method == "PUT"
             {
-                let service = service
-                    .ok_or_else(|| error(503, "unavailable", "Demo devices are read only"))?;
-                service.device_update(node, body).await?;
-                return Ok(Value::Null);
+                return match service {
+                    Some(service) => output(service.device_update(node, body).await?),
+                    None => output(MOCK.device_update(node, &body)?),
+                };
             }
             if let Some(path) = path.strip_prefix("/models") {
                 let path = if path.is_empty() { "/models" } else { path };
@@ -1712,6 +1714,7 @@ mod tests {
 #[cfg(test)]
 mod pairing_tests {
     use super::*;
+    use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
     async fn node(root: &std::path::Path, stop: &CancellationToken) -> (Arc<LocalNode>, Service) {
@@ -1862,6 +1865,43 @@ mod pairing_tests {
             .pair_confirm("no-such-flow", PairConfirmReq { matches: true })
             .await;
         assert_eq!(unknown.unwrap_err().status, 404);
+        stop.cancel();
+    }
+
+    #[tokio::test]
+    async fn device_rename_updates_the_list_and_rejects_bad_names() {
+        let root = tempfile::tempdir().unwrap();
+        let stop = CancellationToken::new();
+        let (local, app) = node(root.path(), &stop).await;
+        let result = app
+            .device_update(&local.id, json!({"name": "  Work Laptop  "}))
+            .await
+            .unwrap();
+        assert_eq!(result["name"], "Work Laptop");
+        assert_eq!(result["cleared"], false);
+        let devices = app.devices().await.unwrap();
+        let this = devices.iter().find(|d| d.node_id == local.id).unwrap();
+        assert_eq!(this.name, "Work Laptop");
+        assert_eq!(
+            app.device_update(&local.id, json!({"name": "a\nb"}))
+                .await
+                .unwrap_err()
+                .status,
+            400
+        );
+        let missing = app
+            .device_update(
+                "node-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                json!({"name": "X"}),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(missing.status, 404);
+        let cleared = app
+            .device_update(&local.id, json!({"name": "  "}))
+            .await
+            .unwrap();
+        assert_eq!(cleared["cleared"], true);
         stop.cancel();
     }
 }

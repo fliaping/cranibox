@@ -451,6 +451,7 @@ pub struct MockAppApi {
     agents: Mutex<Vec<AgentInfo>>,
     capabilities: Mutex<Capabilities>,
     grants: Mutex<BTreeMap<NodeId, DeviceGrant>>,
+    devices: Mutex<Vec<Device>>,
     pub mgmt: Arc<MockLlmMgmt>,
 }
 impl MockAppApi {
@@ -487,6 +488,7 @@ impl MockAppApi {
                     })
                     .collect(),
             ),
+            devices: Mutex::new(devices.clone()),
             mgmt: Arc::new(MockLlmMgmt::fixture(devices[0].node_id.clone())),
         }
     }
@@ -586,6 +588,65 @@ impl MockAppApi {
         *current = grant;
         Ok(grant)
     }
+    /// `PUT /devices/{node}` with `{name}`: an in-memory display name for the preview.
+    pub fn device_update(
+        &self,
+        node: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, AppError> {
+        let Some(name) = body.get("name") else {
+            return Err(invalid("Demo devices are read only"));
+        };
+        let name = name
+            .as_str()
+            .ok_or_else(|| invalid("Name must be text"))?
+            .trim();
+        if name.chars().any(|c| c.is_control()) {
+            return Err(invalid("Name cannot contain control characters"));
+        }
+        if name.chars().count() > 64 {
+            return Err(invalid("Use at most 64 characters"));
+        }
+        let mut devices = self.devices.lock().unwrap();
+        let label = (!name.is_empty()).then(|| name.to_owned());
+        // When clearing, fall back to the original fixture name.
+        let fallback = {
+            let original: Vec<Device> = load(fixtures::APP_DEVICES);
+            original
+                .into_iter()
+                .find(|d| d.node_id == node)
+                .map(|d| d.name)
+        };
+        let mut found = false;
+        let mut duplicate = false;
+        let assigned = label
+            .clone()
+            .or(fallback.clone())
+            .unwrap_or_else(|| node.to_owned());
+        for device in devices.iter_mut() {
+            if device.node_id == node {
+                device.name = assigned.clone();
+                found = true;
+            }
+        }
+        if !found {
+            return Err(not_found());
+        }
+        for device in devices.iter() {
+            if device.node_id != node
+                && device.name.eq_ignore_ascii_case(&assigned)
+                && label.is_some()
+            {
+                duplicate = true;
+            }
+        }
+        Ok(serde_json::json!({
+            "node": node,
+            "name": label,
+            "cleared": label.is_none(),
+            "duplicate": duplicate,
+        }))
+    }
 }
 fn mock_actions(item: &CapabilityItem) -> Vec<CapabilityAction> {
     use CapabilityAction::*;
@@ -651,7 +712,7 @@ impl AppApi for MockAppApi {
         Ok(pill)
     }
     async fn devices(&self) -> Result<Vec<Device>, AppError> {
-        Ok(load(fixtures::APP_DEVICES))
+        Ok(self.devices.lock().unwrap().clone())
     }
     async fn pair_invite(&self, _req: PairInviteReq) -> Result<PairInvite, AppError> {
         Ok(load(fixtures::APP_PAIR_INVITE))
