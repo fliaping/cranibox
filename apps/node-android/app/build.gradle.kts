@@ -29,6 +29,34 @@ android {
 
     buildFeatures { compose = true }
 
+    lint {
+        lintConfig = file("lint.xml")
+        // Compose / lifecycle lint detectors shipped with BOM 2025.08 are compiled
+        // against a newer Kotlin analysis API than AGP 8.7's lint ("Found class
+        // KaSimpleVariableAccessCall, but interface was expected"). Keep the rest
+        // of lint enabled; these checks can return when AGP is upgraded.
+        disable += setOf(
+            "AutoboxingStateCreation",
+            "AutoboxingStateValueProperty",
+            "ComposableLambdaParameterNaming",
+            "ComposableNaming",
+            "CompositionLocalNaming",
+            "CoroutineCreationDuringComposition",
+            "FlowOperatorInvokedInComposition",
+            "FrequentlyChangingValue",
+            "MutableCollectionMutableState",
+            "NullSafeMutableLiveData",
+            "OpaqueUnitKey",
+            "ProduceStateDoesNotAssignValue",
+            "RememberInComposition",
+            "RememberReturnType",
+            "StateFlowValueCalledInComposition",
+            "UnrememberedAnimatable",
+            "UnrememberedMutableState",
+            "UnrememberedState",
+        )
+    }
+
     packaging {
         // libcranibox.so is an executable: it must be extracted to the native library
         // directory, the only app directory Android lets the app execute from.

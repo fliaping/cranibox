@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- CameraX ImageProxy.image uses the older androidx.annotation experimental marker,
+         which Kotlin @OptIn does not satisfy for AGP 8.7 lint. -->
+    <issue id="UnsafeOptInUsageError">
+        <option name="opt-in" value="androidx.camera.core.ExperimentalGetImage" />
+    </issue>
+</lint>

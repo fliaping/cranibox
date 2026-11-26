@@ -34,8 +34,7 @@ import com.cranibox.android.ui.devices.SessionScreen
 import com.cranibox.android.ui.home.HomeScreen
 import com.cranibox.android.ui.phone.PhoneScreen
 import com.cranibox.android.ui.phone.PreviewScreen
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import android.net.Uri
 
 @Composable
 fun CraniboxApp(
@@ -58,7 +57,7 @@ fun CraniboxApp(
     }
     LaunchedEffect(pendingLink) {
         val link = pendingLink ?: return@LaunchedEffect
-        nav.navigate("scan?link=" + URLEncoder.encode(link, StandardCharsets.UTF_8)) {
+        nav.navigate("scan?link=" + Uri.encode(link)) {
             launchSingleTop = true
         }
         onPendingLinkConsumed()

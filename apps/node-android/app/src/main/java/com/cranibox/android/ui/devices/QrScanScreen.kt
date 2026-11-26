@@ -61,6 +61,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 
+
 class QrViewModel(application: Application) : AndroidViewModel(application) {
     val repo = (application as NodeApp).repository
     fun accept(link: String, onDone: (Result<PairAccepted>) -> Unit) =

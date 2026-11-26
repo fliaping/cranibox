@@ -50,4 +50,6 @@
     <string name="this_device">This device</string>
     <string name="channel_approvals">Approvals</string>
     <string name="channel_approvals_desc">Notifies you when a new pairing, access, or agent request is waiting.</string>
+    <string name="agent_overlay_label">Cranibox · Agent screen overlay</string>
+    <string name="agent_overlay_description">Shows a live preview of the Agent virtual display over other apps. You can drag, collapse, or stop the Agent. This service does not read other apps or perform touches. Phone control still requires a wireless debugging connection.</string>
 </resources>
