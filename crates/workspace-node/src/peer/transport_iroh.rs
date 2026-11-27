@@ -1101,6 +1101,10 @@ impl Handle {
             purpose: Some(flow.purpose),
         })
     }
+    /// `cranibox peer pair doctor`: relays, UDP and the link, from this node's view.
+    pub async fn pair_doctor(&self, link: Option<&str>) -> cranibox_net::diag::Report {
+        cranibox_net::diag::doctor_node(&self.shared.node, self.pairing.node_id(), link).await
+    }
     /// `POST /api/v1/app/pair/{flow}/confirm` back end (C6).
     pub async fn pair_confirm(&self, flow: &str, req: PairConfirmReq) -> Result<FlowState> {
         self.pairing.confirm(flow, req.matches).await
@@ -1137,10 +1141,18 @@ impl Handle {
             let path = self.shared.node.pool_path(&id).await;
             peers.push(json!({"node": node, "forward": address.to_string(), "path": path}));
         }
+        let network = cranibox_net::diag::Network::of(&self.shared.node);
         json!({
             "endpoint_id": self.shared.node.id().to_string(),
             "addr": self.shared.node.addr(),
             "relays": self.shared.node.relays_connected(),
+            "network": {
+                "home_relay": network.home_relay(),
+                "udp": network.udp,
+                "preferred_relay": network.preferred_relay,
+                "global_v4": network.global_v4,
+                "captive_portal": network.captive_portal,
+            },
             "allowlist": self.allow.len(),
             "open_invitations": self.pairing.open_invitations(),
             "peers": peers,
@@ -1162,7 +1174,7 @@ pub(crate) mod control {
     fn fail(error: anyhow::Error) -> (StatusCode, Json<Value>) {
         (
             StatusCode::BAD_REQUEST,
-            Json(json!({"error": format!("{error:#}")})),
+            Json(json!({"error": cranibox_net::diag::describe(&error)})),
         )
     }
 
@@ -1197,6 +1209,14 @@ pub(crate) mod control {
                 ),
             )
             .route(
+                "/pair/doctor",
+                post(
+                    |State(h): State<Handle>, Json(req): Json<Value>| async move {
+                        Json(h.pair_doctor(req["link"].as_str()).await)
+                    },
+                ),
+            )
+            .route(
                 "/pair/flows",
                 get(|State(h): State<Handle>| async move { Json(h.pair_flows()) }),
             )
@@ -1220,6 +1240,13 @@ pub(crate) mod control {
                 .await;
             let _ = std::fs::remove_file(&socket);
         }))
+    }
+
+    /// Whether the node service answers on its control socket.
+    pub async fn running(peers: &Path) -> bool {
+        tokio::net::UnixStream::connect(peers.with_file_name(CONTROL_SOCKET))
+            .await
+            .is_ok()
     }
 
     /// Minimal client used by `cranibox peer pair …`.
@@ -1310,6 +1337,15 @@ pub enum PairCommand {
     },
     /// Pairings waiting for a decision on this device.
     Flows,
+    /// Check this device's relay, UDP and DNS, and a pairing link (its expiry and the
+    /// other device's relay), to see why pairing does not connect.
+    Doctor {
+        /// A pairing link to check (optional).
+        link: Option<String>,
+        /// Print the report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// iroh endpoint, relays and paths.
     Status,
 }
@@ -1369,11 +1405,76 @@ pub async fn run(peers: PathBuf, command: PairCommand) -> Result<()> {
             .await?
         }
         PairCommand::Flows => control::call(&peers, "GET", "/pair/flows", None).await?,
+        PairCommand::Doctor { link, json } => {
+            let report = match control::running(&peers).await {
+                true => serde_json::from_value::<Value>(
+                    control::call(&peers, "POST", "/pair/doctor", Some(json!({"link": link})))
+                        .await?,
+                )?,
+                // Without the node service: still check the link and the relays.
+                false => serde_json::to_value(doctor_offline(&peers, link.as_deref()).await)?,
+            };
+            if json {
+                report
+            } else {
+                print!("{}", render_doctor(&report));
+                let failed = report["checks"]
+                    .as_array()
+                    .is_some_and(|c| c.iter().any(|c| c["status"] == "fail"));
+                if failed {
+                    std::process::exit(1);
+                }
+                return Ok(());
+            }
+        }
         PairCommand::Status => control::call(&peers, "GET", "/status", None).await?,
     };
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
 }
+/// Doctor without a running node service: the link, configured relays and DNS.
+#[cfg(unix)]
+async fn doctor_offline(peers: &Path, link: Option<&str>) -> cranibox_net::diag::Report {
+    let mut configured = iroh_config(peers).map(|c| c.relays).unwrap_or_default();
+    configured.extend(Learned::read(peers).relays);
+    let node_id = Config::read(peers).ok().map(|c| c.node_id);
+    cranibox_net::diag::doctor(cranibox_net::diag::DoctorInput {
+        network: None,
+        configured_relays: configured,
+        node_id: node_id.as_deref(),
+        link,
+        extra_roots: &[],
+    })
+    .await
+}
+
+/// Text form of a doctor report (also when it came from the node service as JSON).
+#[cfg(unix)]
+fn render_doctor(report: &Value) -> String {
+    let mut out = String::new();
+    for c in report["checks"].as_array().into_iter().flatten() {
+        let mark = match c["status"].as_str() {
+            Some("ok") => "ok  ",
+            Some("warn") => "warn",
+            Some("fail") => "FAIL",
+            _ => " ?  ",
+        };
+        out.push_str(&format!(
+            "[{mark}] {}: {}\n",
+            c["name"].as_str().unwrap_or_default(),
+            c["detail"].as_str().unwrap_or_default()
+        ));
+    }
+    let hints: Vec<_> = report["hints"].as_array().into_iter().flatten().collect();
+    if !hints.is_empty() {
+        out.push_str("\nNext steps:\n");
+        for hint in hints {
+            out.push_str(&format!("  - {}\n", hint.as_str().unwrap_or_default()));
+        }
+    }
+    out
+}
+
 #[cfg(not(unix))]
 pub async fn run(_peers: PathBuf, _command: PairCommand) -> Result<()> {
     anyhow::bail!(

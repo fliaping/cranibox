@@ -45,6 +45,14 @@ npm install -g @fliaping/cranibox@latest --registry=https://registry.npmmirror.c
 cranibox            # 运行本机节点；界面只监听 127.0.0.1:7377
 ```
 
+无界面的 Linux、容器或没有 Node.js 的 Mac 可以用安装脚本：自动选择对应平台的 Release 二进制，按 `SHA256SUMS` 校验后安装到 `~/.local/bin`（无需 root；root 时装到 `/usr/local/bin`，也可用 `CRANIBOX_INSTALL_DIR` 指定；`CRANIBOX_VERSION=v1.2.1` 固定版本；`CRANIBOX_DOWNLOAD_BASE` 可指向镜像）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/scripts/install.sh | sh
+cranibox serve --daemon     # 无需 systemd：后台运行，写 pid 文件和日志
+cranibox serve status       # 查看 pid 与日志路径；`cranibox serve stop` 停止
+```
+
 **2. 配对。** 在“设备”页点“添加设备”，在新设备上打开 `cranibox://` 链接或扫描二维码。无界面的服务器也可以填写地址加入，再在“待办”里批准。
 
 **3. 决定 Agent 能做什么。** 在每台设备的“设置 → 能力与权限”里，打开允许其他设备使用的能力，例如把“执行命令”设为“每次询问”。除消息与任务外，所有能力默认关闭。
@@ -150,6 +158,10 @@ Cranibox 不是聊天 App。它让你已经在用的 Agent 安全地用上你其
 ### 更新
 
 已安装的设备无需 Node.js：在“设置 → 通用 → 更新”里检查和安装，或执行 `cranibox update apply latest`（预发布用 `next`，main 开发构建用 `dev`）。同一身份的任意设备都能更新其他设备（`--node <NodeID>`）；新版本 20 秒内没有正常运行就自动回滚。见[节点远程更新](docs/node-remote-update.md)和[客户端分发](docs/distribution.md)。
+
+### 配对排障
+
+`cranibox peer pair accept` 超时时，报错会列出双方的 relay 和本机 UDP 是否可用。`cranibox peer pair doctor '<链接>'` 会检查链接是否过期、本机 relay、对方 relay（DNS，包括代理返回的 fake-IP，以及 HTTPS）和 UDP。受限网络里，反过来配对通常可行：在受限设备上运行 `cranibox peer pair invite`，到另一台设备上接受链接。
 
 ### 服务器与 relay
 

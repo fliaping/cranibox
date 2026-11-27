@@ -7,7 +7,7 @@
 //! 3. Both sides show the existing SAS pairing code and send their local decision.
 //!    Only two matching decisions allow credentials to be exchanged and committed
 //!    (grant + route, see [`PairHost::apply`]); rejection or timeout changes nothing.
-use crate::{IrohNode, addr, relay::Relay, ticket};
+use crate::{IrohNode, addr, diag, relay::Relay, ticket};
 use anyhow::{Context, Result, bail, ensure};
 use cranibox_contracts::net::{
     IrohAddr, PAIR_TICKET_TTL_SECS, PAIR_TICKET_VERSION, PairPurpose, PairTicket,
@@ -377,6 +377,11 @@ impl Pairing {
         (decision, state)
     }
 
+    /// This node's id (the one written into its own tickets).
+    pub fn node_id(&self) -> &str {
+        &self.node_id
+    }
+
     /// Joiner: open the link, prove the ticket and get the SAS code.
     pub async fn accept(&self, link: &str) -> Result<FlowView> {
         let ticket = ticket::parse_link(link)?;
@@ -389,7 +394,12 @@ impl Pairing {
             "This link was created on this device."
         );
         let target = addr::endpoint_addr(&ticket.inviter)?;
-        if let Some(relay) = target.relay_urls().next().cloned() {
+        if let Some(relay) = target.relay_urls().next().cloned()
+            // The public n0 relays admit everyone. Replacing their entry would only drop
+            // its QUIC address discovery, add the inviter's relay to our home relay
+            // candidates and force a full network re-probe in the middle of the dial.
+            && !diag::is_public_relay(&relay)
+        {
             // A Hub relay admits ticket holders by a token derived from the secret.
             let token = crate::relay::pairing_token(&ticket.secret);
             let existing = self.node.endpoint().insert_relay(
@@ -398,9 +408,24 @@ impl Pairing {
             );
             existing.await;
         }
-        let conn = tokio::time::timeout(STEP_TIMEOUT, self.node.connect(&target, crate::ALPN_PAIR))
-            .await
-            .context("The other device did not answer. Make sure it is online.")??;
+        let started = std::time::Instant::now();
+        let failure = |stage, cause: Option<&anyhow::Error>| {
+            anyhow::anyhow!(diag::dial_failure(
+                stage,
+                &ticket,
+                &diag::Network::of(&self.node),
+                started.elapsed(),
+                cause,
+            ))
+        };
+        let conn =
+            match tokio::time::timeout(STEP_TIMEOUT, self.node.connect(&target, crate::ALPN_PAIR))
+                .await
+            {
+                Ok(Ok(conn)) => conn,
+                Ok(Err(error)) => return Err(failure(diag::Stage::Connect, Some(&error))),
+                Err(_) => return Err(failure(diag::Stage::Connect, None)),
+            };
         let (mut send, mut recv) = conn.open_bi().await?;
         write_frame(
             &mut send,
@@ -413,17 +438,21 @@ impl Pairing {
             },
         )
         .await?;
-        let (identity, purpose, peer_addr, features) =
-            match tokio::time::timeout(STEP_TIMEOUT, read_frame(&mut recv)).await?? {
-                Frame::Welcome {
-                    identity,
-                    purpose,
-                    addr,
-                    features,
-                } => (identity, purpose, addr, features),
-                Frame::Reject { reason } => bail!("{reason}"),
-                _ => bail!("unexpected pairing answer"),
-            };
+        let answer = match tokio::time::timeout(STEP_TIMEOUT, read_frame(&mut recv)).await {
+            Ok(Ok(frame)) => frame,
+            Ok(Err(error)) => return Err(failure(diag::Stage::Answer, Some(&error))),
+            Err(_) => return Err(failure(diag::Stage::Answer, None)),
+        };
+        let (identity, purpose, peer_addr, features) = match answer {
+            Frame::Welcome {
+                identity,
+                purpose,
+                addr,
+                features,
+            } => (identity, purpose, addr, features),
+            Frame::Reject { reason } => bail!("{reason}"),
+            _ => bail!("unexpected pairing answer"),
+        };
         let (peer_node_id, sas) = self.host.verify(&identity, &conn.remote_id())?;
         ensure!(
             peer_node_id == ticket.inviter_node_id && purpose == ticket.purpose,

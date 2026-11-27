@@ -43,6 +43,14 @@ npm install -g @fliaping/cranibox@latest
 cranibox            # runs this device's node; the UI listens on 127.0.0.1:7377 only
 ```
 
+Headless Linux, containers or Macs without Node.js: the install script picks the right release binary, checks it against `SHA256SUMS` and installs it to `~/.local/bin` (no root needed; `/usr/local/bin` as root, or set `CRANIBOX_INSTALL_DIR`; `CRANIBOX_VERSION=v1.2.1` pins a release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/scripts/install.sh | sh
+cranibox serve --daemon     # no systemd needed: background service, pid file and log
+cranibox serve status       # pid and log path; `cranibox serve stop` stops it
+```
+
 **2. Pair them.** On the Devices page choose **Add device**, then open the `cranibox://` link or scan the QR code on the new device. A headless server can also be added by its address and approved in the Inbox.
 
 **3. Allow what the agent may do.** On each device, under Settings → Capabilities, turn on what other devices may use, for example commands set to *ask every time*. Everything except messages and tasks starts off.
@@ -148,6 +156,10 @@ Checksums are in `SHA256SUMS` in each release. In mainland China, install throug
 ### Updates
 
 Installed devices update without Node.js: Settings → General → Updates, or `cranibox update apply latest` (`next` for prereleases, `dev` for main builds). Any device of your identity can update the others (`--node <NodeID>`); a version that does not come up within 20 seconds is rolled back. See [remote node update](docs/node-remote-update.md) and [distribution](docs/distribution.md).
+
+### Pairing troubleshooting
+
+If `cranibox peer pair accept` times out, the error names both devices' relays and whether UDP works here. `cranibox peer pair doctor '<link>'` checks the link's expiry, this device's relay, the other device's relay (DNS, including proxy fake-IP answers, and HTTPS) and UDP. Behind restrictive networks, pairing the other way round usually works: run `cranibox peer pair invite` on the restricted device and accept the link on the other one.
 
 ### Servers and relays
 

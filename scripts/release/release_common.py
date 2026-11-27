@@ -54,6 +54,14 @@ def dev_version(base, run_number):
     return validate_version(f"{major}.{minor}.{int(patch) + 1}-dev.{run_number}")
 
 
+def build_version(ref, ref_name, run_number, source_version):
+    """The version a CI build reports (`cranibox --version`, the desktop app and npm):
+    the tag's version for `refs/tags/v*`, otherwise the dev version of this run."""
+    if ref.startswith("refs/tags/v"):
+        return version_for_tag(ref_name)
+    return dev_version(source_version, run_number)
+
+
 def version_for_tag(tag):
     if not tag.startswith("v"):
         raise ValueError("Expected a release tag like v1.1.0 or v1.2.0-beta.1 (no build metadata).")

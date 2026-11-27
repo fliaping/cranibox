@@ -39,6 +39,11 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
     {
         return Ok(());
     }
+    // `serve --daemon`, `serve status` and `serve stop` (normally handled before this,
+    // so that a managed runtime is not started in the foreground).
+    if let Some(code) = crate::daemon::intercept(&args) {
+        std::process::exit(code);
+    }
     let args = Args::parse_from(args);
     let peer_path = crate::peer::config::path_for(&args.config);
     // Every device runs the same way: node core plus its own interface.
@@ -53,6 +58,7 @@ pub async fn run_from(args: Vec<String>) -> anyhow::Result<()> {
             relay,
             public_url,
             relay_listen,
+            ..
         }) => Some((
             *listen,
             allow_host.clone(),

@@ -102,6 +102,13 @@ jobs:
         with:
           shared-key: cli-${{ matrix.os }}
           cache-on-failure: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      # Dev builds report the version they are published as (`cranibox --version`).
+      - name: Stamp the published version
+        shell: bash
+        run: echo "CRANIBOX_BUILD_VERSION=$(python3 scripts/release/build-version.py)" >> "$GITHUB_ENV"
       - name: Build standalone CLI
         shell: bash
         run: |
@@ -117,7 +124,7 @@ jobs:
           else
             cp target/release/cranibox "$RUNNER_TEMP/cli/${{ matrix.output }}"
           fi
-          "$RUNNER_TEMP/cli/${{ matrix.output }}" --version
+          test "$("$RUNNER_TEMP/cli/${{ matrix.output }}" --version | tr -d '\r')" = "cranibox $CRANIBOX_BUILD_VERSION"
           if [ "${{ matrix.output }}" = cranibox-macos-x86_64 ]; then
             file "$RUNNER_TEMP/cli/${{ matrix.output }}"
             lipo -info "$RUNNER_TEMP/cli/${{ matrix.output }}" | grep -q x86_64
@@ -214,11 +221,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            version=$(python -c 'import os, sys, tomllib; from pathlib import Path; sys.path.insert(0, "scripts/release"); from release_common import dev_version; print(dev_version(tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"], os.environ["GITHUB_RUN_NUMBER"]))')
-          fi
+          version=$(python scripts/release/build-version.py)
           echo "CRANIBOX_BUILD_VERSION=$version" >> "$GITHUB_ENV"
           # The bundle too (Info.plist, installer and disk image names), not only the program.
           printf '{"version":"%s"}\n' "$version" > "$RUNNER_TEMP/tauri-version.json"
@@ -233,7 +236,8 @@ jobs:
         run: |
           set -euo pipefail
           app=target/release/cranibox; [ -f "$app.exe" ] && app="$app.exe"
-          test "$("$app" --version)" = "cranibox $(node -p "require('./apps/node-desktop/src-tauri/tauri.conf.json').version")"
+          # Same version as Info.plist and the window (stamped on dev builds).
+          test "$("$app" --version | tr -d '\r')" = "cranibox $CRANIBOX_BUILD_VERSION"
           "$app" node --help | grep -q 'Usage: '
       # Gatekeeper assesses a signed disk image and blocks one signed by a
       # certificate Apple does not know; an unsigned image opens directly. Only the
@@ -343,12 +347,14 @@ jobs:
         with:
           shared-key: linux-arm64
           cache-on-failure: true
+      - name: Stamp the published version
+        run: echo "CRANIBOX_BUILD_VERSION=$(python3 scripts/release/build-version.py)" >> "$GITHUB_ENV"
       - name: Build the Linux arm64 command line
         run: |
           cargo build --release --locked -p cranibox --features managed
           mkdir -p "$RUNNER_TEMP/cli"
           cp target/release/cranibox "$RUNNER_TEMP/cli/cranibox-linux-arm64"
-          "$RUNNER_TEMP/cli/cranibox-linux-arm64" --version
+          test "$("$RUNNER_TEMP/cli/cranibox-linux-arm64" --version)" = "cranibox $CRANIBOX_BUILD_VERSION"
           "$RUNNER_TEMP/cli/cranibox-linux-arm64" ctl --version
           # On a device `serve` is the node; with --config-root it is the container console.
           grep -q -- --listen <("$RUNNER_TEMP/cli/cranibox-linux-arm64" serve --help)
@@ -734,7 +740,8 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/release/collect-assets.py --artifacts dist/artifacts --output dist/assets
-          version=$(python -c 'import os, sys, tomllib; from pathlib import Path; sys.path.insert(0, "scripts/release"); from release_common import dev_version; print(dev_version(tomllib.loads(Path("crates/cranibox/Cargo.toml").read_text())["package"]["version"], os.environ["GITHUB_RUN_NUMBER"]))')
+          # The same version the binaries were stamped with (build-version.py).
+          version=$(python scripts/release/build-version.py)
           python scripts/release/build-npm.py --version "$version" --assets dist/assets --apps dist/apps --output dist/npm --package-name "$NPM_PACKAGE_NAME"
           python scripts/release/publish-npm.py --directory dist/npm --dist-tag dev --dry-run
       - uses: actions/upload-artifact@v4

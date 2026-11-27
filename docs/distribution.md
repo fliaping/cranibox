@@ -35,6 +35,30 @@ registry；可用 `CRANIBOX_NPM_REGISTRY` 覆盖。旧版本需要先手动安�
 在桌面应用窗口里更新本机时，运行时与桌面应用一起更新，然后整体重启；远程更新只替换运行时。
 不能自我更新的旧桌面应用（外壳 API 0）需要手动安装一次新版。
 
+## 无 Node.js 的安装（脚本）
+
+无界面的 Linux、容器或 Mac 上可以直接装 Release 里的独立 CLI：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fliaping/cranibox/main/scripts/install.sh | sh
+```
+
+脚本识别 Linux x86_64/arm64 与 macOS arm64/x86_64，下载对应的 `cranibox-<系统>-<架构>` 与
+`SHA256SUMS`，校验 SHA-256 不一致则不安装；非 root 装到 `~/.local/bin`（不在 PATH 时给出提示），
+root 装到 `/usr/local/bin`。可用 `CRANIBOX_INSTALL_DIR`、`CRANIBOX_VERSION`（tag 或版本号）、
+`CRANIBOX_DOWNLOAD_BASE`（镜像目录）调整。测试见 `tests/test_install_script.py`。
+
+没有 systemd 等服务管理器时，用内置的后台模式：
+
+```bash
+cranibox serve --daemon    # 新会话中后台运行；pid 写入设置目录下的 serve.pid，日志追加到 logs/serve.log
+cranibox serve status      # 运行中返回 0，未运行返回 3
+cranibox serve stop        # 向整个会话发 SIGTERM，20 秒未退出再 SIGKILL，并清理 pid 文件
+```
+
+`--daemon` 之外的参数（`--listen`、`--relay-listen` 等）原样传给后台进程；受管运行时照常启动
+和自更新。设置目录跟随 `--config`（Linux 默认 `~/.config/cranibox`）。
+
 ## 平台包
 
 入口包为 `@fliaping/cranibox`，平台包均包含**无 GUI 的独立 CLI / 节点运行时**：
@@ -152,8 +176,14 @@ npmmirror 不需要发布凭据。
 - **开发构建：** 每次 main push（包括仅修改文档）在 desktop、native、Wayland 和分发测试
   全部通过后，由 `publish-dev` 发布 `<crates/cranibox 的 Cargo version>-dev.<github.run_number>`。
   `--version` 覆盖全部 npm 包的版本及精确依赖，不修改源码版本，也不检查 tag / Cargo
-  版本一致性；仍严格校验 SemVer，禁止 build metadata。二进制 `--version` 仍为 Cargo
-  版本。开发包显式使用 `--dist-tag dev`，不会推进 `latest` 或 `next`。
+  版本一致性；仍严格校验 SemVer，禁止 build metadata。开发包显式使用 `--dist-tag dev`，
+  不会推进 `latest` 或 `next`。
+- **二进制版本号：** CI 用 `scripts/release/build-version.py` 算出本次构建的发布版本（tag 为
+  tag 版本，其余为上面的 dev 版本），写入 `CRANIBOX_BUILD_VERSION` 后再编译独立 CLI、Linux
+  arm64 CLI 和桌面应用。`crates/cranibox` 与桌面应用在编译期用 `option_env!` 读取它，所以
+  `cranibox --version`、桌面应用作为命令行（`/usr/local/bin/cranibox` 指向 App 内的程序）、
+  Info.plist 和 npm 包版本一致，例如都是 `1.2.2-dev.357`；Cargo.toml 不会被改动。本地构建未设置
+  该变量时仍报告 Cargo 版本。CI 会检查 `--version` 与 `CRANIBOX_BUILD_VERSION` 相同。
 
 未启用发布变量时 CI 仍构建和测试。国内通知升级前应确认镜像已同步目标版本及全部平台包。
 
