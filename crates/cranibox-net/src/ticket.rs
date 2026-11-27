@@ -23,14 +23,48 @@ pub fn decode(text: &str) -> Result<PairTicket> {
     let bytes = BASE32_NOPAD
         .decode(text.to_ascii_uppercase().as_bytes())
         .context("This is not a Cranibox pairing link.")?;
-    let ticket: PairTicket =
-        postcard::from_bytes(&bytes).context("This is not a Cranibox pairing link.")?;
+    let ticket: PairTicket = postcard::from_bytes(&bytes).map_err(|_| undecodable(&bytes))?;
     ensure!(
         ticket.v == PAIR_TICKET_VERSION,
         "This pairing link needs a newer Cranibox."
     );
     crate::addr::parse_id(&ticket.inviter.endpoint_id)?;
     Ok(ticket)
+}
+
+/// The ticket layout with the purpose as its raw variant index, to recognise links
+/// that only a newer Cranibox understands. Same wire format as [`PairTicket`].
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct RawTicket {
+    v: u8,
+    inviter: cranibox_contracts::net::IrohAddr,
+    inviter_node_id: String,
+    secret: [u8; 16],
+    expires_at: u64,
+    purpose: u32,
+    hub: Option<cranibox_contracts::net::IrohAddr>,
+}
+
+/// Why valid base32 did not decode as a ticket, in words (never a serde message).
+fn undecodable(bytes: &[u8]) -> anyhow::Error {
+    const UPDATE: &str =
+        "Update Cranibox on this device (`cranibox update apply latest`) and try again.";
+    match bytes.first() {
+        Some(&v) if v > PAIR_TICKET_VERSION => {
+            anyhow::anyhow!("This pairing link needs a newer Cranibox (link version {v}). {UPDATE}")
+        }
+        Some(&v) if v == PAIR_TICKET_VERSION => match postcard::from_bytes::<RawTicket>(bytes) {
+            Ok(raw) => anyhow::anyhow!(
+                "This pairing link uses a pairing type this Cranibox does not know yet (type {}), such as a controlled worker. {UPDATE}",
+                raw.purpose
+            ),
+            Err(_) => anyhow::anyhow!(
+                "This pairing link is damaged or comes from a different Cranibox version. Copy the whole link again; if it still fails, update Cranibox on both devices."
+            ),
+        },
+        _ => anyhow::anyhow!("This is not a Cranibox pairing link."),
+    }
 }
 
 pub fn app_link(ticket: &PairTicket) -> Result<String> {
@@ -126,5 +160,40 @@ mod tests {
         let mut newer = t.clone();
         newer.v = 2;
         assert!(parse_link(&encode(&newer).unwrap()).is_err());
+    }
+    #[test]
+    fn unknown_pairing_types_ask_for_an_update_instead_of_a_serde_error() {
+        // A newer Cranibox adds a fourth purpose (variant index 3): replace the
+        // trailing purpose and `hub: None` bytes of a known ticket.
+        let mut bytes = postcard::to_allocvec(&ticket()).unwrap();
+        let n = bytes.len();
+        assert_eq!(&bytes[n - 2..], &[0, 0]);
+        bytes[n - 2] = 3;
+        let error = parse_link(&BASE32_NOPAD.encode(&bytes))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("pairing type this Cranibox does not know yet (type 3)"),
+            "{error}"
+        );
+        assert!(error.contains("cranibox update apply latest"), "{error}");
+        assert!(!error.to_lowercase().contains("serde"), "{error}");
+        // Damaged bytes after a valid version byte.
+        let error = parse_link(&BASE32_NOPAD.encode(&[1, 0xff, 0xff]))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("damaged"), "{error}");
+        // A newer ticket layout.
+        let error = parse_link(&BASE32_NOPAD.encode(&[9, 1, 2]))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("needs a newer Cranibox (link version 9)"),
+            "{error}"
+        );
+        // Worker links still round-trip unchanged.
+        let mut worker = ticket();
+        worker.purpose = PairPurpose::Worker;
+        assert_eq!(parse_link(&app_link(&worker).unwrap()).unwrap(), worker);
     }
 }

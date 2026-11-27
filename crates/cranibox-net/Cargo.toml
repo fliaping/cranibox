@@ -19,7 +19,8 @@ http = "1"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["server", "client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "service", "server"] }
-iroh = "1.3.0"
+# `unstable-net-report`: UDP reachability for `cranibox peer pair doctor` and status.
+iroh = { version = "1.3.0", features = ["unstable-net-report"] }
 iroh-relay = { version = "1.3.0", features = ["server"] }
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }

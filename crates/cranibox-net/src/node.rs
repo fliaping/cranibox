@@ -225,6 +225,10 @@ impl IrohNode {
         Ok(true)
     }
 
+    /// Extra trusted TLS roots for relays behind a private CA.
+    pub fn extra_roots(&self) -> &[Vec<u8>] {
+        &self.extra_roots
+    }
     pub fn endpoint(&self) -> &Endpoint {
         &self.endpoint
     }

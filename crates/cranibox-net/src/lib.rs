@@ -13,6 +13,7 @@
 //!   handshake that shows the existing SAS pairing code.
 pub mod addr;
 pub mod allow;
+pub mod diag;
 pub mod forward;
 pub mod hop;
 pub mod lan;

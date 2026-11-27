@@ -236,19 +236,21 @@ pub async fn self_check(public_url: &str, extra_roots: &[Vec<u8>]) -> Check {
 
 /// `GET <relay>/ping` answers 200: the relay is reachable over HTTPS.
 pub async fn ping(relay: &str, extra_roots: &[Vec<u8>]) -> bool {
-    async {
-        let url = format!(
-            "{}{}",
-            crate::addr::normalize_relay(relay)?
-                .to_string()
-                .trim_end_matches('/'),
-            RELAY_PROBE_PATH
-        );
-        let response = client(extra_roots)?.get(url).send().await?;
-        anyhow::Ok(response.status().is_success())
-    }
-    .await
-    .unwrap_or(false)
+    ping_detail(relay, extra_roots).await.is_ok()
+}
+
+/// [`ping`] with the reason it failed.
+pub async fn ping_detail(relay: &str, extra_roots: &[Vec<u8>]) -> Result<()> {
+    let url = format!(
+        "{}{}",
+        crate::addr::normalize_relay(relay)?
+            .to_string()
+            .trim_end_matches('/'),
+        RELAY_PROBE_PATH
+    );
+    let response = client(extra_roots)?.get(url).send().await?;
+    anyhow::ensure!(response.status().is_success(), "HTTP {}", response.status());
+    Ok(())
 }
 
 fn client(extra_roots: &[Vec<u8>]) -> Result<reqwest::Client> {
