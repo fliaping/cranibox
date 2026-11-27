@@ -19,7 +19,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
 from release_common import (
-    PLATFORMS, DESKTOP_PLATFORMS, CLI_ARTIFACTS, check_binary, dev_version, sha256,
+    PLATFORMS, DESKTOP_PLATFORMS, CLI_ARTIFACTS, build_version, check_binary, dev_version, sha256,
     verified_assets, version_for_tag,
 )
 
@@ -733,6 +733,40 @@ if (process.argv[2] === '--wait') {
         result = subprocess.run([str(command)], capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 1)
         self.assertIn("--include=optional", result.stderr)
+
+
+class BuildVersion(unittest.TestCase):
+    """Dev binaries report the version they are published as, not the last release's."""
+
+    def test_tags_build_their_version_and_everything_else_the_dev_version(self):
+        self.assertEqual(build_version("refs/tags/v1.3.0", "v1.3.0", "7", "1.2.1"), "1.3.0")
+        self.assertEqual(build_version("refs/tags/v1.3.0-beta.2", "v1.3.0-beta.2", "7", "1.2.1"), "1.3.0-beta.2")
+        self.assertEqual(build_version("refs/heads/main", "main", "357", "1.2.1"), "1.2.2-dev.357")
+        self.assertEqual(build_version("refs/pull/57/merge", "57/merge", "12", "1.2.1"), "1.2.2-dev.12")
+        with self.assertRaises(ValueError):
+            build_version("refs/tags/v1.3", "v1.3", "7", "1.2.1")
+
+    def test_script_prints_the_ci_version(self):
+        source = __import__("tomllib").loads((ROOT / "crates/cranibox/Cargo.toml").read_text())["package"]["version"]
+        env = {**os.environ, "GITHUB_REF": "refs/heads/main", "GITHUB_REF_NAME": "main", "GITHUB_RUN_NUMBER": "42"}
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/release/build-version.py")],
+                                capture_output=True, text=True, env=env, check=True)
+        self.assertEqual(result.stdout.strip(), dev_version(source, "42"))
+
+    def test_ci_stamps_and_checks_every_cli_and_desktop_build(self):
+        workflow = (ROOT / ".github/workflows/rust-runtime.yml").read_text()
+        # cli matrix, Linux arm64, desktop, and the npm dev version all use one helper.
+        self.assertEqual(workflow.count("scripts/release/build-version.py"), 4)
+        self.assertNotIn("from release_common import dev_version", workflow)
+        self.assertIn('= "cranibox $CRANIBOX_BUILD_VERSION"', workflow)
+        self.assertEqual(workflow.count('"cranibox $CRANIBOX_BUILD_VERSION"'), 3)
+        self.assertNotIn("tauri.conf.json').version", workflow)
+        for main in ("crates/cranibox/src/main.rs", "apps/node-desktop/src-tauri/src/main.rs"):
+            text = (ROOT / main).read_text()
+            self.assertIn('option_env!("CRANIBOX_BUILD_VERSION")', text, main)
+            # The command line reports the stamped version, never the bare Cargo one.
+            self.assertNotIn('run_program(args, env!("CARGO_PKG_VERSION"))', text, main)
+            self.assertNotIn('env!("CARGO_PKG_VERSION"),\n            ));', text, main)
 
 
 if __name__ == "__main__":

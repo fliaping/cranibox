@@ -23,8 +23,8 @@ use tauri_plugin_autostart::ManagerExt;
 
 /// The published version: CI stamps dev builds, whose source version is the last release.
 const VERSION: &str = match option_env!("CRANIBOX_BUILD_VERSION") {
-    Some(version) => version,
-    None => env!("CARGO_PKG_VERSION"),
+    Some(version) if !version.is_empty() => version,
+    _ => env!("CARGO_PKG_VERSION"),
 };
 
 #[derive(Default)]
@@ -442,10 +442,8 @@ fn main() -> anyhow::Result<()> {
             .worker_threads(2)
             .enable_all()
             .build()?
-            .block_on(cranibox_node::cli::run_program(
-                argv.clone(),
-                env!("CARGO_PKG_VERSION"),
-            ));
+            // The same version as the window and Info.plist (stamped on dev builds).
+            .block_on(cranibox_node::cli::run_program(argv.clone(), VERSION));
     }
     // Adoption in the window names the first managed version after this program.
     cranibox_node::update::set_product_version(VERSION);
