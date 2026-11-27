@@ -12,6 +12,13 @@ fn in_workspace(args: &[String]) -> bool {
         || std::path::Path::new("/usr/local/lib/agent-workspace").is_dir()
 }
 
+/// The published version: CI stamps dev builds (`<Cargo version>-dev.<run>`) through
+/// `CRANIBOX_BUILD_VERSION`; local builds report the Cargo version.
+const VERSION: &str = match option_env!("CRANIBOX_BUILD_VERSION") {
+    Some(version) if !version.is_empty() => version,
+    _ => env!("CARGO_PKG_VERSION"),
+};
+
 #[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
     #[cfg_attr(not(feature = "workspace"), allow(unused_mut))]
@@ -51,6 +58,11 @@ async fn main() -> Result<()> {
             _ => {}
         }
     }
+    // `serve --daemon|status|stop`: before the managed launcher, which would otherwise
+    // run the service in the foreground.
+    if let Some(code) = cranibox_node::daemon::intercept(&args) {
+        std::process::exit(code);
+    }
     // Devices update themselves; inside the Agent Workspace image the image does.
     // Development builds with the workspace console leave management off.
     #[cfg(any(not(feature = "workspace"), feature = "managed"))]
@@ -60,11 +72,11 @@ async fn main() -> Result<()> {
         #[cfg(not(feature = "workspace"))]
         let managed = true;
         if managed {
-            cranibox_node::update::set_product_version(env!("CARGO_PKG_VERSION"));
+            cranibox_node::update::set_product_version(VERSION);
             if let Some(code) = cranibox_node::update::cli::auto_launch(&args).await? {
                 std::process::exit(code);
             }
         }
     }
-    cranibox_node::cli::run_program(args, env!("CARGO_PKG_VERSION")).await
+    cranibox_node::cli::run_program(args, VERSION).await
 }

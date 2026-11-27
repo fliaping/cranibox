@@ -107,6 +107,12 @@ pub enum Command {
         /// the interface stays on loopback.
         #[arg(long)]
         relay_listen: Option<std::net::SocketAddr>,
+        /// Run in the background (for machines without a service manager): writes
+        /// `serve.pid` next to the settings and logs to `logs/serve.log`.
+        #[arg(long)]
+        daemon: bool,
+        #[command(subcommand)]
+        action: Option<ServeAction>,
     },
     /// Print the sign-in link of this device's interface.
     UiUrl {
@@ -114,6 +120,14 @@ pub enum Command {
         #[arg(long)]
         listen: Option<std::net::SocketAddr>,
     },
+}
+/// `cranibox serve status|stop`, for a service started with `cranibox serve --daemon`.
+#[derive(Debug, Clone, Copy, clap::Subcommand)]
+pub enum ServeAction {
+    /// Whether the background service runs, its pid and log file.
+    Status,
+    /// Stop the background service.
+    Stop,
 }
 /// Agent commands over this device's own peers (paired and same-identity devices).
 pub async fn run_peers(peers: std::path::PathBuf, command: Command) -> Result<()> {
