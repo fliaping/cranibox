@@ -15,6 +15,7 @@
     <string name="scan_hint">对准另一台设备上的 Cranibox 二维码，或在下方粘贴配对链接。</string>
     <string name="scan_paste_hint">粘贴 cranibox:// 链接</string>
     <string name="scan_use_link">使用链接</string>
+    <string name="camera_unavailable">此设备没有可用的摄像头。请在下方粘贴配对链接完成配对。</string>
     <string name="camera_permission">扫描配对二维码需要相机权限。</string>
     <string name="camera_grant">允许使用相机</string>
     <string name="node_not_ready">节点尚未就绪，请先在「本机」页启动节点。</string>

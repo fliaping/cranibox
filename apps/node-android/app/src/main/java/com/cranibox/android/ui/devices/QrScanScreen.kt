@@ -144,10 +144,22 @@ fun QrScanScreen(
 private fun CameraPane(onBarcode: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
+    val hasCamera = remember {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
+    var cameraError by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    if (!hasCamera || cameraError) {
+        Text(
+            stringResource(R.string.camera_unavailable),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 12.dp),
+        )
+        return
+    }
     if (!granted) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
             Text(stringResource(R.string.camera_permission), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -165,31 +177,31 @@ private fun CameraPane(onBarcode: (String) -> Unit) {
                 val executor = Executors.newSingleThreadExecutor()
                 val providerFuture = ProcessCameraProvider.getInstance(ctx)
                 providerFuture.addListener({
-                    val provider = providerFuture.get()
-                    val preview = Preview.Builder().build().also { it.surfaceProvider = this.surfaceProvider }
-                    val analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setResolutionSelector(
-                            ResolutionSelector.Builder()
-                                .setResolutionStrategy(ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
-                                .build(),
-                        )
-                        .build()
-                    analysis.setAnalyzer(executor) { image ->
-                        val media = image.image
-                        if (media == null) { image.close(); return@setAnalyzer }
-                        val input = InputImage.fromMediaImage(media, image.imageInfo.rotationDegrees)
-                        scanner.process(input)
-                            .addOnSuccessListener { codes ->
-                                val value = codes.firstOrNull { it.format == Barcode.FORMAT_QR_CODE }?.rawValue
-                                if (!value.isNullOrBlank() && handled.compareAndSet(false, true)) onBarcode(value)
-                            }
-                            .addOnCompleteListener { image.close() }
-                    }
                     runCatching {
+                        val provider = providerFuture.get()
+                        val preview = Preview.Builder().build().also { it.surfaceProvider = this.surfaceProvider }
+                        val analysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setResolutionSelector(
+                                ResolutionSelector.Builder()
+                                    .setResolutionStrategy(ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                                    .build(),
+                            )
+                            .build()
+                        analysis.setAnalyzer(executor) { image ->
+                            val media = image.image
+                            if (media == null) { image.close(); return@setAnalyzer }
+                            val input = InputImage.fromMediaImage(media, image.imageInfo.rotationDegrees)
+                            scanner.process(input)
+                                .addOnSuccessListener { codes ->
+                                    val value = codes.firstOrNull { it.format == Barcode.FORMAT_QR_CODE }?.rawValue
+                                    if (!value.isNullOrBlank() && handled.compareAndSet(false, true)) onBarcode(value)
+                                }
+                                .addOnCompleteListener { image.close() }
+                        }
                         provider.unbindAll()
                         provider.bindToLifecycle(lifecycle, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                    }
+                    }.onFailure { cameraError = true }
                 }, ContextCompat.getMainExecutor(ctx))
             }
         },

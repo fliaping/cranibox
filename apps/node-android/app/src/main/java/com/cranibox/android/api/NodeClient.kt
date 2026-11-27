@@ -123,7 +123,7 @@ class NodeClient {
         post("/api/v1/app/pair/accept", buildJsonObject { put("link", link) })
 
     suspend fun pairConfirm(flowId: String, matches: Boolean) {
-        send("POST", "/api/v1/app/pair/${enc(flowId)}/confirm", buildJsonObject { put("matches", matches) })
+        send("POST", "/api/v1/app/pair/${enc(flowId)}/confirm", buildJsonObject { put("match", matches) })
     }
 
     private suspend inline fun <reified T> get(path: String): T = api("GET", path, null)

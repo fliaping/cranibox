@@ -15,6 +15,7 @@
     <string name="scan_hint">Point the camera at the Cranibox QR code on the other device, or paste a pairing link below.</string>
     <string name="scan_paste_hint">Paste a cranibox:// link</string>
     <string name="scan_use_link">Use link</string>
+    <string name="camera_unavailable">No camera is available on this device. Paste a pairing link below to finish pairing.</string>
     <string name="camera_permission">Camera access is needed to scan pairing QR codes.</string>
     <string name="camera_grant">Allow camera</string>
     <string name="node_not_ready">The node is not ready yet. Start it on the This phone tab.</string>
