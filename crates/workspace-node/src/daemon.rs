@@ -205,6 +205,7 @@ impl Started {
     }
 }
 
+#[cfg(unix)]
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -212,6 +213,7 @@ fn now() -> u64 {
         .unwrap_or(0)
 }
 
+#[cfg(unix)]
 /// Last `lines` lines of the log, for a service that exited right away.
 fn tail(path: &Path, lines: usize) -> String {
     let text = std::fs::read_to_string(path).unwrap_or_default();
@@ -219,6 +221,7 @@ fn tail(path: &Path, lines: usize) -> String {
     all[all.len().saturating_sub(lines)..].join("\n")
 }
 
+#[cfg(unix)]
 /// How long a new service must stay up before it counts as started.
 const SETTLE: Duration = Duration::from_millis(1500);
 
@@ -296,6 +299,7 @@ pub fn start(_paths: &Paths, _program: &Path, _args: &[String]) -> Result<Starte
     )
 }
 
+#[cfg(unix)]
 fn write_record(paths: &Paths, record: &Record) -> Result<()> {
     let temporary = paths.pid.with_extension("pid.tmp");
     std::fs::write(&temporary, serde_json::to_vec_pretty(record)?)?;
@@ -324,8 +328,11 @@ pub fn stop(paths: &Paths, grace: Duration) -> Result<Option<u32>> {
 }
 
 #[cfg(not(unix))]
-pub fn stop(_paths: &Paths, _grace: Duration) -> Result<Option<u32>> {
-    bail!("`cranibox serve stop` is for Linux and macOS")
+pub fn stop(paths: &Paths, _grace: Duration) -> Result<Option<u32>> {
+    match status(paths) {
+        State::Running(_) => bail!("`cranibox serve stop` is for Linux and macOS"),
+        State::Stale(_) | State::Stopped => Ok(None),
+    }
 }
 
 /// Signal the session the service leads (it called setsid), else just the process.
@@ -341,6 +348,7 @@ fn signal(pid: libc::pid_t, sig: libc::c_int) {
     }
 }
 
+#[cfg(unix)]
 fn wait_gone(pid: u32, within: Duration) -> bool {
     let deadline = std::time::Instant::now() + within;
     loop {
