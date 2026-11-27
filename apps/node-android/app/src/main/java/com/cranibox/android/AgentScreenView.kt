@@ -15,7 +15,7 @@ class AgentScreenView(context: Context) : FrameLayout(context) {
         scaleType = ImageView.ScaleType.FIT_CENTER
         contentDescription = "Agent 虚拟屏实时画面（只读）"
     }
-    private val empty = ui.text("等待虚拟屏画面…", 14f, Color.WHITE).apply {
+    private val empty = ui.text(context.getString(R.string.preview_waiting), 14f, Color.WHITE).apply {
         gravity = Gravity.CENTER
         setPadding(ui.dp(20), ui.dp(20), ui.dp(20), ui.dp(20))
     }
@@ -38,7 +38,7 @@ class AgentScreenView(context: Context) : FrameLayout(context) {
                     .collect { (frame, connected) ->
                         image.setImageBitmap(frame)
                         empty.visibility = if (frame == null) VISIBLE else GONE
-                        empty.text = if (connected) "等待虚拟屏画面…" else "手机控制未连接\n请在「手机」页连接后查看"
+                        empty.text = if (connected) context.getString(R.string.preview_waiting) else context.getString(R.string.preview_disconnected)
                     }
             }
         } else image.setImageDrawable(null)

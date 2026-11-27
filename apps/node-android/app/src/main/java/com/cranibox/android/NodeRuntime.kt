@@ -31,15 +31,17 @@ class NodeRuntime(private val app: NodeApp) {
     }
 
     @Synchronized
-    private fun command(vararg args: String): String {
+    private fun command(vararg args: String, logFailure: Boolean = true): String {
         val output = File(app.cacheDir, "node-command.out")
         val child = builder(*args).redirectErrorStream(true).redirectOutput(output).start()
         try {
             check(child.waitFor(5, TimeUnit.SECONDS)) { "节点命令超时" }
             if (child.exitValue() != 0) {
-                if (log.length() > 1024 * 1024) log.writeText("")
-                log.appendText("节点命令 ${args.firstOrNull().orEmpty()} 失败（${child.exitValue()}）\n" +
-                    output.readText().takeLast(6_000) + "\n")
+                if (logFailure) {
+                    if (log.length() > 1024 * 1024) log.writeText("")
+                    log.appendText("节点命令 ${args.firstOrNull().orEmpty()} 失败（${child.exitValue()}）\n" +
+                        output.readText().takeLast(6_000) + "\n")
+                }
                 error("节点命令失败，请查看节点日志")
             }
             return output.readText().trim()
@@ -75,7 +77,7 @@ class NodeRuntime(private val app: NodeApp) {
             var ready = false
             for (attempt in 0 until 30) {
                 check(child.isAlive) { "节点启动失败，请查看节点日志" }
-                val url = runCatching { command("ui-url") }.getOrNull()
+                val url = runCatching { command("ui-url", logFailure = false) }.getOrNull()
                 if (url != null && NodeUrl.isLocal(url)) {
                     OwnListeningPorts.add(android.net.Uri.parse(url).port)
                     app.loginUrl.value = url

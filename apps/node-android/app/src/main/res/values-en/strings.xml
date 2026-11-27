@@ -43,6 +43,8 @@
     <string name="stop_node_confirm">The node and phone control will stop. Other devices will not be able to reach this phone.</string>
     <string name="preview_title">Agent display</string>
     <string name="preview_readonly">Live preview · tapping the picture does not control the phone</string>
+    <string name="preview_waiting">Waiting for the virtual display…</string>
+    <string name="preview_disconnected">Phone control is not connected\nOpen the This phone tab to connect</string>
     <string name="wireless_pair">Wireless debugging pairing</string>
     <string name="recovery_hint">Approving a request on another device needs your recovery passphrase. It is used only on this phone to sign this decision, and is never sent or saved.</string>
     <string name="recovery_label">Recovery passphrase or code</string>

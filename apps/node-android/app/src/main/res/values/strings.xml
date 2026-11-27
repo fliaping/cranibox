@@ -43,6 +43,8 @@
     <string name="stop_node_confirm">节点与手机控制都会停止，远端设备将无法连接这台手机。</string>
     <string name="preview_title">Agent 虚拟屏</string>
     <string name="preview_readonly">实时预览 · 点击画面不会操作手机</string>
+    <string name="preview_waiting">等待虚拟屏画面…</string>
+    <string name="preview_disconnected">手机控制未连接\n请在「本机」页连接后查看</string>
     <string name="wireless_pair">无线调试配对</string>
     <string name="recovery_hint">批准其他设备上的请求需要输入恢复口令，只在本机用于签名，不会发送或保存。</string>
     <string name="recovery_label">恢复口令或恢复码</string>
