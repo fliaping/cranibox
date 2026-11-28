@@ -11,6 +11,11 @@ import java.security.SecureRandom
  * Generates a PicoClaw v0.3.1 (config schema 2) home directory for the Android
  * node. Paths and the Pico WebSocket port were verified against the pinned
  * PicoClaw sources (`pkg/config/defaults.go`, `pkg/channels/pico/pico.go`).
+ *
+ * Streaming is opt-in on both the model entry and the Pico channel
+ * (`pkg/config/config.go` ModelStreamingConfig / PicoSettings.Streaming).
+ * Without `streaming.enabled`, the agent uses non-streaming Chat() and the
+ * Pico WS channel's BeginStream() returns "streaming disabled in config".
  */
 object PicoClawConfig {
     const val VERSION = 2
@@ -195,15 +200,32 @@ object PicoClawConfig {
     )
     @Serializable data class Agents(val defaults: AgentDefaults)
     @Serializable data class AgentDefaults(@SerialName("model_name") val modelName: String)
+    /** Provider-level opt-in so ChatStream sends OpenAI `stream: true` (SSE). */
+    @Serializable data class ModelStreaming(val enabled: Boolean = true)
+    /**
+     * Pico WS channel streaming. `throttle_seconds: 0` and `min_growth_chars: 1`
+     * match BeginStream's WithDefaults(0, 1) so each token growth is forwarded
+     * as `message.create` / `message.update`.
+     */
+    @Serializable data class ChannelStreaming(
+        val enabled: Boolean = true,
+        @SerialName("throttle_seconds") val throttleSeconds: Int = 0,
+        @SerialName("min_growth_chars") val minGrowthChars: Int = 1,
+    )
     @Serializable data class ModelEntry(
         @SerialName("model_name") val modelName: String,
         val model: String,
         @SerialName("api_base") val apiBase: String,
         val enabled: Boolean = true,
+        val streaming: ModelStreaming = ModelStreaming(),
     )
     @Serializable data class Gateway(val host: String, val port: Int)
     @Serializable data class Channels(val pico: PicoChannel)
-    @Serializable data class PicoChannel(val enabled: Boolean, @SerialName("allow_token_query") val allowTokenQuery: Boolean)
+    @Serializable data class PicoChannel(
+        val enabled: Boolean,
+        @SerialName("allow_token_query") val allowTokenQuery: Boolean,
+        val streaming: ChannelStreaming = ChannelStreaming(),
+    )
     @Serializable data class Tools(val exec: ExecTool, val mcp: McpTool)
     @Serializable data class ExecTool(val enabled: Boolean)
     @Serializable data class McpTool(val enabled: Boolean, val servers: Map<String, McpServer>)

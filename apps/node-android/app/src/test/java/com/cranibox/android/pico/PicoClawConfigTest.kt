@@ -1,6 +1,12 @@
 package com.cranibox.android.pico
 
 import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -17,6 +23,22 @@ class PicoClawConfigTest {
         cacheDir = File(root, "cache"),
     )
 
+
+    private fun assertStreamingEnabled(config: String) {
+        val root = Json.parseToJsonElement(config).jsonObject
+        val models = root.getValue("model_list").jsonArray
+        assertTrue(models.isNotEmpty())
+        for (model in models) {
+            val streaming = model.jsonObject.getValue("streaming").jsonObject
+            assertTrue(streaming.getValue("enabled").jsonPrimitive.boolean, "model streaming.enabled")
+        }
+        val pico = root.getValue("channels").jsonObject.getValue("pico").jsonObject
+        val channelStreaming = pico.getValue("streaming").jsonObject
+        assertTrue(channelStreaming.getValue("enabled").jsonPrimitive.boolean, "channel streaming.enabled")
+        assertEquals(0, channelStreaming.getValue("throttle_seconds").jsonPrimitive.int)
+        assertEquals(1, channelStreaming.getValue("min_growth_chars").jsonPrimitive.int)
+    }
+
     @Test fun writesSchemaV2LoopbackGatewayAndStdioMcp() {
         val root = File.createTempFile("pico-cfg", "dir").apply { delete(); mkdirs() }
         try {
@@ -24,6 +46,7 @@ class PicoClawConfigTest {
             val generated = PicoClawConfig.write(paths(root), settings, token = "tok-1234567890abcdef")
             assertEquals("tok-1234567890abcdef", generated.token)
             val text = File(root, "picoclaw/config.json").readText()
+            assertStreamingEnabled(text)
             assertContains(text, """"version": 2""")
             assertContains(text, """"host": "127.0.0.1"""")
             assertContains(text, """"port": 18790""")
@@ -56,6 +79,7 @@ class PicoClawConfigTest {
             )
             PicoClawConfig.write(paths(root), settings, token = "tok-1234567890abcdef")
             val text = File(root, "picoclaw/config.json").readText()
+            assertStreamingEnabled(text)
             assertContains(text, """"model_name": "custom"""")
             assertContains(text, "openai/gpt-4.1")
             assertContains(text, "https://api.example.com/v1")

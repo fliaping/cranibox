@@ -1,6 +1,7 @@
 package com.cranibox.android.ui.chat
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cranibox.android.NodeApp
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -51,6 +53,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             for (event in client.events) {
+                if (event is PicoEvent.Assistant) logStreamFrame(event)
                 _state.update { ChatReducer.apply(it, event) }
                 if (event is PicoEvent.Assistant && event.kind != "thought") persistTitle()
             }
@@ -63,7 +66,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val wsLog = File(app.filesDir, "picoclaw-ws.log")
+
+    private fun logStreamFrame(event: PicoEvent.Assistant) {
+        val line = "ws ${event.type} id=${event.messageId} kind=${event.kind} chars=${event.content.length} replace=${event.replace}"
+        Log.i(TAG, line)
+        runCatching {
+            if (wsLog.length() > 256 * 1024) wsLog.writeText("")
+            wsLog.appendText(line + "\n")
+        }
+    }
+
     private fun connect(sessionId: String) {
+
         _state.update { it.copy(connecting = true, sessionId = sessionId, error = null) }
         runCatching { client.connect(sessionId) }
             .onFailure { err -> _state.update { it.copy(connecting = false, error = err.message) } }
@@ -148,5 +163,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         client.close()
         super.onCleared()
+    }
+
+    private companion object {
+        const val TAG = "CraniboxPico"
     }
 }
