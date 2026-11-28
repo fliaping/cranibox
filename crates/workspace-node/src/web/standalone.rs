@@ -202,6 +202,12 @@ pub async fn run(
         }
     };
     let address = listener.local_addr()?;
+    // Record the address as soon as the socket is bound so `ui-url` succeeds
+    // before axum starts accepting (the kernel already completes TCP handshakes
+    // from the listen backlog). serve() rewrites the same file with a fresh
+    // instance id and holds that registration until shutdown.
+    let _early_endpoint =
+        super::endpoint::Registration::device(local.config_path(), address, &token)?;
     // Service logs are often world-readable; print the secret link only to a terminal.
     if std::io::IsTerminal::is_terminal(&std::io::stderr()) {
         eprintln!(

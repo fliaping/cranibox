@@ -45,6 +45,7 @@ impl Known {
             Some("laptop") => DeviceKind::Laptop,
             Some("server") => DeviceKind::Server,
             Some("desktop") => DeviceKind::Desktop,
+            Some("phone") | Some("mobile") => DeviceKind::Phone,
             _ => DeviceKind::Unknown,
         }
     }

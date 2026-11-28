@@ -5,7 +5,11 @@ use anyhow::{Context, Result, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use uuid::Uuid;
 
 pub const MAX_RESPONSE: usize = 8 * 1024 * 1024;
@@ -39,18 +43,31 @@ pub struct Provider {
     pub kind: ProviderKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub address: Option<SocketAddr>,
+    /// A private file holding the bridge's bearer token. Needed where loopback is shared
+    /// with untrusted programs (every app on an Android phone can reach 127.0.0.1).
+    /// Only the path is stored, so status views never show the secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_file: Option<PathBuf>,
 }
 impl Provider {
     pub fn http(address: SocketAddr) -> Self {
         Self {
             kind: ProviderKind::Http,
             address: Some(address),
+            token_file: None,
+        }
+    }
+    pub fn http_with_token(address: SocketAddr, token_file: PathBuf) -> Self {
+        Self {
+            token_file: Some(token_file),
+            ..Self::http(address)
         }
     }
     pub fn cua() -> Self {
         Self {
             kind: ProviderKind::Cua,
             address: None,
+            token_file: None,
         }
     }
     pub fn validate(&self) -> Result<()> {
@@ -61,12 +78,35 @@ impl Provider {
             ),
             (ProviderKind::Http, None) => anyhow::bail!("Computer Use bridge address is required"),
             (ProviderKind::Cua, address) => ensure!(
-                address.is_none(),
+                address.is_none() && self.token_file.is_none(),
                 "the cua-driver provider has no network address"
             ),
         }
+        if let Some(file) = &self.token_file {
+            ensure!(
+                file.is_absolute(),
+                "Computer Use token file must be an absolute path"
+            );
+        }
         Ok(())
     }
+    fn bearer(&self) -> Result<Option<String>> {
+        let Some(file) = &self.token_file else {
+            return Ok(None);
+        };
+        Ok(Some(read_token(file)?))
+    }
+}
+
+fn read_token(file: &Path) -> Result<String> {
+    let token = std::fs::read_to_string(file)
+        .map_err(|_| anyhow::anyhow!("Computer Use token file is unreadable"))?;
+    let token = token.trim();
+    ensure!(
+        (16..=512).contains(&token.len()) && token.bytes().all(|b| b.is_ascii_graphic()),
+        "Computer Use token file is invalid"
+    );
+    Ok(token.to_owned())
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -232,6 +272,12 @@ pub enum Action {
     WindowFocus {
         window_id: String,
     },
+    /// Phones: list the apps that can be opened.
+    AppList {},
+    /// Phones: open an installed app by package name on the Agent's screen.
+    OpenApp {
+        package: String,
+    },
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -252,11 +298,25 @@ fn coordinate(value: &[f64], space: Coordinates) -> Result<()> {
     );
     Ok(())
 }
+/// Android package names: dot-separated Java identifiers, at least two segments.
+fn valid_package(name: &str) -> bool {
+    let segments: Vec<&str> = name.split('.').collect();
+    name.len() <= 255
+        && segments.len() >= 2
+        && segments.iter().all(|s| {
+            s.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+}
 impl Action {
     pub fn mutates(&self) -> bool {
         !matches!(
             self,
-            Self::Screenshot {} | Self::Zoom { .. } | Self::CursorPosition {} | Self::WindowList {}
+            Self::Screenshot {}
+                | Self::Zoom { .. }
+                | Self::CursorPosition {}
+                | Self::WindowList {}
+                | Self::AppList {}
         )
     }
     pub fn validate(&self) -> Result<()> {
@@ -287,6 +347,10 @@ impl Action {
             Self::Key { text } => ensure!(
                 !text.is_empty() && text.len() <= 128 && !text.chars().any(char::is_control),
                 "invalid key combination"
+            ),
+            Self::OpenApp { package } => ensure!(
+                valid_package(package),
+                "package must be an Android package name such as com.example.app"
             ),
             Self::WindowFocus { window_id } => ensure!(
                 !window_id.is_empty()
@@ -366,11 +430,16 @@ pub async fn bridge(provider: &Provider, payload: Value, session: &str) -> Resul
     let address = provider
         .address
         .context("Computer Use bridge address is required")?;
+    let bearer = provider.bearer()?;
     let response: Result<Value> = async {
-        let mut response = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
+        let mut request = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10)).build()?
             .post(format!("http://{address}/v1/action"))
-            .header("X-Agent-Session", session).json(&payload).send().await?;
+            .header("X-Agent-Session", session);
+        if let Some(token) = &bearer {
+            request = request.bearer_auth(token);
+        }
+        let mut response = request.json(&payload).send().await?;
         let status = response.status();
         ensure!(status.is_success(), if status.as_u16() == 423 { "Computer Use is paused; resume on the target device" } else { "Computer Use provider rejected the action" });
         let mut bytes = vec![];
@@ -492,7 +561,7 @@ impl Mcp {
         if live.is_empty() {
             return json!([]);
         }
-        let mut properties = json!({"operation":{"enum":["status","acquire","renew","release","action","emergency_stop"]},"ttl_secs":{"type":"integer","minimum":1,"maximum":300},"lease":{"type":"string","format":"uuid"},"action":{"type":"object","description":"Typed bridge action: screenshot; zoom {region:[x1,y1,x2,y2]}; cursor_position; window_list; mouse_move/left_click/right_click/middle_click/double_click {coordinate:[x,y],coordinate_space:pixels|normalized}; left_click_drag {start_coordinate,coordinate}; scroll {scroll_direction:up|down|left|right,scroll_amount:1..100,coordinate?}; type/key {text}; window_focus {window_id}. No held inputs, arbitrary URLs or remote resume."}});
+        let mut properties = json!({"operation":{"enum":["status","acquire","renew","release","action","emergency_stop"]},"ttl_secs":{"type":"integer","minimum":1,"maximum":300},"lease":{"type":"string","format":"uuid"},"action":{"type":"object","description":"Typed bridge action: screenshot; zoom {region:[x1,y1,x2,y2]}; cursor_position; window_list; mouse_move/left_click/right_click/middle_click/double_click {coordinate:[x,y],coordinate_space:pixels|normalized}; left_click_drag {start_coordinate,coordinate}; scroll {scroll_direction:up|down|left|right,scroll_amount:1..100,coordinate?}; type/key {text}; window_focus {window_id}; phones only: app_list, open_app {package}. No held inputs, arbitrary URLs or remote resume."}});
         let mut required = vec!["operation"];
         let place = if let [only] = live.as_slice() {
             only.label.clone()
@@ -620,6 +689,121 @@ mod tests {
         assert!(!format!("{:#}", routed.unwrap_err()).contains("target"));
         // Nothing reachable: no tool is offered.
         assert_eq!(mcp.tools().await, json!([]));
+    }
+    #[test]
+    fn phone_actions_name_a_real_package() {
+        for ok in ["com.android.settings", "com.tencent.mm", "org.a_b.c2"] {
+            Action::OpenApp { package: ok.into() }.validate().unwrap();
+        }
+        for bad in [
+            "settings",
+            "com..x",
+            "1com.x",
+            "com.x/.Main",
+            "com.x;rm",
+            "",
+        ] {
+            assert!(
+                Action::OpenApp {
+                    package: bad.into()
+                }
+                .validate()
+                .is_err(),
+                "{bad}"
+            );
+        }
+        assert!(!Action::AppList {}.mutates());
+        assert!(
+            Action::OpenApp {
+                package: "com.a.b".into()
+            }
+            .mutates()
+        );
+        let parsed: Request = serde_json::from_value(
+            json!({"operation":"action","action":{"action":"open_app","package":"com.a.b"}}),
+        )
+        .unwrap();
+        parsed.validate().unwrap();
+    }
+    #[test]
+    fn the_bridge_token_is_read_from_a_private_file_and_never_stored() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("bridge.token");
+        std::fs::write(&file, "0123456789abcdef0123456789abcdef\n").unwrap();
+        let provider = Provider::http_with_token("127.0.0.1:8765".parse().unwrap(), file.clone());
+        provider.validate().unwrap();
+        assert_eq!(
+            provider.bearer().unwrap().as_deref(),
+            Some("0123456789abcdef0123456789abcdef")
+        );
+        let stored = serde_json::to_value(&provider).unwrap();
+        assert_eq!(
+            stored,
+            json!({"address":"127.0.0.1:8765","token_file":file.to_str().unwrap()})
+        );
+        std::fs::write(&file, "short").unwrap();
+        assert!(provider.bearer().is_err());
+        assert!(
+            Provider::http_with_token("127.0.0.1:8765".parse().unwrap(), "relative".into())
+                .validate()
+                .is_err()
+        );
+        let cua_with_token: Provider =
+            serde_json::from_value(json!({"kind":"cua","token_file":"/x"})).unwrap();
+        assert!(cua_with_token.validate().is_err());
+    }
+    #[tokio::test]
+    async fn phone_bridge_requests_send_the_current_private_token() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("bridge.token");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = Provider::http_with_token(listener.local_addr().unwrap(), file.clone());
+        let tokens = [
+            "first-private-token-0123456789",
+            "rotated-private-token-9876543210",
+        ];
+        let server = tokio::spawn(async move {
+            for token in tokens {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    assert!(head.len() < 8192);
+                    head.push(socket.read_u8().await.unwrap());
+                }
+                let head = String::from_utf8(head).unwrap().to_lowercase();
+                assert!(head.starts_with("post /v1/action http/1.1\r\n"));
+                assert!(head.contains(&format!("\r\nauthorization: bearer {token}\r\n")));
+                assert!(head.contains("\r\nx-agent-session: phone-test\r\n"));
+                let length: usize = head
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length: "))
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+                let mut body = vec![0; length];
+                socket.read_exact(&mut body).await.unwrap();
+                assert_eq!(
+                    serde_json::from_slice::<Value>(&body).unwrap(),
+                    json!({"action":"app_list"})
+                );
+                let body = r#"{"result":"ok","apps":[]}"#;
+                socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        for token in tokens {
+            std::fs::write(&file, token).unwrap();
+            assert_eq!(
+                bridge(&provider, json!({"action":"app_list"}), "phone-test")
+                    .await
+                    .unwrap(),
+                json!({"result":"ok","apps":[]})
+            );
+        }
+        tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .unwrap()
+            .unwrap();
     }
     #[test]
     fn provider_kind_defaults_to_the_http_bridge_and_keeps_old_bytes() {

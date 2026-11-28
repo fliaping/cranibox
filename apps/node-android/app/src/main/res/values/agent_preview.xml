@@ -1,0 +1,4 @@
+<resources>
+    <string name="agent_overlay_label">Cranibox · Agent 屏幕悬浮窗</string>
+    <string name="agent_overlay_description">在其他应用上方显示 Agent 独立屏幕的实时预览，支持拖动、收起和停止 Agent。此服务不读取其他应用的界面内容，也不执行触摸操作。手机控制仍需单独连接无线调试。</string>
+</resources>

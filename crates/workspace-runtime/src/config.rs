@@ -97,9 +97,14 @@ pub fn write_private(path: &Path, bytes: &[u8], replace: bool) -> Result<()> {
         if replace {
             fs::rename(&temp, path)?;
         } else {
-            // hard_link is an atomic no-clobber operation, including under concurrent enrollment.
-            fs::hard_link(&temp, path)?;
-            fs::remove_file(&temp)?;
+            #[cfg(target_os = "android")]
+            rename_without_replacing(&temp, path)?;
+            #[cfg(not(target_os = "android"))]
+            {
+                // hard_link is an atomic no-clobber operation, including under concurrent enrollment.
+                fs::hard_link(&temp, path)?;
+                fs::remove_file(&temp)?;
+            }
         }
         Ok(())
     })();
@@ -107,6 +112,32 @@ pub fn write_private(path: &Path, bytes: &[u8], replace: bool) -> Result<()> {
         let _ = fs::remove_file(&temp);
     }
     result
+}
+
+// Android's untrusted_app SELinux domain forbids hard links, even inside the
+// app's own private directory. An exclusive rename publishes the completed
+// private inode atomically without replacing an existing identity or token.
+#[cfg(any(target_os = "android", all(test, target_os = "linux")))]
+fn rename_without_replacing(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+    let source = CString::new(source.as_os_str().as_bytes())?;
+    let destination = CString::new(destination.as_os_str().as_bytes())?;
+    // SAFETY: Both paths are live, NUL-terminated strings; AT_FDCWD resolves
+    // them as ordinary paths and RENAME_NOREPLACE forbids replacing any entry.
+    let result = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            source.as_ptr(),
+            libc::AT_FDCWD,
+            destination.as_ptr(),
+            libc::RENAME_NOREPLACE as _,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 pub fn read_token(path: &Path) -> Result<String> {
     let value = fs::read_to_string(path)
@@ -168,6 +199,70 @@ mod identity_tests {
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,
             0o600
         );
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    fn exclusive_rename_preserves_existing_files_and_dangling_symlinks() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("source");
+        let target = temp.path().join("identity");
+        fs::write(&source, b"new identity").unwrap();
+        fs::write(&target, b"existing identity").unwrap();
+        assert_eq!(
+            rename_without_replacing(&source, &target)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(fs::read(&target).unwrap(), b"existing identity");
+        fs::remove_file(&target).unwrap();
+        std::os::unix::fs::symlink(temp.path().join("missing"), &target).unwrap();
+        assert_eq!(
+            rename_without_replacing(&source, &target)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert!(target.is_symlink());
+        assert_eq!(fs::read(&source).unwrap(), b"new identity");
+    }
+
+    #[test]
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    fn exclusive_rename_has_one_winner_under_concurrent_enrollment() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = temp.path().join("identity");
+        let barrier = std::sync::Barrier::new(8);
+        let winners = std::thread::scope(|scope| {
+            let threads: Vec<_> = (0..8)
+                .map(|index| {
+                    let target = &target;
+                    let barrier = &barrier;
+                    let source = temp.path().join(format!("candidate-{index}"));
+                    scope.spawn(move || {
+                        let payload = vec![index; 4096];
+                        fs::write(&source, &payload).unwrap();
+                        barrier.wait();
+                        match rename_without_replacing(&source, target) {
+                            Ok(()) => Some(payload),
+                            Err(error) => {
+                                assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+                                fs::remove_file(source).unwrap();
+                                None
+                            }
+                        }
+                    })
+                })
+                .collect();
+            threads
+                .into_iter()
+                .filter_map(|thread| thread.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(winners.len(), 1);
+        assert_eq!(fs::read(&target).unwrap(), winners[0]);
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
     }
 }

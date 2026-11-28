@@ -174,6 +174,10 @@ pub enum Command {
     Computer {
         #[arg(long)]
         address: Option<SocketAddr>,
+        /// Private file with the bridge's bearer token (required on Android, where every
+        /// app can reach loopback).
+        #[arg(long, requires = "address")]
+        token_file: Option<PathBuf>,
     },
     /// Owner-only Computer Use status, emergency stop or resume as typed JSON.
     ComputerOwner {
@@ -736,11 +740,18 @@ pub async fn run(path: PathBuf, command: Command) -> Result<()> {
             })?
             .public_view(),
         ),
-        Command::Computer { address } => client::print(
+        Command::Computer {
+            address,
+            token_file,
+        } => client::print(
             agent_workspace_runtime::peers::Store::new(path.clone())
                 .manage(agent_workspace_runtime::peers::Command::ComputerSharing {
                     computer: address.map(|address| {
-                        agent_workspace_runtime::peers::computer::Provider::http(address)
+                        use agent_workspace_runtime::peers::computer::Provider;
+                        match token_file {
+                            Some(file) => Provider::http_with_token(address, file),
+                            None => Provider::http(address),
+                        }
                     }),
                 })
                 .await?,

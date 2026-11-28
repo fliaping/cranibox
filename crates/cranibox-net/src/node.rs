@@ -96,6 +96,42 @@ pub struct IrohNode {
     lan: Option<(MemoryLookup, SecretKey)>,
 }
 
+
+/// DNS resolver that never calls `ndk_context::android_context()`.
+///
+/// Prefer `getprop net.dns*`, then well-known public resolvers. The endpoint
+/// still works when system DNS is a fake-IP or unreachable: pairing can use a
+/// direct/LAN path, and the public nameservers are only a fallback.
+#[cfg(target_os = "android")]
+fn android_dns_resolver() -> iroh::dns::DnsResolver {
+    use iroh::dns::{DnsResolver, NameserverConfig};
+    use std::net::IpAddr;
+    use std::process::Command;
+
+    let mut ips = Vec::new();
+    for key in ["net.dns1", "net.dns2", "net.dns3"] {
+        let Ok(output) = Command::new("getprop").arg(key).output() else {
+            continue;
+        };
+        if let Ok(ip) = String::from_utf8_lossy(&output.stdout).trim().parse::<IpAddr>() {
+            if !ips.contains(&ip) {
+                ips.push(ip);
+            }
+        }
+    }
+    if ips.is_empty() {
+        ips.extend([
+            "8.8.8.8".parse::<IpAddr>().unwrap(),
+            "1.1.1.1".parse::<IpAddr>().unwrap(),
+        ]);
+    }
+    let mut builder = DnsResolver::builder();
+    for ip in ips {
+        builder = builder.add_nameserver_config(NameserverConfig::udp(ip));
+    }
+    builder.build()
+}
+
 impl IrohNode {
     /// Bind the endpoint with the node's ed25519 signing seed as the iroh SecretKey.
     pub async fn bind(seed: &[u8; 32], options: Options) -> Result<Self> {
@@ -126,6 +162,13 @@ impl IrohNode {
                 ALPN_PEER_HOP.to_vec(),
                 ALPN_PAIR.to_vec(),
             ]);
+        // libcranibox.so is a standalone executable, not a JNI-loaded library, so
+        // ndk_context is never initialized. iroh's default DnsResolver::new() reads
+        // system DNS through JNI and panics (caught, but still printed) on Android.
+        #[cfg(target_os = "android")]
+        {
+            builder = builder.dns_resolver(android_dns_resolver());
+        }
         if options.no_address_lookup {
             builder = builder.clear_address_lookup();
         }
